@@ -3,7 +3,8 @@
 		"AlpenFlow": {
 			"source": "cadence/contracts/AlpenFlow.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"emulator": "f8d6e0586b0a20c7",
+				"testing": "179b6b1cb6755e31"
 			}
 		}
 	},
@@ -20,11 +21,21 @@
 				"type": "file",
 				"location": "emulator-account.pkey"
 			}
+		},
+		"test-account": {
+			"address": "179b6b1cb6755e31",
+			"key": {
+				"type": "file",
+				"location": "test-account.pkey"
+			}
 		}
 	},
 	"deployments": {
 		"emulator": {
-		"emulator-account": ["AlpenFlow"]
+			"emulator-account": ["AlpenFlow"]
+		},
+		"testing": {
+			"test-account": ["AlpenFlow"]
 		}
-  	}
+	}
 }

@@ -11,12 +11,26 @@ access(all) contract AlpenFlow {
     access(all) resource FlowVault: Vault {
         access(all) var balance: UFix64
 
+        access(all) fun setBalance(newBalance: UFix64) {
+            self.balance = newBalance
+        }
+
         access(all) fun deposit(from: @{Vault}) {
-            destroy from
+            // Cast the incoming Vault to a FlowVault so we can read its balance
+            let incoming <- from as! @FlowVault
+            self.balance = self.balance + incoming.balance
+            destroy incoming
         }
 
         access(Withdraw) fun withdraw(amount: UFix64): @FlowVault {
-            return <- create FlowVault()
+            pre {
+                amount > 0.0: "Withdrawal amount must be positive"
+                self.balance >= amount: "Insufficient balance"
+            }
+            self.balance = self.balance - amount
+            let newVault <- create FlowVault()
+            newVault.balance = amount
+            return <- newVault
         }
 
         init() {
@@ -243,7 +257,7 @@ access(all) contract AlpenFlow {
 
     // A multiplication function for interest calcuations. It assumes that both values are very close to 1
     // and represent fixed point numbers with 16 decimal places of precision.
-    access(self) fun interestMul(_ a: UInt64, _ b: UInt64): UInt64 {
+    access(all) fun interestMul(_ a: UInt64, _ b: UInt64): UInt64 {
         let aScaled = a / 100000000
         let bScaled = b / 100000000
 
@@ -254,7 +268,7 @@ access(all) contract AlpenFlow {
     // (stored in a UInt64 as a fixed point number with 16 decimal places). The input to this function will be
     // just the relative interest rate (e.g. 0.05 for 5% interest), but the result will be
     // the per-second multiplier (e.g. 1.000000000001).
-    access(self) fun perSecondInterestRate(yearlyRate: UFix64): UInt64 {
+    access(all) fun perSecondInterestRate(yearlyRate: UFix64): UInt64 {
         // Covert the yearly rate to an integer maintaning the 10^8 multiplier of UFix64.
         // We would need to multiply by an additional 10^8 to match the promised multiplier of
         // 10^16. HOWEVER, since we are about to divide by 31536000, we can save multiply a factor
@@ -267,7 +281,7 @@ access(all) contract AlpenFlow {
 
     // Updates an interest index to reflect the passage of time. The result is:
     //   newIndex = oldIndex * perSecondRate^seconds
-    access(self) fun compoundInterestIndex(oldIndex: UInt64, perSecondRate: UInt64, elapsedSeconds: UFix64): UInt64 {
+    access(all) fun compoundInterestIndex(oldIndex: UInt64, perSecondRate: UInt64, elapsedSeconds: UFix64): UInt64 {
         var result = oldIndex
         var current = perSecondRate
         var secondsCounter = UInt64(elapsedSeconds)
@@ -283,7 +297,7 @@ access(all) contract AlpenFlow {
         return result
     }
 
-    access(self) fun scaledBalanceToTrueBalance(scaledBalance: UFix64, interestIndex: UInt64): UFix64 {
+    access(all) fun scaledBalanceToTrueBalance(scaledBalance: UFix64, interestIndex: UInt64): UFix64 {
         // The interest index is essentially a fixed point number with 16 decimal places, we convert
         // it to a UFix64 by copying the byte representation, and then dividing by 10^8 (leaving and
         // additional 10^8 as required for the UFix64 representation).
@@ -291,7 +305,7 @@ access(all) contract AlpenFlow {
         return scaledBalance * indexMultiplier
     }
 
-    access(self) fun trueBalanceToScaledBalance(trueBalance: UFix64, interestIndex: UInt64): UFix64 {
+    access(all) fun trueBalanceToScaledBalance(trueBalance: UFix64, interestIndex: UInt64): UFix64 {
         // The interest index is essentially a fixed point number with 16 decimal places, we convert
         // it to a UFix64 by copying the byte representation, and then dividing by 10^8 (leaving and
         // additional 10^8 as required for the UFix64 representation).
@@ -365,6 +379,9 @@ access(all) contract AlpenFlow {
         // The actual reserves of each token
         access(self) var reserves: @{Type: {Vault}}
 
+        // Auto-incrementing position identifier counter
+        access(self) var nextPositionID: UInt64
+
         // The default token type used as the "unit of account" for the pool.
         access(self) let defaultToken: Type
 
@@ -378,12 +395,16 @@ access(all) contract AlpenFlow {
 
         init(defaultToken: Type, defaultTokenThreshold: UFix64) {
             self.version = 0
-            self.globalLedger = {}
+            self.globalLedger = {defaultToken: TokenState(interestCurve: SimpleInterestCurve())}
             self.positions = {}
             self.reserves <- {}
             self.defaultToken = defaultToken
             self.exchangeRates = {defaultToken: 1.0}
             self.liquidationThresholds = {defaultToken: defaultTokenThreshold}
+            self.nextPositionID = 0
+
+            // initialise empty reserve vault for the default token
+            self.reserves[defaultToken] <-! create FlowVault()
         }
 
         access(EPosition) fun deposit(pid: UInt64, funds: @{Vault}) {
@@ -478,7 +499,23 @@ access(all) contract AlpenFlow {
             }
 
             // Calculate the health as the ratio of collateral to debt.
+            if totalDebt == 0.0 {
+                return 1.0
+            }
             return effectiveCollateral / totalDebt
+        }
+
+        access(all) fun createPosition(): UInt64 {
+            let id = self.nextPositionID
+            self.nextPositionID = self.nextPositionID + 1
+            self.positions[id] = InternalPosition()
+            return id
+        }
+
+        // Helper function for testing – returns the current reserve balance for the specified token type.
+        access(all) fun reserveBalance(type: Type): UFix64 {
+            let vaultRef = (&self.reserves[type] as auth(Withdraw) &{Vault}?)!
+            return vaultRef.balance
         }
     }
 
@@ -555,5 +592,29 @@ access(all) contract AlpenFlow {
             self.id = id
             self.pool = pool
         }
+    }
+
+    // Helper for unit-tests – creates a new Pool whose default token is AlpenFlow.FlowVault
+    // and returns it to the caller fully initialised with bookkeeping for that token.
+    access(all) fun createTestPool(defaultTokenThreshold: UFix64): @Pool {
+        let defaultToken = Type<@FlowVault>()
+        return <- create Pool(defaultToken: defaultToken, defaultTokenThreshold: defaultTokenThreshold)
+    }
+
+    // Helper for unit-tests - creates a new FlowVault with the specified balance
+    access(all) fun createTestVault(balance: UFix64): @FlowVault {
+        let vault <- create FlowVault()
+        vault.setBalance(newBalance: balance)
+        return <- vault
+    }
+
+    // Helper for unit-tests - initializes a pool with a vault containing the specified balance
+    access(all) fun createTestPoolWithBalance(defaultTokenThreshold: UFix64, initialBalance: UFix64): @Pool {
+        let pool <- AlpenFlow.createTestPool(defaultTokenThreshold: defaultTokenThreshold)
+        let vault <- AlpenFlow.createTestVault(balance: initialBalance)
+        let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+        let pid = poolRef.createPosition()
+        poolRef.deposit(pid: pid, funds: <- vault)
+        return <- pool
     }
 }
