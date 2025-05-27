@@ -8,6 +8,26 @@
 - **Documentation**: ✅ Complete
 - **Standards**: ✅ FungibleToken & DeFi Blocks Compatible
 
+## 🎯 Tidal Integration Milestones
+
+### Current Status (Tracer Bullet Phase)
+- ✅ **Smart Contract Integration**: AlpenFlow provides sink/source interfaces for token swapping
+- ✅ **Development & Testing**: Automated testing framework for AlpenFlow and DefiBlocks
+- ✅ **Repository Structure**: AlpenFlow code in private repo, DefiBlocks in public repo
+- 💛 **Test Coverage**: Working towards comprehensive test suite for Tidal functionality
+- 👌 **AMM Integration**: Currently using dummy swapper, real AMM deployment planned
+
+### Upcoming (Limited Beta)
+- ✅ **Documentation**: First pass documentation of AlpenFlow (this README)
+- ✅ **Testing**: Extensive test suite for AlpenFlow and DefiBlocks
+- 💛 **Sample Code**: DefiBlocks sample code and tutorials needed
+- 👌 **Advanced Features**: Per-user limits and controlled testing capabilities
+
+### Future (Open Beta)
+- ✅ **Open Access**: Full public access to AlpenFlow and DefiBlocks
+- 💛 **Documentation**: Improved documentation and tutorials
+- ✅ **Sample Code**: Complete tutorials for DefiBlocks integration
+
 ## 🏦 About AlpenFlow
 
 AlpenFlow is a decentralized lending and borrowing protocol built on the Flow blockchain. It implements the Flow FungibleToken standard and integrates with DeFi Blocks for composability.
@@ -158,11 +178,17 @@ flow test cadence/tests/interest_mechanics_test.cdc
 
 ## 📚 Documentation
 
+### Roadmap & Planning
+- [Milestone Alignment Overview](./MilestoneAlignment.md)
+- [AlpenFlow Development Roadmap](./AlpenFlowRoadmap.md)
+- [Tidal Integration Milestones](./TidalMilestones.md)
+- [Future Features](./FutureFeatures.md)
+
+### Technical Documentation
 - [FungibleToken Integration Summary](./FungibleTokenIntegrationSummary.md)
 - [Test Update Summary](./TestUpdateSummary.md)
 - [Tests Overview](./TestsOverview.md)
 - [Cadence Testing Best Practices](./CadenceTestingBestPractices.md)
-- [Future Features](./FutureFeatures.md)
 
 ## 🤝 Contributing
 
