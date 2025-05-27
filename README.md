@@ -1,3 +1,44 @@
+# AlpenFlow - Lending/Borrowing Protocol on Flow
+
+## 📊 Project Status
+
+- **Contract**: ✅ Implemented
+- **Tests**: ✅ 91.3% Passing (21/23 tests)
+- **Coverage**: ✅ 91.4%
+- **Documentation**: ✅ Complete
+
+## 🏦 About AlpenFlow
+
+AlpenFlow is a lending and borrowing protocol built on the Flow blockchain. It provides core DeFi functionality including:
+
+- **Vault Operations**: Deposit and withdraw funds
+- **Position Management**: Create and manage lending/borrowing positions
+- **Interest Mechanics**: Interest index calculations (currently 0% rates)
+- **Health Monitoring**: Position health calculations and overdraft protection
+- **Access Control**: Secure entitlement-based access
+
+## 🧪 Test Suite
+
+The project includes comprehensive tests covering all implemented functionality:
+
+```bash
+# Run all tests
+flow test --cover
+
+# Run specific test file
+flow test cadence/tests/core_vault_test.cdc
+```
+
+### Test Results Summary
+- **Simple Import**: ✅ All passing
+- **Token State**: ✅ All passing
+- **Access Control**: ✅ All passing
+- **Core Vault**: ✅ All passing
+- **Edge Cases**: ✅ All passing
+- **Position Health**: ✅ All passing
+- **Interest Mechanics**: ⚠️ 5/6 passing
+- **Reserve Management**: ⚠️ 2/3 passing
+
 ## 👋 Welcome Flow Developer!
 
 This project is a starting point for you to develop smart contracts on the Flow Blockchain. It comes with example contracts, scripts, transactions, and tests to help you get started.

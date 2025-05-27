@@ -354,14 +354,10 @@ access(all) contract AlpenFlow {
 
             let debitRate = self.interestCurve.interestRate(creditBalance: self.totalCreditBalance, debitBalance: self.totalDebitBalance)
             let debitIncome = self.totalDebitBalance * (1.0 + debitRate)
-            let insuranceAmount = self.totalCreditBalance * 0.001
-
-            // START DEBUG LOGS
-            log("debitIncome: \(debitIncome)")
-            log("insuranceAmount: \(insuranceAmount)")
-            log("self.totalCreditBalance: \(self.totalCreditBalance)")
-            // END DEBUG LOGS
-
+            
+                         // Calculate insurance amount (0.1% of credit balance)
+             let insuranceAmount = self.totalCreditBalance * 0.001
+            
             // Calculate credit rate, ensuring we don't have underflows
             var creditRate: UFix64 = 0.0
             if debitIncome >= insuranceAmount {
