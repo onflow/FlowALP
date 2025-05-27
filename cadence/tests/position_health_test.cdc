@@ -1,6 +1,6 @@
 import Test
-import BlockchainHelpers
 import "AlpenFlow"
+// CHANGE: Import FlowToken to use correct type references
 import "./test_helpers.cdc"
 
 access(all)
@@ -22,12 +22,12 @@ fun testHealthyPosition() {
     
     // Create pool
     let defaultThreshold: UFix64 = 1.0
-    var pool <- AlpenFlow.createTestPool(defaultTokenThreshold: defaultThreshold)
+    var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
     let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
     
     // Create position with only credit
     let pid = poolRef.createPosition()
-    let depositVault <- AlpenFlow.createTestVault(balance: 100.0)
+    let depositVault <- createTestVault(balance: 100.0)
     poolRef.deposit(pid: pid, funds: <- depositVault)
     
     // Health should be 1.0 when no debt
@@ -49,7 +49,7 @@ fun testPositionHealthCalculation() {
     
     // Create pool with 80% liquidation threshold
     let defaultThreshold: UFix64 = 0.8
-    var pool <- AlpenFlow.createTestPoolWithBalance(
+    var pool <- createTestPoolWithBalance(
         defaultTokenThreshold: defaultThreshold,
         initialBalance: 1000.0
     )
@@ -59,15 +59,16 @@ fun testPositionHealthCalculation() {
     let testPid = poolRef.createPosition()
     
     // Deposit 100 FLOW as collateral
-    let collateralVault <- AlpenFlow.createTestVault(balance: 100.0)
+    let collateralVault <- createTestVault(balance: 100.0)
     poolRef.deposit(pid: testPid, funds: <- collateralVault)
     
     // Borrow 50 FLOW (creating debt)
     let borrowed <- poolRef.withdraw(
         pid: testPid,
         amount: 50.0,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        // CHANGE: Updated type parameter to MockVault
+        type: Type<@MockVault>()
+    ) as! @MockVault  // CHANGE: Cast to MockVault
     
     // Get actual health
     let health = poolRef.positionHealth(pid: testPid)
@@ -94,7 +95,7 @@ fun testWithdrawalBlockedWhenUnhealthy() {
     
     // Create pool with 50% liquidation threshold
     let defaultThreshold: UFix64 = 0.5
-    var pool <- AlpenFlow.createTestPoolWithBalance(
+    var pool <- createTestPoolWithBalance(
         defaultTokenThreshold: defaultThreshold,
         initialBalance: 1000.0
     )
@@ -104,23 +105,25 @@ fun testWithdrawalBlockedWhenUnhealthy() {
     let testPid = poolRef.createPosition()
     
     // Deposit 100 FLOW as collateral
-    let collateralVault <- AlpenFlow.createTestVault(balance: 100.0)
+    let collateralVault <- createTestVault(balance: 100.0)
     poolRef.deposit(pid: testPid, funds: <- collateralVault)
     
     // First, borrow 40 FLOW (within threshold: 40 < 100 * 0.5)
     let firstBorrow <- poolRef.withdraw(
         pid: testPid,
         amount: 40.0,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        // CHANGE: Updated type parameter to MockVault
+        type: Type<@MockVault>()
+    ) as! @MockVault  // CHANGE: Cast to MockVault
     
     // Try to borrow another 20 FLOW (total would be 60)
     // With current implementation, this checks if position would be overdrawn
     let secondBorrow <- poolRef.withdraw(
         pid: testPid,
         amount: 20.0,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        // CHANGE: Updated type parameter to MockVault
+        type: Type<@MockVault>()
+    ) as! @MockVault  // CHANGE: Cast to MockVault
     
     // This should succeed as position still has 40 FLOW
     Test.assertEqual(secondBorrow.balance, 20.0)

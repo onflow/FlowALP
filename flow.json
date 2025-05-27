@@ -56,6 +56,15 @@
 				"mainnet": "0xf233dcee88fe0abe",
 				"testing": "0x0000000000000001"
 			}
+		},
+		"FlowToken": {
+			"source": "mainnet://1654653399040a61.FlowToken",
+			"aliases": {
+				"emulator": "0x0ae53cb6e3f42a79",
+				"testnet": "0x7e60df042a9c0868",
+				"mainnet": "0x1654653399040a61",
+				"testing": "0x0000000000000003"
+			}
 		}
 	},
 	"networks": {

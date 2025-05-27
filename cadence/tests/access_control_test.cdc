@@ -1,6 +1,6 @@
 import Test
-import BlockchainHelpers
 import "AlpenFlow"
+// CHANGE: We're using MockVault from test_helpers instead of FlowToken
 import "./test_helpers.cdc"
 
 access(all)
@@ -18,11 +18,13 @@ fun testWithdrawEntitlement() {
      * Tx aborts
      */
     
-    // Create a FlowVault
-    let vault <- AlpenFlow.createTestVault(balance: 10.0)
+    // Create a MockVault for testing
+    // CHANGE: Use test helper's createTestVault which creates MockVault
+    let vault <- createTestVault(balance: 10.0)
     
     // Try to get a reference without Withdraw entitlement
-    let vaultRef = &vault as &AlpenFlow.FlowVault
+    // CHANGE: Updated reference type to MockVault
+    let vaultRef = &vault as &MockVault
     
     // Note: In Cadence, trying to call withdraw without the entitlement
     // would fail at compile time, not runtime. This test verifies

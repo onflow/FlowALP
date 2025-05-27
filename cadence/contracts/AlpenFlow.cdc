@@ -4,56 +4,18 @@ import "Burner"
 import "MetadataViews"
 import "FungibleTokenMetadataViews"
 import "DFB"
+// CHANGE: Import FlowToken to use the real FLOW token implementation
+// This replaces our test FlowVault with the actual Flow token
+import "FlowToken"
 
 access(all) contract AlpenFlow: FungibleToken {
 
     access(all) entitlement Withdraw
 
-    access(all) resource FlowVault: FungibleToken.Vault {
-        access(all) var balance: UFix64
-
-        // FungibleToken.Vault conformance
-        access(all) fun deposit(from: @{FungibleToken.Vault}) {
-            let vault <- from as! @FlowVault
-            self.balance = self.balance + vault.balance
-            vault.balance = 0.0
-            destroy vault
-        }
-
-        access(FungibleToken.Withdraw) fun withdraw(amount: UFix64): @{FungibleToken.Vault} {
-            self.balance = self.balance - amount
-            return <- create FlowVault(balance: amount)
-        }
-
-        access(all) view fun isAvailableToWithdraw(amount: UFix64): Bool {
-            return self.balance >= amount
-        }
-
-        access(all) fun createEmptyVault(): @{FungibleToken.Vault} {
-            return <- create FlowVault(balance: 0.0)
-        }
-
-        // ViewResolver conformance
-        access(all) view fun getViews(): [Type] {
-            return AlpenFlow.getContractViews(resourceType: nil)
-        }
-
-        access(all) fun resolveView(_ view: Type): AnyStruct? {
-            return AlpenFlow.resolveContractView(resourceType: nil, viewType: view)
-        }
-
-        // Burner.Burnable conformance
-        access(contract) fun burnCallback() {
-            if self.balance > 0.0 {
-                AlpenFlow.totalSupply = AlpenFlow.totalSupply - self.balance
-            }
-            self.balance = 0.0
-        }
-
-        init(balance: UFix64) {
-            self.balance = balance
-        }
-    }
+    // REMOVED: FlowVault resource implementation (previously lines 12-56)
+    // The FlowVault resource has been removed to prevent type conflicts
+    // with the real FlowToken.Vault when integrating with Tidal contracts.
+    // All references to FlowVault will now use FlowToken.Vault instead.
 
     access(all) entitlement EPosition
     access(all) entitlement EGovernance
@@ -363,8 +325,9 @@ access(all) contract AlpenFlow: FungibleToken {
             self.liquidationThresholds = {defaultToken: defaultTokenThreshold}
             self.nextPositionID = 0
 
-            // initialise empty reserve vault for the default token
-            self.reserves[defaultToken] <-! create FlowVault(balance: 0.0)
+            // CHANGE: Don't create vault here - let the caller provide initial reserves
+            // The pool starts with empty reserves map
+            // Vaults will be added when tokens are first deposited
         }
 
         access(EPosition) fun deposit(pid: UInt64, funds: @{FungibleToken.Vault}) {
@@ -387,6 +350,10 @@ access(all) contract AlpenFlow: FungibleToken {
             // Update the global interest indices on the affected token to reflect the passage of time.
             tokenState.updateInterestIndices()
 
+            // CHANGE: Create vault if it doesn't exist yet
+            if self.reserves[type] == nil {
+                self.reserves[type] <-! funds.createEmptyVault()
+            }
             let reserveVault = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
 
             // Reflect the deposit in the position's balance
@@ -474,8 +441,12 @@ access(all) contract AlpenFlow: FungibleToken {
 
         // Helper function for testing – returns the current reserve balance for the specified token type.
         access(all) fun reserveBalance(type: Type): UFix64 {
-            let vaultRef = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
-            return vaultRef.balance
+            // CHANGE: Handle case where no vault exists yet for this token type
+            let vaultRef = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)
+            if vaultRef == nil {
+                return 0.0
+            }
+            return vaultRef!.balance
         }
 
         // Add getPositionDetails function that's used by DFB implementations
@@ -538,7 +509,8 @@ access(all) contract AlpenFlow: FungibleToken {
         // creating/increasing a loan. The requested Vault type must be a supported token.
         access(all) fun withdraw(type: Type, amount: UFix64): @{FungibleToken.Vault}
         {
-            return <- create FlowVault(balance: 0.0)
+            // CHANGE: This is a stub implementation - real implementation would call pool.withdraw
+            panic("Position.withdraw is not implemented - use Pool.withdraw directly")
         }
 
         // Returns a NEW sink for the given token type that will accept deposits of that token and
@@ -586,26 +558,30 @@ access(all) contract AlpenFlow: FungibleToken {
         }
     }
 
-    // Helper for unit-tests – creates a new Pool whose default token is AlpenFlow.FlowVault
-    // and returns it to the caller fully initialised with bookkeeping for that token.
+    // CHANGE: Removed FlowToken-specific implementation
+    // Helper for unit-tests – creates a new Pool with a generic default token
+    // Tests should specify the actual token type they want to use
     access(all) fun createTestPool(defaultTokenThreshold: UFix64): @Pool {
-        let defaultToken = Type<@FlowVault>()
-        return <- create Pool(defaultToken: defaultToken, defaultTokenThreshold: defaultTokenThreshold)
+        // For backward compatibility, we'll panic here
+        // Tests should use createPool with explicit token type
+        panic("Use createPool with explicit token type instead")
     }
 
-    // Helper for unit-tests - creates a new FlowVault with the specified balance
-    access(all) fun createTestVault(balance: UFix64): @FlowVault {
-        return <- create FlowVault(balance: balance)
+    // CHANGE: Removed - tests should use proper token minting
+    // This function is kept for backward compatibility but will panic
+    access(all) fun createTestVault(balance: UFix64): @{FungibleToken.Vault} {
+        panic("Use proper token minting instead of createTestVault")
+    }
+
+    // CHANGE: Add a proper pool creation function for tests
+    access(all) fun createPool(defaultToken: Type, defaultTokenThreshold: UFix64): @Pool {
+        return <- create Pool(defaultToken: defaultToken, defaultTokenThreshold: defaultTokenThreshold)
     }
 
     // Helper for unit-tests - initializes a pool with a vault containing the specified balance
     access(all) fun createTestPoolWithBalance(defaultTokenThreshold: UFix64, initialBalance: UFix64): @Pool {
-        let pool <- AlpenFlow.createTestPool(defaultTokenThreshold: defaultTokenThreshold)
-        let vault <- AlpenFlow.createTestVault(balance: initialBalance)
-        let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
-        let pid = poolRef.createPosition()
-        poolRef.deposit(pid: pid, funds: <- vault)
-        return <- pool
+        // CHANGE: This function is deprecated - tests should create pools with explicit token types
+        panic("Use createPool with explicit token type and deposit tokens separately")
     }
 
     // Events are now handled by FungibleToken standard
@@ -620,7 +596,8 @@ access(all) contract AlpenFlow: FungibleToken {
 
     // FungibleToken contract interface requirement
     access(all) fun createEmptyVault(vaultType: Type): @{FungibleToken.Vault} {
-        return <- create FlowVault(balance: 0.0)
+        // CHANGE: This contract doesn't create vaults - it's a lending protocol
+        panic("AlpenFlow doesn't create vaults - use the token's contract")
     }
 
     // ViewResolver conformance for metadata
@@ -665,7 +642,8 @@ access(all) contract AlpenFlow: FungibleToken {
                     receiverLinkedType: Type<&{FungibleToken.Receiver}>(),
                     metadataLinkedType: Type<&{FungibleToken.Balance, ViewResolver.Resolver}>(),
                     createEmptyVaultFunction: (fun(): @{FungibleToken.Vault} {
-                        return <-AlpenFlow.createEmptyVault(vaultType: Type<@AlpenFlow.FlowVault>())
+                        // CHANGE: AlpenFlow doesn't create vaults
+                        panic("AlpenFlow doesn't create vaults")
                     })
                 )
             case Type<FungibleTokenMetadataViews.TotalSupply>():
@@ -683,7 +661,9 @@ access(all) contract AlpenFlow: FungibleToken {
         access(contract) let positionID: UInt64
         
         access(all) view fun getSinkType(): Type {
-            return Type<@AlpenFlow.FlowVault>()
+            // CHANGE: For now, return a generic FungibleToken.Vault type
+            // The actual type depends on what tokens the pool accepts
+            return Type<@{FungibleToken.Vault}>()
         }
 
         access(all) fun minimumCapacity(): UFix64 {

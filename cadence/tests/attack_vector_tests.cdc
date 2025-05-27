@@ -1,6 +1,6 @@
 import Test
-import BlockchainHelpers
 import "AlpenFlow"
+// CHANGE: Import FlowToken to use correct type references
 import "./test_helpers.cdc"
 
 access(all)
@@ -16,7 +16,7 @@ access(all) fun testReentrancyProtection() {
      * Protection: Cadence's resource model prevents reentrancy
      */
     
-    var pool <- AlpenFlow.createTestPoolWithBalance(
+    var pool <- createTestPoolWithBalance(
         defaultTokenThreshold: 0.8,
         initialBalance: 10000.0
     )
@@ -24,7 +24,7 @@ access(all) fun testReentrancyProtection() {
     
     // Create attacker position
     let attackerPid = poolRef.createPosition()
-    let initialDeposit <- AlpenFlow.createTestVault(balance: 1000.0)
+    let initialDeposit <- createTestVault(balance: 1000.0)
     poolRef.deposit(pid: attackerPid, funds: <- initialDeposit)
     
     // In Cadence, resources prevent reentrancy by design
@@ -39,8 +39,8 @@ access(all) fun testReentrancyProtection() {
             let withdrawn <- poolRef.withdraw(
                 pid: attackerPid,
                 amount: amount,
-                type: Type<@AlpenFlow.FlowVault>()
-            ) as! @AlpenFlow.FlowVault
+                type: Type<@MockVault>()
+            ) as! @MockVault
             totalWithdrawn = totalWithdrawn + amount
             destroy withdrawn
         }
@@ -53,8 +53,8 @@ access(all) fun testReentrancyProtection() {
     let finalWithdraw <- poolRef.withdraw(
         pid: attackerPid,
         amount: 100.0,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        type: Type<@MockVault>()
+    ) as! @MockVault
     Test.assertEqual(finalWithdraw.balance, 100.0)
     
     destroy finalWithdraw
@@ -69,7 +69,7 @@ access(all) fun testPrecisionLossExploitation() {
      * Protection: Verify no value can be created through precision loss
      */
     
-    var pool <- AlpenFlow.createTestPool(defaultTokenThreshold: 0.8)
+    var pool <- createTestPool(defaultTokenThreshold: 0.8)
     let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
     
     // Test with amounts designed to cause precision issues
@@ -87,7 +87,7 @@ access(all) fun testPrecisionLossExploitation() {
     
     // Deposit amounts that might cause precision issues
     for amount in precisionTestAmounts {
-        let vault <- AlpenFlow.createTestVault(balance: amount)
+        let vault <- createTestVault(balance: amount)
         poolRef.deposit(pid: pid, funds: <- vault)
         totalDeposited = totalDeposited + amount
     }
@@ -96,8 +96,8 @@ access(all) fun testPrecisionLossExploitation() {
     let withdrawn <- poolRef.withdraw(
         pid: pid,
         amount: totalDeposited,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        type: Type<@MockVault>()
+    ) as! @MockVault
     
     // Allow tiny rounding error but no value creation
     let difference = withdrawn.balance > totalDeposited 
@@ -119,7 +119,7 @@ access(all) fun testOverflowUnderflowProtection() {
      * Protection: UFix64 and UInt64 have built-in overflow protection
      */
     
-    var pool <- AlpenFlow.createTestPool(defaultTokenThreshold: 0.8)
+    var pool <- createTestPool(defaultTokenThreshold: 0.8)
     let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
     
     // Test near-maximum values
@@ -127,11 +127,11 @@ access(all) fun testOverflowUnderflowProtection() {
     
     // Test 1: Large deposit
     let pid1 = poolRef.createPosition()
-    let largeVault <- AlpenFlow.createTestVault(balance: nearMaxUFix64)
+    let largeVault <- createTestVault(balance: nearMaxUFix64)
     poolRef.deposit(pid: pid1, funds: <- largeVault)
     
     // Verify it was stored correctly
-    let reserves = poolRef.reserveBalance(type: Type<@AlpenFlow.FlowVault>())
+    let reserves = poolRef.reserveBalance(type: Type<@MockVault>())
     Test.assertEqual(reserves, nearMaxUFix64)
     
     // Test 2: Interest calculation with extreme values
@@ -169,7 +169,7 @@ access(all) fun testFlashLoanAttackSimulation() {
      * Borrow large amount, manipulate state, repay in same block
      */
     
-    var pool <- AlpenFlow.createTestPoolWithBalance(
+    var pool <- createTestPoolWithBalance(
         defaultTokenThreshold: 0.8,
         initialBalance: 100000.0
     )
@@ -177,7 +177,7 @@ access(all) fun testFlashLoanAttackSimulation() {
     
     // Attacker position with small collateral
     let attackerPid = poolRef.createPosition()
-    let collateral <- AlpenFlow.createTestVault(balance: 1000.0)
+    let collateral <- createTestVault(balance: 1000.0)
     poolRef.deposit(pid: attackerPid, funds: <- collateral)
     
     // Simulate flash loan: large borrow
@@ -188,15 +188,15 @@ access(all) fun testFlashLoanAttackSimulation() {
     
     // First, create a well-collateralized position
     let whalePid = poolRef.createPosition()
-    let whaleCollateral <- AlpenFlow.createTestVault(balance: 80000.0)
+    let whaleCollateral <- createTestVault(balance: 80000.0)
     poolRef.deposit(pid: whalePid, funds: <- whaleCollateral)
     
     // Whale can borrow large amount
     let borrowed <- poolRef.withdraw(
         pid: whalePid,
         amount: flashLoanAmount,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        type: Type<@MockVault>()
+    ) as! @MockVault
     
     // In a flash loan attack, attacker would:
     // 1. Borrow large amount
@@ -208,7 +208,7 @@ access(all) fun testFlashLoanAttackSimulation() {
     poolRef.deposit(pid: whalePid, funds: <- borrowed)
     
     // Verify pool state is consistent
-    let finalReserves = poolRef.reserveBalance(type: Type<@AlpenFlow.FlowVault>())
+    let finalReserves = poolRef.reserveBalance(type: Type<@MockVault>())
     Test.assertEqual(finalReserves, 181000.0)  // Initial + collaterals
     
     destroy pool
@@ -224,7 +224,7 @@ access(all) fun testGriefingAttacks() {
      * 3. State bloat
      */
     
-    var pool <- AlpenFlow.createTestPoolWithBalance(
+    var pool <- createTestPoolWithBalance(
         defaultTokenThreshold: 0.8,
         initialBalance: 10000.0
     )
@@ -237,7 +237,7 @@ access(all) fun testGriefingAttacks() {
     // Try 100 dust deposits
     var i = 0
     while i < 100 {
-        let dustVault <- AlpenFlow.createTestVault(balance: dustAmount)
+        let dustVault <- createTestVault(balance: dustAmount)
         poolRef.deposit(pid: dustPid, funds: <- dustVault)
         i = i + 1
     }
@@ -247,8 +247,8 @@ access(all) fun testGriefingAttacks() {
     let dustWithdrawn <- poolRef.withdraw(
         pid: dustPid,
         amount: totalDust,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        type: Type<@MockVault>()
+    ) as! @MockVault
     
     // Some precision loss is acceptable with dust
     Test.assert(dustWithdrawn.balance >= totalDust * 0.99,
@@ -278,7 +278,7 @@ access(all) fun testOracleManipulationResilience() {
      * Note: Current implementation uses fixed exchange rates
      */
     
-    var pool <- AlpenFlow.createTestPool(defaultTokenThreshold: 0.8)
+    var pool <- createTestPool(defaultTokenThreshold: 0.8)
     let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
     
     // In future multi-token implementation, test:
@@ -292,12 +292,12 @@ access(all) fun testOracleManipulationResilience() {
     let thresholds: [UFix64] = [0.1, 0.5, 0.9, 0.95, 0.99]
     
     for threshold in thresholds {
-        var testPool <- AlpenFlow.createTestPool(defaultTokenThreshold: threshold)
+        var testPool <- createTestPool(defaultTokenThreshold: threshold)
         let testPoolRef = &testPool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
         
         // Verify threshold is enforced
         let pid = testPoolRef.createPosition()
-        let collateral <- AlpenFlow.createTestVault(balance: 1000.0)
+        let collateral <- createTestVault(balance: 1000.0)
         testPoolRef.deposit(pid: pid, funds: <- collateral)
         
         // Max borrow should respect threshold
@@ -305,8 +305,8 @@ access(all) fun testOracleManipulationResilience() {
         let borrowed <- testPoolRef.withdraw(
             pid: pid,
             amount: maxBorrow,
-            type: Type<@AlpenFlow.FlowVault>()
-        ) as! @AlpenFlow.FlowVault
+            type: Type<@MockVault>()
+        ) as! @MockVault
         
         Test.assertEqual(borrowed.balance, maxBorrow)
         
@@ -325,7 +325,7 @@ access(all) fun testFrontRunningScenarios() {
      * Test that protocol is resilient to transaction ordering
      */
     
-    var pool <- AlpenFlow.createTestPoolWithBalance(
+    var pool <- createTestPoolWithBalance(
         defaultTokenThreshold: 0.8,
         initialBalance: 100000.0
     )
@@ -336,24 +336,24 @@ access(all) fun testFrontRunningScenarios() {
     let user2Pid = poolRef.createPosition()
     
     // User 1 plans to deposit large amount
-    let user1Deposit <- AlpenFlow.createTestVault(balance: 50000.0)
+    let user1Deposit <- createTestVault(balance: 50000.0)
     
     // User 2 (front-runner) deposits first
-    let user2Deposit <- AlpenFlow.createTestVault(balance: 10000.0)
+    let user2Deposit <- createTestVault(balance: 10000.0)
     poolRef.deposit(pid: user2Pid, funds: <- user2Deposit)
     
     // User 2 borrows before User 1's deposit
     let frontRunBorrow <- poolRef.withdraw(
         pid: user2Pid,
         amount: 5000.0,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        type: Type<@MockVault>()
+    ) as! @MockVault
     
     // User 1's deposit goes through
     poolRef.deposit(pid: user1Pid, funds: <- user1Deposit)
     
     // Verify pool state is consistent regardless of ordering
-    let totalReserves = poolRef.reserveBalance(type: Type<@AlpenFlow.FlowVault>())
+    let totalReserves = poolRef.reserveBalance(type: Type<@MockVault>())
     Test.assertEqual(totalReserves, 155000.0)  // 100k + 50k + 10k - 5k
     
     // Both users' positions should be independent
@@ -374,7 +374,7 @@ access(all) fun testEconomicAttacks() {
      * 3. Bad debt creation attempts
      */
     
-    var pool <- AlpenFlow.createTestPoolWithBalance(
+    var pool <- createTestPoolWithBalance(
         defaultTokenThreshold: 0.5,  // 50% threshold
         initialBalance: 100000.0
     )
@@ -392,34 +392,34 @@ access(all) fun testEconomicAttacks() {
         positions.append(pid)
         
         // Deposit collateral
-        let collateral <- AlpenFlow.createTestVault(balance: amount * 2.5)
+        let collateral <- createTestVault(balance: amount * 2.5)
         poolRef.deposit(pid: pid, funds: <- collateral)
         
         // Borrow to create utilization
         let borrowed <- poolRef.withdraw(
             pid: pid,
             amount: amount,
-            type: Type<@AlpenFlow.FlowVault>()
-        ) as! @AlpenFlow.FlowVault
+            type: Type<@MockVault>()
+        ) as! @MockVault
         destroy borrowed
     }
     
     // Attack 2: Try to drain liquidity
     let drainerPid = poolRef.createPosition()
-    let drainerCollateral <- AlpenFlow.createTestVault(balance: 100000.0)
+    let drainerCollateral <- createTestVault(balance: 100000.0)
     poolRef.deposit(pid: drainerPid, funds: <- drainerCollateral)
     
     // Try to borrow maximum allowed (50% of collateral)
     let maxDrain <- poolRef.withdraw(
         pid: drainerPid,
         amount: 49000.0,  // Just under 50% to ensure success
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        type: Type<@MockVault>()
+    ) as! @MockVault
     
     Test.assertEqual(maxDrain.balance, 49000.0)
     
     // Verify pool still has liquidity
-    let remainingReserves = poolRef.reserveBalance(type: Type<@AlpenFlow.FlowVault>())
+    let remainingReserves = poolRef.reserveBalance(type: Type<@MockVault>())
     Test.assert(remainingReserves > 0.0,
         message: "Pool should maintain some liquidity")
     
@@ -437,12 +437,12 @@ access(all) fun testPositionManipulation() {
      * 3. Balance direction manipulation
      */
     
-    var pool <- AlpenFlow.createTestPool(defaultTokenThreshold: 0.8)
+    var pool <- createTestPool(defaultTokenThreshold: 0.8)
     let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
     
     // Test 1: Create positions and try to use invalid IDs
     let validPid = poolRef.createPosition()
-    let deposit <- AlpenFlow.createTestVault(balance: 1000.0)
+    let deposit <- createTestVault(balance: 1000.0)
     poolRef.deposit(pid: validPid, funds: <- deposit)
     
     // Position IDs are sequential from 0
@@ -453,20 +453,20 @@ access(all) fun testPositionManipulation() {
     let testPid = poolRef.createPosition()
     
     // Start with credit
-    let credit1 <- AlpenFlow.createTestVault(balance: 100.0)
+    let credit1 <- createTestVault(balance: 100.0)
     poolRef.deposit(pid: testPid, funds: <- credit1)
     
     // Withdraw to potentially flip to debit
     let withdraw1 <- poolRef.withdraw(
         pid: testPid,
         amount: 50.0,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        type: Type<@MockVault>()
+    ) as! @MockVault
     
     // Still in credit (100 - 50 = 50)
     
     // Deposit again
-    let credit2 <- AlpenFlow.createTestVault(balance: 25.0)
+    let credit2 <- createTestVault(balance: 25.0)
     poolRef.deposit(pid: testPid, funds: <- credit2)
     
     // Now at 75 credit
@@ -475,8 +475,8 @@ access(all) fun testPositionManipulation() {
     let withdraw2 <- poolRef.withdraw(
         pid: testPid,
         amount: 70.0,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        type: Type<@MockVault>()
+    ) as! @MockVault
     
     // Now at 5 credit
     Test.assertEqual(poolRef.positionHealth(pid: testPid), 1.0)

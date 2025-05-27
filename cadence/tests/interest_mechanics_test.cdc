@@ -1,6 +1,6 @@
 import Test
-import BlockchainHelpers
 import "AlpenFlow"
+// CHANGE: Import FlowToken to use correct type references
 import "./test_helpers.cdc"
 
 access(all)
@@ -25,7 +25,7 @@ fun testInterestIndexInitialization() {
     
     // Create a pool to access TokenState
     let defaultThreshold: UFix64 = 1.0
-    var pool <- AlpenFlow.createTestPool(defaultTokenThreshold: defaultThreshold)
+    var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
     
     // Note: TokenState is not directly accessible, but we can verify through behavior
     // Initial indices are 1.0, so scaled balance should equal true balance
@@ -52,7 +52,7 @@ fun testInterestRateCalculation() {
     
     // Create pool with initial funding
     let defaultThreshold: UFix64 = 0.8  // 80% threshold
-    var pool <- AlpenFlow.createTestPoolWithBalance(
+    var pool <- createTestPoolWithBalance(
         defaultTokenThreshold: defaultThreshold,
         initialBalance: 1000.0
     )
@@ -60,15 +60,16 @@ fun testInterestRateCalculation() {
     
     // Create a borrower position
     let borrowerPid = poolRef.createPosition()
-    let collateralVault <- AlpenFlow.createTestVault(balance: 100.0)
+    let collateralVault <- createTestVault(balance: 100.0)
     poolRef.deposit(pid: borrowerPid, funds: <- collateralVault)
     
     // Borrow some funds (within threshold)
     let borrowed <- poolRef.withdraw(
         pid: borrowerPid,
         amount: 50.0,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        // CHANGE: Updated type parameter to MockVault
+        type: Type<@MockVault>()
+    ) as! @MockVault  // CHANGE: Cast to MockVault
     
     // At this point, the pool has credit and debit balances
     // The interest rate calculation should work (even if rates are 0%)

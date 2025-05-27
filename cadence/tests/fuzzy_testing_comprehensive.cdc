@@ -1,6 +1,6 @@
 import Test
-import BlockchainHelpers
 import "AlpenFlow"
+// CHANGE: Import FlowToken to use correct type references
 import "./test_helpers.cdc"
 
 access(all)
@@ -34,7 +34,7 @@ access(all) fun testFuzzDepositWithdrawInvariants() {
     let seeds: [UInt64] = [12345, 67890, 11111, 99999, 54321, 88888, 33333, 77777]
     
     for seed in seeds {
-        var pool <- AlpenFlow.createTestPool(defaultTokenThreshold: 0.8)
+        var pool <- createTestPool(defaultTokenThreshold: 0.8)
         let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
         
         // Create multiple positions
@@ -61,7 +61,7 @@ access(all) fun testFuzzDepositWithdrawInvariants() {
             if isDeposit {
                 // Random deposit between 0.1 and 1000.0
                 let amount = randomUFix64(seed: opSeed, min: 0.1, max: 1000.0)
-                let vault <- AlpenFlow.createTestVault(balance: amount)
+                let vault <- createTestVault(balance: amount)
                 poolRef.deposit(pid: pid, funds: <- vault)
                 expectedReserves = expectedReserves + amount
             } else {
@@ -79,8 +79,8 @@ access(all) fun testFuzzDepositWithdrawInvariants() {
                             let withdrawn <- poolRef.withdraw(
                                 pid: pid,
                                 amount: safeAmount,
-                                type: Type<@AlpenFlow.FlowVault>()
-                            ) as! @AlpenFlow.FlowVault
+                                type: Type<@MockVault>()
+                            ) as! @MockVault
                             expectedReserves = expectedReserves - withdrawn.balance
                             destroy withdrawn
                         }
@@ -91,7 +91,7 @@ access(all) fun testFuzzDepositWithdrawInvariants() {
         }
         
         // Verify invariant: actual reserves match expected
-        let actualReserves = poolRef.reserveBalance(type: Type<@AlpenFlow.FlowVault>())
+        let actualReserves = poolRef.reserveBalance(type: Type<@MockVault>())
         let tolerance = 0.00000001
         let difference = actualReserves > expectedReserves 
             ? actualReserves - expectedReserves 
@@ -201,7 +201,7 @@ access(all) fun testFuzzPositionHealthBoundaries() {
     let thresholds: [UFix64] = [0.1, 0.5, 0.8, 0.95, 0.99]
     
     for threshold in thresholds {
-        var pool <- AlpenFlow.createTestPoolWithBalance(
+        var pool <- createTestPoolWithBalance(
             defaultTokenThreshold: threshold,
             initialBalance: 1000000.0
         )
@@ -212,7 +212,7 @@ access(all) fun testFuzzPositionHealthBoundaries() {
         
         for collateral in collateralAmounts {
             let pid = poolRef.createPosition()
-            let vault <- AlpenFlow.createTestVault(balance: collateral)
+            let vault <- createTestVault(balance: collateral)
             poolRef.deposit(pid: pid, funds: <- vault)
             
             // Test withdrawals at various levels
@@ -226,8 +226,8 @@ access(all) fun testFuzzPositionHealthBoundaries() {
                     let withdrawn <- poolRef.withdraw(
                         pid: pid,
                         amount: withdrawAmount,
-                        type: Type<@AlpenFlow.FlowVault>()
-                    ) as! @AlpenFlow.FlowVault
+                        type: Type<@MockVault>()
+                    ) as! @MockVault
                     
                     let health = poolRef.positionHealth(pid: pid)
                     
@@ -253,7 +253,7 @@ access(all) fun testFuzzConcurrentPositionIsolation() {
      * Each position's state is independent
      */
     
-    var pool <- AlpenFlow.createTestPoolWithBalance(
+    var pool <- createTestPoolWithBalance(
         defaultTokenThreshold: 0.8,
         initialBalance: 1000000.0
     )
@@ -287,7 +287,7 @@ access(all) fun testFuzzConcurrentPositionIsolation() {
             
             if randomBool(seed: opSeed) {
                 // Deposit
-                let vault <- AlpenFlow.createTestVault(balance: amount)
+                let vault <- createTestVault(balance: amount)
                 poolRef.deposit(pid: pid, funds: <- vault)
                 expectedBalances[pid] = expectedBalances[pid]! + amount
             } else {
@@ -296,8 +296,8 @@ access(all) fun testFuzzConcurrentPositionIsolation() {
                     let withdrawn <- poolRef.withdraw(
                         pid: pid,
                         amount: amount,
-                        type: Type<@AlpenFlow.FlowVault>()
-                    ) as! @AlpenFlow.FlowVault
+                        type: Type<@MockVault>()
+                    ) as! @MockVault
                     expectedBalances[pid] = expectedBalances[pid]! - amount
                     destroy withdrawn
                 }
@@ -335,7 +335,7 @@ access(all) fun testFuzzExtremeValues() {
         50000000.0       // Large but safe
     ]
     
-    var pool <- AlpenFlow.createTestPool(defaultTokenThreshold: 0.8)
+    var pool <- createTestPool(defaultTokenThreshold: 0.8)
     let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
     
     for amount in extremeAmounts {
@@ -343,11 +343,11 @@ access(all) fun testFuzzExtremeValues() {
         
         // Skip amounts that are too large for safe testing
         if amount < 90000000.0 {
-            let vault <- AlpenFlow.createTestVault(balance: amount)
+            let vault <- createTestVault(balance: amount)
             poolRef.deposit(pid: pid, funds: <- vault)
             
             // Verify deposit worked
-            let reserve = poolRef.reserveBalance(type: Type<@AlpenFlow.FlowVault>())
+            let reserve = poolRef.reserveBalance(type: Type<@MockVault>())
             Test.assert(reserve >= amount, 
                 message: "Extreme deposit should be reflected in reserves")
             
@@ -357,8 +357,8 @@ access(all) fun testFuzzExtremeValues() {
                 let withdrawn <- poolRef.withdraw(
                     pid: pid,
                     amount: halfAmount,
-                    type: Type<@AlpenFlow.FlowVault>()
-                ) as! @AlpenFlow.FlowVault
+                    type: Type<@MockVault>()
+                ) as! @MockVault
                 Test.assertEqual(withdrawn.balance, halfAmount)
                 destroy withdrawn
             }
@@ -434,7 +434,7 @@ access(all) fun testFuzzLiquidationThresholdEnforcement() {
     let collateralAmounts: [UFix64] = [10.0, 100.0, 1000.0, 10000.0]
     
     for threshold in thresholds {
-        var pool <- AlpenFlow.createTestPoolWithBalance(
+        var pool <- createTestPoolWithBalance(
             defaultTokenThreshold: threshold,
             initialBalance: 1000000.0
         )
@@ -442,7 +442,7 @@ access(all) fun testFuzzLiquidationThresholdEnforcement() {
         
         for collateral in collateralAmounts {
             let pid = poolRef.createPosition()
-            let vault <- AlpenFlow.createTestVault(balance: collateral)
+            let vault <- createTestVault(balance: collateral)
             poolRef.deposit(pid: pid, funds: <- vault)
             
             // Calculate maximum allowed withdrawal
@@ -458,8 +458,8 @@ access(all) fun testFuzzLiquidationThresholdEnforcement() {
                     let withdrawn <- poolRef.withdraw(
                         pid: pid,
                         amount: withdrawAmount,
-                        type: Type<@AlpenFlow.FlowVault>()
-                    ) as! @AlpenFlow.FlowVault
+                        type: Type<@MockVault>()
+                    ) as! @MockVault
                     
                     // Verify position is still healthy
                     let health = poolRef.positionHealth(pid: pid)
@@ -485,7 +485,7 @@ access(all) fun testFuzzMultiTokenBehavior() {
      * test the infrastructure is ready for multi-token
      */
     
-    var pool <- AlpenFlow.createTestPool(defaultTokenThreshold: 0.8)
+    var pool <- createTestPool(defaultTokenThreshold: 0.8)
     let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
     
     // Create positions and simulate multi-token behavior
@@ -498,7 +498,7 @@ access(all) fun testFuzzMultiTokenBehavior() {
         let amounts: [UFix64] = [100.0, 200.0, 300.0]
         
         for amount in amounts {
-            let vault <- AlpenFlow.createTestVault(balance: amount)
+            let vault <- createTestVault(balance: amount)
             poolRef.deposit(pid: pid, funds: <- vault)
         }
         
@@ -509,8 +509,8 @@ access(all) fun testFuzzMultiTokenBehavior() {
         let withdrawn <- poolRef.withdraw(
             pid: pid,
             amount: expectedTotal * 0.5,
-            type: Type<@AlpenFlow.FlowVault>()
-        ) as! @AlpenFlow.FlowVault
+            type: Type<@MockVault>()
+        ) as! @MockVault
         
         Test.assertEqual(withdrawn.balance, expectedTotal * 0.5)
         destroy withdrawn
@@ -529,7 +529,7 @@ access(all) fun testFuzzReserveIntegrityUnderStress() {
      * Sum of all position balances = total reserves
      */
     
-    var pool <- AlpenFlow.createTestPoolWithBalance(
+    var pool <- createTestPoolWithBalance(
         defaultTokenThreshold: 0.8,
         initialBalance: 10000.0
     )
@@ -557,7 +557,7 @@ access(all) fun testFuzzReserveIntegrityUnderStress() {
         
         if isDeposit {
             let amount = randomUFix64(seed: seed, min: 0.1, max: 50.0)
-            let vault <- AlpenFlow.createTestVault(balance: amount)
+            let vault <- createTestVault(balance: amount)
             poolRef.deposit(pid: pid, funds: <- vault)
             totalDeposited = totalDeposited + amount
         } else {
@@ -566,15 +566,15 @@ access(all) fun testFuzzReserveIntegrityUnderStress() {
             if totalDeposited > amount * 2.0 { // Safety margin
                 // Try withdrawal - may fail if position doesn't have funds
                 // We'll catch this by checking reserves before and after
-                let reserveBefore = poolRef.reserveBalance(type: Type<@AlpenFlow.FlowVault>())
+                let reserveBefore = poolRef.reserveBalance(type: Type<@MockVault>())
                 
                 // Attempt withdrawal with very small amount to avoid failures
                 let safeAmount = amount * 0.01
                 let withdrawn <- poolRef.withdraw(
                     pid: pid,
                     amount: safeAmount,
-                    type: Type<@AlpenFlow.FlowVault>()
-                ) as! @AlpenFlow.FlowVault
+                    type: Type<@MockVault>()
+                ) as! @MockVault
                 
                 totalDeposited = totalDeposited - withdrawn.balance
                 destroy withdrawn
@@ -583,7 +583,7 @@ access(all) fun testFuzzReserveIntegrityUnderStress() {
         
         // Periodically verify reserve integrity
         if op % 10 == 0 {
-            let actualReserves = poolRef.reserveBalance(type: Type<@AlpenFlow.FlowVault>())
+            let actualReserves = poolRef.reserveBalance(type: Type<@MockVault>())
             let tolerance = 0.001
             let difference = actualReserves > totalDeposited 
                 ? actualReserves - totalDeposited 

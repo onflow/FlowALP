@@ -1,6 +1,6 @@
 import Test
-import BlockchainHelpers
 import "AlpenFlow"
+// CHANGE: We're using MockVault from test_helpers instead of FlowToken
 import "./test_helpers.cdc"
 
 access(all)
@@ -21,7 +21,8 @@ fun testDepositWithdrawSymmetry() {
     
     // Create a fresh Pool with default token threshold 1.0
     let defaultThreshold: UFix64 = 1.0
-    var pool <- AlpenFlow.createTestPool(defaultTokenThreshold: defaultThreshold)
+    // CHANGE: Use test helper's createTestPool which uses MockVault
+    var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
     
     // Obtain an auth reference that grants EPosition access
     let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
@@ -30,24 +31,28 @@ fun testDepositWithdrawSymmetry() {
     let pid = poolRef.createPosition()
     
     // Create a vault with 10.0 FLOW for the deposit
-    let depositVault <- AlpenFlow.createTestVault(balance: 10.0)
+    // CHANGE: Use test helper's createTestVault which creates MockVault
+    let depositVault <- createTestVault(balance: 10.0)
     
     // Perform the deposit
     poolRef.deposit(pid: pid, funds: <- depositVault)
     
     // Check reserve balance after deposit
-    Test.assertEqual(10.0, poolRef.reserveBalance(type: Type<@AlpenFlow.FlowVault>()))
+    // CHANGE: Updated type reference to MockVault from test helpers
+    Test.assertEqual(10.0, poolRef.reserveBalance(type: Type<@MockVault>()))
     
     // Immediately withdraw the exact same amount
     let withdrawn <- poolRef.withdraw(
         pid: pid,
         amount: 10.0,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        // CHANGE: Updated type parameter to MockVault
+        type: Type<@MockVault>()
+    ) as! @MockVault  // CHANGE: Cast to MockVault
 
     // Assertions
     Test.assertEqual(withdrawn.balance, 10.0)
-    Test.assertEqual(poolRef.reserveBalance(type: Type<@AlpenFlow.FlowVault>()), 0.0)
+    // CHANGE: Updated type reference to MockVault
+    Test.assertEqual(poolRef.reserveBalance(type: Type<@MockVault>()), 0.0)
     Test.assertEqual(poolRef.positionHealth(pid: pid), 1.0)
 
     // Clean-up resources
@@ -83,25 +88,29 @@ fun testDebitToCreditFlip() {
     
     // Create pool with a lower liquidation threshold to allow some borrowing
     let defaultThreshold: UFix64 = 0.5  // 50% threshold allows borrowing up to 50% of collateral
-    var pool <- AlpenFlow.createTestPool(defaultTokenThreshold: defaultThreshold)
+    // CHANGE: Use test helper's createTestPool
+    var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
     let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
 
     // Create a funding position with plenty of liquidity
     let fundingPid = poolRef.createPosition()
-    let fundingVault <- AlpenFlow.createTestVault(balance: 1000.0)
+    // CHANGE: Use test helper's createTestVault
+    let fundingVault <- createTestVault(balance: 1000.0)
     poolRef.deposit(pid: fundingPid, funds: <- fundingVault)
     
     // Create test position with initial collateral
     let testPid = poolRef.createPosition()
-    let initialDeposit <- AlpenFlow.createTestVault(balance: 10.0)
+    // CHANGE: Use test helper's createTestVault
+    let initialDeposit <- createTestVault(balance: 10.0)
     poolRef.deposit(pid: testPid, funds: <- initialDeposit)
     
     // Borrow 4 FLOW (within the 50% threshold of 10 FLOW collateral)
     let borrowed <- poolRef.withdraw(
         pid: testPid,
         amount: 4.0,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        // CHANGE: Updated to MockVault
+        type: Type<@MockVault>()
+    ) as! @MockVault  // CHANGE: Cast to MockVault
     
     // Verify position has debt (health < 1 but > threshold)
     let healthBeforeDeposit = poolRef.positionHealth(pid: testPid)
@@ -109,7 +118,8 @@ fun testDebitToCreditFlip() {
         message: "Position should have some debt but still be healthy")
     
     // Now deposit 20 FLOW to ensure we flip from net debit to net credit
-    let largeDeposit <- AlpenFlow.createTestVault(balance: 20.0)
+    // CHANGE: Use test helper's createTestVault
+    let largeDeposit <- createTestVault(balance: 20.0)
     poolRef.deposit(pid: testPid, funds: <- largeDeposit)
     
     // After depositing 20 FLOW, position should have:
@@ -122,8 +132,9 @@ fun testDebitToCreditFlip() {
     let finalWithdraw <- poolRef.withdraw(
         pid: testPid,
         amount: 25.0,
-        type: Type<@AlpenFlow.FlowVault>()
-    ) as! @AlpenFlow.FlowVault
+        // CHANGE: Updated to MockVault
+        type: Type<@MockVault>()
+    ) as! @MockVault  // CHANGE: Cast to MockVault
     
     Test.assertEqual(finalWithdraw.balance, 25.0)
     
