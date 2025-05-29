@@ -1,0 +1,3 @@
+[submodule "DeFiBlocks"]
+	path = DeFiBlocks
+	url = git@github.com:onflow/DeFiBlocks.git
