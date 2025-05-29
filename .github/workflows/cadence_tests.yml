@@ -27,4 +27,4 @@ jobs:
       - name: Install dependencies
         run: flow deps install --skip-alias --skip-deployments
       - name: Run tests
-        run: make ci
+        run: flow test --cover --covercode="contracts" --coverprofile="coverage.lcov" ./cadence/tests/*_test.cdc
