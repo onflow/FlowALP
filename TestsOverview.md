@@ -1,4 +1,4 @@
-# AlpenFlow — Functional Test-Suite Blueprint (Updated)
+# TidalProtocol — Functional Test-Suite Blueprint (Updated)
 
 | ID  | Capability / Invariant | Scenario to simulate | Expected assertions |
 |-----|------------------------|----------------------|---------------------|
@@ -50,7 +50,7 @@
 
 ## Notes on Contract Limitations
 
-The current AlpenFlow contract implementation:
+The current TidalProtocol contract implementation:
 - Only supports FlowVault tokens (no multi-token support implemented)
 - Uses SimpleInterestCurve that always returns 0% interest
 - Has dummy Sink/Source implementations that don't do anything

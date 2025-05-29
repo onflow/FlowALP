@@ -2,7 +2,7 @@ import Test
 
 access(all)
 fun setup() {
-    // Deploy DFB first since AlpenFlow imports it
+    // Deploy DFB first since TidalProtocol imports it
     var err = Test.deployContract(
         name: "DFB",
         path: "../../DeFiBlocks/cadence/contracts/interfaces/DFB.cdc",
@@ -10,10 +10,10 @@ fun setup() {
     )
     Test.expect(err, Test.beNil())
     
-    // Deploy AlpenFlow
+    // Deploy TidalProtocol
     err = Test.deployContract(
-        name: "AlpenFlow",
-        path: "../contracts/AlpenFlow.cdc",
+        name: "TidalProtocol",
+        path: "../contracts/TidalProtocol.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())

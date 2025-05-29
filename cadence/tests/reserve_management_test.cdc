@@ -1,5 +1,5 @@
 import Test
-import "AlpenFlow"
+import "TidalProtocol"
 // CHANGE: Import FlowToken to use correct type references
 import "./test_helpers.cdc"
 
@@ -23,7 +23,7 @@ fun testReserveBalanceTracking() {
     // Create pool
     let defaultThreshold: UFix64 = 1.0
     var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Initial reserve should be 0
     // CHANGE: Updated type reference to MockVault
@@ -77,7 +77,7 @@ fun testMultiplePositions() {
         defaultTokenThreshold: defaultThreshold,
         initialBalance: 1000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create three different positions
     let positions: [UInt64] = []
@@ -131,7 +131,7 @@ fun testPositionIDGeneration() {
     // Create pool
     let defaultThreshold: UFix64 = 1.0
     var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create positions and verify sequential IDs
     let expectedIDs: [UInt64] = [0, 1, 2, 3, 4]

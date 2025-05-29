@@ -1,6 +1,6 @@
-# AlpenFlow Future Features and Tests
+# TidalProtocol Future Features and Tests
 
-This document lists features that are not yet implemented in the AlpenFlow contract, organized by Tidal milestone phases with priority indicators:
+This document lists features that are not yet implemented in the TidalProtocol contract, organized by Tidal milestone phases with priority indicators:
 
 - ✅ **Must Have** - Critical features required for launch
 - 💛 **Should Have** - Important features that significantly enhance the product

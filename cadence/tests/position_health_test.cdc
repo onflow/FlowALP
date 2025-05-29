@@ -1,5 +1,5 @@
 import Test
-import "AlpenFlow"
+import "TidalProtocol"
 // CHANGE: Import FlowToken to use correct type references
 import "./test_helpers.cdc"
 
@@ -23,7 +23,7 @@ fun testHealthyPosition() {
     // Create pool
     let defaultThreshold: UFix64 = 1.0
     var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create position with only credit
     let pid = poolRef.createPosition()
@@ -53,7 +53,7 @@ fun testPositionHealthCalculation() {
         defaultTokenThreshold: defaultThreshold,
         initialBalance: 1000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create test position
     let testPid = poolRef.createPosition()
@@ -99,7 +99,7 @@ fun testWithdrawalBlockedWhenUnhealthy() {
         defaultTokenThreshold: defaultThreshold,
         initialBalance: 1000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create test position
     let testPid = poolRef.createPosition()

@@ -1,4 +1,4 @@
-# AlpenFlow Intensive Test Analysis
+# TidalProtocol Intensive Test Analysis
 
 ## Overview
 The intensive test suites (fuzzy testing and attack vectors) reveal several edge cases and limitations in the current implementation. While the basic functionality works correctly, these tests push the boundaries and expose areas for improvement.
@@ -84,7 +84,7 @@ The intensive test suites (fuzzy testing and attack vectors) reveal several edge
 5. Add guards against extreme concurrent operations
 
 ## Conclusion
-The intensive tests reveal that AlpenFlow is robust for normal operations but has some edge cases with extreme values. These edge cases are largely theoretical and protected by Cadence's type system. The contract is ready for integration with Tidal, with the understanding that:
+The intensive tests reveal that TidalProtocol is robust for normal operations but has some edge cases with extreme values. These edge cases are largely theoretical and protected by Cadence's type system. The contract is ready for integration with Tidal, with the understanding that:
 
 1. Interest rates are currently fixed at 0%
 2. Very small amounts (< 0.00000001) should be avoided

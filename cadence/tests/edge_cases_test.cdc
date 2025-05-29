@@ -1,5 +1,5 @@
 import Test
-import "AlpenFlow"
+import "TidalProtocol"
 // CHANGE: We're using MockVault from test_helpers instead of FlowToken
 import "./test_helpers.cdc"
 
@@ -24,7 +24,7 @@ fun testZeroAmountValidation() {
     let defaultThreshold: UFix64 = 1.0
     // CHANGE: Use test helper's createTestPool
     var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     let pid = poolRef.createPosition()
     
     // Create zero-balance vault
@@ -68,7 +68,7 @@ fun testSmallAmountPrecision() {
     let defaultThreshold: UFix64 = 1.0
     // CHANGE: Use test helper's createTestPool
     var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create position
     let pid = poolRef.createPosition()
@@ -132,7 +132,7 @@ fun testEmptyPositionOperations() {
         defaultTokenThreshold: defaultThreshold,
         initialBalance: 100.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create empty position (no deposits)
     let emptyPid = poolRef.createPosition()

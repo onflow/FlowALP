@@ -1,5 +1,5 @@
 import Test
-import "AlpenFlow"
+import "TidalProtocol"
 // CHANGE: Import FlowToken to use correct type references
 import "./test_helpers.cdc"
 
@@ -30,7 +30,7 @@ fun testInterestIndexInitialization() {
     // Note: TokenState is not directly accessible, but we can verify through behavior
     // Initial indices are 1.0, so scaled balance should equal true balance
     let testScaledBalance: UFix64 = 100.0
-    let trueBalance = AlpenFlow.scaledBalanceToTrueBalance(
+    let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(
         scaledBalance: testScaledBalance,
         interestIndex: expectedInitialIndex
     )
@@ -56,7 +56,7 @@ fun testInterestRateCalculation() {
         defaultTokenThreshold: defaultThreshold,
         initialBalance: 1000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create a borrower position
     let borrowerPid = poolRef.createPosition()
@@ -103,12 +103,12 @@ fun testScaledBalanceConversion() {
         let scaledBalance = scaledBalances[i]
         let interestIndex = interestIndices[i]
         
-        let trueBalance = AlpenFlow.scaledBalanceToTrueBalance(
+        let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(
             scaledBalance: scaledBalance,
             interestIndex: interestIndex
         )
         
-        let scaledAgain = AlpenFlow.trueBalanceToScaledBalance(
+        let scaledAgain = TidalProtocol.trueBalanceToScaledBalance(
             trueBalance: trueBalance,
             interestIndex: interestIndex
         )
@@ -138,7 +138,7 @@ fun testPerSecondRateConversion() {
     
     // Test 5% annual rate
     let annualRate: UFix64 = 0.05
-    let perSecondRate = AlpenFlow.perSecondInterestRate(yearlyRate: annualRate)
+    let perSecondRate = TidalProtocol.perSecondInterestRate(yearlyRate: annualRate)
     
     // The per-second rate should be slightly above 1.0 (in fixed point)
     // For 5% APY, the per-second multiplier should be approximately 1.0000000015
@@ -157,7 +157,7 @@ fun testPerSecondRateConversion() {
     
     // Test 0% annual rate
     let zeroRate: UFix64 = 0.0
-    let zeroPerSecond = AlpenFlow.perSecondInterestRate(yearlyRate: zeroRate)
+    let zeroPerSecond = TidalProtocol.perSecondInterestRate(yearlyRate: zeroRate)
     let expectedZeroRate: UInt64 = 10000000000000000
     Test.assertEqual(zeroPerSecond, expectedZeroRate)  // Should be exactly 1.0
 }
@@ -176,7 +176,7 @@ fun testCompoundInterestCalculation() {
     
     // 5% APY per-second rate
     let annualRate: UFix64 = 0.05
-    let perSecondRate = AlpenFlow.perSecondInterestRate(yearlyRate: annualRate)
+    let perSecondRate = TidalProtocol.perSecondInterestRate(yearlyRate: annualRate)
     
     // Test compounding over different time periods
     let testPeriods: [UFix64] = [
@@ -188,7 +188,7 @@ fun testCompoundInterestCalculation() {
     
     var previousIndex = startIndex
     for period in testPeriods {
-        let newIndex = AlpenFlow.compoundInterestIndex(
+        let newIndex = TidalProtocol.compoundInterestIndex(
             oldIndex: startIndex,
             perSecondRate: perSecondRate,
             elapsedSeconds: period
@@ -229,7 +229,7 @@ fun testInterestMultiplication() {
     
     var i = 0
     while i < aValues.length {
-        let result = AlpenFlow.interestMul(aValues[i], bValues[i])
+        let result = TidalProtocol.interestMul(aValues[i], bValues[i])
         
         // Allow for some precision loss in the multiplication
         let difference = result > expectedValues[i]

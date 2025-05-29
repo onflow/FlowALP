@@ -1,11 +1,11 @@
 import Test
-import "AlpenFlow"
+import "TidalProtocol"
 import "FungibleToken"
 import "ViewResolver"
 
 // Common test setup function that deploys all required contracts
 access(all) fun deployContracts() {
-    // Deploy DFB first since AlpenFlow imports it
+    // Deploy DFB first since TidalProtocol imports it
     var err = Test.deployContract(
         name: "DFB",
         path: "../../DeFiBlocks/cadence/contracts/interfaces/DFB.cdc",
@@ -13,10 +13,10 @@ access(all) fun deployContracts() {
     )
     Test.expect(err, Test.beNil())
     
-    // Deploy AlpenFlow
+    // Deploy TidalProtocol
     err = Test.deployContract(
-        name: "AlpenFlow",
-        path: "../contracts/AlpenFlow.cdc",
+        name: "TidalProtocol",
+        path: "../contracts/TidalProtocol.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -32,8 +32,8 @@ access(all) fun createTestAccount(): Test.TestAccount {
     return account
 }
 
-// Helper to get the deployed AlpenFlow address
-access(all) fun getAlpenFlowAddress(): Address {
+// Helper to get the deployed TidalProtocol address
+access(all) fun getTidalProtocolAddress(): Address {
     return 0x0000000000000007
 }
 
@@ -92,17 +92,17 @@ access(all) fun createTestVault(balance: UFix64): @MockVault {
 }
 
 // CHANGE: Helper to create test pools with MockVault as default token
-access(all) fun createTestPool(defaultTokenThreshold: UFix64): @AlpenFlow.Pool {
-    return <- AlpenFlow.createPool(
+access(all) fun createTestPool(defaultTokenThreshold: UFix64): @TidalProtocol.Pool {
+    return <- TidalProtocol.createPool(
         defaultToken: Type<@MockVault>(),
         defaultTokenThreshold: defaultTokenThreshold
     )
 }
 
 // CHANGE: Helper to create test pools with initial balance
-access(all) fun createTestPoolWithBalance(defaultTokenThreshold: UFix64, initialBalance: UFix64): @AlpenFlow.Pool {
+access(all) fun createTestPoolWithBalance(defaultTokenThreshold: UFix64, initialBalance: UFix64): @TidalProtocol.Pool {
     var pool <- createTestPool(defaultTokenThreshold: defaultTokenThreshold)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     let pid = poolRef.createPosition()
     let vault <- createTestVault(balance: initialBalance)
     poolRef.deposit(pid: pid, funds: <- vault)

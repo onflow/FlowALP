@@ -1,5 +1,5 @@
 import Test
-import "AlpenFlow"
+import "TidalProtocol"
 // CHANGE: Import FlowToken to use correct type references
 import "./test_helpers.cdc"
 
@@ -20,7 +20,7 @@ access(all) fun testReentrancyProtection() {
         defaultTokenThreshold: 0.8,
         initialBalance: 10000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create attacker position
     let attackerPid = poolRef.createPosition()
@@ -70,7 +70,7 @@ access(all) fun testPrecisionLossExploitation() {
      */
     
     var pool <- createTestPool(defaultTokenThreshold: 0.8)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Test with amounts designed to cause precision issues
     let precisionTestAmounts: [UFix64] = [
@@ -120,7 +120,7 @@ access(all) fun testOverflowUnderflowProtection() {
      */
     
     var pool <- createTestPool(defaultTokenThreshold: 0.8)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Test near-maximum values
     let nearMaxUFix64: UFix64 = 92233720368.54775807  // Close to max but safe
@@ -137,7 +137,7 @@ access(all) fun testOverflowUnderflowProtection() {
     // Test 2: Interest calculation with extreme values
     let extremeRates: [UFix64] = [0.99, 0.999, 0.9999]
     for rate in extremeRates {
-        let perSecond = AlpenFlow.perSecondInterestRate(yearlyRate: rate)
+        let perSecond = TidalProtocol.perSecondInterestRate(yearlyRate: rate)
         // Verify it doesn't overflow
         Test.assert(perSecond > 10000000000000000,
             message: "Per-second rate should be valid")
@@ -146,7 +146,7 @@ access(all) fun testOverflowUnderflowProtection() {
     // Test 3: Compound interest with large indices
     let largeIndex: UInt64 = 50000000000000000  // 5.0 in fixed point
     let rate: UInt64 = 10001000000000000     // ~1.0001 per second
-    let compounded = AlpenFlow.compoundInterestIndex(
+    let compounded = TidalProtocol.compoundInterestIndex(
         oldIndex: largeIndex,
         perSecondRate: rate,
         elapsedSeconds: 3600.0  // 1 hour
@@ -173,7 +173,7 @@ access(all) fun testFlashLoanAttackSimulation() {
         defaultTokenThreshold: 0.8,
         initialBalance: 100000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Attacker position with small collateral
     let attackerPid = poolRef.createPosition()
@@ -228,7 +228,7 @@ access(all) fun testGriefingAttacks() {
         defaultTokenThreshold: 0.8,
         initialBalance: 10000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Test 1: Dust attack - many tiny deposits
     let dustPid = poolRef.createPosition()
@@ -279,7 +279,7 @@ access(all) fun testOracleManipulationResilience() {
      */
     
     var pool <- createTestPool(defaultTokenThreshold: 0.8)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // In future multi-token implementation, test:
     // 1. Rapid price changes
@@ -293,7 +293,7 @@ access(all) fun testOracleManipulationResilience() {
     
     for threshold in thresholds {
         var testPool <- createTestPool(defaultTokenThreshold: threshold)
-        let testPoolRef = &testPool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+        let testPoolRef = &testPool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
         
         // Verify threshold is enforced
         let pid = testPoolRef.createPosition()
@@ -329,7 +329,7 @@ access(all) fun testFrontRunningScenarios() {
         defaultTokenThreshold: 0.8,
         initialBalance: 100000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create two users
     let user1Pid = poolRef.createPosition()
@@ -378,7 +378,7 @@ access(all) fun testEconomicAttacks() {
         defaultTokenThreshold: 0.5,  // 50% threshold
         initialBalance: 100000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Attack 1: Try to manipulate interest rates
     // Current implementation has 0% rates, but test the mechanism
@@ -438,7 +438,7 @@ access(all) fun testPositionManipulation() {
      */
     
     var pool <- createTestPool(defaultTokenThreshold: 0.8)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Test 1: Create positions and try to use invalid IDs
     let validPid = poolRef.createPosition()
@@ -500,13 +500,13 @@ access(all) fun testCompoundInterestExploitation() {
     let baseIndex: UInt64 = 10000000000000000  // 1.0
     
     // Test 1: Very high frequency compounding
-    let highFreqRate = AlpenFlow.perSecondInterestRate(yearlyRate: 0.10)  // 10% APY
+    let highFreqRate = TidalProtocol.perSecondInterestRate(yearlyRate: 0.10)  // 10% APY
     
     // Compound 1 second at a time for 3600 seconds
     var currentIndex = baseIndex
     var i = 0
     while i < 3600 {
-        currentIndex = AlpenFlow.compoundInterestIndex(
+        currentIndex = TidalProtocol.compoundInterestIndex(
             oldIndex: currentIndex,
             perSecondRate: highFreqRate,
             elapsedSeconds: 1.0
@@ -515,7 +515,7 @@ access(all) fun testCompoundInterestExploitation() {
     }
     
     // Compare with single 1-hour compound
-    let singleCompound = AlpenFlow.compoundInterestIndex(
+    let singleCompound = TidalProtocol.compoundInterestIndex(
         oldIndex: baseIndex,
         perSecondRate: highFreqRate,
         elapsedSeconds: 3600.0
@@ -530,7 +530,7 @@ access(all) fun testCompoundInterestExploitation() {
         message: "Compound frequency should not significantly affect result")
     
     // Test 2: Zero time exploitation
-    let zeroTime = AlpenFlow.compoundInterestIndex(
+    let zeroTime = TidalProtocol.compoundInterestIndex(
         oldIndex: baseIndex,
         perSecondRate: highFreqRate,
         elapsedSeconds: 0.0
@@ -539,8 +539,8 @@ access(all) fun testCompoundInterestExploitation() {
     Test.assertEqual(zeroTime, baseIndex)
     
     // Test 3: Negative rate simulation (not possible with UFix64, but test edge)
-    let zeroRate = AlpenFlow.perSecondInterestRate(yearlyRate: 0.0)
-    let noInterest = AlpenFlow.compoundInterestIndex(
+    let zeroRate = TidalProtocol.perSecondInterestRate(yearlyRate: 0.0)
+    let noInterest = TidalProtocol.compoundInterestIndex(
         oldIndex: baseIndex,
         perSecondRate: zeroRate,
         elapsedSeconds: 31536000.0  // 1 year
