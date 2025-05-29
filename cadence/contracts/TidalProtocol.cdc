@@ -8,7 +8,7 @@ import "DFB"
 // This replaces our test FlowVault with the actual Flow token
 import "FlowToken"
 
-access(all) contract AlpenFlow: FungibleToken {
+access(all) contract TidalProtocol: FungibleToken {
 
     access(all) entitlement Withdraw
 
@@ -46,7 +46,7 @@ access(all) contract AlpenFlow: FungibleToken {
                 // deposit amount, and then convert the result back to a scaled balance. However, this will
                 // only cause problems for very small deposits (fractions of a cent), so we save computational
                 // cycles by just scaling the deposit amount and adding it directly to the scaled balance.
-                let scaledDeposit = AlpenFlow.trueBalanceToScaledBalance(trueBalance: amount,
+                let scaledDeposit = TidalProtocol.trueBalanceToScaledBalance(trueBalance: amount,
                     interestIndex: tokenState.creditInterestIndex)
 
                 self.scaledBalance = self.scaledBalance + scaledDeposit
@@ -56,14 +56,14 @@ access(all) contract AlpenFlow: FungibleToken {
             } else {
                 // When depositing into a debit position, we first need to compute the true balance to see
                 // if this deposit will flip the position from debit to credit.
-                let trueBalance = AlpenFlow.scaledBalanceToTrueBalance(scaledBalance: self.scaledBalance,
+                let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: self.scaledBalance,
                     interestIndex: tokenState.debitInterestIndex)
 
                 if trueBalance > amount {
                     // The deposit isn't big enough to clear the debt, so we just decrement the debt.
                     let updatedBalance = trueBalance - amount
 
-                    self.scaledBalance = AlpenFlow.trueBalanceToScaledBalance(trueBalance: updatedBalance,
+                    self.scaledBalance = TidalProtocol.trueBalanceToScaledBalance(trueBalance: updatedBalance,
                         interestIndex: tokenState.debitInterestIndex)
 
                     // Decrease the total debit balance for the token
@@ -73,7 +73,7 @@ access(all) contract AlpenFlow: FungibleToken {
                     let updatedBalance = amount - trueBalance
 
                     self.direction = BalanceDirection.Credit
-                    self.scaledBalance = AlpenFlow.trueBalanceToScaledBalance(trueBalance: updatedBalance,
+                    self.scaledBalance = TidalProtocol.trueBalanceToScaledBalance(trueBalance: updatedBalance,
                         interestIndex: tokenState.creditInterestIndex)
 
                     // Increase the credit balance AND decrease the debit balance
@@ -91,7 +91,7 @@ access(all) contract AlpenFlow: FungibleToken {
                 // withdrawal amount, and then convert the result back to a scaled balance. However, this will
                 // only cause problems for very small withdrawals (fractions of a cent), so we save computational
                 // cycles by just scaling the withdrawal amount and subtracting it directly from the scaled balance.
-                let scaledWithdrawal = AlpenFlow.trueBalanceToScaledBalance(trueBalance: amount,
+                let scaledWithdrawal = TidalProtocol.trueBalanceToScaledBalance(trueBalance: amount,
                     interestIndex: tokenState.debitInterestIndex)
 
                 self.scaledBalance = self.scaledBalance + scaledWithdrawal
@@ -101,7 +101,7 @@ access(all) contract AlpenFlow: FungibleToken {
             } else {
                 // When withdrawing from a credit position, we first need to compute the true balance to see
                 // if this withdrawal will flip the position from credit to debit.
-                let trueBalance = AlpenFlow.scaledBalanceToTrueBalance(scaledBalance: self.scaledBalance,
+                let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: self.scaledBalance,
                     interestIndex: tokenState.creditInterestIndex)
 
                 if trueBalance >= amount {
@@ -109,7 +109,7 @@ access(all) contract AlpenFlow: FungibleToken {
                     // credit balance.
                     let updatedBalance = trueBalance - amount
 
-                    self.scaledBalance = AlpenFlow.trueBalanceToScaledBalance(trueBalance: updatedBalance,
+                    self.scaledBalance = TidalProtocol.trueBalanceToScaledBalance(trueBalance: updatedBalance,
                         interestIndex: tokenState.creditInterestIndex)
 
                     // Decrease the total credit balance for the token
@@ -119,7 +119,7 @@ access(all) contract AlpenFlow: FungibleToken {
                     let updatedBalance = amount - trueBalance
 
                     self.direction = BalanceDirection.Debit
-                    self.scaledBalance = AlpenFlow.trueBalanceToScaledBalance(trueBalance: updatedBalance,
+                    self.scaledBalance = TidalProtocol.trueBalanceToScaledBalance(trueBalance: updatedBalance,
                         interestIndex: tokenState.debitInterestIndex)
 
                     // Decrease the credit balance AND increase the debit balance
@@ -190,9 +190,9 @@ access(all) contract AlpenFlow: FungibleToken {
 
         while secondsCounter > 0 {
             if secondsCounter & 1 == 1 {
-                result = AlpenFlow.interestMul(result, current)
+                result = TidalProtocol.interestMul(result, current)
             }
-            current = AlpenFlow.interestMul(current, current)
+            current = TidalProtocol.interestMul(current, current)
             secondsCounter = secondsCounter >> 1
         }
 
@@ -240,8 +240,8 @@ access(all) contract AlpenFlow: FungibleToken {
         access(all) fun updateInterestIndices() {
             let currentTime = getCurrentBlock().timestamp
             let timeDelta = currentTime - self.lastUpdate
-            self.creditInterestIndex = AlpenFlow.compoundInterestIndex(oldIndex: self.creditInterestIndex, perSecondRate: self.currentCreditRate, elapsedSeconds: timeDelta)
-            self.debitInterestIndex = AlpenFlow.compoundInterestIndex(oldIndex: self.debitInterestIndex, perSecondRate: self.currentDebitRate, elapsedSeconds: timeDelta)
+            self.creditInterestIndex = TidalProtocol.compoundInterestIndex(oldIndex: self.creditInterestIndex, perSecondRate: self.currentCreditRate, elapsedSeconds: timeDelta)
+            self.debitInterestIndex = TidalProtocol.compoundInterestIndex(oldIndex: self.debitInterestIndex, perSecondRate: self.currentDebitRate, elapsedSeconds: timeDelta)
             self.lastUpdate = currentTime
         }
 
@@ -270,8 +270,8 @@ access(all) contract AlpenFlow: FungibleToken {
                 creditRate = 0.0
             }
             
-            self.currentCreditRate = AlpenFlow.perSecondInterestRate(yearlyRate: creditRate)
-            self.currentDebitRate = AlpenFlow.perSecondInterestRate(yearlyRate: debitRate)
+            self.currentCreditRate = TidalProtocol.perSecondInterestRate(yearlyRate: creditRate)
+            self.currentDebitRate = TidalProtocol.perSecondInterestRate(yearlyRate: debitRate)
         }
 
         init(interestCurve: {InterestCurve}) {
@@ -413,12 +413,12 @@ access(all) contract AlpenFlow: FungibleToken {
                 let balance = position.balances[type]!
                 let tokenState = &self.globalLedger[type]! as auth(EImplementation) &TokenState
                 if balance.direction == BalanceDirection.Credit {
-                    let trueBalance = AlpenFlow.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance,
+                    let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance,
                         interestIndex: tokenState.creditInterestIndex)
 
                     effectiveCollateral = effectiveCollateral + trueBalance * self.liquidationThresholds[type]!
                 } else {
-                    let trueBalance = AlpenFlow.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance,
+                    let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance,
                         interestIndex: tokenState.debitInterestIndex)
 
                     totalDebt = totalDebt + trueBalance
@@ -459,8 +459,8 @@ access(all) contract AlpenFlow: FungibleToken {
                 let tokenState = &self.globalLedger[type]! as auth(EImplementation) &TokenState
                 
                 let trueBalance = balance.direction == BalanceDirection.Credit
-                    ? AlpenFlow.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.creditInterestIndex)
-                    : AlpenFlow.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.debitInterestIndex)
+                    ? TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.creditInterestIndex)
+                    : TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.debitInterestIndex)
                 
                 balances.append(PositionBalance(
                     type: type,
@@ -519,7 +519,7 @@ access(all) contract AlpenFlow: FungibleToken {
         // other sinks have been created.
         access(all) fun createSink(type: Type): {DFB.Sink} {
             let pool = self.pool.borrow()!
-            return AlpenFlowSink(pool: pool, positionID: self.id)
+            return TidalProtocolSink(pool: pool, positionID: self.id)
         }
 
         // Returns a NEW source for the given token type that will service withdrawals of that token and
@@ -528,7 +528,7 @@ access(all) contract AlpenFlow: FungibleToken {
         // other sources have been created.
         access(all) fun createSource(type: Type): {DFB.Source} {
             let pool = self.pool.borrow()!
-            return AlpenFlowSource(pool: pool, positionID: self.id, tokenType: type)
+            return TidalProtocolSource(pool: pool, positionID: self.id, tokenType: type)
         }
 
         // Provides a sink to the Position that will have tokens proactively pushed into it when the
@@ -597,7 +597,7 @@ access(all) contract AlpenFlow: FungibleToken {
     // FungibleToken contract interface requirement
     access(all) fun createEmptyVault(vaultType: Type): @{FungibleToken.Vault} {
         // CHANGE: This contract doesn't create vaults - it's a lending protocol
-        panic("AlpenFlow doesn't create vaults - use the token's contract")
+        panic("TidalProtocol doesn't create vaults - use the token's contract")
     }
 
     // ViewResolver conformance for metadata
@@ -620,18 +620,18 @@ access(all) contract AlpenFlow: FungibleToken {
             case Type<FungibleTokenMetadataViews.FTDisplay>():
                 let media = MetadataViews.Media(
                     file: MetadataViews.HTTPFile(
-                        url: "https://example.com/alpenflow-logo.svg"
+                        url: "https://example.com/TidalProtocol-logo.svg"
                     ),
                     mediaType: "image/svg+xml"
                 )
                 return FungibleTokenMetadataViews.FTDisplay(
-                    name: "AlpenFlow Token",
+                    name: "TidalProtocol Token",
                     symbol: "ALPF",
-                    description: "AlpenFlow is a decentralized lending protocol on Flow blockchain",
-                    externalURL: MetadataViews.ExternalURL("https://alpenflow.com"),
+                    description: "TidalProtocol is a decentralized lending protocol on Flow blockchain",
+                    externalURL: MetadataViews.ExternalURL("https://TidalProtocol.com"),
                     logos: MetadataViews.Medias([media]),
                     socials: {
-                        "twitter": MetadataViews.ExternalURL("https://twitter.com/alpenflow")
+                        "twitter": MetadataViews.ExternalURL("https://twitter.com/TidalProtocol")
                     }
                 )
             case Type<FungibleTokenMetadataViews.FTVaultData>():
@@ -642,20 +642,20 @@ access(all) contract AlpenFlow: FungibleToken {
                     receiverLinkedType: Type<&{FungibleToken.Receiver}>(),
                     metadataLinkedType: Type<&{FungibleToken.Balance, ViewResolver.Resolver}>(),
                     createEmptyVaultFunction: (fun(): @{FungibleToken.Vault} {
-                        // CHANGE: AlpenFlow doesn't create vaults
-                        panic("AlpenFlow doesn't create vaults")
+                        // CHANGE: TidalProtocol doesn't create vaults
+                        panic("TidalProtocol doesn't create vaults")
                     })
                 )
             case Type<FungibleTokenMetadataViews.TotalSupply>():
                 return FungibleTokenMetadataViews.TotalSupply(
-                    totalSupply: AlpenFlow.totalSupply
+                    totalSupply: TidalProtocol.totalSupply
                 )
         }
         return nil
     }
 
-    // DFB.Sink implementation for AlpenFlow
-    access(all) struct AlpenFlowSink: DFB.Sink {
+    // DFB.Sink implementation for TidalProtocol
+    access(all) struct TidalProtocolSink: DFB.Sink {
         access(contract) let uniqueID: {DFB.UniqueIdentifier}?
         access(contract) let pool: auth(EPosition) &Pool
         access(contract) let positionID: UInt64
@@ -686,8 +686,8 @@ access(all) contract AlpenFlow: FungibleToken {
         }
     }
 
-    // DFB.Source implementation for AlpenFlow
-    access(all) struct AlpenFlowSource: DFB.Source {
+    // DFB.Source implementation for TidalProtocol
+    access(all) struct TidalProtocolSource: DFB.Source {
         access(contract) let uniqueID: {DFB.UniqueIdentifier}?
         access(contract) let pool: auth(EPosition) &Pool
         access(contract) let positionID: UInt64
@@ -714,7 +714,7 @@ access(all) contract AlpenFlow: FungibleToken {
             if withdrawAmount > 0.0 {
                 return <- self.pool.withdraw(pid: self.positionID, amount: withdrawAmount, type: self.tokenType)
             } else {
-                return <- AlpenFlow.createEmptyVault(vaultType: self.tokenType)
+                return <- TidalProtocol.createEmptyVault(vaultType: self.tokenType)
             }
         }
         
@@ -726,7 +726,7 @@ access(all) contract AlpenFlow: FungibleToken {
         }
     }
 
-    // AlpenFlow starts here!
+    // TidalProtocol starts here!
 
     access(all) enum BalanceDirection: UInt8 {
         access(all) case Credit
@@ -768,9 +768,9 @@ access(all) contract AlpenFlow: FungibleToken {
         self.totalSupply = 0.0
         
         // Set up storage paths
-        self.VaultStoragePath = /storage/alpenFlowVault
-        self.VaultPublicPath = /public/alpenFlowVault
-        self.ReceiverPublicPath = /public/alpenFlowReceiver
-        self.AdminStoragePath = /storage/alpenFlowAdmin
+        self.VaultStoragePath = /storage/TidalProtocolVault
+        self.VaultPublicPath = /public/TidalProtocolVault
+        self.ReceiverPublicPath = /public/TidalProtocolReceiver
+        self.AdminStoragePath = /storage/TidalProtocolAdmin
     }
 }

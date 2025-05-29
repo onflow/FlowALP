@@ -1,15 +1,15 @@
-# AlpenFlow Push Summary - FlowVault Removal Complete
+# TidalProtocol Push Summary - FlowVault Removal Complete
 
 ## 🎉 Successfully Pushed to GitHub
 
 **Commit**: `ffafc46` - "Complete FlowVault removal and fix all tests - Ready for Tidal integration"
 **Branch**: `main`
-**Repository**: `https://github.com/onflow/AlpenFlow.git`
+**Repository**: `https://github.com/onflow/TidalProtocol.git`
 
 ## 📋 What Was Accomplished
 
 ### 1. FlowVault Removal ✅
-- Removed the custom `FlowVault` resource from AlpenFlow contract
+- Removed the custom `FlowVault` resource from TidalProtocol contract
 - Contract is now token-agnostic and works with any `FungibleToken.Vault`
 - Fixed all references to use generic vault interfaces
 - Created `MockVault` for testing purposes
@@ -165,7 +165,7 @@ Input Ranges Tested:
 
 ## 🚀 Ready for Tidal Integration
 
-The AlpenFlow contract is now:
+The TidalProtocol contract is now:
 - ✅ Free of FlowVault dependencies
 - ✅ Token-agnostic
 - ✅ Fully tested for normal operations
@@ -176,7 +176,7 @@ The AlpenFlow contract is now:
 
 ## 📝 Next Steps
 
-1. The Tidal team can now integrate AlpenFlow without FlowVault conflicts
+1. The Tidal team can now integrate TidalProtocol without FlowVault conflicts
 2. Future development can focus on the features outlined in FutureFeatures.md
 3. Intensive tests can be improved to handle edge cases better
 4. Consider implementing:

@@ -1,5 +1,5 @@
 import Test
-import "AlpenFlow"
+import "TidalProtocol"
 // CHANGE: Import FlowToken to use correct type references
 import "./test_helpers.cdc"
 
@@ -35,7 +35,7 @@ access(all) fun testFuzzDepositWithdrawInvariants() {
     
     for seed in seeds {
         var pool <- createTestPool(defaultTokenThreshold: 0.8)
-        let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+        let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
         
         // Create multiple positions
         let numPositions = Int(seed % 5 + 1)
@@ -115,11 +115,11 @@ access(all) fun testFuzzInterestMonotonicity() {
     let testPeriods: [UFix64] = [1.0, 10.0, 60.0, 3600.0, 86400.0, 604800.0]
     
     for rate in testRates {
-        let perSecondRate = AlpenFlow.perSecondInterestRate(yearlyRate: rate)
+        let perSecondRate = TidalProtocol.perSecondInterestRate(yearlyRate: rate)
         var previousIndex: UInt64 = 10000000000000000 // 1.0
         
         for period in testPeriods {
-            let newIndex = AlpenFlow.compoundInterestIndex(
+            let newIndex = TidalProtocol.compoundInterestIndex(
                 oldIndex: previousIndex,
                 perSecondRate: perSecondRate,
                 elapsedSeconds: period
@@ -166,12 +166,12 @@ access(all) fun testFuzzScaledBalanceConsistency() {
     
     for balance in testBalances {
         for index in testIndices {
-            let scaled = AlpenFlow.trueBalanceToScaledBalance(
+            let scaled = TidalProtocol.trueBalanceToScaledBalance(
                 trueBalance: balance,
                 interestIndex: index
             )
             
-            let backToTrue = AlpenFlow.scaledBalanceToTrueBalance(
+            let backToTrue = TidalProtocol.scaledBalanceToTrueBalance(
                 scaledBalance: scaled,
                 interestIndex: index
             )
@@ -205,7 +205,7 @@ access(all) fun testFuzzPositionHealthBoundaries() {
             defaultTokenThreshold: threshold,
             initialBalance: 1000000.0
         )
-        let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+        let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
         
         // Test various collateral/debt ratios
         let collateralAmounts: [UFix64] = [1.0, 10.0, 100.0, 1000.0, 10000.0]
@@ -257,7 +257,7 @@ access(all) fun testFuzzConcurrentPositionIsolation() {
         defaultTokenThreshold: 0.8,
         initialBalance: 1000000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create multiple positions
     let numPositions = 10
@@ -336,7 +336,7 @@ access(all) fun testFuzzExtremeValues() {
     ]
     
     var pool <- createTestPool(defaultTokenThreshold: 0.8)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     for amount in extremeAmounts {
         let pid = poolRef.createPosition()
@@ -398,12 +398,12 @@ access(all) fun testFuzzInterestRateEdgeCases() {
     let startIndex: UInt64 = 10000000000000000
     
     for rate in extremeRates {
-        let perSecondRate = AlpenFlow.perSecondInterestRate(yearlyRate: rate)
+        let perSecondRate = TidalProtocol.perSecondInterestRate(yearlyRate: rate)
         
         for period in extremePeriods {
             // Skip combinations that might overflow
             if rate < 0.99 || period < 31536000.0 {
-                let compounded = AlpenFlow.compoundInterestIndex(
+                let compounded = TidalProtocol.compoundInterestIndex(
                     oldIndex: startIndex,
                     perSecondRate: perSecondRate,
                     elapsedSeconds: period
@@ -438,7 +438,7 @@ access(all) fun testFuzzLiquidationThresholdEnforcement() {
             defaultTokenThreshold: threshold,
             initialBalance: 1000000.0
         )
-        let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+        let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
         
         for collateral in collateralAmounts {
             let pid = poolRef.createPosition()
@@ -486,7 +486,7 @@ access(all) fun testFuzzMultiTokenBehavior() {
      */
     
     var pool <- createTestPool(defaultTokenThreshold: 0.8)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create positions and simulate multi-token behavior
     let numPositions = 5
@@ -533,7 +533,7 @@ access(all) fun testFuzzReserveIntegrityUnderStress() {
         defaultTokenThreshold: 0.8,
         initialBalance: 10000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create many positions
     let numPositions = 20

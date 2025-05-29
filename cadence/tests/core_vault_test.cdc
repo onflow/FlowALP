@@ -1,5 +1,5 @@
 import Test
-import "AlpenFlow"
+import "TidalProtocol"
 // CHANGE: We're using MockVault from test_helpers instead of FlowToken
 import "./test_helpers.cdc"
 
@@ -25,7 +25,7 @@ fun testDepositWithdrawSymmetry() {
     var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
     
     // Obtain an auth reference that grants EPosition access
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
 
     // Open a new empty position inside the pool
     let pid = poolRef.createPosition()
@@ -90,7 +90,7 @@ fun testDebitToCreditFlip() {
     let defaultThreshold: UFix64 = 0.5  // 50% threshold allows borrowing up to 50% of collateral
     // CHANGE: Use test helper's createTestPool
     var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
 
     // Create a funding position with plenty of liquidity
     let fundingPid = poolRef.createPosition()

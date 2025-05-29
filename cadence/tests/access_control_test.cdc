@@ -1,5 +1,5 @@
 import Test
-import "AlpenFlow"
+import "TidalProtocol"
 // CHANGE: We're using MockVault from test_helpers instead of FlowToken
 import "./test_helpers.cdc"
 
@@ -47,10 +47,10 @@ fun testImplementationEntitlement() {
      */
     
     // Create an InternalBalance struct
-    let balance = AlpenFlow.InternalBalance()
+    let balance = TidalProtocol.InternalBalance()
     
     // Verify initial state
-    Test.assertEqual(balance.direction, AlpenFlow.BalanceDirection.Credit)
+    Test.assertEqual(balance.direction, TidalProtocol.BalanceDirection.Credit)
     Test.assertEqual(balance.scaledBalance, 0.0)
     
     // Note: The InternalBalance struct has public methods that require

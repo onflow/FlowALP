@@ -1,5 +1,5 @@
 import Test
-import "AlpenFlow"
+import "TidalProtocol"
 // CHANGE: Import FlowToken to use correct type references
 import "./test_helpers.cdc"
 
@@ -23,7 +23,7 @@ fun testCreditBalanceUpdates() {
     // Create pool
     let defaultThreshold: UFix64 = 1.0
     var pool <- createTestPool(defaultTokenThreshold: defaultThreshold)
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Check initial reserve balance
     // CHANGE: Updated type reference to MockVault
@@ -68,7 +68,7 @@ fun testDebitBalanceUpdates() {
         defaultTokenThreshold: defaultThreshold,
         initialBalance: 1000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create borrower position with collateral
     let borrowerPid = poolRef.createPosition()
@@ -127,7 +127,7 @@ fun testBalanceDirectionFlips() {
         defaultTokenThreshold: defaultThreshold,
         initialBalance: 1000.0
     )
-    let poolRef = &pool as auth(AlpenFlow.EPosition) &AlpenFlow.Pool
+    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
     
     // Create test position
     let testPid = poolRef.createPosition()

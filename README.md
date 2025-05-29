@@ -1,4 +1,4 @@
-# AlpenFlow - DeFi Lending Protocol on Flow
+# TidalProtocol - DeFi Lending Protocol on Flow
 
 ## 📊 Project Status
 
@@ -12,26 +12,26 @@
 ## 🎯 Tidal Integration Milestones
 
 ### Current Status (Tracer Bullet Phase)
-- ✅ **Smart Contract Integration**: AlpenFlow provides sink/source interfaces for token swapping
-- ✅ **Development & Testing**: Automated testing framework for AlpenFlow and DefiBlocks
-- ✅ **Repository Structure**: AlpenFlow code in private repo, DefiBlocks in public repo
+- ✅ **Smart Contract Integration**: TidalProtocol provides sink/source interfaces for token swapping
+- ✅ **Development & Testing**: Automated testing framework for TidalProtocol and DefiBlocks
+- ✅ **Repository Structure**: TidalProtocol code in private repo, DefiBlocks in public repo
 - 💛 **Test Coverage**: Working towards comprehensive test suite for Tidal functionality
 - 👌 **AMM Integration**: Currently using dummy swapper, real AMM deployment planned
 
 ### Upcoming (Limited Beta)
-- ✅ **Documentation**: First pass documentation of AlpenFlow (this README)
-- ✅ **Testing**: Extensive test suite for AlpenFlow and DefiBlocks
+- ✅ **Documentation**: First pass documentation of TidalProtocol (this README)
+- ✅ **Testing**: Extensive test suite for TidalProtocol and DefiBlocks
 - 💛 **Sample Code**: DefiBlocks sample code and tutorials needed
 - 👌 **Advanced Features**: Per-user limits and controlled testing capabilities
 
 ### Future (Open Beta)
-- ✅ **Open Access**: Full public access to AlpenFlow and DefiBlocks
+- ✅ **Open Access**: Full public access to TidalProtocol and DefiBlocks
 - 💛 **Documentation**: Improved documentation and tutorials
 - ✅ **Sample Code**: Complete tutorials for DefiBlocks integration
 
-## 🏦 About AlpenFlow
+## 🏦 About TidalProtocol
 
-AlpenFlow is a decentralized lending and borrowing protocol built on the Flow blockchain. It implements the Flow FungibleToken standard and integrates with DeFi Blocks for composability.
+TidalProtocol is a decentralized lending and borrowing protocol built on the Flow blockchain. It implements the Flow FungibleToken standard and integrates with DeFi Blocks for composability.
 
 ### Key Features
 
@@ -89,8 +89,8 @@ For detailed test status and FlowVault removal summary, see [TestingCompletionSu
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/AlpenFlow.git
-cd AlpenFlow
+git clone https://github.com/your-username/TidalProtocol.git
+cd TidalProtocol
 ```
 
 2. Install dependencies:
@@ -118,10 +118,10 @@ flow project deploy --network=emulator
 ## 📦 Project Structure
 
 ```
-AlpenFlow/
+TidalProtocol/
 ├── cadence/
 │   ├── contracts/
-│   │   └── AlpenFlow.cdc          # Main lending protocol contract
+│   │   └── TidalProtocol.cdc          # Main lending protocol contract
 │   ├── tests/
 │   │   ├── test_helpers.cdc       # Shared test utilities
 │   │   ├── core_vault_test.cdc    # Vault operation tests
@@ -144,7 +144,7 @@ AlpenFlow/
 1. **Pool**: Main lending pool managing positions and reserves
 2. **Position**: User positions tracking deposits and borrows
 3. **TokenState**: Per-token state including interest indices
-4. **AlpenFlowSink/Source**: DeFi Blocks integration for composability
+4. **TidalProtocolSink/Source**: DeFi Blocks integration for composability
 
 ### Key Interfaces
 
@@ -159,7 +159,7 @@ AlpenFlow/
 
 ```cadence
 // Create a new pool with your token type
-let pool <- AlpenFlow.createPool(
+let pool <- TidalProtocol.createPool(
     defaultToken: Type<@YourToken.Vault>(),
     defaultTokenThreshold: 0.8
 )

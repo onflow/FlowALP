@@ -1,7 +1,7 @@
 {
 	"contracts": {
-		"AlpenFlow": {
-			"source": "./cadence/contracts/AlpenFlow.cdc",
+		"TidalProtocol": {
+			"source": "./cadence/contracts/TidalProtocol.cdc",
 			"aliases": {
 				"testing": "0x0000000000000007"
 			}
@@ -84,7 +84,7 @@
 	},
 	"deployments": {
 		"emulator": {
-			"emulator-account": ["AlpenFlow"]
+			"emulator-account": ["TidalProtocol"]
 		}
 	}
 }
