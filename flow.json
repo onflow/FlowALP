@@ -1,69 +1,80 @@
 {
 	"contracts": {
-		"TidalProtocol": {
-			"source": "./cadence/contracts/TidalProtocol.cdc",
-			"aliases": {
-				"testing": "0x0000000000000007"
-			}
-		},
 		"DFB": {
 			"source": "./DeFiBlocks/cadence/contracts/interfaces/DFB.cdc",
 			"aliases": {
-				"testing": "0x0000000000000008"
+				"testing": "0000000000000008"
 			}
 		},
-		"FungibleToken": {
-			"source": "mainnet://f233dcee88fe0abe.FungibleToken",
+		"TidalProtocol": {
+			"source": "./cadence/contracts/TidalProtocol.cdc",
 			"aliases": {
-				"emulator": "0xee82856bf20e2aa6",
-				"testnet": "0x9a0766d93b6608b7",
-				"mainnet": "0xf233dcee88fe0abe",
-				"testing": "0x0000000000000002"
+				"testing": "0000000000000007"
 			}
-		},
-		"FungibleTokenMetadataViews": {
-			"source": "mainnet://f233dcee88fe0abe.FungibleTokenMetadataViews",
-			"aliases": {
-				"emulator": "0xee82856bf20e2aa6",
-				"testnet": "0x9a0766d93b6608b7",
-				"mainnet": "0xf233dcee88fe0abe",
-				"testing": "0x0000000000000002"
-			}
-		},
-		"ViewResolver": {
-			"source": "mainnet://1d7e57aa55817448.ViewResolver",
-			"aliases": {
-				"emulator": "0xf8d6e0586b0a20c7",
-				"testnet": "0x631e88ae7f1d7c20",
-				"mainnet": "0x1d7e57aa55817448",
-				"testing": "0x0000000000000001"
-			}
-		},
-		"MetadataViews": {
-			"source": "mainnet://1d7e57aa55817448.MetadataViews",
-			"aliases": {
-				"emulator": "0xf8d6e0586b0a20c7",
-				"testnet": "0x631e88ae7f1d7c20",
-				"mainnet": "0x1d7e57aa55817448",
-				"testing": "0x0000000000000001"
-			}
-		},
+		}
+	},
+	"dependencies": {
 		"Burner": {
 			"source": "mainnet://f233dcee88fe0abe.Burner",
+			"hash": "71af18e227984cd434a3ad00bb2f3618b76482842bae920ee55662c37c8bf331",
 			"aliases": {
-				"emulator": "0xf8d6e0586b0a20c7",
-				"testnet": "0x9a0766d93b6608b7",
-				"mainnet": "0xf233dcee88fe0abe",
-				"testing": "0x0000000000000001"
+				"emulator": "f8d6e0586b0a20c7",
+				"mainnet": "f233dcee88fe0abe",
+				"testnet": "9a0766d93b6608b7"
 			}
 		},
 		"FlowToken": {
 			"source": "mainnet://1654653399040a61.FlowToken",
+			"hash": "cefb25fd19d9fc80ce02896267eb6157a6b0df7b1935caa8641421fe34c0e67a",
 			"aliases": {
-				"emulator": "0x0ae53cb6e3f42a79",
-				"testnet": "0x7e60df042a9c0868",
-				"mainnet": "0x1654653399040a61",
-				"testing": "0x0000000000000003"
+				"emulator": "0ae53cb6e3f42a79",
+				"mainnet": "1654653399040a61",
+				"testnet": "7e60df042a9c0868"
+			}
+		},
+		"FungibleToken": {
+			"source": "mainnet://f233dcee88fe0abe.FungibleToken",
+			"hash": "23c1159cf99b2b039b6b868d782d57ae39b8d784045d81597f100a4782f0285b",
+			"aliases": {
+				"emulator": "ee82856bf20e2aa6",
+				"mainnet": "f233dcee88fe0abe",
+				"testnet": "9a0766d93b6608b7"
+			}
+		},
+		"FungibleTokenMetadataViews": {
+			"source": "mainnet://f233dcee88fe0abe.FungibleTokenMetadataViews",
+			"hash": "dff704a6e3da83997ed48bcd244aaa3eac0733156759a37c76a58ab08863016a",
+			"aliases": {
+				"emulator": "ee82856bf20e2aa6",
+				"mainnet": "f233dcee88fe0abe",
+				"testnet": "9a0766d93b6608b7"
+			}
+		},
+		"MetadataViews": {
+			"source": "mainnet://1d7e57aa55817448.MetadataViews",
+			"hash": "10a239cc26e825077de6c8b424409ae173e78e8391df62750b6ba19ffd048f51",
+			"aliases": {
+				"emulator": "f8d6e0586b0a20c7",
+				"mainnet": "1d7e57aa55817448",
+				"testnet": "631e88ae7f1d7c20"
+			}
+		},
+		"NonFungibleToken": {
+			"source": "mainnet://1d7e57aa55817448.NonFungibleToken",
+			"hash": "b63f10e00d1a814492822652dac7c0574428a200e4c26cb3c832c4829e2778f0",
+			"aliases": {
+				"emulator": "f8d6e0586b0a20c7",
+				"mainnet": "1d7e57aa55817448",
+				"testnet": "631e88ae7f1d7c20"
+			}
+		},
+		"ViewResolver": {
+			"source": "mainnet://1d7e57aa55817448.ViewResolver",
+			"hash": "374a1994046bac9f6228b4843cb32393ef40554df9bd9907a702d098a2987bde",
+			"aliases": {
+				"emulator": "f8d6e0586b0a20c7",
+				"mainnet": "1d7e57aa55817448",
+				"testnet": "631e88ae7f1d7c20"
 			}
 		}
 	},
@@ -84,7 +95,9 @@
 	},
 	"deployments": {
 		"emulator": {
-			"emulator-account": ["TidalProtocol"]
+			"emulator-account": [
+				"TidalProtocol"
+			]
 		}
 	}
 }
