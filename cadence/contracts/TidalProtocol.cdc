@@ -529,11 +529,34 @@ access(all) contract TidalProtocol {
                 health: health
             )
         }
+
+        /// Sets the Sink within the InternalPosition to which funds are deposited when a position is determined to be
+        /// overcollaterized. If `nil`, no overcollateralized value is not automatically pushed
+        access(contract) fun providePositionSink(pid: UInt64, type: Type, sink: {DFB.Sink}?) {
+            let iPos = &self.positions[pid]! as auth(EImplementation) &InternalPosition
+            iPos.issuanceSinks[type] = sink
+        }
+
+        /// Sets the Source within the InternalPosition from which funds are withdrawn when a position is determined to
+        /// be undercollaterized. If `nil`, no funds are automatically pulled, though note that such cases risk
+        /// automated liquidation
+        access(contract) fun providePositionSource(pid: UInt64, type: Type, source: {DFB.Source}?) {
+            let iPos = &self.positions[pid]! as auth(EImplementation) &InternalPosition
+            iPos.repaymentSources[type] = source
+        }
     }
 
     access(all) struct Position {
         access(self) let id: UInt64
         access(self) let pool: Capability<auth(EPosition) &Pool>
+
+        init(id: UInt64, pool: Capability<auth(EPosition) &Pool>) {
+            pre {
+                pool.check(): "Invalid Pool Capability provided"
+            }
+            self.id = id
+            self.pool = pool
+        }
 
         // Returns the balances (both positive and negative) for all tokens in this position.
         access(all) fun getBalances(): [PositionBalance] {
@@ -551,17 +574,20 @@ access(all) contract TidalProtocol {
         }
         // Deposits tokens into the position, paying down debt (if one exists) and/or
         // increasing collateral. The provided Vault must be a supported token type.
-        access(all) fun deposit(from: @{FungibleToken.Vault})
-        {
-            destroy from
+        access(all) fun deposit(from: @{FungibleToken.Vault}) {
+            pre {
+                self.pool.check(): "This Position's Pool capability is no longer valid - cannot deposit"
+            }
+            self.pool.borrow()!.deposit(pid: self.id, funds: <-from)
         }
 
         // Withdraws tokens from the position by withdrawing collateral and/or
         // creating/increasing a loan. The requested Vault type must be a supported token.
-        access(all) fun withdraw(type: Type, amount: UFix64): @{FungibleToken.Vault}
-        {
-            // CHANGE: This is a stub implementation - real implementation would call pool.withdraw
-            panic("Position.withdraw is not implemented - use Pool.withdraw directly")
+        access(all) fun withdraw(type: Type, amount: UFix64): @{FungibleToken.Vault} {
+            pre {
+                self.pool.check(): "This Position's Pool capability is no longer valid - cannot withdraw"
+            }
+            return <- self.pool.borrow()!.withdraw(pid: self.id, amount: amount, type: type)
         }
 
         // Returns a NEW sink for the given token type that will accept deposits of that token and
@@ -590,7 +616,11 @@ access(all) contract TidalProtocol {
         // Each position can have only one sink, and the sink must accept the default token type
         // configured for the pool. Providing a new sink will replace the existing sink. Pass nil
         // to configure the position to not push tokens.
-        access(all) fun provideSink(sink: {DFB.Sink}?) {
+        access(all) fun provideSink(forType: Type, sink: {DFB.Sink}?) {
+            pre {
+                self.pool.check(): "This Position's Pool capability is no longer valid - cannot withdraw"
+            }
+            self.pool.borrow()!.providePositionSink(pid: self.id, type: forType, sink: sink)
         }
 
         // Provides a source to the Position that will have tokens proactively pulled from it when the
@@ -600,12 +630,8 @@ access(all) contract TidalProtocol {
         // Each position can have only one source, and the source must accept the default token type
         // configured for the pool. Providing a new source will replace the existing source. Pass nil
         // to configure the position to not pull tokens.
-        access(all) fun provideSource(source: {DFB.Source}?) {
-        }
-
-        init(id: UInt64, pool: Capability<auth(EPosition) & Pool>) {
-            self.id = id
-            self.pool = pool
+        access(all) fun provideSource(forType: Type, source: {DFB.Source}?) {
+            self.pool.borrow()!.providePositionSource(pid: self.id, type: forType, source: source)
         }
     }
 
