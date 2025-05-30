@@ -38,6 +38,13 @@ access(all) contract TidalProtocol {
         return Position(id: pid, pool: cap)
     }
 
+    /* --- TEST METHODS | REMOVE BEFORE PRODUCTION & REFACTOR TESTS --- */
+
+    // CHANGE: Add a proper pool creation function for tests
+    access(all) fun createPool(defaultToken: Type, defaultTokenThreshold: UFix64): @Pool {
+        return <- create Pool(defaultToken: defaultToken, defaultTokenThreshold: defaultTokenThreshold)
+    }
+
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
     access(all) entitlement EPosition
@@ -581,34 +588,6 @@ access(all) contract TidalProtocol {
             self.id = id
             self.pool = pool
         }
-    }
-
-    /* --- TEST METHODS | REMOVE BEFORE PRODUCTION & REFACTOR TESTS --- */
-
-    // CHANGE: Removed FlowToken-specific implementation
-    // Helper for unit-tests – creates a new Pool with a generic default token
-    // Tests should specify the actual token type they want to use
-    access(all) fun createTestPool(defaultTokenThreshold: UFix64): @Pool {
-        // For backward compatibility, we'll panic here
-        // Tests should use createPool with explicit token type
-        panic("Use createPool with explicit token type instead")
-    }
-
-    // CHANGE: Removed - tests should use proper token minting
-    // This function is kept for backward compatibility but will panic
-    access(all) fun createTestVault(balance: UFix64): @{FungibleToken.Vault} {
-        panic("Use proper token minting instead of createTestVault")
-    }
-
-    // CHANGE: Add a proper pool creation function for tests
-    access(all) fun createPool(defaultToken: Type, defaultTokenThreshold: UFix64): @Pool {
-        return <- create Pool(defaultToken: defaultToken, defaultTokenThreshold: defaultTokenThreshold)
-    }
-
-    // Helper for unit-tests - initializes a pool with a vault containing the specified balance
-    access(all) fun createTestPoolWithBalance(defaultTokenThreshold: UFix64, initialBalance: UFix64): @Pool {
-        // CHANGE: This function is deprecated - tests should create pools with explicit token types
-        panic("Use createPool with explicit token type and deposit tokens separately")
     }
 
     // DFB.Sink implementation for TidalProtocol
