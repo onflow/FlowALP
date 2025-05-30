@@ -8,6 +8,38 @@ import "MOET"
 
 access(all) contract TidalProtocol {
 
+    /// The canonical StoragePath where the primary TidalProtocol pool is stored
+    access(all) let PoolStoragePath: StoragePath
+
+    /* --- PUBLIC METHODS ---- */
+
+    /// Takes out a TidalProtocol loan with the provided collateral, returning a Position that can be used to manage
+    /// collateral and borrowed fund flows
+    ///
+    /// @param collateral: The collateral used as the basis for a loan. Only certain collateral types are supported, so
+    ///     callers should be sure to check the provided Vault is supported to prevent reversion.
+    /// @param issuanceSink: The DeFiBlocks Sink connector where the protocol will deposit borrowed funds. If the
+    ///     position becomes overcollateralized, additional funds will be borrowed (to maintain target LTV) and
+    ///     deposited to the provided Sink.
+    /// @param repaymentSource: An optional DeFiBlocks Source connector from which the protocol will attempt to source
+    ///     borrowed funds in the event of undercollateralization prior to liquidating. If none is provided, the
+    ///     position health will not be actively managed on the down side, meaning liquidation is possible as soon as
+    ///     the loan becomes undercollateralized.
+    ///
+    /// @return the Position via which the caller can manage their position
+    ///
+    access(all) fun openPosition(
+        collateral: @{FungibleToken.Vault},
+        issuanceSink: {DFB.Sink}, // TODO: pass downstream
+        repaymentSource: {DFB.Source}? // TODO: pass downstream
+    ): Position {
+        let pid = self.borrowPool().createPosition(funds: <-collateral)
+        let cap = self.account.capabilities.storage.issue<auth(EPosition) &Pool>(self.PoolStoragePath)
+        return Position(id: pid, pool: cap)
+    }
+
+    /* --- CONSTRUCTS & INTERNAL METHODS ---- */
+
     access(all) entitlement EPosition
     access(all) entitlement EGovernance
     access(all) entitlement EImplementation
@@ -134,8 +166,7 @@ access(all) contract TidalProtocol {
     }
 
     access(all) struct interface InterestCurve {
-        access(all) fun interestRate(creditBalance: UFix64, debitBalance: UFix64): UFix64
-        {
+        access(all) fun interestRate(creditBalance: UFix64, debitBalance: UFix64): UFix64 {
             post {
                 result <= 1.0: "Interest rate can't exceed 100%"
             }
@@ -423,10 +454,13 @@ access(all) contract TidalProtocol {
             return effectiveCollateral / totalDebt
         }
 
-        access(all) fun createPosition(): UInt64 {
+        access(all) fun createPosition(funds: @{FungibleToken.Vault}): UInt64 {
             let id = self.nextPositionID
             self.nextPositionID = self.nextPositionID + 1
             self.positions[id] = InternalPosition()
+
+            self.deposit(pid: id, funds: <-funds)
+
             return id
         }
 
@@ -549,6 +583,8 @@ access(all) contract TidalProtocol {
         }
     }
 
+    /* --- TEST METHODS | REMOVE BEFORE PRODUCTION & REFACTOR TESTS --- */
+
     // CHANGE: Removed FlowToken-specific implementation
     // Helper for unit-tests – creates a new Pool with a generic default token
     // Tests should specify the actual token type they want to use
@@ -647,8 +683,6 @@ access(all) contract TidalProtocol {
         }
     }
 
-    // TidalProtocol starts here!
-
     access(all) enum BalanceDirection: UInt8 {
         access(all) case Credit
         access(all) case Debit
@@ -682,5 +716,19 @@ access(all) contract TidalProtocol {
             self.defaultTokenAvailableBalance = defaultTokenAvailableBalance
             self.health = health
         }
+    }
+
+    access(self) view fun borrowPool(): auth(EPosition) &Pool {
+        return self.account.storage.borrow<auth(EPosition) &Pool>(from: self.PoolStoragePath)
+            ?? panic("Could not borrow reference to internal TidalProtocol Pool resource")
+    }
+
+    init() {
+        self.PoolStoragePath = StoragePath(identifier: "tidalProtocolPool_\(self.account.address)")!
+
+        self.account.storage.save(
+            <-create Pool(defaultToken: Type<@MOET.Vault>(), defaultTokenThreshold: 0.8),
+            to: self.PoolStoragePath
+        )
     }
 }
