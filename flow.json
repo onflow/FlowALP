@@ -6,6 +6,12 @@
 				"testing": "0000000000000008"
 			}
 		},
+		"MOET": {
+			"source": "./cadence/contracts/MOET.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"TidalProtocol": {
 			"source": "./cadence/contracts/TidalProtocol.cdc",
 			"aliases": {
@@ -96,6 +102,8 @@
 	"deployments": {
 		"emulator": {
 			"emulator-account": [
+				"DFB",
+				"MOET",
 				"TidalProtocol"
 			]
 		}
