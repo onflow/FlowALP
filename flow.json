@@ -103,7 +103,15 @@
 		"emulator": {
 			"emulator-account": [
 				"DFB",
-				"MOET",
+				{
+					"name": "MOET",
+					"args": [
+						{
+							"value": "1000000.0",
+							"type": "UFix64"
+						}
+					]
+				},
 				"TidalProtocol"
 			]
 		}
