@@ -8,13 +8,6 @@ import "MOET"
 
 access(all) contract TidalProtocol {
 
-    access(all) let PoolStoragePath: StoragePath
-
-    // REMOVED: FlowVault resource implementation (previously lines 12-56)
-    // The FlowVault resource has been removed to prevent type conflicts
-    // with the real FlowToken.Vault when integrating with Tidal contracts.
-    // All references to FlowVault will now use FlowToken.Vault instead.
-
     access(all) entitlement EPosition
     access(all) entitlement EGovernance
     access(all) entitlement EImplementation
@@ -254,10 +247,10 @@ access(all) contract TidalProtocol {
 
             let debitRate = self.interestCurve.interestRate(creditBalance: self.totalCreditBalance, debitBalance: self.totalDebitBalance)
             let debitIncome = self.totalDebitBalance * (1.0 + debitRate)
-            
+
                          // Calculate insurance amount (0.1% of credit balance)
              let insuranceAmount = self.totalCreditBalance * 0.001
-            
+
             // Calculate credit rate, ensuring we don't have underflows
             var creditRate: UFix64 = 0.0
             if debitIncome >= insuranceAmount {
@@ -267,7 +260,7 @@ access(all) contract TidalProtocol {
                 // but since we can't represent negative rates in our model, we'll use 0.0
                 creditRate = 0.0
             }
-            
+
             self.currentCreditRate = TidalProtocol.perSecondInterestRate(yearlyRate: creditRate)
             self.currentDebitRate = TidalProtocol.perSecondInterestRate(yearlyRate: debitRate)
         }
@@ -451,24 +444,24 @@ access(all) contract TidalProtocol {
         access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
             let position = &self.positions[pid]! as auth(EImplementation) &InternalPosition
             let balances: [PositionBalance] = []
-            
+
             for type in position.balances.keys {
                 let balance = position.balances[type]!
                 let tokenState = &self.globalLedger[type]! as auth(EImplementation) &TokenState
-                
+
                 let trueBalance = balance.direction == BalanceDirection.Credit
                     ? TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.creditInterestIndex)
                     : TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.debitInterestIndex)
-                
+
                 balances.append(PositionBalance(
                     type: type,
                     direction: balance.direction,
                     balance: trueBalance
                 ))
             }
-            
+
             let health = self.positionHealth(pid: pid)
-            
+
             return PositionDetails(
                 balances: balances,
                 poolDefaultToken: self.defaultToken,
@@ -525,7 +518,7 @@ access(all) contract TidalProtocol {
         // times will create multiple sources, each of which will continue to work regardless of how many
         // other sources have been created.
         access(all) fun createSource(type: Type): {DFB.Source} {
-            let pool: auth(TidalProtocol.EPosition) &TidalProtocol.Pool = self.pool.borrow()!
+            let pool = self.pool.borrow()!
             return TidalProtocolSource(pool: pool, positionID: self.id, tokenType: type)
         }
 
@@ -587,7 +580,7 @@ access(all) contract TidalProtocol {
         access(contract) let uniqueID: {DFB.UniqueIdentifier}?
         access(contract) let pool: auth(EPosition) &Pool
         access(contract) let positionID: UInt64
-        
+
         access(all) view fun getSinkType(): Type {
             // CHANGE: For now, return a generic FungibleToken.Vault type
             // The actual type depends on what tokens the pool accepts
@@ -606,7 +599,7 @@ access(all) contract TidalProtocol {
                 self.pool.deposit(pid: self.positionID, funds: <-vault)
             }
         }
-        
+
         init(pool: auth(EPosition) &Pool, positionID: UInt64) {
             self.uniqueID = nil
             self.pool = pool
@@ -620,7 +613,7 @@ access(all) contract TidalProtocol {
         access(contract) let pool: auth(EPosition) &Pool
         access(contract) let positionID: UInt64
         access(contract) let tokenType: Type
-        
+
         access(all) view fun getSourceType(): Type {
             return self.tokenType
         }
@@ -645,7 +638,7 @@ access(all) contract TidalProtocol {
                 return <- MOET.createEmptyVault(vaultType: self.tokenType)
             }
         }
-        
+
         init(pool: auth(EPosition) &Pool, positionID: UInt64, tokenType: Type) {
             self.uniqueID = nil
             self.pool = pool
@@ -689,15 +682,5 @@ access(all) contract TidalProtocol {
             self.defaultTokenAvailableBalance = defaultTokenAvailableBalance
             self.health = health
         }
-    }
-
-    init() {
-        self.PoolStoragePath = StoragePath(identifier: "tidalProtocolPool_\(self.account.address)")!
-
-        let defaultTokenThreshold = 0.8
-        self.account.storage.save(
-            <-create Pool(defaultToken: Type<@MOET.Vault>(), defaultTokenThreshold: defaultTokenThreshold),
-            to: self.PoolStoragePath
-        )
     }
 }
