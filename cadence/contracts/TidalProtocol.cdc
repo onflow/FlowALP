@@ -6,10 +6,25 @@ import "FungibleTokenMetadataViews"
 import "DFB"
 import "MOET"
 
+/*
+    MISSING FUNCTIONALITY:
+    - Pulling MOET from a position with available balance as the user - needed if a Sink is not required by the protocol
+        -> implies a new protocol-defined Source, logic ingrained in existing Source, or route on the Position enabling this withdrawal
+    - Pushing MOET to a position as the protocol on deposits - needed for AutoBalancer recollateralization cycle
+        -> integrate into Pool.deposit so that MOET can be routed to downstream connectors
+    - Balance tracking for MOET that has been withdrawn against a position's collateral balance
+    - Active lending protocol functionality on per-position basis
+
+    ??? How does:
+    - The pool determine the MOET balance available to push?
+    - Maintain and update the issued loan balance?
+ */
 access(all) contract TidalProtocol {
 
-    /// The canonical StoragePath where the primary TidalProtocol pool is stored
+    /// The canonical StoragePath where the primary TidalProtocol Pool is stored
     access(all) let PoolStoragePath: StoragePath
+    /// The canonical PublicPath where the primary TidalProtocol Pool can be accessed publicly
+    access(all) let PoolPublicPath: PublicPath
 
     /* --- PUBLIC METHODS ---- */
 
@@ -363,6 +378,7 @@ access(all) contract TidalProtocol {
             // Vaults will be added when tokens are first deposited
         }
 
+        /// ??? - how does a caller get out their loaned funds if we don't require a Sink for the protocol to push to and we aren't returning a Vault?
         access(EPosition) fun deposit(pid: UInt64, funds: @{FungibleToken.Vault}) {
             pre {
                 self.positions[pid] != nil: "Invalid position ID \(pid)"
@@ -383,7 +399,6 @@ access(all) contract TidalProtocol {
             // Update the global interest indices on the affected token to reflect the passage of time.
             tokenState.updateInterestIndices()
 
-            // CHANGE: Create vault if it doesn't exist yet
             if self.reserves[type] == nil {
                 self.reserves[type] <-! funds.createEmptyVault()
             }
@@ -397,6 +412,14 @@ access(all) contract TidalProtocol {
 
             // Add the money to the reserves
             reserveVault.deposit(from: <-funds)
+
+            // TODO: Push the corresponding MOET amount to the InternalPosition Sink if one exists
+            if let issuanceSink = position.issuanceSinks[type] {
+                // assess how much can be issued based on the updated collateral balance
+                // adjust balance to reflect the loaned amount about to be pushed out of the protocol
+                // mint MOET
+                // deposit to sink
+            }
         }
 
         access(EPosition) fun withdraw(pid: UInt64, amount: UFix64, type: Type): @{FungibleToken.Vault} {
@@ -465,6 +488,9 @@ access(all) contract TidalProtocol {
             return effectiveCollateral / totalDebt
         }
 
+        /// Creates a lending position against the provided collateral funds, depositing the loaned amount to the
+        /// given Sink. If a Source is provided, the position will be configured to pull loan repayment when the loan
+        /// becomes undercollateralized, preferring repayment to outright liquidation.
         access(all) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DFB.Sink},
@@ -546,6 +572,7 @@ access(all) contract TidalProtocol {
         }
     }
 
+    // TODO: Consider making this a resource given how critical it is to accessing a loan
     access(all) struct Position {
         access(self) let id: UInt64
         access(self) let pool: Capability<auth(EPosition) &Pool>
@@ -771,12 +798,22 @@ access(all) contract TidalProtocol {
             ?? panic("Could not borrow reference to internal TidalProtocol Pool resource")
     }
 
+    access(self) view fun borrowMOETMinter(): &MOET.Minter {
+        return self.account.storage.borrow<&MOET.Minter>(from: MOET.AdminStoragePath)
+            ?? panic("Could not borrow reference to internal MOET Minter resource")
+    }
+
     init() {
         self.PoolStoragePath = StoragePath(identifier: "tidalProtocolPool_\(self.account.address)")!
+        self.PoolPublicPath = PublicPath(identifier: "tidalProtocolPool_\(self.account.address)")!
 
+        // save Pool in storage & configure public Capability
         self.account.storage.save(
             <-create Pool(defaultToken: Type<@MOET.Vault>(), defaultTokenThreshold: 0.8),
             to: self.PoolStoragePath
         )
+        let cap = self.account.capabilities.storage.issue<&Pool>(self.PoolStoragePath)
+        self.account.capabilities.unpublish(self.PoolPublicPath)
+        self.account.capabilities.publish(cap, at: self.PoolPublicPath)
     }
 }
