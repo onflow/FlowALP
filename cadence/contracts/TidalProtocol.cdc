@@ -333,7 +333,7 @@ access(all) contract TidalProtocol: FungibleToken {
 
         // Add a new token type to the pool
         // This function should only be called by governance in the future
-        access(all) fun addSupportedToken(
+        access(EGovernance) fun addSupportedToken(
             tokenType: Type, 
             exchangeRate: UFix64, 
             liquidationThreshold: UFix64,

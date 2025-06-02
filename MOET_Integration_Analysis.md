@@ -30,7 +30,7 @@
 
 1. **Added Token Management to Pool**
    ```cadence
-   access(all) fun addSupportedToken(
+   access(EGovernance) fun addSupportedToken(
        tokenType: Type, 
        exchangeRate: UFix64, 
        liquidationThreshold: UFix64,
@@ -42,108 +42,167 @@
    - ✅ Added proper token registration mechanism
    - ✅ Fixed hardcoded MOET reference in withdrawAvailable
    - ✅ Created comprehensive test suite for MOET integration
+   - ✅ Implemented complete governance system
 
-3. **Test Coverage**
-   - `testMOETIntegration`: Tests MOET as a borrowable asset
-   - `testMOETAsCollateral`: Tests MOET as collateral
-   - `testInvalidTokenOperations`: Tests error cases
+3. **Governance Implementation**
 
-## Recommendations for Tracer Bullet
+### Comprehensive Governance System
 
-### Phase 1: Basic Integration (Current Implementation) ✅
-- Add MOET as a borrowable token pegged to $1
-- Users can:
-  - Deposit FLOW/other tokens as collateral
-  - Borrow MOET against collateral
-  - Use MOET as collateral to borrow other tokens
+#### Cadence-Specific Advantages Leveraged
 
-### Phase 2: CDP Implementation (Future)
+1. **Resource-Based Governance**
+   - Governor is a resource that cannot be duplicated
+   - Ownership tracked through resource storage
+   - No reentrancy issues by design
+
+2. **Capability-Based Access Control**
+   ```cadence
+   // Different entitlements for different permission levels
+   access(all) entitlement Execute
+   access(all) entitlement Propose  
+   access(all) entitlement Vote
+   access(all) entitlement Pause
+   access(all) entitlement Admin
+   ```
+
+3. **Path-Based Security**
+   - Different storage paths for different access levels
+   - No need for complex role mappings like Solidity
+
+#### Key Governance Features
+
+1. **Role-Based Access Control**
+   - Admin: Can grant/revoke roles
+   - Proposer: Can create proposals
+   - Executor: Can execute passed proposals
+   - Pauser: Can pause governance in emergencies
+
+2. **Proposal System**
+   ```cadence
+   access(all) enum ProposalType: UInt8 {
+       access(all) case AddToken
+       access(all) case RemoveToken
+       access(all) case UpdateTokenParams
+       access(all) case UpdateInterestCurve
+       access(all) case EmergencyAction
+       access(all) case UpdateGovernance
+   }
+   ```
+
+3. **Voting Mechanism**
+   - Configurable voting period
+   - Proposal threshold requirement
+   - Quorum requirement
+   - Vote tracking to prevent double voting
+
+4. **Timelock Functionality**
+   - Configurable execution delay
+   - Queue system for approved proposals
+
+5. **Emergency Controls**
+   - Pause/unpause functionality
+   - Role-based emergency access
+
+#### Usage Example
+
 ```cadence
-// Suggested structure for CDP functionality
-access(all) contract MOETCDPEngine {
-    // Vault to lock collateral and mint MOET
-    access(all) resource CDP {
-        access(self) var collateral: @{FungibleToken.Vault}
-        access(all) var debtAmount: UFix64
-        
-        // Mint MOET against collateral
-        access(all) fun mintMOET(amount: UFix64): @MOET.Vault
-        
-        // Repay debt and unlock collateral
-        access(all) fun repayDebt(payment: @MOET.Vault)
-    }
-}
-```
-
-### Phase 3: Governance (Future)
-```cadence
-// Suggested governance structure
-access(all) contract PoolGovernance {
-    // Proposal to add new token
-    access(all) struct TokenProposal {
-        access(all) let tokenType: Type
-        access(all) let exchangeRate: UFix64
-        access(all) let liquidationThreshold: UFix64
-        access(all) let votesFor: UFix64
-        access(all) let votesAgainst: UFix64
-    }
-    
-    // Vote on proposals
-    access(all) fun voteOnProposal(proposalID: UInt64, support: Bool)
-    
-    // Execute approved proposals
-    access(all) fun executeProposal(proposalID: UInt64)
-}
-```
-
-## Integration Example
-
-```cadence
-// Example: Setting up MOET in a lending pool
+// 1. Pool creator sets up governance
 let pool <- TidalProtocol.createPool(
     defaultToken: Type<@FlowToken.Vault>(),
     defaultTokenThreshold: 0.8
 )
 
-// Add MOET with $1 peg
-pool.addSupportedToken(
-    tokenType: Type<@MOET.Vault>(),
-    exchangeRate: 1.0,  // 1 MOET = 1 FLOW (assuming FLOW = $1)
-    liquidationThreshold: 0.75,  // 75% LTV
-    interestCurve: StablecoinInterestCurve()  // Custom curve for stablecoins
+// Save pool and create governance capability
+account.storage.save(<-pool, to: /storage/tidalPool)
+let poolCap = account.capabilities.storage.issue<
+    auth(TidalProtocol.EPosition, TidalProtocol.EGovernance) &TidalProtocol.Pool
+>(/storage/tidalPool)
+
+// Create governor
+let governor <- TidalPoolGovernance.createGovernor(
+    poolCapability: poolCap,
+    votingPeriod: 17280,      // ~2 days at 12s blocks
+    proposalThreshold: 100.0,  // 100 governance tokens to propose
+    quorumThreshold: 10000.0,  // 10k votes for quorum
+    executionDelay: 86400.0    // 24 hour timelock
 )
+
+// 2. Grant roles
+governor.grantRole(role: "proposer", recipient: proposerAddress, caller: adminAddress)
+governor.grantRole(role: "executor", recipient: executorAddress, caller: adminAddress)
+
+// 3. Create proposal to add MOET
+let tokenParams = TidalPoolGovernance.TokenAdditionParams(
+    tokenType: Type<@MOET.Vault>(),
+    exchangeRate: 1.0,
+    liquidationThreshold: 0.75,
+    interestCurveType: "stable"
+)
+
+let proposalID = governor.createProposal(
+    proposalType: ProposalType.AddToken,
+    description: "Add MOET stablecoin with $1 peg",
+    params: {"tokenParams": tokenParams},
+    caller: proposerAddress
+)
+
+// 4. Vote on proposal
+governor.castVote(proposalID: proposalID, support: true, caller: voterAddress)
+
+// 5. After voting period, queue and execute
+governor.queueProposal(proposalID: proposalID, caller: executorAddress)
+// Wait for timelock...
+governor.executeProposal(proposalID: proposalID, caller: executorAddress)
 ```
 
 ## Security Considerations
 
-1. **Oracle Risk**: Exchange rates are currently hardcoded. Need price oracles for production.
-2. **Liquidation Risk**: MOET's peg stability depends on proper liquidation mechanisms.
-3. **Governance Risk**: Token addition should be controlled by governance, not admin.
+1. **Access Control**: Only governance can add tokens via entitlement system
+2. **Timelock**: Configurable delay prevents rushed changes
+3. **Emergency Pause**: Can halt governance if needed
+4. **Role Separation**: Different roles for proposing vs executing
+5. **Vote Tracking**: Prevents double voting and ensures fair governance
+
+## Comparison with Solidity Governance
+
+### Cadence Advantages
+- No proxy patterns needed
+- Resources prevent reentrancy
+- Built-in capability system
+- No gas optimization concerns
+- Cleaner permission model
+
+### Solidity Features We Don't Need
+- Complex storage patterns
+- Delegate call mechanisms
+- Storage collision concerns
+- Gas optimization tricks
 
 ## Next Steps
 
-1. **Immediate (Tracer Bullet)**
-   - ✅ Basic MOET integration as borrowable token
-   - ✅ Test suite demonstrating functionality
-   - Deploy and test on emulator
+1. **Immediate (Tracer Bullet)** ✅
+   - Basic MOET integration as borrowable token
+   - Full governance system implementation
+   - Test suite demonstrating functionality
 
 2. **Short Term**
-   - Implement proper price oracles
-   - Add governance proposal system
-   - Create CDP engine for MOET minting
+   - Implement governance token for voting power
+   - Add more proposal types
+   - Create UI for governance interaction
+   - Deploy and test on testnet
 
 3. **Long Term**
-   - Full MakerDAO-style CDP system
-   - Multiple collateral types for MOET
-   - Stability fees and DSR (DAI Savings Rate) equivalent
-   - Emergency shutdown mechanism
+   - Implement vote delegation
+   - Add governance token staking
+   - Create treasury management
+   - Implement optimistic governance
 
-## Testing Instructions
+## Testing
 
 ```bash
+# Run governance tests
+flow test --cover cadence/tests/governance_test.cdc
+
 # Run MOET integration tests
 flow test --cover cadence/tests/moet_integration_test.cdc
-
-# Deploy contracts with MOET
-flow project deploy --network emulator
 ``` 
