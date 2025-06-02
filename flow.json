@@ -29,7 +29,7 @@
 				"emulator": "0x0ae53cb6e3f42a79",
 				"testnet": "0x7e60df042a9c0868",
 				"mainnet": "0x1654653399040a61",
-				"testing": "0x0ae53cb6e3f42a79"
+				"testing": "0x0000000000000003"
 			}
 		},
 		"FungibleToken": {
@@ -37,7 +37,7 @@
 				"emulator": "0xee82856bf20e2aa6",
 				"testnet": "0x9a0766d93b6608b7",
 				"mainnet": "0xf233dcee88fe0abe",
-				"testing": "0xee82856bf20e2aa6"
+				"testing": "0x0000000000000002"
 			}
 		},
 		"FungibleTokenMetadataViews": {
@@ -45,7 +45,7 @@
 				"emulator": "0xee82856bf20e2aa6",
 				"testnet": "0x9a0766d93b6608b7",
 				"mainnet": "0xf233dcee88fe0abe",
-				"testing": "0xee82856bf20e2aa6"
+				"testing": "0x0000000000000002"
 			}
 		},
 		"MetadataViews": {
@@ -54,7 +54,8 @@
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
-				"testnet": "631e88ae7f1d7c20"
+				"testnet": "631e88ae7f1d7c20",
+				"testing": "0x0000000000000001"
 			}
 		},
 		"NonFungibleToken": {
@@ -63,7 +64,8 @@
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
-				"testnet": "631e88ae7f1d7c20"
+				"testnet": "631e88ae7f1d7c20",
+				"testing": "0x0000000000000001"
 			}
 		},
 		"ViewResolver": {
@@ -72,7 +74,18 @@
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
-				"testnet": "631e88ae7f1d7c20"
+				"testnet": "631e88ae7f1d7c20",
+				"testing": "0x0000000000000001"
+			}
+		},
+		"Burner": {
+			"source": "mainnet://f233dcee88fe0abe.Burner",
+			"hash": "71af18e227984cd434a3ad00bb2f3618b76482842bae920ee55662c37c8bf331",
+			"aliases": {
+				"emulator": "f8d6e0586b0a20c7",
+				"mainnet": "f233dcee88fe0abe",
+				"testnet": "9a0766d93b6608b7",
+				"testing": "0x0000000000000002"
 			}
 		}
 	},
@@ -119,7 +132,8 @@
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
-				"testnet": "631e88ae7f1d7c20"
+				"testnet": "631e88ae7f1d7c20",
+				"testing": "0x0000000000000001"
 			}
 		},
 		"NonFungibleToken": {
@@ -128,7 +142,8 @@
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
-				"testnet": "631e88ae7f1d7c20"
+				"testnet": "631e88ae7f1d7c20",
+				"testing": "0x0000000000000001"
 			}
 		},
 		"ViewResolver": {
@@ -137,7 +152,8 @@
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
-				"testnet": "631e88ae7f1d7c20"
+				"testnet": "631e88ae7f1d7c20",
+				"testing": "0x0000000000000001"
 			}
 		}
 	},

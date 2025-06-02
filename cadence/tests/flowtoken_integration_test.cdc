@@ -5,7 +5,7 @@ import "FungibleToken"
 import "MOET"
 
 access(all) fun setup() {
-    // Deploy contracts in correct order
+    // Deploy all contracts in the correct order
     var err = Test.deployContract(
         name: "DFB",
         path: "../../DeFiBlocks/cadence/contracts/interfaces/DFB.cdc",
@@ -28,12 +28,17 @@ access(all) fun setup() {
     Test.expect(err, Test.beNil())
 }
 
+// Helper function to create a pool with FlowToken as default token
+access(all) fun createFlowTokenPool(defaultTokenThreshold: UFix64): @TidalProtocol.Pool {
+    return <- TidalProtocol.createPool(
+        defaultToken: Type<@FlowToken.Vault>(),
+        defaultTokenThreshold: defaultTokenThreshold
+    )
+}
+
 access(all) fun testFlowTokenIntegration() {
     // Create a pool with FlowToken as the default token
-    let pool <- TidalProtocol.createPool(
-        defaultToken: Type<@FlowToken.Vault>(),
-        defaultTokenThreshold: 0.8
-    )
+    let pool <- createFlowTokenPool(defaultTokenThreshold: 0.8)
     let poolRef = &pool as auth(TidalProtocol.EPosition, TidalProtocol.EGovernance) &TidalProtocol.Pool
 
     // Add MOET as a supported token
@@ -47,18 +52,18 @@ access(all) fun testFlowTokenIntegration() {
     // Verify both tokens are supported
     Test.assert(poolRef.isTokenSupported(tokenType: Type<@FlowToken.Vault>()))
     Test.assert(poolRef.isTokenSupported(tokenType: Type<@MOET.Vault>()))
-    
+
+    // Get supported tokens list
     let supportedTokens = poolRef.getSupportedTokens()
     Test.assertEqual(supportedTokens.length, 2)
+    
+    // Check that both token types are in the array (order doesn't matter)
+    let hasFlowToken = supportedTokens.contains(Type<@FlowToken.Vault>())
+    let hasMOET = supportedTokens.contains(Type<@MOET.Vault>())
+    Test.assert(hasFlowToken)
+    Test.assert(hasMOET)
 
-    // Create a position
-    let positionID = poolRef.createPosition()
-    Test.assertEqual(positionID, UInt64(0))
-
-    // Test basic pool functionality
-    let health = poolRef.positionHealth(pid: positionID)
-    Test.assert(health >= 1.0, message: "New position should be healthy")
-
+    // Clean up
     destroy pool
 }
 
@@ -70,7 +75,7 @@ access(all) fun testFlowTokenType() {
     let moetType = Type<@MOET.Vault>()
     
     // Verify types are different
-    Test.assertNotEqual(flowTokenType, moetType)
+    Test.assert(flowTokenType != moetType)
     
     // Create a pool with FlowToken
     let pool <- TidalProtocol.createPool(
@@ -104,10 +109,17 @@ access(all) fun testPoolWithFlowTokenAndMOET() {
 
     // Create a position
     let positionID = poolRef.createPosition()
+    Test.assertEqual(positionID, UInt64(0))
     
     // Check that we can query the pool's state
     Test.assertEqual(poolRef.reserveBalance(type: Type<@FlowToken.Vault>()), 0.0)
     Test.assertEqual(poolRef.reserveBalance(type: Type<@MOET.Vault>()), 0.0)
+    
+    // Verify position details
+    let positionDetails = poolRef.getPositionDetails(pid: positionID)
+    Test.assertEqual(positionDetails.balances.length, 0)
+    Test.assertEqual(positionDetails.health, 1.0)
+    Test.assertEqual(positionDetails.poolDefaultToken, Type<@FlowToken.Vault>())
     
     destroy pool
 } 

@@ -1,6 +1,5 @@
 import "FungibleToken"
 import "ViewResolver"
-import "Burner"
 import "MetadataViews"
 import "FungibleTokenMetadataViews"
 import "DFB"
