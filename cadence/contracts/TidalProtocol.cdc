@@ -55,8 +55,14 @@ access(all) contract TidalProtocol {
     /* --- TEST METHODS | REMOVE BEFORE PRODUCTION & REFACTOR TESTS --- */
 
     // CHANGE: Add a proper pool creation function for tests
-    access(all) fun createPool(defaultToken: Type, defaultTokenThreshold: UFix64): @Pool {
-        return <- create Pool(defaultToken: defaultToken, defaultTokenThreshold: defaultTokenThreshold)
+    access(all) fun createPool(defaultToken: Type, priceOracle: {PriceOracle}): @Pool {
+        return <- create Pool(defaultToken: defaultToken, priceOracle: priceOracle)
+    }
+
+    // RESTORED: Helper function to create a test pool with dummy oracle
+    access(all) fun createTestPoolWithOracle(defaultToken: Type): @Pool {
+        let oracle = DummyPriceOracle(defaultToken: defaultToken)
+        return <- create Pool(defaultToken: defaultToken, priceOracle: oracle)
     }
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
@@ -753,7 +759,7 @@ access(all) contract TidalProtocol {
 
             // RESTORED: Top-up source integration from Dieter's implementation
             // Preflight to see if the funds are available
-            let topUpSource = position.topUpSource
+            let topUpSource = position.topUpSource[type]
             let topUpType = topUpSource?.getSourceType() ?? self.defaultToken
 
             let requiredDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
@@ -1662,113 +1668,6 @@ access(all) contract TidalProtocol {
             let pool = self.pool.borrow()!
             pool.provideTopUpSource(pid: self.id, source: source)
         }
-
-        init(id: UInt64, pool: Capability<auth(EPosition) & Pool>) {
-            self.id = id
-            self.pool = pool
-        }
-    }
-
-    // CHANGE: Removed FlowToken-specific implementation
-    // Helper for unit-tests – creates a new Pool with a generic default token
-    // Tests should specify the actual token type they want to use
-    access(all) fun createTestPool(defaultTokenThreshold: UFix64): @Pool {
-        // For backward compatibility, we'll panic here
-        // Tests should use createPool with explicit token type
-        panic("Use createPool with explicit token type instead")
-    }
-
-    // CHANGE: Removed - tests should use proper token minting
-    // This function is kept for backward compatibility but will panic
-    access(all) fun createTestVault(balance: UFix64): @{FungibleToken.Vault} {
-        panic("Use proper token minting instead of createTestVault")
-    }
-
-    // CHANGE: Add a proper pool creation function for tests
-    access(all) fun createPool(defaultToken: Type, priceOracle: {PriceOracle}): @Pool {
-        return <- create Pool(defaultToken: defaultToken, priceOracle: priceOracle)
-    }
-
-    // RESTORED: Helper function to create a test pool with dummy oracle
-    access(all) fun createTestPoolWithOracle(defaultToken: Type): @Pool {
-        let oracle = DummyPriceOracle(defaultToken: defaultToken)
-        return <- create Pool(defaultToken: defaultToken, priceOracle: oracle)
-    }
-
-    // Helper for unit-tests - initializes a pool with a vault containing the specified balance
-    access(all) fun createTestPoolWithBalance(defaultTokenThreshold: UFix64, initialBalance: UFix64): @Pool {
-        // CHANGE: This function is deprecated - tests should create pools with explicit token types
-        panic("Use createPool with explicit token type and deposit tokens separately")
-    }
-
-    // Events are now handled by FungibleToken standard
-    // Total supply tracking
-    access(all) var totalSupply: UFix64
-
-    // Storage paths
-    access(all) let VaultStoragePath: StoragePath
-    access(all) let VaultPublicPath: PublicPath
-    access(all) let ReceiverPublicPath: PublicPath
-    access(all) let AdminStoragePath: StoragePath
-
-    // FungibleToken contract interface requirement
-    access(all) fun createEmptyVault(vaultType: Type): @{FungibleToken.Vault} {
-        // CHANGE: This contract doesn't create vaults - it's a lending protocol
-        panic("TidalProtocol doesn't create vaults - use the token's contract")
-    }
-
-    // ViewResolver conformance for metadata
-    access(all) view fun getContractViews(resourceType: Type?): [Type] {
-        return [
-            Type<FungibleTokenMetadataViews.FTView>(),
-            Type<FungibleTokenMetadataViews.FTDisplay>(),
-            Type<FungibleTokenMetadataViews.FTVaultData>(),
-            Type<FungibleTokenMetadataViews.TotalSupply>()
-        ]
-    }
-
-    access(all) fun resolveContractView(resourceType: Type?, viewType: Type): AnyStruct? {
-        switch viewType {
-            case Type<FungibleTokenMetadataViews.FTView>():
-                return FungibleTokenMetadataViews.FTView(
-                    ftDisplay: self.resolveContractView(resourceType: nil, viewType: Type<FungibleTokenMetadataViews.FTDisplay>()) as! FungibleTokenMetadataViews.FTDisplay?,
-                    ftVaultData: self.resolveContractView(resourceType: nil, viewType: Type<FungibleTokenMetadataViews.FTVaultData>()) as! FungibleTokenMetadataViews.FTVaultData?
-                )
-            case Type<FungibleTokenMetadataViews.FTDisplay>():
-                let media = MetadataViews.Media(
-                    file: MetadataViews.HTTPFile(
-                        url: "https://example.com/TidalProtocol-logo.svg"
-                    ),
-                    mediaType: "image/svg+xml"
-                )
-                return FungibleTokenMetadataViews.FTDisplay(
-                    name: "TidalProtocol Token",
-                    symbol: "ALPF",
-                    description: "TidalProtocol is a decentralized lending protocol on Flow blockchain",
-                    externalURL: MetadataViews.ExternalURL("https://TidalProtocol.com"),
-                    logos: MetadataViews.Medias([media]),
-                    socials: {
-                        "twitter": MetadataViews.ExternalURL("https://twitter.com/TidalProtocol")
-                    }
-                )
-            case Type<FungibleTokenMetadataViews.FTVaultData>():
-                return FungibleTokenMetadataViews.FTVaultData(
-                    storagePath: self.VaultStoragePath,
-                    receiverPath: self.ReceiverPublicPath,
-                    metadataPath: self.VaultPublicPath,
-                    receiverLinkedType: Type<&{FungibleToken.Receiver}>(),
-                    metadataLinkedType: Type<&{FungibleToken.Balance, ViewResolver.Resolver}>(),
-                    createEmptyVaultFunction: (fun(): @{FungibleToken.Vault} {
-                        // CHANGE: TidalProtocol doesn't create vaults
-                        panic("TidalProtocol doesn't create vaults")
-                    })
-                )
-            case Type<FungibleTokenMetadataViews.TotalSupply>():
-                return FungibleTokenMetadataViews.TotalSupply(
-                    totalSupply: TidalProtocol.totalSupply
-                )
-        }
-        return nil
     }
 
     // DFB.Sink implementation for TidalProtocol
