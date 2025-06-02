@@ -10,6 +10,14 @@ fun setup() {
     )
     Test.expect(err, Test.beNil())
     
+    // Deploy MOET before TidalProtocol since TidalProtocol imports it
+    err = Test.deployContract(
+        name: "MOET",
+        path: "../contracts/MOET.cdc",
+        arguments: [1000000.0]  // Initial supply
+    )
+    Test.expect(err, Test.beNil())
+    
     // Deploy TidalProtocol
     err = Test.deployContract(
         name: "TidalProtocol",

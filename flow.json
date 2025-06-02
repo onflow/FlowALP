@@ -3,13 +3,25 @@
 		"DFB": {
 			"source": "./DeFiBlocks/cadence/contracts/interfaces/DFB.cdc",
 			"aliases": {
-				"testing": "0000000000000008"
+				"testing": "0000000000000006"
 			}
 		},
 		"TidalProtocol": {
 			"source": "./cadence/contracts/TidalProtocol.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
+			}
+		},
+		"MOET": {
+			"source": "./cadence/contracts/MOET.cdc",
+			"aliases": {
+				"testing": "0000000000000008"
+			}
+		},
+		"TidalPoolGovernance": {
+			"source": "./cadence/contracts/TidalPoolGovernance.cdc",
+			"aliases": {
+				"testing": "0000000000000009"
 			}
 		}
 	},
@@ -96,7 +108,9 @@
 	"deployments": {
 		"emulator": {
 			"emulator-account": [
-				"TidalProtocol"
+				"TidalProtocol",
+				"MOET",
+				"TidalPoolGovernance"
 			]
 		}
 	}

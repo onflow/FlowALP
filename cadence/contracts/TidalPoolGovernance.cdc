@@ -153,9 +153,9 @@ access(all) contract TidalPoolGovernance {
     }
 
     // Governor resource - the main governance controller
-    access(all) resource Governor: ProposerPublic, VoterPublic, ExecutorPublic {
+    access(all) resource Governor {
         access(all) let id: UInt64
-        access(self) let poolCapability: Capability<auth(TidalProtocol.EPosition) &TidalProtocol.Pool>
+        access(self) let poolCapability: Capability<auth(TidalProtocol.EPosition, TidalProtocol.EGovernance) &TidalProtocol.Pool>
         access(self) var votingPeriod: UInt64  // blocks
         access(self) var proposalThreshold: UFix64
         access(self) var quorumThreshold: UFix64
@@ -173,7 +173,7 @@ access(all) contract TidalPoolGovernance {
 
         // Initialize the governor
         init(
-            poolCapability: Capability<auth(TidalProtocol.EPosition) &TidalProtocol.Pool>,
+            poolCapability: Capability<auth(TidalProtocol.EPosition, TidalProtocol.EGovernance) &TidalProtocol.Pool>,
             votingPeriod: UInt64,
             proposalThreshold: UFix64,
             quorumThreshold: UFix64,
@@ -210,9 +210,11 @@ access(all) contract TidalPoolGovernance {
             pre {
                 !self.paused: "Governance is paused"
                 self.proposers[caller] ?? false: "Caller does not have proposer role"
-                self.getVotingPowerFor(address: caller) >= self.proposalThreshold: 
-                    "Proposer does not meet threshold"
             }
+
+            // Check voting power in function body instead of precondition
+            let votingPower = self.getVotingPowerFor(address: caller)
+            assert(votingPower >= self.proposalThreshold, message: "Proposer does not meet threshold")
 
             let proposalID = TidalPoolGovernance.nextProposalID
             TidalPoolGovernance.nextProposalID = TidalPoolGovernance.nextProposalID + 1
@@ -247,8 +249,11 @@ access(all) contract TidalPoolGovernance {
             pre {
                 !self.paused: "Governance is paused"
                 TidalPoolGovernance.proposals[proposalID] != nil: "Proposal does not exist"
-                self.votes[proposalID]?[caller] == nil: "Already voted on this proposal"
             }
+
+            // Check if already voted
+            let hasVoted = self.votes[proposalID] != nil && self.votes[proposalID]![caller] != nil && self.votes[proposalID]![caller]!
+            assert(!hasVoted, message: "Already voted on this proposal")
 
             let proposal = TidalPoolGovernance.proposals[proposalID]!
             let currentBlock = getCurrentBlock().height
@@ -261,20 +266,18 @@ access(all) contract TidalPoolGovernance {
 
             let votingPower = self.getVotingPowerFor(address: caller)
             
-            // Update proposal votes
-            if support {
-                TidalPoolGovernance.proposals[proposalID]!.forVotes = 
-                    TidalPoolGovernance.proposals[proposalID]!.forVotes + votingPower
-            } else {
-                TidalPoolGovernance.proposals[proposalID]!.againstVotes = 
-                    TidalPoolGovernance.proposals[proposalID]!.againstVotes + votingPower
-            }
+            // Get the current proposal, update it, and save it back
+            var updatedProposal = TidalPoolGovernance.proposals[proposalID]!
+            updatedProposal.recordVote(support: support, weight: votingPower)
+            TidalPoolGovernance.proposals[proposalID] = updatedProposal
 
             // Record that this address has voted
             if self.votes[proposalID] == nil {
                 self.votes[proposalID] = {}
             }
-            self.votes[proposalID]![caller] = true
+            let votes = self.votes[proposalID]!
+            votes[caller] = true
+            self.votes[proposalID] = votes
 
             emit VoteCast(
                 proposalID: proposalID,
@@ -315,7 +318,10 @@ access(all) contract TidalPoolGovernance {
                 message: "Quorum not reached"
             )
 
-            TidalPoolGovernance.proposals[proposalID]!.updateStatus(newStatus: ProposalStatus.Queued)
+            // Update proposal status
+            var updatedProposal = TidalPoolGovernance.proposals[proposalID]!
+            updatedProposal.updateStatus(newStatus: ProposalStatus.Queued)
+            TidalPoolGovernance.proposals[proposalID] = updatedProposal
         }
 
         // Execute a proposal
@@ -342,7 +348,10 @@ access(all) contract TidalPoolGovernance {
                     panic("Unsupported proposal type")
             }
 
-            TidalPoolGovernance.proposals[proposalID]!.markExecuted()
+            // Mark proposal as executed
+            var updatedProposal = TidalPoolGovernance.proposals[proposalID]!
+            updatedProposal.markExecuted()
+            TidalPoolGovernance.proposals[proposalID] = updatedProposal
             
             emit ProposalExecuted(
                 proposalID: proposalID,
@@ -439,32 +448,11 @@ access(all) contract TidalPoolGovernance {
             
             self.paused = false
         }
-
-        // Interface compliance functions that shouldn't be called directly
-        access(all) fun castVote(proposalID: UInt64, support: Bool) {
-            panic("Use castVote with caller address")
-        }
-
-        access(all) fun createProposal(
-            proposalType: ProposalType,
-            description: String,
-            params: {String: AnyStruct}
-        ): UInt64 {
-            panic("Use createProposal with caller address")
-        }
-
-        access(all) fun executeProposal(proposalID: UInt64) {
-            panic("Use executeProposal with caller address")
-        }
-
-        access(all) fun queueProposal(proposalID: UInt64) {
-            panic("Use queueProposal with caller address")
-        }
     }
 
     // Create a new governor for a pool
     access(all) fun createGovernor(
-        poolCapability: Capability<auth(TidalProtocol.EPosition) &TidalProtocol.Pool>,
+        poolCapability: Capability<auth(TidalProtocol.EPosition, TidalProtocol.EGovernance) &TidalProtocol.Pool>,
         votingPeriod: UInt64,
         proposalThreshold: UFix64,
         quorumThreshold: UFix64,

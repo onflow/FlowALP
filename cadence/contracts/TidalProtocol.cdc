@@ -750,13 +750,8 @@ access(all) contract TidalProtocol: FungibleToken {
                 return <- self.pool.withdraw(pid: self.positionID, amount: withdrawAmount, type: self.tokenType)
             } else {
                 // Create an empty vault by getting one from the pool's reserves
-                // This ensures we get the correct vault type
-                let reserveVault = (&self.pool.reserves[self.tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)
-                if reserveVault != nil {
-                    return <- reserveVault!.withdraw(amount: 0.0)
-                } else {
-                    panic("Token type not supported in pool reserves")
-                }
+                // For now, just panic as we can't create empty vaults directly
+                panic("Cannot create empty vault for type: ".concat(self.tokenType.identifier))
             }
         }
         
