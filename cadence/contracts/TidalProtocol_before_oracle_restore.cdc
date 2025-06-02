@@ -21,118 +21,6 @@ access(all) contract TidalProtocol: FungibleToken {
     access(all) entitlement EGovernance
     access(all) entitlement EImplementation
 
-    // RESTORED: Oracle and DeFi interfaces from Dieter's implementation
-    // These are critical for dynamic price-based position management
-    
-    access(all) struct interface PriceOracle {
-        access(all) view fun unitOfAccount(): Type
-        access(all) fun price(token: Type): UFix64
-    }
-
-    access(all) struct interface Flasher {
-        access(all) view fun borrowType(): Type
-        access(all) fun flashLoan(amount: UFix64, sink: {DFB.Sink}, source: {DFB.Source}): UFix64
-    }
-
-    access(all) struct interface SwapQuote {
-        access(all) let amountIn: UFix64
-        access(all) let amountOut: UFix64
-    }
-
-    access(all) struct interface Swapper {
-        access(all) view fun inType(): Type
-        access(all) view fun outType(): Type
-        access(all) fun quoteIn(outAmount: UFix64): {SwapQuote}
-        access(all) fun quoteOut(inAmount: UFix64): {SwapQuote}
-        access(all) fun swap(inVault: @{FungibleToken.Vault}, quote:{SwapQuote}?): @{FungibleToken.Vault}
-        access(all) fun swapBack(residual: @{FungibleToken.Vault}, quote:{SwapQuote}): @{FungibleToken.Vault}
-    }
-
-    // RESTORED: SwapSink implementation for automated rebalancing
-    access(all) struct SwapSink: DFB.Sink {
-        access(contract) let uniqueID: {DFB.UniqueIdentifier}?
-        access(self) let swapper: {Swapper}
-        access(self) let sink: {DFB.Sink}
-
-        init(swapper: {Swapper}, sink: {DFB.Sink}) {
-            pre {
-                swapper.outType() == sink.getSinkType()
-            }
-
-            self.uniqueID = nil
-            self.swapper = swapper
-            self.sink = sink
-        }
-
-        access(all) view fun getSinkType(): Type {
-            return self.swapper.inType()
-        }
-
-        access(all) fun minimumCapacity(): UFix64 {
-            let sinkCapacity = self.sink.minimumCapacity()
-            return self.swapper.quoteIn(outAmount: sinkCapacity).amountIn
-        }
-
-        access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
-            let limit = self.sink.minimumCapacity()
-
-            let swapQuote = self.swapper.quoteIn(outAmount: limit)
-            let sinkLimit = swapQuote.amountIn
-            let swapVault <- from.withdraw(amount: 0.0)
-
-            if sinkLimit < from.balance {
-                // The sink is limited to fewer tokens that we have available. Only swap
-                // the amount we need to meet the sink limit.
-                swapVault.deposit(from: <-from.withdraw(amount: sinkLimit))
-            }
-            else {
-                // The sink can accept all of the available tokens, so we swap everything
-                swapVault.deposit(from: <-from.withdraw(amount: from.balance))
-            }
-
-            let swappedTokens <- self.swapper.swap(inVault: <-swapVault, quote: swapQuote)
-            self.sink.depositCapacity(from: &swappedTokens as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-
-            if swappedTokens.balance > 0.0 {
-                from.deposit(from: <-self.swapper.swapBack(residual: <-swappedTokens, quote: swapQuote))
-            } else {
-                destroy swappedTokens
-            }
-        }
-    }
-
-    // RESTORED: BalanceSheet and health computation from Dieter's implementation
-    // A convenience function for computing a health value from effective collateral and debt values.
-    access(all) fun healthComputation(effectiveCollateral: UFix64, effectiveDebt: UFix64): UFix64 {
-        var health = 0.0
-
-        if effectiveCollateral == 0.0 {
-            health = 0.0
-        } else if effectiveDebt == 0.0 {
-            health = UFix64.max
-        } else if (effectiveDebt / effectiveCollateral) == 0.0 {
-            // If debt is so small relative to collateral that division rounds to zero,
-            // the health is essentially infinite
-            health = UFix64.max
-        } else {
-            health = effectiveCollateral / effectiveDebt
-        }
-
-        return health
-    }
-
-    access(all) struct BalanceSheet {
-        access(all) let effectiveCollateral: UFix64
-        access(all) let effectiveDebt: UFix64
-        access(all) let health: UFix64
-
-        init(effectiveCollateral: UFix64, effectiveDebt: UFix64) {
-            self.effectiveCollateral = effectiveCollateral
-            self.effectiveDebt = effectiveDebt
-            self.health = TidalProtocol.healthComputation(effectiveCollateral: effectiveCollateral, effectiveDebt: effectiveDebt)
-        }
-    }
-
     // A structure used internally to track a position's balance for a particular token.
     access(all) struct InternalBalance {
         access(all) var direction: BalanceDirection
@@ -419,41 +307,22 @@ access(all) contract TidalProtocol: FungibleToken {
         // The default token type used as the "unit of account" for the pool.
         access(self) let defaultToken: Type
 
-        // RESTORED: Price oracle from Dieter's implementation
-        // A price oracle that will return the price of each token in terms of the default token.
-        access(self) var priceOracle: {PriceOracle}
+        // The exchange rate between the default token and each other token supported by the pool.
+        // Multiplying a quantity of the specified token by the amount stored in this dictionary
+        // will provide the value of that quantity of tokens in terms of the default token.
+        access(self) var exchangeRates: {Type: UFix64}
 
-        // RESTORED: Collateral and borrow factors from Dieter's implementation
-        // These dictionaries determine borrowing limits. Each token has a collateral factor and a
-        // borrow factor.
-        //
-        // When determining the total collateral amount that can be borrowed against, the value of the
-        // token (as given by the oracle) is multiplied by the collateral factor. So, a token with a
-        // collateral factor of 0.8 would only allow you to borrow 80% as much as if you had a the same
-        // value of a token with a collateral factor of 1.0. The total "effective collateral" for a
-        // position is the value of each token multiplied by its collateral factor.
-        //
-        // At the same time, the "borrow factor" determines if the user can borrow against all of that
-        // effective collateral, or if they can only borrow a portion of it to manage risk.
-        access(self) var collateralFactor: {Type: UFix64}
-        access(self) var borrowFactor: {Type: UFix64}
+        // The liquidation threshold for each token.
+        access(self) var liquidationThresholds: {Type: UFix64}
 
-        // REMOVED: Static exchange rates and liquidation thresholds
-        // These have been replaced by dynamic oracle pricing and risk factors
-
-        init(defaultToken: Type, priceOracle: {PriceOracle}) {
-            pre {
-                priceOracle.unitOfAccount() == defaultToken: "Price oracle must return prices in terms of the default token"
-            }
-
+        init(defaultToken: Type, defaultTokenThreshold: UFix64) {
             self.version = 0
             self.globalLedger = {defaultToken: TokenState(interestCurve: SimpleInterestCurve())}
             self.positions = {}
             self.reserves <- {}
             self.defaultToken = defaultToken
-            self.priceOracle = priceOracle
-            self.collateralFactor = {defaultToken: 1.0}
-            self.borrowFactor = {defaultToken: 1.0}
+            self.exchangeRates = {defaultToken: 1.0}
+            self.liquidationThresholds = {defaultToken: defaultTokenThreshold}
             self.nextPositionID = 0
 
             // CHANGE: Don't create vault here - let the caller provide initial reserves
@@ -465,24 +334,24 @@ access(all) contract TidalProtocol: FungibleToken {
         // This function should only be called by governance in the future
         access(EGovernance) fun addSupportedToken(
             tokenType: Type, 
-            collateralFactor: UFix64, 
-            borrowFactor: UFix64,
+            exchangeRate: UFix64, 
+            liquidationThreshold: UFix64,
             interestCurve: {InterestCurve}
         ) {
             pre {
                 self.globalLedger[tokenType] == nil: "Token type already supported"
-                collateralFactor > 0.0 && collateralFactor <= 1.0: "Collateral factor must be between 0 and 1"
-                borrowFactor > 0.0 && borrowFactor <= 1.0: "Borrow factor must be between 0 and 1"
+                exchangeRate > 0.0: "Exchange rate must be positive"
+                liquidationThreshold > 0.0 && liquidationThreshold <= 1.0: "Liquidation threshold must be between 0 and 1"
             }
 
             // Add token to global ledger with its interest curve
             self.globalLedger[tokenType] = TokenState(interestCurve: interestCurve)
             
-            // Set collateral factor (what percentage of value can be used as collateral)
-            self.collateralFactor[tokenType] = collateralFactor
+            // Set exchange rate (how many units of this token equal 1 default token)
+            self.exchangeRates[tokenType] = exchangeRate
             
-            // Set borrow factor (risk adjustment for borrowed amounts)
-            self.borrowFactor[tokenType] = borrowFactor
+            // Set liquidation threshold (what percentage can be borrowed against)
+            self.liquidationThresholds[tokenType] = liquidationThreshold
         }
 
         // Get supported token types
@@ -572,7 +441,7 @@ access(all) contract TidalProtocol: FungibleToken {
 
             // Get the position's collateral and debt values in terms of the default token.
             var effectiveCollateral = 0.0
-            var effectiveDebt = 0.0
+            var totalDebt = 0.0
 
             for type in position.balances.keys {
                 let balance = position.balances[type]!
@@ -581,58 +450,20 @@ access(all) contract TidalProtocol: FungibleToken {
                     let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance,
                         interestIndex: tokenState.creditInterestIndex)
 
-                    // RESTORED: Oracle-based pricing from Dieter's implementation
-                    let tokenPrice = self.priceOracle.price(token: type)
-                    let value = tokenPrice * trueBalance
-                    effectiveCollateral = effectiveCollateral + (value * self.collateralFactor[type]!)
+                    effectiveCollateral = effectiveCollateral + trueBalance * self.liquidationThresholds[type]!
                 } else {
                     let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance,
                         interestIndex: tokenState.debitInterestIndex)
 
-                    // RESTORED: Oracle-based pricing for debt calculation
-                    let tokenPrice = self.priceOracle.price(token: type)
-                    let value = tokenPrice * trueBalance
-                    effectiveDebt = effectiveDebt + (value / self.borrowFactor[type]!)
+                    totalDebt = totalDebt + trueBalance
                 }
             }
 
             // Calculate the health as the ratio of collateral to debt.
-            if effectiveDebt == 0.0 {
+            if totalDebt == 0.0 {
                 return 1.0
             }
-            return effectiveCollateral / effectiveDebt
-        }
-
-        // RESTORED: Position balance sheet calculation from Dieter's implementation
-        access(self) fun positionBalanceSheet(pid: UInt64): BalanceSheet {
-            let position = &self.positions[pid]! as auth(EImplementation) &InternalPosition
-            let priceOracle = &self.priceOracle as &{PriceOracle}
-
-            // Get the position's collateral and debt values in terms of the default token.
-            var effectiveCollateral = 0.0
-            var effectiveDebt = 0.0
-
-            for type in position.balances.keys {
-                let balance = position.balances[type]!
-                let tokenState = &self.globalLedger[type]! as auth(EImplementation) &TokenState
-                if balance.direction == BalanceDirection.Credit {
-                    let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance,
-                        interestIndex: tokenState.creditInterestIndex)
-                    
-                    let value = priceOracle.price(token: type) * trueBalance
-
-                    effectiveCollateral = effectiveCollateral + (value * self.collateralFactor[type]!)
-                } else {
-                    let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance,
-                        interestIndex: tokenState.debitInterestIndex)
-
-                    let value = priceOracle.price(token: type) * trueBalance
-
-                    effectiveDebt = effectiveDebt + (value / self.borrowFactor[type]!)
-                }
-            }
-
-            return BalanceSheet(effectiveCollateral: effectiveCollateral, effectiveDebt: effectiveDebt)
+            return effectiveCollateral / totalDebt
         }
 
         access(all) fun createPosition(): UInt64 {
@@ -777,14 +608,8 @@ access(all) contract TidalProtocol: FungibleToken {
     }
 
     // CHANGE: Add a proper pool creation function for tests
-    access(all) fun createPool(defaultToken: Type, priceOracle: {PriceOracle}): @Pool {
-        return <- create Pool(defaultToken: defaultToken, priceOracle: priceOracle)
-    }
-
-    // RESTORED: Helper function to create a test pool with dummy oracle
-    access(all) fun createTestPoolWithOracle(defaultToken: Type): @Pool {
-        let oracle = DummyPriceOracle(defaultToken: defaultToken)
-        return <- create Pool(defaultToken: defaultToken, priceOracle: oracle)
+    access(all) fun createPool(defaultToken: Type, defaultTokenThreshold: UFix64): @Pool {
+        return <- create Pool(defaultToken: defaultToken, defaultTokenThreshold: defaultTokenThreshold)
     }
 
     // Helper for unit-tests - initializes a pool with a vault containing the specified balance
@@ -942,29 +767,6 @@ access(all) contract TidalProtocol: FungibleToken {
     access(all) enum BalanceDirection: UInt8 {
         access(all) case Credit
         access(all) case Debit
-    }
-
-    // RESTORED: DummyPriceOracle for testing from Dieter's design pattern
-    access(all) struct DummyPriceOracle: PriceOracle {
-        access(self) var prices: {Type: UFix64}
-        access(self) let defaultToken: Type
-        
-        access(all) view fun unitOfAccount(): Type {
-            return self.defaultToken
-        }
-        
-        access(all) fun price(token: Type): UFix64 {
-            return self.prices[token] ?? 1.0
-        }
-        
-        access(all) fun setPrice(token: Type, price: UFix64) {
-            self.prices[token] = price
-        }
-        
-        init(defaultToken: Type) {
-            self.defaultToken = defaultToken
-            self.prices = {defaultToken: 1.0}
-        }
     }
 
     // A structure returned externally to report a position's balance for a particular token.
