@@ -21,13 +21,13 @@
 		"TidalProtocol": {
 			"source": "./cadence/contracts/TidalProtocol.cdc",
 			"aliases": {
-				"testing": "0x0000000000000007"
+				"testing": "0000000000000007"
 			}
 		},
 		"TidalPoolGovernance": {
 			"source": "./cadence/contracts/TidalPoolGovernance.cdc",
 			"aliases": {
-				"testing": "0x0000000000000009"
+				"testing": "0000000000000009"
 			}
 		}
 	},

@@ -1,6 +1,22 @@
 import Test
 import TidalProtocol from "TidalProtocol"
 
+access(all)
+fun _executeScript(_ path: String, _ args: [AnyStruct]): Test.ScriptResult {
+    return Test.executeScript(Test.readFile(path), args)
+}
+
+access(all)
+fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.TestAccount): Test.TransactionResult {
+    let txn = Test.Transaction(
+        code: Test.readFile(path),
+        authorizers: [signer.address],
+        signers: [signer],
+        arguments: args
+    )    
+    return Test.executeTransaction(txn)
+}
+
 // Common test setup function that deploys all required contracts
 access(all) fun deployContracts() {
     var err = Test.deployContract(
@@ -64,21 +80,6 @@ access(all) fun createDummyOracle(defaultToken: Type): AnyStruct {
     let result = Test.executeScript(code, [defaultToken])
     Test.expect(result, Test.beSucceeded())
     return result.returnValue!
-}
-
-// Function to mint FLOW tokens from the service account
-// This simulates real FLOW minting in a test environment
-access(all) fun mintFlow(_ account: Test.TestAccount, _ amount: UFix64) {
-    // Use the mint transaction to mint FLOW tokens
-    let mintTx = Test.Transaction(
-        code: Test.readFile("../transactions/mint_flowtoken.cdc"),
-        authorizers: [Test.serviceAccount().address],
-        signers: [Test.serviceAccount()],
-        arguments: [account.address, amount]
-    )
-    
-    let mintResult = Test.executeTransaction(mintTx)
-    Test.expect(mintResult, Test.beSucceeded())
 }
 
 // Create a mock vault for testing since we can't create FlowToken vaults directly
@@ -200,6 +201,16 @@ access(all) fun createMultiTokenTestPool(
     let result = Test.executeTransaction(createMultiPoolTx)
     Test.expect(result, Test.beSucceeded())
     return true
+}
+
+access(all)
+fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String, beFailed: Bool) {
+    let createRes = _executeTransaction(
+        "../transactions/tidal-protocol/pool-factory/create_and_store_pool.cdc",
+        [defaultTokenIdentifier],
+        signer
+    )
+    Test.expect(createRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
 // NOTE: The following functions need to be updated in each test file that uses them
