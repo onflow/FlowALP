@@ -304,8 +304,8 @@ access(all) contract TidalProtocol {
         access(EImplementation) var targetHealth: UFix64
         access(EImplementation) var minHealth: UFix64
         access(EImplementation) var maxHealth: UFix64
-        access(EImplementation) let drawDownSinks: {Type: {DFB.Sink}}
-        access(EImplementation) let topUpSources: {Type: {DFB.Source}}
+        access(EImplementation) var drawDownSink: {DFB.Sink}?
+        access(EImplementation) var topUpSource: {DFB.Source}?
 
         init() {
             self.balances = {}
@@ -313,16 +313,24 @@ access(all) contract TidalProtocol {
             self.targetHealth = 1.3
             self.minHealth = 1.1
             self.maxHealth = 1.5
-            self.drawDownSinks = {}
-            self.topUpSources = {}
+            self.drawDownSink = nil
+            self.topUpSource = nil
         }
 
-        access(EImplementation) fun setDrawDownSink(_ sink: {DFB.Sink}?, forType: Type) {
-            self.drawDownSinks[forType] = sink
+        access(EImplementation) fun setDrawDownSink(_ sink: {DFB.Sink}?) {
+            pre {
+                sink?.getSinkType() ?? Type<@MOET.Vault>() == Type<@MOET.Vault>():
+                "Invalid Sink provided - Sink \(sink.getType().identifier) must accept MOET"
+            }
+            self.drawDownSink = sink
         }
 
-        access(EImplementation) fun setTopUpSource(_ source: {DFB.Source}?, forType: Type) {
-            self.topUpSources[forType] = source
+        access(EImplementation) fun setTopUpSource(_ source: {DFB.Source}?) {
+            pre {
+                source?.getSourceType() ?? Type<@MOET.Vault>() == Type<@MOET.Vault>():
+                "Invalid Source provided - Source \(source.getType().identifier) must provide MOET"
+            }
+            self.topUpSource = source
         }
     }
 
@@ -656,7 +664,7 @@ access(all) contract TidalProtocol {
             reserveVault.deposit(from: <-funds)
 
             // TODO: Push the corresponding MOET amount to the InternalPosition Sink if one exists
-            if let issuanceSink = position.drawDownSinks[type] {
+            if let issuanceSink = position.drawDownSink {
                 // assess how much can be issued based on the updated collateral balance
                 // adjust balance to reflect the loaned amount about to be pushed out of the protocol
                 // mint MOET
@@ -759,7 +767,7 @@ access(all) contract TidalProtocol {
 
             // RESTORED: Top-up source integration from Dieter's implementation
             // Preflight to see if the funds are available
-            let topUpSource = position.topUpSource[type]
+            let topUpSource = position.topUpSource
             let topUpType = topUpSource?.getSourceType() ?? self.defaultToken
 
             let requiredDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
@@ -1035,13 +1043,14 @@ access(all) contract TidalProtocol {
             // construct a new InternalPosition, assigning it the current position ID
             let id = self.nextPositionID
             self.nextPositionID = self.nextPositionID + 1
-            self.positions[id] = InternalPosition()
+            self.positions[id] <-! create InternalPosition()
 
             // assign issuance & repayment connectors within the InternalPosition
-            let iPos = &self.positions[id]! as auth(EImplementation) &InternalPosition
-            iPos.issuanceSinks[funds.getType()] = issuanceSink
+            let iPos = (&self.positions[id] as auth(EImplementation) &InternalPosition?)!
+            let fundsType = funds.getType()
+            iPos.setDrawDownSink(issuanceSink)
             if repaymentSource != nil {
-                iPos.repaymentSources[funds.getType()] = repaymentSource
+                iPos.setTopUpSource(repaymentSource)
             }
 
             // deposit the initial funds & return the position ID
@@ -1087,21 +1096,6 @@ access(all) contract TidalProtocol {
                 defaultTokenAvailableBalance: 0.0, // TODO: Calculate this properly
                 health: health
             )
-        }
-
-        /// Sets the Sink within the InternalPosition to which funds are deposited when a position is determined to be
-        /// overcollaterized. If `nil`, no overcollateralized value is not automatically pushed
-        access(contract) fun providePositionSink(pid: UInt64, type: Type, sink: {DFB.Sink}?) {
-            let iPos = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
-            iPos.issuanceSinks[type] = sink
-        }
-
-        /// Sets the Source within the InternalPosition from which funds are withdrawn when a position is determined to
-        /// be undercollaterized. If `nil`, no funds are automatically pulled, though note that such cases risk
-        /// automated liquidation
-        access(contract) fun providePositionSource(pid: UInt64, type: Type, source: {DFB.Source}?) {
-            let iPos = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
-            iPos.repaymentSources[type] = source
         }
 
         // RESTORED: Advanced position health management functions from Dieter's implementation
@@ -1479,7 +1473,7 @@ access(all) contract TidalProtocol {
             // TODO: In the production version, this function should only process some positions (limited by positionsProcessedPerCallback) AND
             // it should schedule each update to run in its own callback, so a revert() call from one update (for example, if a source or
             // sink aborts) won't prevent other positions from being updated.
-            var processed = 0
+            var processed: UInt64 = 0
             while self.positionsNeedingUpdates.length > 0 && processed < self.positionsProcessedPerCallback {
                 let pid = self.positionsNeedingUpdates.removeFirst()
                 self.asyncUpdatePosition(pid: pid)
@@ -1830,8 +1824,6 @@ access(all) contract TidalProtocol {
             self.pullFromTopUpSource = pullFromTopUpSource
         }
     }
-
-    // TidalProtocol starts here!
 
     access(all) enum BalanceDirection: UInt8 {
         access(all) case Credit
