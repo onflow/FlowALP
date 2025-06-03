@@ -1,0 +1,7 @@
+❌ Command Error: Parsing failed:
+error: expected token ':'
+  --> :14:12
+   |
+14 |         let oracle = TidalProtocol.DummyPriceOracle(defaultToken: Type<@MockVault>())
+   |             ^
+
