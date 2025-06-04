@@ -24,22 +24,22 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"MOET": {
-			"source": "./cadence/contracts/MOET.cdc",
-			"aliases": {
-				"testing": "0000000000000007"
-			}
-		},
 		"TidalProtocol": {
 			"source": "./cadence/contracts/TidalProtocol.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
 		},
+		"MOET": {
+			"source": "./cadence/contracts/MOET.cdc",
+			"aliases": {
+				"testing": "0000000000000009"
+			}
+		},
 		"TidalPoolGovernance": {
 			"source": "./cadence/contracts/TidalPoolGovernance.cdc",
 			"aliases": {
-				"testing": "0000000000000009"
+				"testing": "000000000000000A"
 			}
 		}
 	},
@@ -151,7 +151,7 @@
 				},
 				"TidalProtocol",
 				"TidalPoolGovernance",
-				"MockTidalProtocolConsumer"
+				"MockTidalProtocolConsumer",
 			]
 		}
 	}
