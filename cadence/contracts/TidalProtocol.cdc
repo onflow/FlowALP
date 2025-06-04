@@ -1,3 +1,4 @@
+import "Burner"
 import "FungibleToken"
 import "ViewResolver"
 import "MetadataViews"
@@ -77,60 +78,6 @@ access(all) contract TidalProtocol {
     access(all) entitlement EPosition
     access(all) entitlement EGovernance
     access(all) entitlement EImplementation
-
-    // RESTORED: SwapSink implementation for automated rebalancing
-    // TODO: Remove in favor of SwapStack.SwapSink implementation
-    access(all) struct SwapSink: DFB.Sink {
-        access(contract) let uniqueID: {DFB.UniqueIdentifier}?
-        access(self) let swapper: {DFB.Swapper}
-        access(self) let sink: {DFB.Sink}
-
-        init(swapper: {DFB.Swapper}, sink: {DFB.Sink}) {
-            pre {
-                swapper.outVaultType() == sink.getSinkType()
-            }
-
-            self.uniqueID = nil
-            self.swapper = swapper
-            self.sink = sink
-        }
-
-        access(all) view fun getSinkType(): Type {
-            return self.swapper.inVaultType()
-        }
-
-        access(all) fun minimumCapacity(): UFix64 {
-            let sinkCapacity = self.sink.minimumCapacity()
-            return self.swapper.amountIn(forDesired: sinkCapacity, reverse: false).inAmount
-        }
-
-        access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
-            let limit = self.sink.minimumCapacity()
-
-            let swapQuote = self.swapper.amountIn(forDesired: limit, reverse: false)
-            let sinkLimit = swapQuote.inAmount
-            let swapVault <- from.withdraw(amount: 0.0)
-
-            if sinkLimit < from.balance {
-                // The sink is limited to fewer tokens that we have available. Only swap
-                // the amount we need to meet the sink limit.
-                swapVault.deposit(from: <-from.withdraw(amount: sinkLimit))
-            }
-            else {
-                // The sink can accept all of the available tokens, so we swap everything
-                swapVault.deposit(from: <-from.withdraw(amount: from.balance))
-            }
-
-            let swappedTokens <- self.swapper.swap(quote: swapQuote, inVault: <-swapVault)
-            self.sink.depositCapacity(from: &swappedTokens as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-
-            if swappedTokens.balance > 0.0 {
-                from.deposit(from: <-self.swapper.swapBack(quote: swapQuote, residual: <-swappedTokens))
-            } else {
-                destroy swappedTokens
-            }
-        }
-    }
 
     // RESTORED: BalanceSheet and health computation from Dieter's implementation
     // A convenience function for computing a health value from effective collateral and debt values.
@@ -672,7 +619,7 @@ access(all) contract TidalProtocol {
             }
 
             if from.balance == 0.0 {
-                destroy from
+                Burner.burn(<-from)
                 return
             }
 
@@ -901,7 +848,7 @@ access(all) contract TidalProtocol {
                         if sinkVault.balance > 0.0 {
                             self.depositAndPush(pid: pid, from: <-sinkVault, pushToDrawDownSink: false)
                         } else {
-                            destroy sinkVault
+                            Burner.burn(<-sinkVault)
                         }
                     }
                 }
