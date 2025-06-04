@@ -209,6 +209,3 @@ This project is licensed under the MIT License.
 - [FungibleToken Standard](https://github.com/onflow/flow-ft)
 - [DeFi Blocks](https://github.com/onflow/defi-blocks)
 - [Flow Discord](https://discord.gg/flow)
-
-## Note
-Tests are being updated for the new contract implementation and will be added in the next PR.
