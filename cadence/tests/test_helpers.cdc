@@ -224,6 +224,16 @@ fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String,
 }
 
 access(all)
+fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, price: UFix64) {
+    let setRes = _executeTransaction(
+        "./transactions/mock-oracle/set_price.cdc",
+        [forTokenIdentifier, price],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
 fun addSupportedTokenSimpleInterestCurve(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,

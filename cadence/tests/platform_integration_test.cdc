@@ -66,6 +66,10 @@ access(all)
 fun testCreatePositionSucceeds() {
     Test.reset(to: snapshot)
 
+    // mock setup
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
+
+    // create pool & add FLOW as supported token in globalLedger
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
     addSupportedTokenSimpleInterestCurve(
         signer: protocolAccount,
@@ -76,10 +80,10 @@ fun testCreatePositionSucceeds() {
         depositCapacityCap: 1000000.0
     )
 
-
+    // act as user setting up a Position
     let user = Test.createAccount()
     mintFlow(to: user, amount: 100.0)
-    let res = executeTransaction("./transactions/create_wrapped_position.cdc",
+    let res = executeTransaction("./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
             [10.0, flowVaultStoragePath, true], // amount, vaultStoragePath, pushToDrawDownSink
             user
         )
