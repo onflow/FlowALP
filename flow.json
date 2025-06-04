@@ -11,6 +11,18 @@
 			"aliases": {
 				"testing": "0000000000000007"
 			}
+		},
+		"MOET": {
+			"source": "./cadence/contracts/MOET.cdc",
+			"aliases": {
+				"testing": "0000000000000009"
+			}
+		},
+		"TidalPoolGovernance": {
+			"source": "./cadence/contracts/TidalPoolGovernance.cdc",
+			"aliases": {
+				"testing": "000000000000000A"
+			}
 		}
 	},
 	"dependencies": {
@@ -96,7 +108,16 @@
 	"deployments": {
 		"emulator": {
 			"emulator-account": [
-				"TidalProtocol"
+				"TidalProtocol",
+				"MOET",
+				"TidalPoolGovernance"
+			]
+		},
+		"testing": {
+			"emulator-account": [
+				"TidalProtocol",
+				"MOET",
+				"TidalPoolGovernance"
 			]
 		}
 	}
