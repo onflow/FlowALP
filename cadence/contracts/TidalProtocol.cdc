@@ -2,10 +2,8 @@ import "FungibleToken"
 import "ViewResolver"
 import "MetadataViews"
 import "FungibleTokenMetadataViews"
+
 import "DFB"
-// CHANGE: Import FlowToken to use the real FLOW token implementation
-// This replaces our test FlowVault with the actual Flow token
-import "FlowToken"
 import "MOET"
 
 access(all) contract TidalProtocol: FungibleToken {
@@ -20,86 +18,6 @@ access(all) contract TidalProtocol: FungibleToken {
     access(all) entitlement EPosition
     access(all) entitlement EGovernance
     access(all) entitlement EImplementation
-
-    // RESTORED: Oracle and DeFi interfaces from Dieter's implementation
-    // These are critical for dynamic price-based position management
-    
-    access(all) struct interface PriceOracle {
-        access(all) view fun unitOfAccount(): Type
-        access(all) fun price(token: Type): UFix64
-    }
-
-    access(all) struct interface Flasher {
-        access(all) view fun borrowType(): Type
-        access(all) fun flashLoan(amount: UFix64, sink: {DFB.Sink}, source: {DFB.Source}): UFix64
-    }
-
-    access(all) struct interface SwapQuote {
-        access(all) let amountIn: UFix64
-        access(all) let amountOut: UFix64
-    }
-
-    access(all) struct interface Swapper {
-        access(all) view fun inType(): Type
-        access(all) view fun outType(): Type
-        access(all) fun quoteIn(outAmount: UFix64): {SwapQuote}
-        access(all) fun quoteOut(inAmount: UFix64): {SwapQuote}
-        access(all) fun swap(inVault: @{FungibleToken.Vault}, quote:{SwapQuote}?): @{FungibleToken.Vault}
-        access(all) fun swapBack(residual: @{FungibleToken.Vault}, quote:{SwapQuote}): @{FungibleToken.Vault}
-    }
-
-    // RESTORED: SwapSink implementation for automated rebalancing
-    access(all) struct SwapSink: DFB.Sink {
-        access(contract) let uniqueID: {DFB.UniqueIdentifier}?
-        access(self) let swapper: {Swapper}
-        access(self) let sink: {DFB.Sink}
-
-        init(swapper: {Swapper}, sink: {DFB.Sink}) {
-            pre {
-                swapper.outType() == sink.getSinkType()
-            }
-
-            self.uniqueID = nil
-            self.swapper = swapper
-            self.sink = sink
-        }
-
-        access(all) view fun getSinkType(): Type {
-            return self.swapper.inType()
-        }
-
-        access(all) fun minimumCapacity(): UFix64 {
-            let sinkCapacity = self.sink.minimumCapacity()
-            return self.swapper.quoteIn(outAmount: sinkCapacity).amountIn
-        }
-
-        access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
-            let limit = self.sink.minimumCapacity()
-
-            let swapQuote = self.swapper.quoteIn(outAmount: limit)
-            let sinkLimit = swapQuote.amountIn
-            let swapVault <- from.withdraw(amount: 0.0)
-
-            if sinkLimit < from.balance {
-                // The sink is limited to fewer tokens that we have available. Only swap
-                // the amount we need to meet the sink limit.
-                swapVault.deposit(from: <-from.withdraw(amount: sinkLimit))
-            }
-            else {
-                // The sink can accept all of the available tokens, so we swap everything
-                swapVault.deposit(from: <-from.withdraw(amount: from.balance))
-            }
-
-            let swappedTokens <- self.swapper.swap(inVault: <-swapVault, quote: swapQuote)
-            self.sink.depositCapacity(from: &swappedTokens as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-
-            if swappedTokens.balance > 0.0 {
-                from.deposit(from: <-self.swapper.swapBack(residual: <-swappedTokens, quote: swapQuote))
-            } else {
-                destroy swappedTokens
-            }
-        }
-    }
 
     // RESTORED: BalanceSheet and health computation from Dieter's implementation
     // A convenience function for computing a health value from effective collateral and debt values.
@@ -472,7 +390,7 @@ access(all) contract TidalProtocol: FungibleToken {
 
         // RESTORED: Price oracle from Dieter's implementation
         // A price oracle that will return the price of each token in terms of the default token.
-        access(self) var priceOracle: {PriceOracle}
+        access(self) var priceOracle: {DFB.PriceOracle}
 
         // RESTORED: Position update queue from Dieter's implementation
         access(EImplementation) var positionsNeedingUpdates: [UInt64]
@@ -507,7 +425,7 @@ access(all) contract TidalProtocol: FungibleToken {
             return state
         }
 
-        init(defaultToken: Type, priceOracle: {PriceOracle}) {
+        init(defaultToken: Type, priceOracle: {DFB.PriceOracle}) {
             pre {
                 priceOracle.unitOfAccount() == defaultToken: "Price oracle must return prices in terms of the default token"
             }
@@ -940,7 +858,7 @@ access(all) contract TidalProtocol: FungibleToken {
         // RESTORED: Position balance sheet calculation from Dieter's implementation
         access(self) fun positionBalanceSheet(pid: UInt64): BalanceSheet {
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
-            let priceOracle = &self.priceOracle as &{PriceOracle}
+            let priceOracle = &self.priceOracle as &{DFB.PriceOracle}
 
             // Get the position's collateral and debt values in terms of the default token.
             var effectiveCollateral = 0.0
@@ -1594,7 +1512,7 @@ access(all) contract TidalProtocol: FungibleToken {
     }
 
     // CHANGE: Add a proper pool creation function for tests
-    access(all) fun createPool(defaultToken: Type, priceOracle: {PriceOracle}): @Pool {
+    access(all) fun createPool(defaultToken: Type, priceOracle: {DFB.PriceOracle}): @Pool {
         return <- create Pool(defaultToken: defaultToken, priceOracle: priceOracle)
     }
 
