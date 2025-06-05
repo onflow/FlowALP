@@ -162,6 +162,7 @@ access(all) contract TidalProtocol: FungibleToken {
 
     access(all) entitlement mapping ImplementationUpdates {
         EImplementation -> Mutate
+        EImplementation -> FungibleToken.Withdraw
     }
 
     // RESTORED: InternalPosition as resource per Dieter's design
@@ -173,7 +174,7 @@ access(all) contract TidalProtocol: FungibleToken {
         access(EImplementation) var minHealth: UFix64
         access(EImplementation) var maxHealth: UFix64
         access(EImplementation) var drawDownSink: {DFB.Sink}?
-        access(EImplementation) var topUpSource: auth(FungibleToken.Withdraw) &{DFB.Source}?
+        access(EImplementation) var topUpSource: {DFB.Source}?
 
         init() {
             self.balances = {}
@@ -189,7 +190,7 @@ access(all) contract TidalProtocol: FungibleToken {
             self.drawDownSink = sink
         }
 
-        access(EImplementation) fun setTopUpSource(_ source: auth(FungibleToken.Withdraw) &{DFB.Source}?) {
+        access(EImplementation) fun setTopUpSource(_ source: {DFB.Source}?) {
             self.topUpSource = source
         }
     }
@@ -625,7 +626,7 @@ access(all) contract TidalProtocol: FungibleToken {
 
             // RESTORED: Top-up source integration from Dieter's implementation
             // Preflight to see if the funds are available
-            let topUpSource = position.topUpSource
+            let topUpSource = position.topUpSource as! auth(FungibleToken.Withdraw) &{DFB.Source}?
             let topUpType = topUpSource?.getSourceType() ?? self.defaultToken
 
             let requiredDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
@@ -653,7 +654,7 @@ access(all) contract TidalProtocol: FungibleToken {
                         withdrawAmount: amount
                     )
 
-                    let pulledVault <- (topUpSource! as auth(FungibleToken.Withdraw) &{DFB.Source}).withdrawAvailable(maxAmount: idealDeposit)
+                    let pulledVault <- (topUpSource!).withdrawAvailable(maxAmount: idealDeposit)
 
                     // NOTE: We requested the "ideal" deposit, but we compare against the required deposit here.
                     // The top up source may not have enough funds get us to the target health, but could have
@@ -786,7 +787,7 @@ access(all) contract TidalProtocol: FungibleToken {
             position.setDrawDownSink(sink)
         }
             
-        access(EPosition) fun provideTopUpSource(pid: UInt64, source: auth(FungibleToken.Withdraw) &{DFB.Source}?) {
+        access(EPosition) fun provideTopUpSource(pid: UInt64, source: {DFB.Source}?) {
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
             position.setTopUpSource(source)
         }
@@ -1485,7 +1486,7 @@ access(all) contract TidalProtocol: FungibleToken {
         // Each position can have only one source, and the source must accept the default token type
         // configured for the pool. Providing a new source will replace the existing source. Pass nil
         // to configure the position to not pull tokens.
-        access(all) fun provideSource(source: auth(FungibleToken.Withdraw) &{DFB.Source}?) {
+        access(all) fun provideSource(source: {DFB.Source}?) {
             let pool = self.pool.borrow()!
             pool.provideTopUpSource(pid: self.id, source: source)
         }
