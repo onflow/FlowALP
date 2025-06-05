@@ -674,7 +674,7 @@ access(all) contract TidalProtocol: FungibleToken {
 
             if !canWithdraw {
                 // We can't service this withdrawal, so we just abort
-                panic("Insufficient funds for withdrawal")
+                panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
             }
 
             // If this position doesn't currently have an entry for this token, create one.
