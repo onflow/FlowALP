@@ -464,6 +464,8 @@ access(all) contract TidalProtocol: FungibleToken {
         ) {
             pre {
                 self.globalLedger[tokenType] == nil: "Token type already supported"
+                tokenType.isSubtype(of: Type<@{FungibleToken.Vault}>()):
+                "Invalid token type \(tokenType.identifier) - tokenType must be a FungibleToken Vault implementation"
                 collateralFactor > 0.0 && collateralFactor <= 1.0: "Collateral factor must be between 0 and 1"
                 borrowFactor > 0.0 && borrowFactor <= 1.0: "Borrow factor must be between 0 and 1"
                 depositRate > 0.0: "Deposit rate must be positive"
