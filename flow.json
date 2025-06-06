@@ -1,9 +1,27 @@
 {
 	"contracts": {
+		"FungibleTokenStack": {
+			"source": "./DeFiBlocks/cadence/contracts/connectors/FungibleTokenStack.cdc",
+			"aliases": {
+				"testing": "0x0000000000000006"
+			}
+		},
 		"DFB": {
 			"source": "./DeFiBlocks/cadence/contracts/interfaces/DFB.cdc",
 			"aliases": {
-				"testing": "0000000000000008"
+				"testing": "0x0000000000000006"
+			}
+		},
+		"MockOracle": {
+			"source": "./cadence/contracts/mocks/MockOracle.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"MockTidalProtocolConsumer": {
+			"source": "./cadence/contracts/mocks/MockTidalProtocolConsumer.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
 			}
 		},
 		"TidalProtocol": {
@@ -62,7 +80,8 @@
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
-				"testnet": "631e88ae7f1d7c20"
+				"testnet": "631e88ae7f1d7c20",
+				"testing": "0x0000000000000001"
 			}
 		},
 		"NonFungibleToken": {
@@ -71,7 +90,8 @@
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
-				"testnet": "631e88ae7f1d7c20"
+				"testnet": "631e88ae7f1d7c20",
+				"testing": "0x0000000000000001"
 			}
 		},
 		"ViewResolver": {
@@ -80,7 +100,8 @@
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
-				"testnet": "631e88ae7f1d7c20"
+				"testnet": "631e88ae7f1d7c20",
+				"testing": "0x0000000000000001"
 			}
 		}
 	},
