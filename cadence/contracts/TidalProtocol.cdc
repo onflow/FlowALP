@@ -705,7 +705,7 @@ access(all) contract TidalProtocol {
                 self.globalLedger[type] != nil: "Invalid token type"
                 amount > 0.0: "Withdrawal amount must be positive" // TODO: consider empty vault early return
             }
-            log("...entered withdrawAndPull scope...")
+            log("...entered withdrawAndPull scope for pid \(pid) vault \(type.identifier) amount \(amount) pullFromTopUpSource \(pullFromTopUpSource)...")
 
             // Get a reference to the user's position and global token state for the affected token.
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
@@ -1667,94 +1667,6 @@ access(all) contract TidalProtocol {
         }
     }
 
-    // DFB.Sink implementation for TidalProtocol
-    access(all) struct TidalProtocolSink: DFB.Sink {
-        access(contract) let uniqueID: DFB.UniqueIdentifier? // TODO: Consider how this field will be set
-        access(contract) let pool: Capability<auth(EPosition) &Pool>
-        access(contract) let positionID: UInt64
-        access(contract) let tokenType: Type
-
-        init(pool: Capability<auth(EPosition) &Pool>, positionID: UInt64, tokenType: Type) {
-            pre {
-                pool.check(): "Invalid Pool Capability provided - cannot construct TidalProtocolSink"
-            }
-            self.uniqueID = nil
-            self.pool = pool
-            self.positionID = positionID
-            self.tokenType = tokenType
-        }
-
-        access(all) view fun getSinkType(): Type {
-            return self.tokenType
-        }
-
-        access(all) fun minimumCapacity(): UFix64 {
-            // For now, return max as there's no limit
-            // TODO: Consider sentinel value returned by DFB.Sink.minimumCapacity - perhaps make optional & `nil` == no_limit
-            return UFix64.max
-        }
-
-        access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
-            pre {
-                self.pool.check(): "Internal Pool Capability is invalid - cannot depositCapacity"
-            }
-            if from.balance == 0.0 || self.getSinkType() != from.getType() {
-                return
-            }
-            let vault <- from.withdraw(amount: from.balance)
-            self.pool.borrow()!.deposit(pid: self.positionID, funds: <-vault)
-        }
-    }
-
-    // DFB.Source implementation for TidalProtocol
-    access(all) struct TidalProtocolSource: DFB.Source {
-        access(contract) let uniqueID: DFB.UniqueIdentifier?
-        access(contract) let pool: Capability<auth(EPosition) &Pool>
-        access(contract) let positionID: UInt64
-        access(contract) let tokenType: Type
-
-        init(pool: Capability<auth(EPosition) &Pool>, positionID: UInt64, tokenType: Type) {
-            pre {
-                pool.check(): "Invalid Pool Capability provided - cannot construct TidalProtocolSource"
-            }
-            self.uniqueID = nil
-            self.pool = pool
-            self.positionID = positionID
-            self.tokenType = tokenType
-        }
-
-        access(all) view fun getSourceType(): Type {
-            return self.tokenType
-        }
-
-        access(all) fun minimumAvailable(): UFix64 {
-            pre {
-                self.pool.check(): "Internal Pool Capability is invalid"
-            }
-            // Return the available balance for withdrawal
-            let position = self.pool.borrow()!.getPositionDetails(pid: self.positionID)
-            for balance in position.balances {
-                if balance.type == self.tokenType && balance.direction == BalanceDirection.Credit {
-                    return balance.balance
-                }
-            }
-            return 0.0
-        }
-
-        access(FungibleToken.Withdraw) fun withdrawAvailable(maxAmount: UFix64): @{FungibleToken.Vault} {
-            pre {
-                self.pool.check(): "Internal Pool Capability is invalid - cannot withdrawAvailable"
-            }
-            let available = self.minimumAvailable()
-            let withdrawAmount = available < maxAmount ? available : maxAmount
-            if withdrawAmount > 0.0 {
-                return <- self.pool.borrow()!.withdraw(pid: self.positionID, amount: withdrawAmount, type: self.tokenType)
-            } else {
-                return <- DFBUtils.getEmptyVault(self.tokenType)
-            }
-        }
-    }
-
     // RESTORED: Enhanced position sink from Dieter's implementation
     access(all) struct PositionSink: DFB.Sink {
         access(contract) let uniqueID: DFB.UniqueIdentifier?
@@ -1763,26 +1675,31 @@ access(all) contract TidalProtocol {
         access(self) let type: Type
         access(self) let pushToDrawDownSink: Bool
 
-        access(all) view fun getSinkType(): Type {
-            return self.type
-        }
-
-        access(all) fun minimumCapacity(): UFix64 {
-            // A position object has no limit to deposits
-            return UFix64.max
-        }
-        
-        access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
-            let pool = self.pool.borrow()!
-            pool.depositAndPush(pid: self.positionID, from: <-from.withdraw(amount: from.balance), pushToDrawDownSink: self.pushToDrawDownSink)
-        }
-
         init(id: UInt64, pool: Capability<auth(EPosition) &Pool>, type: Type, pushToDrawDownSink: Bool) {
             self.uniqueID = nil
             self.positionID = id
             self.pool = pool
             self.type = type
             self.pushToDrawDownSink = pushToDrawDownSink
+        }
+
+        access(all) view fun getSinkType(): Type {
+            return self.type
+        }
+
+        access(all) fun minimumCapacity(): UFix64 {
+            // A position object has no limit to deposits unless the Capability has been revoked
+            return self.pool.check() ? UFix64.max : 0.0
+        }
+        
+        access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
+            if let pool = self.pool.borrow() {
+                pool.depositAndPush(
+                    pid: self.positionID,
+                    from: <-from.withdraw(amount: from.balance),
+                    pushToDrawDownSink: self.pushToDrawDownSink
+                )
+            }
         }
     }
 
@@ -1794,16 +1711,30 @@ access(all) contract TidalProtocol {
         access(self) let type: Type
         access(self) let pullFromTopUpSource: Bool
 
+        init(id: UInt64, pool: Capability<auth(EPosition) &Pool>, type: Type, pullFromTopUpSource: Bool) {
+            self.uniqueID = nil
+            self.positionID = id
+            self.pool = pool
+            self.type = type
+            self.pullFromTopUpSource = pullFromTopUpSource
+        }
+
         access(all) view fun getSourceType(): Type {
             return self.type
         }
 
         access(all) fun minimumAvailable(): UFix64 {
+            if !self.pool.check() {
+                return 0.0
+            }
             let pool = self.pool.borrow()!
             return pool.availableBalance(pid: self.positionID, type: self.type, pullFromTopUpSource: self.pullFromTopUpSource)
         }
 
         access(FungibleToken.Withdraw) fun withdrawAvailable(maxAmount: UFix64): @{FungibleToken.Vault} {
+            if !self.pool.check() {
+                return <- DFBUtils.getEmptyVault(self.type)
+            }
             let pool = self.pool.borrow()!
             let available = pool.availableBalance(pid: self.positionID, type: self.type, pullFromTopUpSource: self.pullFromTopUpSource)
             let withdrawAmount = (available > maxAmount) ? maxAmount : available
@@ -1811,16 +1742,8 @@ access(all) contract TidalProtocol {
                 return <- pool.withdrawAndPull(pid: self.positionID, type: self.type, amount: withdrawAmount, pullFromTopUpSource: self.pullFromTopUpSource)
             } else {
                 // Create an empty vault - this is a limitation we need to handle properly
-                panic("Cannot create empty vault for type: ".concat(self.type.identifier))
+                return <- DFBUtils.getEmptyVault(self.type)
             }
-        }
-
-        init(id: UInt64, pool: Capability<auth(EPosition) &Pool>, type: Type, pullFromTopUpSource: Bool) {
-            self.uniqueID = nil
-            self.positionID = id
-            self.pool = pool
-            self.type = type
-            self.pullFromTopUpSource = pullFromTopUpSource
         }
     }
 
