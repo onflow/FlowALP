@@ -326,13 +326,13 @@ access(all) contract TidalProtocol {
         access(all) fun updateCreditBalance(amount: Fix64) {
             // temporary cast the credit balance to a signed value so we can add/subtract
             let adjustedBalance = Fix64(self.totalCreditBalance) + amount
-            self.totalCreditBalance = UFix64(adjustedBalance)
+            self.totalCreditBalance = adjustedBalance > 0.0 ? UFix64(adjustedBalance) : 0.0
         }
 
         access(all) fun updateDebitBalance(amount: Fix64) {
             // temporary cast the debit balance to a signed value so we can add/subtract
             let adjustedBalance = Fix64(self.totalDebitBalance) + amount
-            self.totalDebitBalance = UFix64(adjustedBalance)
+            self.totalDebitBalance = adjustedBalance > 0.0 ? UFix64(adjustedBalance) : 0.0
         }
 
         // RESTORED: Enhanced updateInterestIndices with deposit capacity update
