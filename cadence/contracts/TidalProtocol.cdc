@@ -24,6 +24,7 @@ access(all) contract TidalProtocol {
 
     /// The canonical StoragePath where the primary TidalProtocol Pool is stored
     access(all) let PoolStoragePath: StoragePath
+    /// The canonical StoragePath where the PoolFactory resource is stored
     access(all) let PoolFactoryPath: StoragePath
     /// The canonical PublicPath where the primary TidalProtocol Pool can be accessed publicly
     access(all) let PoolPublicPath: PublicPath
@@ -1665,7 +1666,7 @@ access(all) contract TidalProtocol {
 
     // DFB.Sink implementation for TidalProtocol
     access(all) struct TidalProtocolSink: DFB.Sink {
-        access(contract) let uniqueID: {DFB.UniqueIdentifier}? // TODO: Consider how this field will be set
+        access(contract) let uniqueID: DFB.UniqueIdentifier? // TODO: Consider how this field will be set
         access(contract) let pool: Capability<auth(EPosition) &Pool>
         access(contract) let positionID: UInt64
         access(contract) let tokenType: Type
@@ -1704,7 +1705,7 @@ access(all) contract TidalProtocol {
 
     // DFB.Source implementation for TidalProtocol
     access(all) struct TidalProtocolSource: DFB.Source {
-        access(contract) let uniqueID: {DFB.UniqueIdentifier}?
+        access(contract) let uniqueID: DFB.UniqueIdentifier?
         access(contract) let pool: Capability<auth(EPosition) &Pool>
         access(contract) let positionID: UInt64
         access(contract) let tokenType: Type
@@ -1757,9 +1758,9 @@ access(all) contract TidalProtocol {
 
     // RESTORED: Enhanced position sink from Dieter's implementation
     access(all) struct PositionSink: DFB.Sink {
-        access(contract) let uniqueID: {DFB.UniqueIdentifier}?
+        access(contract) let uniqueID: DFB.UniqueIdentifier?
         access(self) let pool: Capability<auth(EPosition) &Pool>
-        access(self) let id: UInt64
+        access(self) let positionID: UInt64
         access(self) let type: Type
         access(self) let pushToDrawDownSink: Bool
 
@@ -1774,12 +1775,12 @@ access(all) contract TidalProtocol {
         
         access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
             let pool = self.pool.borrow()!
-            pool.depositAndPush(pid: self.id, from: <-from.withdraw(amount: from.balance), pushToDrawDownSink: self.pushToDrawDownSink)
+            pool.depositAndPush(pid: self.positionID, from: <-from.withdraw(amount: from.balance), pushToDrawDownSink: self.pushToDrawDownSink)
         }
 
         init(id: UInt64, pool: Capability<auth(EPosition) &Pool>, type: Type, pushToDrawDownSink: Bool) {
             self.uniqueID = nil
-            self.id = id
+            self.positionID = id
             self.pool = pool
             self.type = type
             self.pushToDrawDownSink = pushToDrawDownSink
@@ -1788,9 +1789,9 @@ access(all) contract TidalProtocol {
 
     // RESTORED: Enhanced position source from Dieter's implementation
     access(all) struct PositionSource: DFB.Source { 
-        access(contract) let uniqueID: {DFB.UniqueIdentifier}?
+        access(contract) let uniqueID: DFB.UniqueIdentifier?
         access(all) let pool: Capability<auth(EPosition) &Pool>
-        access(all) let id: UInt64
+        access(all) let positionID: UInt64
         access(all) let type: Type
         access(all) let pullFromTopUpSource: Bool
 
@@ -1800,15 +1801,15 @@ access(all) contract TidalProtocol {
 
         access(all) fun minimumAvailable(): UFix64 {
             let pool = self.pool.borrow()!
-            return pool.availableBalance(pid: self.id, type: self.type, pullFromTopUpSource: self.pullFromTopUpSource)
+            return pool.availableBalance(pid: self.positionID, type: self.type, pullFromTopUpSource: self.pullFromTopUpSource)
         }
 
         access(FungibleToken.Withdraw) fun withdrawAvailable(maxAmount: UFix64): @{FungibleToken.Vault} {
             let pool = self.pool.borrow()!
-            let available = pool.availableBalance(pid: self.id, type: self.type, pullFromTopUpSource: self.pullFromTopUpSource)
+            let available = pool.availableBalance(pid: self.positionID, type: self.type, pullFromTopUpSource: self.pullFromTopUpSource)
             let withdrawAmount = (available > maxAmount) ? maxAmount : available
             if withdrawAmount > 0.0 {
-                return <- pool.withdrawAndPull(pid: self.id, type: self.type, amount: withdrawAmount, pullFromTopUpSource: self.pullFromTopUpSource)
+                return <- pool.withdrawAndPull(pid: self.positionID, type: self.type, amount: withdrawAmount, pullFromTopUpSource: self.pullFromTopUpSource)
             } else {
                 // Create an empty vault - this is a limitation we need to handle properly
                 panic("Cannot create empty vault for type: ".concat(self.type.identifier))
@@ -1817,7 +1818,7 @@ access(all) contract TidalProtocol {
 
         init(id: UInt64, pool: Capability<auth(EPosition) &Pool>, type: Type, pullFromTopUpSource: Bool) {
             self.uniqueID = nil
-            self.id = id
+            self.positionID = id
             self.pool = pool
             self.type = type
             self.pullFromTopUpSource = pullFromTopUpSource
