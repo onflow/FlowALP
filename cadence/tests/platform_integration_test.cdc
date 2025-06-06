@@ -114,8 +114,8 @@ access(all)
 fun testUndercollateralizedPositionRebalanceSucceeds() {
     Test.reset(to: snapshot)
 
-    let initialFlowPrice = 1.0
-    let priceChange = 0.5
+    let initialFlowPrice = 1.0 // initial price of FLOW set in the mock oracle
+    let priceChange = 0.2 // the percentage difference in the price of FLOW 
     
     // mock setup
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialFlowPrice)
@@ -131,13 +131,12 @@ fun testUndercollateralizedPositionRebalanceSucceeds() {
         depositCapacityCap: 1_000_000.0
     )
 
-    let collateralAmount = 1_000.0 // FLOW
+    let collateralAmount = 1_000.0 // FLOW used when opening the position
 
     // configure user account
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: collateralAmount)
-
 
     // open the position & push to drawDownSink - forces MOET to downstream test sink which is user's MOET Vault
     let res = executeTransaction("./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
@@ -148,22 +147,93 @@ fun testUndercollateralizedPositionRebalanceSucceeds() {
 
     // check how much MOET the user has after borrowing
     let moetBalanceBeforeRebalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
-    let availableBefore = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: false, beFailed: false)
-    let healthBefore = getPositionHealth(pid: 0, beFailed: false)
+    let availableBeforePriceChange = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: false, beFailed: false)
+    let healthBeforePriceChange = getPositionHealth(pid: 0, beFailed: false)
 
     // decrease the price of the collateral
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialFlowPrice * priceChange)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialFlowPrice * (1.0 - priceChange))
+    let availableAfterPriceChange = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
+    let healthAfterPriceChange = getPositionHealth(pid: 0, beFailed: false)
 
-    // rebalance should pull from the topUpSource
+    // rebalance should pull from the topUpSource, decreasing the MOET in the user's Vault since we use a VaultSource
+    // as a topUpSource when opening the Position
     rebalancePosition(signer: protocolAccount, pid: 0, force: true, beFailed: false)
 
     let moetBalanceAfterRebalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
-    let availableAfter = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: false, beFailed: false)
-    let healthAfter = getPositionHealth(pid: 0, beFailed: false)
-    log("MOET BEFORE: \(moetBalanceBeforeRebalance)")
-    log("MOET AFTER: \(moetBalanceAfterRebalance)")
-    log("AVAILABLE BEFORE: \(availableBefore)")
-    log("AVAILABLE AFTER: \(availableAfter)")
-    log("HEALTH BEFORE: \(healthBefore)")
-    log("HEALTH AFTER: \(healthAfter)")
+    let healthAfterRebalance = getPositionHealth(pid: 0, beFailed: false)
+
+    // NOTE - exact amounts are not tested here, this is purely a behavioral test though we may update these tests
+    
+    // user's MOET vault balance decreases due to withdrawal by pool via topUpSource
+    Test.assert(moetBalanceBeforeRebalance > moetBalanceAfterRebalance)
+    // the amount available should decrease after the collateral value has decreased
+    Test.assert(availableBeforePriceChange < availableAfterPriceChange)
+    // the health should decrease after the collateral value has decreased
+    Test.assert(healthBeforePriceChange > healthAfterPriceChange)
+    // the health should increase after rebalancing from undercollateralized state
+    Test.assert(healthAfterPriceChange < healthAfterRebalance)
+}
+
+access(all)
+fun testOvercollateralizedPositionRebalanceSucceeds() {
+    Test.reset(to: snapshot)
+
+    let initialFlowPrice = 1.0 // initial price of FLOW set in the mock oracle
+    let priceChange = 1.2 // the percentage difference in the price of FLOW 
+    
+    // mock setup
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialFlowPrice)
+
+    // create pool & add FLOW as supported token in globalLedger
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    addSupportedTokenSimpleInterestCurve(
+        signer: protocolAccount,
+        tokenTypeIdentifier: flowTokenIdentifier,
+        collateralFactor: 0.8,
+        borrowFactor: 1.0,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
+
+    let collateralAmount = 1_000.0 // FLOW used when opening the position
+
+    // configure user account
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    mintFlow(to: user, amount: collateralAmount)
+
+    // open the position & push to drawDownSink - forces MOET to downstream test sink which is user's MOET Vault
+    let res = executeTransaction("./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+            [collateralAmount, flowVaultStoragePath, true], // amount, vaultStoragePath, pushToDrawDownSink
+            user
+        )
+    Test.expect(res, Test.beSucceeded())
+
+    // check how much MOET the user has after borrowing
+    let moetBalanceBeforeRebalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
+    let availableBeforePriceChange = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: false, beFailed: false)
+    let healthBeforePriceChange = getPositionHealth(pid: 0, beFailed: false)
+
+    // decrease the price of the collateral
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialFlowPrice * (priceChange))
+    let availableAfterPriceChange = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
+    let healthAfterPriceChange = getPositionHealth(pid: 0, beFailed: false)
+
+    // rebalance should pull from the topUpSource, decreasing the MOET in the user's Vault since we use a VaultSource
+    // as a topUpSource when opening the Position
+    rebalancePosition(signer: protocolAccount, pid: 0, force: true, beFailed: false)
+
+    let moetBalanceAfterRebalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
+    let healthAfterRebalance = getPositionHealth(pid: 0, beFailed: false)
+
+    // NOTE - exact amounts are not tested here, this is purely a behavioral test though we may update these tests
+    
+    // user's MOET vault balance increase due to deposit by pool to drawDownSink
+    Test.assert(moetBalanceBeforeRebalance < moetBalanceAfterRebalance)
+    // the amount available increase after the collateral value has increased
+    Test.assert(availableBeforePriceChange < availableAfterPriceChange)
+    // the health should increase after the collateral value has decreased
+    Test.assert(healthBeforePriceChange < healthAfterPriceChange)
+    // the health should decrease after rebalancing from overcollateralized state
+    Test.assert(healthAfterPriceChange > healthAfterRebalance)
 }

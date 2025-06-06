@@ -46,15 +46,16 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
             ?? panic("Could not borrow reference to Vault from \(vaultStoragePath)")
         self.collateral <- collateralSource.withdraw(amount: amount)
         // construct the DeFiBlocks Sink that will receive the loaned amount
+        let uniqueID = DFB.UniqueIdentifier()
         self.sink = FungibleTokenStack.VaultSink(
             max: nil,
             depositVault: depositVaultCap,
-            uniqueID: nil
+            uniqueID: uniqueID
         )
         self.source = FungibleTokenStack.VaultSource(
             min: nil,
             withdrawVault: withdrawVaultCap,
-            uniqueID: nil
+            uniqueID: uniqueID
         )
 
         // assign the signer's account enabling the execute block to save the wrapper
