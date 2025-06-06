@@ -12,6 +12,12 @@
 				"testing": "0x0000000000000006"
 			}
 		},
+		"DFBUtils": {
+			"source": "./DeFiBlocks/cadence/contracts/utils/DFBUtils.cdc",
+			"aliases": {
+				"testing": "0x0000000000000006"
+			}
+		},
 		"MockOracle": {
 			"source": "./cadence/contracts/mocks/MockOracle.cdc",
 			"aliases": {
@@ -123,13 +129,7 @@
 	"deployments": {
 		"emulator": {
 			"emulator-account": [
-				"DFB",
-				"TidalProtocol",
-				"MOET"
-			]
-		},
-		"testing": {
-			"emulator-account": [
+				"DFBUtils",
 				"DFB",
 				"TidalProtocol",
 				"MOET"
