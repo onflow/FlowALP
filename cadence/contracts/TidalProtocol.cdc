@@ -205,13 +205,13 @@ access(all) contract TidalProtocol {
     // RESTORED: InternalPosition as resource per Dieter's design
     // This MUST be a resource to properly manage queued deposits
     access(all) resource InternalPosition {
+        access(EImplementation) var targetHealth: UFix64
+        access(EImplementation) var minHealth: UFix64
+        access(EImplementation) var maxHealth: UFix64
         access(mapping ImplementationUpdates) var balances: {Type: InternalBalance}
         access(mapping ImplementationUpdates) var queuedDeposits: @{Type: {FungibleToken.Vault}}
         access(mapping ImplementationUpdates) var drawDownSink: {DFB.Sink}?
         access(mapping ImplementationUpdates) var topUpSource: {DFB.Source}?
-        access(EImplementation) var targetHealth: UFix64
-        access(EImplementation) var minHealth: UFix64
-        access(EImplementation) var maxHealth: UFix64
 
         init() {
             self.balances = {}
