@@ -1,5 +1,5 @@
 import Test
-import TidalProtocol from "TidalProtocol"
+import "TidalProtocol"
 
 /* --- Test execution helpers --- */
 

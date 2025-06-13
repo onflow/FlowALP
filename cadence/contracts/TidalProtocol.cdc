@@ -17,39 +17,6 @@ access(all) contract TidalProtocol {
     /// The canonical PublicPath where the primary TidalProtocol Pool can be accessed publicly
     access(all) let PoolPublicPath: PublicPath
 
-    /* --- PUBLIC METHODS ---- */
-
-    /// Takes out a TidalProtocol loan with the provided collateral, returning a Position that can be used to manage
-    /// collateral and borrowed fund flows
-    ///
-    /// @param collateral: The collateral used as the basis for a loan. Only certain collateral types are supported, so
-    ///     callers should be sure to check the provided Vault is supported to prevent reversion.
-    /// @param issuanceSink: The DeFiBlocks Sink connector where the protocol will deposit borrowed funds. If the
-    ///     position becomes overcollateralized, additional funds will be borrowed (to maintain target LTV) and
-    ///     deposited to the provided Sink.
-    /// @param repaymentSource: An optional DeFiBlocks Source connector from which the protocol will attempt to source
-    ///     borrowed funds in the event of undercollateralization prior to liquidating. If none is provided, the
-    ///     position health will not be actively managed on the down side, meaning liquidation is possible as soon as
-    ///     the loan becomes undercollateralized.
-    ///
-    /// @return the Position via which the caller can manage their position
-    ///
-    access(all) fun openPosition(
-        collateral: @{FungibleToken.Vault},
-        issuanceSink: {DFB.Sink},
-        repaymentSource: {DFB.Source}?,
-        pushToDrawDownSink: Bool
-    ): Position {
-        let pid = self.borrowPool().createPosition(
-                funds: <-collateral,
-                issuanceSink: issuanceSink,
-                repaymentSource: repaymentSource,
-                pushToDrawDownSink: pushToDrawDownSink
-            )
-        let cap = self.account.capabilities.storage.issue<auth(EPosition) &Pool>(self.PoolStoragePath)
-        return Position(id: pid, pool: cap)
-    }
-
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
     access(all) entitlement EPosition
@@ -953,7 +920,7 @@ access(all) contract TidalProtocol {
         // Add getPositionDetails function that's used by DFB implementations
         access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
-            let balances: [PositionBalance] = []
+            let balances: {Type: PositionBalance} = {}
 
             for type in position.balances.keys {
                 let balance = position.balances[type]!
@@ -962,11 +929,11 @@ access(all) contract TidalProtocol {
                     ? TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.creditInterestIndex)
                     : TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.debitInterestIndex)
 
-                balances.append(PositionBalance(
-                    type: type,
+                balances[type] = PositionBalance(
+                    vaultType: type,
                     direction: balance.direction,
                     balance: trueBalance
-                ))
+                )
             }
 
             let health = self.positionHealth(pid: pid)
@@ -1426,7 +1393,7 @@ access(all) contract TidalProtocol {
         }
 
         // Returns the balances (both positive and negative) for all tokens in this position.
-        access(all) fun getBalances(): [PositionBalance] {
+        access(all) fun getBalances(): {Type: PositionBalance} {
             let pool = self.pool.borrow()!
             return pool.getPositionDetails(pid: self.id).balances
         }
@@ -1667,12 +1634,15 @@ access(all) contract TidalProtocol {
     // A structure returned externally to report a position's balance for a particular token.
     // This structure is NOT used internally.
     access(all) struct PositionBalance {
-        access(all) let type: Type
+        /// The token type for which the balance details relate to
+        access(all) let vaultType: Type
+        /// Whether the balance is a Credit or Debit
         access(all) let direction: BalanceDirection
+        /// The balance of the token for the related Position
         access(all) let balance: UFix64
 
-        init(type: Type, direction: BalanceDirection, balance: UFix64) {
-            self.type = type
+        init(vaultType: Type, direction: BalanceDirection, balance: UFix64) {
+            self.vaultType = vaultType
             self.direction = direction
             self.balance = balance
         }
@@ -1681,18 +1651,57 @@ access(all) contract TidalProtocol {
     // A structure returned externally to report all of the details associated with a position.
     // This structure is NOT used internally.
     access(all) struct PositionDetails {
-        access(all) let balances: [PositionBalance]
+        /// Balance details about each Vault Type deposited to the related Position
+        access(all) let balances: {Type: PositionBalance}
+        /// The default token Type of the Pool in which the related position is held
         access(all) let poolDefaultToken: Type
+        /// The available balance of the Pool's default token Type
         access(all) let defaultTokenAvailableBalance: UFix64
+        /// The current health of the related position
         access(all) let health: UFix64
 
-        init(balances: [PositionBalance], poolDefaultToken: Type, defaultTokenAvailableBalance: UFix64, health: UFix64) {
+        init(balances: {Type: PositionBalance}, poolDefaultToken: Type, defaultTokenAvailableBalance: UFix64, health: UFix64) {
             self.balances = balances
             self.poolDefaultToken = poolDefaultToken
             self.defaultTokenAvailableBalance = defaultTokenAvailableBalance
             self.health = health
         }
     }
+
+    /* --- PUBLIC METHODS ---- */
+
+    /// Takes out a TidalProtocol loan with the provided collateral, returning a Position that can be used to manage
+    /// collateral and borrowed fund flows
+    ///
+    /// @param collateral: The collateral used as the basis for a loan. Only certain collateral types are supported, so
+    ///     callers should be sure to check the provided Vault is supported to prevent reversion.
+    /// @param issuanceSink: The DeFiBlocks Sink connector where the protocol will deposit borrowed funds. If the
+    ///     position becomes overcollateralized, additional funds will be borrowed (to maintain target LTV) and
+    ///     deposited to the provided Sink.
+    /// @param repaymentSource: An optional DeFiBlocks Source connector from which the protocol will attempt to source
+    ///     borrowed funds in the event of undercollateralization prior to liquidating. If none is provided, the
+    ///     position health will not be actively managed on the down side, meaning liquidation is possible as soon as
+    ///     the loan becomes undercollateralized.
+    ///
+    /// @return the Position via which the caller can manage their position
+    ///
+    access(all) fun openPosition(
+        collateral: @{FungibleToken.Vault},
+        issuanceSink: {DFB.Sink},
+        repaymentSource: {DFB.Source}?,
+        pushToDrawDownSink: Bool
+    ): Position {
+        let pid = self.borrowPool().createPosition(
+                funds: <-collateral,
+                issuanceSink: issuanceSink,
+                repaymentSource: repaymentSource,
+                pushToDrawDownSink: pushToDrawDownSink
+            )
+        let cap = self.account.capabilities.storage.issue<auth(EPosition) &Pool>(self.PoolStoragePath)
+        return Position(id: pid, pool: cap)
+    }
+
+    /* --- INTERNAL METHODS --- */
 
     access(self) view fun borrowPool(): auth(EPosition) &Pool {
         return self.account.storage.borrow<auth(EPosition) &Pool>(from: self.PoolStoragePath)
@@ -1709,7 +1718,7 @@ access(all) contract TidalProtocol {
         self.PoolFactoryPath = StoragePath(identifier: "tidalProtocolPoolFactory_\(self.account.address)")!
         self.PoolPublicPath = PublicPath(identifier: "tidalProtocolPool_\(self.account.address)")!
 
-        // save Pool in storage & configure public Capability
+        // save PoolFactory in storage & configure public Capability
         self.account.storage.save(
             <-create PoolFactory(),
             to: self.PoolFactoryPath
