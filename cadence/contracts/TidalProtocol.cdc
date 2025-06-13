@@ -538,12 +538,6 @@ access(all) contract TidalProtocol {
             return self.globalLedger[tokenType] != nil
         }
 
-        // RESTORED: Public deposit function from Dieter's implementation
-        // Allows anyone to deposit funds into any position
-        access(all) fun depositToPosition(pid: UInt64, from: @{FungibleToken.Vault}) {
-            self.depositAndPush(pid: pid, from: <-from, pushToDrawDownSink: false)
-        }
-
         // RESTORED: Enhanced deposit with queue processing and rebalancing from Dieter's implementation
         access(EPosition) fun depositAndPush(pid: UInt64, from: @{FungibleToken.Vault}, pushToDrawDownSink: Bool) {
             pre {
@@ -603,6 +597,12 @@ access(all) contract TidalProtocol {
             }
 
             self.queuePositionForUpdateIfNecessary(pid: pid)
+        }
+
+        // RESTORED: Public deposit function from Dieter's implementation
+        // Allows anyone to deposit funds into any position
+        access(all) fun depositToPosition(pid: UInt64, from: @{FungibleToken.Vault}) {
+            self.depositAndPush(pid: pid, from: <-from, pushToDrawDownSink: false)
         }
 
         access(EPosition) fun withdraw(pid: UInt64, amount: UFix64, type: Type): @{FungibleToken.Vault} {
@@ -804,7 +804,6 @@ access(all) contract TidalProtocol {
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
             position.setDrawDownSink(sink)
         }
-
         access(EPosition) fun provideTopUpSource(pid: UInt64, source: {DFB.Source}?) {
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
             position.setTopUpSource(source)
@@ -959,7 +958,6 @@ access(all) contract TidalProtocol {
             for type in position.balances.keys {
                 let balance = position.balances[type]!
                 let tokenState = self.tokenState(type: type)
-
                 let trueBalance = balance.direction == BalanceDirection.Credit
                     ? TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.creditInterestIndex)
                     : TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.debitInterestIndex)
@@ -983,7 +981,6 @@ access(all) contract TidalProtocol {
         }
 
         // RESTORED: Advanced position health management functions from Dieter's implementation
-
         // The quantity of funds of a specified token which would need to be deposited to bring the
         // position to the target health. This function will return 0.0 if the position is already at or over
         // that health value.
@@ -1019,7 +1016,6 @@ access(all) contract TidalProtocol {
 
             var effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral
             var effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt
-
 
             if withdrawAmount != 0.0 {
                 if position.balances[withdrawType] == nil || position.balances[withdrawType]!.direction == BalanceDirection.Debit {
@@ -1079,7 +1075,6 @@ access(all) contract TidalProtocol {
                 let depositTokenState = self.tokenState(type: depositType)
                 // REMOVED: This is now handled by tokenState() helper function
                 // depositTokenState.updateForTimeChange()
-
                 let debtBalance = position.balances[depositType]!.scaledBalance
                 let trueDebt = TidalProtocol.scaledBalanceToTrueBalance(
                     scaledBalance: debtBalance,
@@ -1225,7 +1220,6 @@ access(all) contract TidalProtocol {
                 let withdrawTokenState = self.tokenState(type: withdrawType)
                 // REMOVED: This is now handled by tokenState() helper function
                 // withdrawTokenState.updateForTimeChange()
-
                 let creditBalance = position.balances[withdrawType]!.scaledBalance
                 let trueCredit = TidalProtocol.scaledBalanceToTrueBalance(
                     scaledBalance: creditBalance,
@@ -1376,7 +1370,6 @@ access(all) contract TidalProtocol {
                 let queuedVault <- position.queuedDeposits.remove(key: depositType)!
                 let queuedAmount = queuedVault.balance
                 let depositTokenState = self.tokenState(type: depositType)
-
                 let maxDeposit = depositTokenState.depositLimit()
 
                 if maxDeposit >= queuedAmount {
@@ -1646,6 +1639,29 @@ access(all) contract TidalProtocol {
     access(all) enum BalanceDirection: UInt8 {
         access(all) case Credit
         access(all) case Debit
+    }
+
+    // RESTORED: DummyPriceOracle for testing from Dieter's design pattern
+    access(all) struct DummyPriceOracle: DFB.PriceOracle {
+        access(self) var prices: {Type: UFix64}
+        access(self) let defaultToken: Type
+        
+        access(all) view fun unitOfAccount(): Type {
+            return self.defaultToken
+        }
+        
+        access(all) fun price(ofToken: Type): UFix64 {
+            return self.prices[ofToken] ?? 1.0
+        }
+        
+        access(all) fun setPrice(ofToken: Type, price: UFix64) {
+            self.prices[ofToken] = price
+        }
+        
+        init(defaultToken: Type) {
+            self.defaultToken = defaultToken
+            self.prices = {defaultToken: 1.0}
+        }
     }
 
     // A structure returned externally to report a position's balance for a particular token.
