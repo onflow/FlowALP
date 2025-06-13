@@ -149,7 +149,6 @@ access(all) contract TidalProtocol {
         EImplementation -> FungibleToken.Withdraw
     }
 
-    // RESTORED: InternalPosition as resource per Dieter's design
     // This MUST be a resource to properly manage queued deposits
     access(all) resource InternalPosition {
         access(EImplementation) var targetHealth: UFix64
@@ -207,7 +206,7 @@ access(all) contract TidalProtocol {
         access(all) var currentDebitRate: UInt64
         access(all) var interestCurve: {InterestCurve}
 
-        // RESTORED: Deposit rate limiting from Dieter's implementation
+        // Deposit rate limiting
         access(all) var depositRate: UFix64
         access(all) var depositCapacity: UFix64
         access(all) var depositCapacityCap: UFix64
@@ -224,7 +223,7 @@ access(all) contract TidalProtocol {
             self.totalDebitBalance = adjustedBalance > 0.0 ? UFix64(adjustedBalance) : 0.0
         }
 
-        // RESTORED: Enhanced updateInterestIndices with deposit capacity update
+        // Enhanced updateInterestIndices with deposit capacity update
         access(all) fun updateInterestIndices() {
             let currentTime = getCurrentBlock().timestamp
             let timeDelta = currentTime - self.lastUpdate
@@ -232,7 +231,7 @@ access(all) contract TidalProtocol {
             self.debitInterestIndex = TidalProtocol.compoundInterestIndex(oldIndex: self.debitInterestIndex, perSecondRate: self.currentDebitRate, elapsedSeconds: timeDelta)
             self.lastUpdate = currentTime
 
-            // RESTORED: Update deposit capacity based on time
+            // Update deposit capacity based on time
             let newDepositCapacity = self.depositCapacity + (self.depositRate * timeDelta)
             if newDepositCapacity >= self.depositCapacityCap {
                 self.depositCapacity = self.depositCapacityCap
@@ -241,13 +240,12 @@ access(all) contract TidalProtocol {
             }
         }
 
-        // RESTORED: Deposit limit function from Dieter's implementation
+        // Deposit limit function
         access(all) fun depositLimit(): UFix64 {
             // Each deposit is limited to 5% of the total deposit capacity
             return self.depositCapacity * 0.05
         }
 
-        // RESTORED: Rename to updateForTimeChange to match Dieter's implementation
         access(all) fun updateForTimeChange() {
             self.updateInterestIndices()
         }
@@ -281,7 +279,6 @@ access(all) contract TidalProtocol {
             self.currentDebitRate = TidalProtocol.perSecondInterestRate(yearlyRate: debitRate)
         }
 
-        // RESTORED: Parameterized init from Dieter's implementation
         init(interestCurve: {InterestCurve}, depositRate: UFix64, depositCapacityCap: UFix64) {
             self.lastUpdate = getCurrentBlock().timestamp
             self.totalCreditBalance = 0.0
@@ -306,7 +303,7 @@ access(all) contract TidalProtocol {
         // Global state for tracking each token
         access(self) var globalLedger: {Type: TokenState}
 
-        // Individual user positions - RESTORED as resources per Dieter's design
+        // Individual user positions
         access(self) var positions: @{UInt64: InternalPosition}
 
         // The actual reserves of each token
@@ -318,15 +315,13 @@ access(all) contract TidalProtocol {
         // The default token type used as the "unit of account" for the pool.
         access(self) let defaultToken: Type
 
-        // RESTORED: Price oracle from Dieter's implementation
         // A price oracle that will return the price of each token in terms of the default token.
         access(self) var priceOracle: {DFB.PriceOracle}
 
-        // RESTORED: Position update queue from Dieter's implementation
+        // Position update queue
         access(EImplementation) var positionsNeedingUpdates: [UInt64]
         access(self) var positionsProcessedPerCallback: UInt64
 
-        // RESTORED: Collateral and borrow factors from Dieter's implementation
         // These dictionaries determine borrowing limits. Each token has a collateral factor and a
         // borrow factor.
         //
@@ -341,10 +336,6 @@ access(all) contract TidalProtocol {
         access(self) var collateralFactor: {Type: UFix64}
         access(self) var borrowFactor: {Type: UFix64}
 
-        // REMOVED: Static exchange rates and liquidation thresholds
-        // These have been replaced by dynamic oracle pricing and risk factors
-
-        // RESTORED: tokenState() helper function from Dieter's implementation
         // A convenience function that returns a reference to a particular token state, making sure
         // it's up-to-date for the passage of time. This should always be used when accessing a token
         // state to avoid missing interest updates (duplicate calls to updateForTimeChange() are a nop
@@ -427,7 +418,7 @@ access(all) contract TidalProtocol {
             return self.globalLedger[tokenType] != nil
         }
 
-        // RESTORED: Enhanced deposit with queue processing and rebalancing from Dieter's implementation
+        // Deposit with queue processing and rebalancing
         access(EPosition) fun depositAndPush(pid: UInt64, from: @{FungibleToken.Vault}, pushToDrawDownSink: Bool) {
             pre {
                 self.positions[pid] != nil: "Invalid position ID"
@@ -448,7 +439,7 @@ access(all) contract TidalProtocol {
             // REMOVED: This is now handled by tokenState() helper function
             // tokenState.updateForTimeChange()
 
-            // RESTORED: Deposit rate limiting from Dieter's implementation
+            // Deposit rate limiting
             let depositAmount = from.balance
             let depositLimit = tokenState.depositLimit()
 
@@ -480,7 +471,7 @@ access(all) contract TidalProtocol {
             // Add the money to the reserves
             reserveVault.deposit(from: <-from)
 
-            // RESTORED: Rebalancing and queue management
+            // Rebalancing and queue management
             if pushToDrawDownSink {
                 self.rebalancePosition(pid: pid, force: true)
             }
@@ -488,18 +479,17 @@ access(all) contract TidalProtocol {
             self.queuePositionForUpdateIfNecessary(pid: pid)
         }
 
-        // RESTORED: Public deposit function from Dieter's implementation
         // Allows anyone to deposit funds into any position
         access(all) fun depositToPosition(pid: UInt64, from: @{FungibleToken.Vault}) {
             self.depositAndPush(pid: pid, from: <-from, pushToDrawDownSink: false)
         }
 
         access(EPosition) fun withdraw(pid: UInt64, amount: UFix64, type: Type): @{FungibleToken.Vault} {
-            // RESTORED: Call the enhanced function with pullFromTopUpSource = false for backward compatibility
+            // Call the enhanced function with pullFromTopUpSource = false for backward compatibility
             return <- self.withdrawAndPull(pid: pid, type: type, amount: amount, pullFromTopUpSource: false)
         }
 
-        // RESTORED: Enhanced withdraw with top-up source integration from Dieter's implementation
+        // Enhanced withdraw with top-up source integration
         access(EPosition) fun withdrawAndPull(
             pid: UInt64,
             type: Type,
@@ -522,7 +512,6 @@ access(all) contract TidalProtocol {
             // REMOVED: This is now handled by tokenState() helper function
             // tokenState.updateForTimeChange()
 
-            // RESTORED: Top-up source integration from Dieter's implementation
             // Preflight to see if the funds are available
             let topUpSource = position.topUpSource as auth(FungibleToken.Withdraw) &{DFB.Source}?
             let topUpType = topUpSource?.getSourceType() ?? self.defaultToken
@@ -592,7 +581,7 @@ access(all) contract TidalProtocol {
             return <- reserveVault.withdraw(amount: amount)
         }
 
-        // RESTORED: Position queue management from Dieter's implementation
+        // Position queue management
         access(self) fun queuePositionForUpdateIfNecessary(pid: UInt64) {
             if self.positionsNeedingUpdates.contains(pid) {
                 // If this position is already queued for an update, no need to check anything else
@@ -617,7 +606,6 @@ access(all) contract TidalProtocol {
             }
         }
 
-        // RESTORED: Position rebalancing from Dieter's implementation
         // Rebalances the position to the target health value. If force is true, the position will be
         // rebalanced even if it is currently healthy, otherwise, this function will do nothing if the
         // position is within the min/max health bounds.
@@ -688,7 +676,6 @@ access(all) contract TidalProtocol {
             }
         }
 
-        // RESTORED: Provider functions for sink/source from Dieter's implementation
         access(EPosition) fun provideDrawDownSink(pid: UInt64, sink: {DFB.Sink}?) {
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
             position.setDrawDownSink(sink)
@@ -698,7 +685,6 @@ access(all) contract TidalProtocol {
             position.setTopUpSource(source)
         }
 
-        // RESTORED: Available balance with source integration from Dieter's implementation
         access(all) fun availableBalance(pid: UInt64, type: Type, pullFromTopUpSource: Bool): UFix64 {
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
 
@@ -740,7 +726,6 @@ access(all) contract TidalProtocol {
                     let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance,
                         interestIndex: tokenState.creditInterestIndex)
 
-                    // RESTORED: Oracle-based pricing from Dieter's implementation
                     let tokenPrice = self.priceOracle.price(ofToken: type)!
                     let value = tokenPrice * trueBalance
                     effectiveCollateral = effectiveCollateral + (value * self.collateralFactor[type]!)
@@ -748,7 +733,6 @@ access(all) contract TidalProtocol {
                     let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance,
                         interestIndex: tokenState.debitInterestIndex)
 
-                    // RESTORED: Oracle-based pricing for debt calculation
                     let tokenPrice = self.priceOracle.price(ofToken: type)!
                     let value = tokenPrice * trueBalance
                     effectiveDebt = effectiveDebt + (value / self.borrowFactor[type]!)
@@ -762,7 +746,6 @@ access(all) contract TidalProtocol {
             return effectiveCollateral / effectiveDebt
         }
 
-        // RESTORED: Position balance sheet calculation from Dieter's implementation
         access(self) fun positionBalanceSheet(pid: UInt64): BalanceSheet {
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
             let priceOracle = &self.priceOracle as &{DFB.PriceOracle}
@@ -869,7 +852,6 @@ access(all) contract TidalProtocol {
             )
         }
 
-        // RESTORED: Advanced position health management functions from Dieter's implementation
         // The quantity of funds of a specified token which would need to be deposited to bring the
         // position to the target health. This function will return 0.0 if the position is already at or over
         // that health value.
@@ -1236,7 +1218,6 @@ access(all) contract TidalProtocol {
             )
         }
 
-        // RESTORED: Async update infrastructure from Dieter's implementation
         access(EImplementation) fun asyncUpdate() {
             // TODO: In the production version, this function should only process some positions (limited by positionsProcessedPerCallback) AND
             // it should schedule each update to run in its own callback, so a revert() call from one update (for example, if a source or
@@ -1250,7 +1231,6 @@ access(all) contract TidalProtocol {
             }
         }
 
-        // RESTORED: Async position update from Dieter's implementation
         access(EImplementation) fun asyncUpdatePosition(pid: UInt64) {
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
 
@@ -1320,43 +1300,39 @@ access(all) contract TidalProtocol {
             return pool.getPositionDetails(pid: self.id).balances
         }
 
-        // RESTORED: Enhanced available balance from Dieter's implementation
         access(all) fun availableBalance(type: Type, pullFromTopUpSource: Bool): UFix64 {
             let pool = self.pool.borrow()!
             return pool.availableBalance(pid: self.id, type: type, pullFromTopUpSource: pullFromTopUpSource)
         }
 
-        // RESTORED: Health functions from Dieter's implementation
         access(all) fun getHealth(): UFix64 {
             let pool = self.pool.borrow()!
             return pool.positionHealth(pid: self.id)
         }
 
         access(all) fun getTargetHealth(): UFix64 {
-            // DIETER'S DESIGN: Position is just a relay struct, return 0.0
-            return 0.0
+            return 0.0 // TODO
         }
 
         access(all) fun setTargetHealth(targetHealth: UFix64) {
-            // DIETER'S DESIGN: Position is just a relay struct, do nothing
+            // TODO
         }
 
         access(all) fun getMinHealth(): UFix64 {
-            // DIETER'S DESIGN: Position is just a relay struct, return 0.0
-            return 0.0
+            return 0.0 // TODO
         }
 
         access(all) fun setMinHealth(minHealth: UFix64) {
-            // DIETER'S DESIGN: Position is just a relay struct, do nothing
+            // TODO
         }
 
         access(all) fun getMaxHealth(): UFix64 {
-            // DIETER'S DESIGN: Position is just a relay struct, return 0.0
+            // TODO
             return 0.0
         }
 
         access(all) fun setMaxHealth(maxHealth: UFix64) {
-            // DIETER'S DESIGN: Position is just a relay struct, do nothing
+            // TODO
         }
 
         // Returns the maximum amount of the given token type that could be deposited into this position.
@@ -1365,24 +1341,22 @@ access(all) contract TidalProtocol {
             return UFix64.max
         }
 
-        // RESTORED: Simple deposit that calls depositAndPush with pushToDrawDownSink = false
+        // Simple deposit that calls depositAndPush with pushToDrawDownSink = false
         access(all) fun deposit(from: @{FungibleToken.Vault}) {
             let pool = self.pool.borrow()!
             pool.depositAndPush(pid: self.id, from: <-from, pushToDrawDownSink: false)
         }
 
-        // RESTORED: Enhanced deposit from Dieter's implementation
         access(all) fun depositAndPush(from: @{FungibleToken.Vault}, pushToDrawDownSink: Bool) {
             let pool = self.pool.borrow()!
             pool.depositAndPush(pid: self.id, from: <-from, pushToDrawDownSink: pushToDrawDownSink)
         }
 
-        // RESTORED: Simple withdraw that calls withdrawAndPull with pullFromTopUpSource = false
+        // Simple withdraw that calls withdrawAndPull with pullFromTopUpSource = false
         access(FungibleToken.Withdraw) fun withdraw(type: Type, amount: UFix64): @{FungibleToken.Vault} {
             return <- self.withdrawAndPull(type: type, amount: amount, pullFromTopUpSource: false)
         }
 
-        // RESTORED: Enhanced withdraw from Dieter's implementation
         access(FungibleToken.Withdraw) fun withdrawAndPull(type: Type, amount: UFix64, pullFromTopUpSource: Bool): @{FungibleToken.Vault} {
             let pool = self.pool.borrow()!
             return <- pool.withdrawAndPull(pid: self.id, type: type, amount: amount, pullFromTopUpSource: pullFromTopUpSource)
@@ -1393,11 +1367,10 @@ access(all) contract TidalProtocol {
         // times will create multiple sinks, each of which will continue to work regardless of how many
         // other sinks have been created.
         access(all) fun createSink(type: Type): {DFB.Sink} {
-            // RESTORED: Create enhanced sink with pushToDrawDownSink option
+            // create enhanced sink with pushToDrawDownSink option
             return self.createSinkWithOptions(type: type, pushToDrawDownSink: false)
         }
 
-        // RESTORED: Enhanced sink creation from Dieter's implementation
         access(all) fun createSinkWithOptions(type: Type, pushToDrawDownSink: Bool): {DFB.Sink} {
             let pool = self.pool.borrow()!
             return PositionSink(id: self.id, pool: self.pool, type: type, pushToDrawDownSink: pushToDrawDownSink)
@@ -1408,21 +1381,19 @@ access(all) contract TidalProtocol {
         // times will create multiple sources, each of which will continue to work regardless of how many
         // other sources have been created.
         access(FungibleToken.Withdraw) fun createSource(type: Type): {DFB.Source} {
-            // RESTORED: Create enhanced source with pullFromTopUpSource option
+            // Create enhanced source with pullFromTopUpSource = true
             return self.createSourceWithOptions(type: type, pullFromTopUpSource: false)
         }
 
-        // RESTORED: Enhanced source creation from Dieter's implementation
         access(FungibleToken.Withdraw) fun createSourceWithOptions(type: Type, pullFromTopUpSource: Bool): {DFB.Source} {
             let pool = self.pool.borrow()!
             return PositionSource(id: self.id, pool: self.pool, type: type, pullFromTopUpSource: pullFromTopUpSource)
         }
 
-        // RESTORED: Provider functions implementation from Dieter's design
         // Provides a sink to the Position that will have tokens proactively pushed into it when the
         // position has excess collateral. (Remember that sinks do NOT have to accept all tokens provided
         // to them; the sink can choose to accept only some (or none) of the tokens provided, leaving the position
-        // overcollateralized.)
+        // overcollateralized).
         //
         // Each position can have only one sink, and the sink must accept the default token type
         // configured for the pool. Providing a new sink will replace the existing sink. Pass nil
@@ -1445,7 +1416,6 @@ access(all) contract TidalProtocol {
         }
     }
 
-    // RESTORED: Enhanced position sink from Dieter's implementation
     access(all) struct PositionSink: DFB.Sink {
         access(contract) let uniqueID: DFB.UniqueIdentifier?
         access(self) let pool: Capability<auth(EPosition) &Pool>
@@ -1481,7 +1451,6 @@ access(all) contract TidalProtocol {
         }
     }
 
-    // RESTORED: Enhanced position source from Dieter's implementation
     access(all) struct PositionSource: DFB.Source {
         access(contract) let uniqueID: DFB.UniqueIdentifier?
         access(self) let pool: Capability<auth(EPosition) &Pool>
@@ -1528,29 +1497,6 @@ access(all) contract TidalProtocol {
     access(all) enum BalanceDirection: UInt8 {
         access(all) case Credit
         access(all) case Debit
-    }
-
-    // RESTORED: DummyPriceOracle for testing from Dieter's design pattern
-    access(all) struct DummyPriceOracle: DFB.PriceOracle {
-        access(self) var prices: {Type: UFix64}
-        access(self) let defaultToken: Type
-        
-        access(all) view fun unitOfAccount(): Type {
-            return self.defaultToken
-        }
-        
-        access(all) fun price(ofToken: Type): UFix64 {
-            return self.prices[ofToken] ?? 1.0
-        }
-        
-        access(all) fun setPrice(ofToken: Type, price: UFix64) {
-            self.prices[ofToken] = price
-        }
-        
-        init(defaultToken: Type) {
-            self.defaultToken = defaultToken
-            self.prices = {defaultToken: 1.0}
-        }
     }
 
     // A structure returned externally to report a position's balance for a particular token.
