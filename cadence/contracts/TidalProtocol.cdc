@@ -23,26 +23,6 @@ access(all) contract TidalProtocol {
     access(all) entitlement EGovernance
     access(all) entitlement EImplementation
 
-    // RESTORED: BalanceSheet and health computation from Dieter's implementation
-    // A convenience function for computing a health value from effective collateral and debt values.
-    access(all) fun healthComputation(effectiveCollateral: UFix64, effectiveDebt: UFix64): UFix64 {
-        var health = 0.0
-
-        if effectiveCollateral == 0.0 {
-            health = 0.0
-        } else if effectiveDebt == 0.0 {
-            health = UFix64.max
-        } else if (effectiveDebt / effectiveCollateral) == 0.0 {
-            // If debt is so small relative to collateral that division rounds to zero,
-            // the health is essentially infinite
-            health = UFix64.max
-        } else {
-            health = effectiveCollateral / effectiveDebt
-        }
-
-        return health
-    }
-
     access(all) struct BalanceSheet {
         access(all) let effectiveCollateral: UFix64
         access(all) let effectiveDebt: UFix64
@@ -215,64 +195,6 @@ access(all) contract TidalProtocol {
         access(all) fun interestRate(creditBalance: UFix64, debitBalance: UFix64): UFix64 {
             return 0.0
         }
-    }
-
-    // A multiplication function for interest calcuations. It assumes that both values are very close to 1
-    // and represent fixed point numbers with 16 decimal places of precision.
-    access(all) fun interestMul(_ a: UInt64, _ b: UInt64): UInt64 {
-        let aScaled = a / 100000000
-        let bScaled = b / 100000000
-
-        return aScaled * bScaled
-    }
-
-    // Converts a yearly interest rate (as a UFix64) to a per-second multiplication factor
-    // (stored in a UInt64 as a fixed point number with 16 decimal places). The input to this function will be
-    // just the relative interest rate (e.g. 0.05 for 5% interest), but the result will be
-    // the per-second multiplier (e.g. 1.000000000001).
-    access(all) fun perSecondInterestRate(yearlyRate: UFix64): UInt64 {
-        // Covert the yearly rate to an integer maintaning the 10^8 multiplier of UFix64.
-        // We would need to multiply by an additional 10^8 to match the promised multiplier of
-        // 10^16. HOWEVER, since we are about to divide by 31536000, we can save multiply a factor
-        // 1000 smaller, and then divide by 31536.
-        let yearlyScaledValue = UInt64.fromBigEndianBytes(yearlyRate.toBigEndianBytes())! * 100000
-        let perSecondScaledValue = (yearlyScaledValue / 31536) + 10000000000000000
-
-        return perSecondScaledValue
-    }
-
-    // Updates an interest index to reflect the passage of time. The result is:
-    //   newIndex = oldIndex * perSecondRate^seconds
-    access(all) fun compoundInterestIndex(oldIndex: UInt64, perSecondRate: UInt64, elapsedSeconds: UFix64): UInt64 {
-        var result = oldIndex
-        var current = perSecondRate
-        var secondsCounter = UInt64(elapsedSeconds)
-
-        while secondsCounter > 0 {
-            if secondsCounter & 1 == 1 {
-                result = TidalProtocol.interestMul(result, current)
-            }
-            current = TidalProtocol.interestMul(current, current)
-            secondsCounter = secondsCounter >> 1
-        }
-
-        return result
-    }
-
-    access(all) fun scaledBalanceToTrueBalance(scaledBalance: UFix64, interestIndex: UInt64): UFix64 {
-        // The interest index is essentially a fixed point number with 16 decimal places, we convert
-        // it to a UFix64 by copying the byte representation, and then dividing by 10^8 (leaving and
-        // additional 10^8 as required for the UFix64 representation).
-        let indexMultiplier = UFix64.fromBigEndianBytes(interestIndex.toBigEndianBytes())! / 100000000.0
-        return scaledBalance * indexMultiplier
-    }
-
-    access(all) fun trueBalanceToScaledBalance(trueBalance: UFix64, interestIndex: UInt64): UFix64 {
-        // The interest index is essentially a fixed point number with 16 decimal places, we convert
-        // it to a UFix64 by copying the byte representation, and then dividing by 10^8 (leaving and
-        // additional 10^8 as required for the UFix64 representation).
-        let indexMultiplier = UFix64.fromBigEndianBytes(interestIndex.toBigEndianBytes())! / 100000000.0
-        return trueBalance / indexMultiplier
     }
 
     access(all) struct TokenState {
@@ -1699,6 +1621,83 @@ access(all) contract TidalProtocol {
             )
         let cap = self.account.capabilities.storage.issue<auth(EPosition) &Pool>(self.PoolStoragePath)
         return Position(id: pid, pool: cap)
+    }
+
+    // A convenience function for computing a health value from effective collateral and debt values.
+    access(all) fun healthComputation(effectiveCollateral: UFix64, effectiveDebt: UFix64): UFix64 {
+        var health = 0.0
+
+        if effectiveCollateral == 0.0 {
+            health = 0.0
+        } else if effectiveDebt == 0.0 {
+            health = UFix64.max
+        } else if (effectiveDebt / effectiveCollateral) == 0.0 {
+            // If debt is so small relative to collateral that division rounds to zero,
+            // the health is essentially infinite
+            health = UFix64.max
+        } else {
+            health = effectiveCollateral / effectiveDebt
+        }
+
+        return health
+    }
+
+    // A multiplication function for interest calculations. It assumes that both values are very close to 1
+    // and represent fixed point numbers with 16 decimal places of precision.
+    access(all) fun interestMul(_ a: UInt64, _ b: UInt64): UInt64 {
+        let aScaled = a / 100000000
+        let bScaled = b / 100000000
+
+        return aScaled * bScaled
+    }
+
+    // Converts a yearly interest rate (as a UFix64) to a per-second multiplication factor
+    // (stored in a UInt64 as a fixed point number with 16 decimal places). The input to this function will be
+    // just the relative interest rate (e.g. 0.05 for 5% interest), but the result will be
+    // the per-second multiplier (e.g. 1.000000000001).
+    access(all) fun perSecondInterestRate(yearlyRate: UFix64): UInt64 {
+        // Covert the yearly rate to an integer maintaning the 10^8 multiplier of UFix64.
+        // We would need to multiply by an additional 10^8 to match the promised multiplier of
+        // 10^16. HOWEVER, since we are about to divide by 31536000, we can save multiply a factor
+        // 1000 smaller, and then divide by 31536.
+        let yearlyScaledValue = UInt64.fromBigEndianBytes(yearlyRate.toBigEndianBytes())! * 100000
+        let perSecondScaledValue = (yearlyScaledValue / 31536) + 10000000000000000
+
+        return perSecondScaledValue
+    }
+
+    // Updates an interest index to reflect the passage of time. The result is:
+    //   newIndex = oldIndex * perSecondRate^seconds
+    access(all) fun compoundInterestIndex(oldIndex: UInt64, perSecondRate: UInt64, elapsedSeconds: UFix64): UInt64 {
+        var result = oldIndex
+        var current = perSecondRate
+        var secondsCounter = UInt64(elapsedSeconds)
+
+        while secondsCounter > 0 {
+            if secondsCounter & 1 == 1 {
+                result = TidalProtocol.interestMul(result, current)
+            }
+            current = TidalProtocol.interestMul(current, current)
+            secondsCounter = secondsCounter >> 1
+        }
+
+        return result
+    }
+
+    access(all) fun scaledBalanceToTrueBalance(scaledBalance: UFix64, interestIndex: UInt64): UFix64 {
+        // The interest index is essentially a fixed point number with 16 decimal places, we convert
+        // it to a UFix64 by copying the byte representation, and then dividing by 10^8 (leaving and
+        // additional 10^8 as required for the UFix64 representation).
+        let indexMultiplier = UFix64.fromBigEndianBytes(interestIndex.toBigEndianBytes())! / 100000000.0
+        return scaledBalance * indexMultiplier
+    }
+
+    access(all) fun trueBalanceToScaledBalance(trueBalance: UFix64, interestIndex: UInt64): UFix64 {
+        // The interest index is essentially a fixed point number with 16 decimal places, we convert
+        // it to a UFix64 by copying the byte representation, and then dividing by 10^8 (leaving and
+        // additional 10^8 as required for the UFix64 representation).
+        let indexMultiplier = UFix64.fromBigEndianBytes(interestIndex.toBigEndianBytes())! / 100000000.0
+        return trueBalance / indexMultiplier
     }
 
     /* --- INTERNAL METHODS --- */
