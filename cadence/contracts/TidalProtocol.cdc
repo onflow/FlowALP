@@ -35,16 +35,18 @@ access(all) contract TidalProtocol {
         }
     }
 
-    // A structure used internally to track a position's balance for a particular token.
+    /// InternalBalance
+    ///
+    /// A structure used internally to track a position's balance for a particular token
     access(all) struct InternalBalance {
+        /// The current direction of the balance - Credit (owed to borrower) or Debit (owed to protocol)
         access(all) var direction: BalanceDirection
-
-        // Internally, position balances are tracked using a "scaled balance". The "scaled balance" is the
-        // actual balance divided by the current interest index for the associated token. This means we don't
-        // need to update the balance of a position as time passes, even as interest rates change. We only need
-        // to update the scaled balance when the user deposits or withdraws funds. The interest index
-        // is a number relatively close to 1.0, so the scaled balance will be roughly of the same order
-        // of magnitude as the actual balance (thus we can use UFix64 for the scaled balance).
+        /// Internally, position balances are tracked using a "scaled balance". The "scaled balance" is the
+        /// actual balance divided by the current interest index for the associated token. This means we don't
+        /// need to update the balance of a position as time passes, even as interest rates change. We only need
+        /// to update the scaled balance when the user deposits or withdraws funds. The interest index
+        /// is a number relatively close to 1.0, so the scaled balance will be roughly of the same order
+        /// of magnitude as the actual balance (thus we can use UFix64 for the scaled balance).
         access(all) var scaledBalance: UFix64
 
         init() {
@@ -52,6 +54,10 @@ access(all) contract TidalProtocol {
             self.scaledBalance = 0.0
         }
 
+        /// Records a deposit of the defined amount, updating the inner scaledBalance as well as relevant values in the
+        /// provided TokenState. It's assumed the TokenState and InternalBalance relate to the same token Type, but
+        /// since neither struct have values defining the associated token, callers should be sure to make the arguments
+        /// do in fact relate to the same token Type.
         access(all) fun recordDeposit(amount: UFix64, tokenState: auth(EImplementation) &TokenState) {
             if self.direction == BalanceDirection.Credit {
                 // Depositing into a credit position just increases the balance.
@@ -97,6 +103,10 @@ access(all) contract TidalProtocol {
             }
         }
 
+        /// Records a withdrawal of the defined amount, updating the inner scaledBalance as well as relevant values in
+        /// the provided TokenState. It's assumed the TokenState and InternalBalance relate to the same token Type, but
+        /// since neither struct have values defining the associated token, callers should be sure to make the arguments
+        /// do in fact relate to the same token Type.
         access(all) fun recordWithdrawal(amount: UFix64, tokenState: &TokenState) {
             if self.direction == BalanceDirection.Debit {
                 // Withdrawing from a debit position just increases the debt amount.
@@ -144,19 +154,32 @@ access(all) contract TidalProtocol {
         }
     }
 
+    /// Entitlement mapping enabling authorized references on nested resources within InternalPosition
     access(all) entitlement mapping ImplementationUpdates {
         EImplementation -> Mutate
         EImplementation -> FungibleToken.Withdraw
     }
 
-    // This MUST be a resource to properly manage queued deposits
+    /// InternalPosition
+    ///
+    /// An internal resource used to track deposits, withdrawals, balances, and queued deposits to an open position.
     access(all) resource InternalPosition {
+        /// The target health of the position
         access(EImplementation) var targetHealth: UFix64
+        /// The minimum health of the position, below which a position is considered undercollateralized
         access(EImplementation) var minHealth: UFix64
+        /// The maximum health of the position, above which a position is considered overcollateralized
         access(EImplementation) var maxHealth: UFix64
+        /// The balances of deposited and withdrawn token types
         access(mapping ImplementationUpdates) var balances: {Type: InternalBalance}
+        /// Funds that have been deposited but must be asynchronously added to the Pool's reserves and recorded
         access(mapping ImplementationUpdates) var queuedDeposits: @{Type: {FungibleToken.Vault}}
+        /// A DeFiBlocks Sink that if non-nil will enable the Pool to push overflown value automatically when the
+        /// position exceeds its maximum health based on the value of deposited collateral versus withdrawals
         access(mapping ImplementationUpdates) var drawDownSink: {DFB.Sink}?
+        /// A DeFiBlocks Source that if non-nil will enable the Pool to pull underflown value automatically when the
+        /// position falls below its minimum health based on the value of deposited collateral versus withdrawals. If
+        /// this value is not set, liquidation may occur in the event of undercollateralization.
         access(mapping ImplementationUpdates) var topUpSource: {DFB.Source}?
 
         init() {
@@ -169,6 +192,9 @@ access(all) contract TidalProtocol {
             self.topUpSource = nil
         }
 
+        /// Sets the InternalPosition's drawDownSink. If `nil`, the Pool will not be able to push overflown value when
+        /// the position exceeds its maximum health. Note, if a non-nil value is provided, the Sink MUST accept MOET
+        /// deposits or the operation will revert.
         access(EImplementation) fun setDrawDownSink(_ sink: {DFB.Sink}?) {
             pre {
                 sink?.getSinkType() ?? Type<@MOET.Vault>() == Type<@MOET.Vault>():
@@ -176,12 +202,16 @@ access(all) contract TidalProtocol {
             }
             self.drawDownSink = sink
         }
-
+        /// Sets the InternalPosition's topUpSource. If `nil`, the Pool will not be able to pull underflown value when
+        /// the position falls below its minimum health which may result in liquidation.
         access(EImplementation) fun setTopUpSource(_ source: {DFB.Source}?) {
             self.topUpSource = source
         }
     }
 
+    /// InterestCurve
+    ///
+    /// A simple interface to calculate interest rate
     access(all) struct interface InterestCurve {
         access(all) fun interestRate(creditBalance: UFix64, debitBalance: UFix64): UFix64 {
             post {
@@ -190,27 +220,57 @@ access(all) contract TidalProtocol {
         }
     }
 
+    /// SimpleInterestCurve
+    ///
+    /// A simple implementation of the InterestCurve interface.
     access(all) struct SimpleInterestCurve: InterestCurve {
         access(all) fun interestRate(creditBalance: UFix64, debitBalance: UFix64): UFix64 {
-            return 0.0
+            return 0.0 // TODO
         }
     }
 
+    /// TokenState
+    ///
+    /// The TokenState struct tracks values related to a single token Type within a Pool.
     access(all) struct TokenState {
+        /// The timestamp at which the TokenState was last updated
         access(all) var lastUpdate: UFix64
+        /// The total credit balance of the related Token across the whole Pool in which this TokenState resides
         access(all) var totalCreditBalance: UFix64
+        /// The total debit balance of the related Token across the whole Pool in which this TokenState resides
         access(all) var totalDebitBalance: UFix64
+        /// The index of the credit interest for the related token
         access(all) var creditInterestIndex: UInt64
+        /// The index of the debit interest for the related token
         access(all) var debitInterestIndex: UInt64
+        /// The interest rate for credit of the associated token
         access(all) var currentCreditRate: UInt64
+        /// The interest rate for credit of the associated token
         access(all) var currentDebitRate: UInt64
+        /// The interest curve implementation used to calculate interest rate
         access(all) var interestCurve: {InterestCurve}
-
-        // Deposit rate limiting
+        /// The rate at which depositCapacity can increase over time
         access(all) var depositRate: UFix64
+        /// The limit on deposits of the related token
         access(all) var depositCapacity: UFix64
+        /// The upper bound on total deposits of the related token, limiting how much depositCapacity can reach
         access(all) var depositCapacityCap: UFix64
 
+        init(interestCurve: {InterestCurve}, depositRate: UFix64, depositCapacityCap: UFix64) {
+            self.lastUpdate = getCurrentBlock().timestamp
+            self.totalCreditBalance = 0.0
+            self.totalDebitBalance = 0.0
+            self.creditInterestIndex = 10000000000000000
+            self.debitInterestIndex = 10000000000000000
+            self.currentCreditRate = 10000000000000000
+            self.currentDebitRate = 10000000000000000
+            self.interestCurve = interestCurve
+            self.depositRate = depositRate
+            self.depositCapacity = depositCapacityCap
+            self.depositCapacityCap = depositCapacityCap
+        }
+
+        /// Updates the totalCreditBalance by the provided amount
         access(all) fun updateCreditBalance(amount: Fix64) {
             // temporary cast the credit balance to a signed value so we can add/subtract
             let adjustedBalance = Fix64(self.totalCreditBalance) + amount
@@ -277,20 +337,6 @@ access(all) contract TidalProtocol {
 
             self.currentCreditRate = TidalProtocol.perSecondInterestRate(yearlyRate: creditRate)
             self.currentDebitRate = TidalProtocol.perSecondInterestRate(yearlyRate: debitRate)
-        }
-
-        init(interestCurve: {InterestCurve}, depositRate: UFix64, depositCapacityCap: UFix64) {
-            self.lastUpdate = getCurrentBlock().timestamp
-            self.totalCreditBalance = 0.0
-            self.totalDebitBalance = 0.0
-            self.creditInterestIndex = 10000000000000000
-            self.debitInterestIndex = 10000000000000000
-            self.currentCreditRate = 10000000000000000
-            self.currentDebitRate = 10000000000000000
-            self.interestCurve = interestCurve
-            self.depositRate = depositRate
-            self.depositCapacity = depositCapacityCap
-            self.depositCapacityCap = depositCapacityCap
         }
     }
 
@@ -1261,6 +1307,8 @@ access(all) contract TidalProtocol {
         }
     }
 
+    /// PoolFactory
+    ///
     /// Resource enabling the contract account to create a Pool. This pattern is used in place of contract methods to
     /// ensure limited access to pool creation. While this could be done in contract's init, doing so here will allow
     /// for the setting of the Pool's PriceOracle without the introduction of a concrete PriceOracle defining contract
@@ -1281,9 +1329,16 @@ access(all) contract TidalProtocol {
         }
     }
 
+    /// Position
+    ///
+    /// A Position is an external object representing ownership of value deposited to the protocol. From a Position, an
+    /// actor can deposit and withdraw funds as well as construct DeFiBlocks components enabling value flows in and out
+    /// of the Position from within the context of DeFiBlocks stacks.
     // TODO: Consider making this a resource given how critical it is to accessing a loan
     access(all) struct Position {
+        /// The unique ID of the Position used to track deposits and withdrawals to the Pool
         access(self) let id: UInt64
+        /// An authorized Capability to which the Position was opened
         access(self) let pool: Capability<auth(EPosition) &Pool>
 
         init(id: UInt64, pool: Capability<auth(EPosition) &Pool>) {
@@ -1294,133 +1349,146 @@ access(all) contract TidalProtocol {
             self.pool = pool
         }
 
-        // Returns the balances (both positive and negative) for all tokens in this position.
+        /// Returns the balances (both positive and negative) for all tokens in this position.
         access(all) fun getBalances(): {Type: PositionBalance} {
             let pool = self.pool.borrow()!
             return pool.getPositionDetails(pid: self.id).balances
         }
-
+        /// Returns the balance available for withdrawal of a given Vault type. If pullFromTopUpSource is true, the
+        /// calculation will be made assuming the position is topped up if the withdrawal amount puts the Position
+        /// below its min health. If pullFromTopUpSource is true, the calculation will return the balance currently
+        /// available without topping up the position.
         access(all) fun availableBalance(type: Type, pullFromTopUpSource: Bool): UFix64 {
             let pool = self.pool.borrow()!
             return pool.availableBalance(pid: self.id, type: type, pullFromTopUpSource: pullFromTopUpSource)
         }
-
+        /// Returns the current health of the position
         access(all) fun getHealth(): UFix64 {
             let pool = self.pool.borrow()!
             return pool.positionHealth(pid: self.id)
         }
-
+        /// Returns the Position's target health
         access(all) fun getTargetHealth(): UFix64 {
             return 0.0 // TODO
         }
-
+        /// Sets the target health of the Position
         access(all) fun setTargetHealth(targetHealth: UFix64) {
             // TODO
         }
-
+        /// Returns the minimum health of the Position
         access(all) fun getMinHealth(): UFix64 {
             return 0.0 // TODO
         }
-
+        /// Sets the minimum health of the Position
         access(all) fun setMinHealth(minHealth: UFix64) {
             // TODO
         }
-
+        /// Returns the maximum health of the Position
         access(all) fun getMaxHealth(): UFix64 {
             // TODO
             return 0.0
         }
-
+        /// Sets the maximum health of the position
         access(all) fun setMaxHealth(maxHealth: UFix64) {
             // TODO
         }
-
-        // Returns the maximum amount of the given token type that could be deposited into this position.
+        /// Returns the maximum amount of the given token type that could be deposited into this position
         access(all) fun getDepositCapacity(type: Type): UFix64 {
             // There's no limit on deposits from the position's perspective
             return UFix64.max
         }
-
-        // Simple deposit that calls depositAndPush with pushToDrawDownSink = false
+        /// Deposits funds to the Position without pushing to the drawDownSink if the deposit puts the Position above
+        /// its maximum health
         access(all) fun deposit(from: @{FungibleToken.Vault}) {
             let pool = self.pool.borrow()!
             pool.depositAndPush(pid: self.id, from: <-from, pushToDrawDownSink: false)
         }
-
+        /// Deposits funds to the Position enabling the caller to configure whether excess value should be pushed to the
+        /// drawDownSink if the deposit puts the Position above its maximum health
         access(all) fun depositAndPush(from: @{FungibleToken.Vault}, pushToDrawDownSink: Bool) {
             let pool = self.pool.borrow()!
             pool.depositAndPush(pid: self.id, from: <-from, pushToDrawDownSink: pushToDrawDownSink)
         }
-
-        // Simple withdraw that calls withdrawAndPull with pullFromTopUpSource = false
+        /// Withdraws funds from the Position without pulling from the topUpSource if the deposit puts the Position below
+        /// its minimum health
         access(FungibleToken.Withdraw) fun withdraw(type: Type, amount: UFix64): @{FungibleToken.Vault} {
             return <- self.withdrawAndPull(type: type, amount: amount, pullFromTopUpSource: false)
         }
-
+        /// Withdraws funds from the Position enabling the caller to configure whether insufficient value should be 
+        /// pulled from the topUpSource if the deposit puts the Position below its minimum health
         access(FungibleToken.Withdraw) fun withdrawAndPull(type: Type, amount: UFix64, pullFromTopUpSource: Bool): @{FungibleToken.Vault} {
             let pool = self.pool.borrow()!
             return <- pool.withdrawAndPull(pid: self.id, type: type, amount: amount, pullFromTopUpSource: pullFromTopUpSource)
         }
-
-        // Returns a NEW sink for the given token type that will accept deposits of that token and
-        // update the position's collateral and/or debt accordingly. Note that calling this method multiple
-        // times will create multiple sinks, each of which will continue to work regardless of how many
-        // other sinks have been created.
+        /// Returns a new Sink for the given token type that will accept deposits of that token and update the
+        /// position's collateral and/or debt accordingly. Note that calling this method multiple times will create
+        /// multiple sinks, each of which will continue to work regardless of how many other sinks have been created.
         access(all) fun createSink(type: Type): {DFB.Sink} {
             // create enhanced sink with pushToDrawDownSink option
             return self.createSinkWithOptions(type: type, pushToDrawDownSink: false)
         }
-
+        /// Returns a new Sink for the given token type and pushToDrawDownSink opetion that will accept deposits of that
+        /// token and update the position's collateral and/or debt accordingly. Note that calling this method multiple
+        /// times will create multiple sinks, each of which will continue to work regardless of how many other sinks
+        /// have been created.
         access(all) fun createSinkWithOptions(type: Type, pushToDrawDownSink: Bool): {DFB.Sink} {
             let pool = self.pool.borrow()!
             return PositionSink(id: self.id, pool: self.pool, type: type, pushToDrawDownSink: pushToDrawDownSink)
         }
-
-        // Returns a NEW source for the given token type that will service withdrawals of that token and
-        // update the position's collateral and/or debt accordingly. Note that calling this method multiple
-        // times will create multiple sources, each of which will continue to work regardless of how many
-        // other sources have been created.
+        /// Returns a new Source for the given token type that will service withdrawals of that token and update the
+        /// position's collateral and/or debt accordingly. Note that calling this method multiple times will create
+        /// multiple sources, each of which will continue to work regardless of how many other sources have been created.
         access(FungibleToken.Withdraw) fun createSource(type: Type): {DFB.Source} {
             // Create enhanced source with pullFromTopUpSource = true
             return self.createSourceWithOptions(type: type, pullFromTopUpSource: false)
         }
-
+        /// Returns a new Source for the given token type and pullFromTopUpSource option that will service withdrawals
+        /// of that token and update the position's collateral and/or debt accordingly. Note that calling this method
+        /// multiple times will create multiple sources, each of which will continue to work regardless of how many
+        /// other sources have been created.
         access(FungibleToken.Withdraw) fun createSourceWithOptions(type: Type, pullFromTopUpSource: Bool): {DFB.Source} {
             let pool = self.pool.borrow()!
             return PositionSource(id: self.id, pool: self.pool, type: type, pullFromTopUpSource: pullFromTopUpSource)
         }
-
-        // Provides a sink to the Position that will have tokens proactively pushed into it when the
-        // position has excess collateral. (Remember that sinks do NOT have to accept all tokens provided
-        // to them; the sink can choose to accept only some (or none) of the tokens provided, leaving the position
-        // overcollateralized).
-        //
-        // Each position can have only one sink, and the sink must accept the default token type
-        // configured for the pool. Providing a new sink will replace the existing sink. Pass nil
-        // to configure the position to not push tokens.
+        /// Provides a sink to the Position that will have tokens proactively pushed into it when the position has
+        /// excess collateral. (Remember that sinks do NOT have to accept all tokens provided to them; the sink can
+        /// choose to accept only some (or none) of the tokens provided, leaving the position overcollateralized).
+        ///
+        /// Each position can have only one sink, and the sink must accept the default token type configured for the
+        /// pool. Providing a new sink will replace the existing sink. Pass nil to configure the position to not push
+        /// tokens when the Position exceeds its maximum health.
         access(FungibleToken.Withdraw) fun provideSink(sink: {DFB.Sink}?) {
             let pool = self.pool.borrow()!
             pool.provideDrawDownSink(pid: self.id, sink: sink)
         }
-
-        // Provides a source to the Position that will have tokens proactively pulled from it when the
-        // position has insufficient collateral. If the source can cover the position's debt, the position
-        // will not be liquidated.
-        //
-        // Each position can have only one source, and the source must accept the default token type
-        // configured for the pool. Providing a new source will replace the existing source. Pass nil
-        // to configure the position to not pull tokens.
+        /// Provides a source to the Position that will have tokens proactively pulled from it when the position has
+        /// insufficient collateral. If the source can cover the position's debt, the position will not be liquidated.
+        ///
+        /// Each position can have only one source, and the source must accept the default token type configured for the
+        /// pool. Providing a new source will replace the existing source. Pass nil to configure the position to not
+        /// pull tokens.
         access(all) fun provideSource(source: {DFB.Source}?) {
             let pool = self.pool.borrow()!
             pool.provideTopUpSource(pid: self.id, source: source)
         }
     }
 
+    /// PositionSink
+    ///
+    /// A DeFiBlocks connector enabling deposits to a Position from within a DeFiBlocks stack. This Sink is intended to
+    /// be constructed from a Position object.
+    ///
     access(all) struct PositionSink: DFB.Sink {
+        /// An optional DFB.UniqueIdentifier that identifies this Sink with the DeFiBlocks stack its a part of
         access(contract) let uniqueID: DFB.UniqueIdentifier?
+        /// An authorized Capability on the Pool for which the related Position is in
         access(self) let pool: Capability<auth(EPosition) &Pool>
+        /// The ID of the position in the Pool
         access(self) let positionID: UInt64
+        /// The Type of Vault this Sink accepts
         access(self) let type: Type
+        /// Whether deposits through this Sink to the Position should push available value to the Position's 
+        /// drawDownSink
         access(self) let pushToDrawDownSink: Bool
 
         init(id: UInt64, pool: Capability<auth(EPosition) &Pool>, type: Type, pushToDrawDownSink: Bool) {
@@ -1431,15 +1499,15 @@ access(all) contract TidalProtocol {
             self.pushToDrawDownSink = pushToDrawDownSink
         }
 
+        /// Returns the Type of Vault this Sink accepts on deposits
         access(all) view fun getSinkType(): Type {
             return self.type
         }
-
+        /// Returns the minimum capacity this Sink can accept as deposits
         access(all) fun minimumCapacity(): UFix64 {
-            // A position object has no limit to deposits unless the Capability has been revoked
             return self.pool.check() ? UFix64.max : 0.0
         }
-
+        /// Deposits the funds from the provided Vault reference to the related Position
         access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
             if let pool = self.pool.borrow() {
                 pool.depositAndPush(
@@ -1451,11 +1519,22 @@ access(all) contract TidalProtocol {
         }
     }
 
+    /// PositionSource
+    ///
+    /// A DeFiBlocks connector enabling withdrawals from a Position from within a DeFiBlocks stack. This Source is
+    /// intended to be constructed from a Position object.
+    ///
     access(all) struct PositionSource: DFB.Source {
+        /// An optional DFB.UniqueIdentifier that identifies this Sink with the DeFiBlocks stack its a part of
         access(contract) let uniqueID: DFB.UniqueIdentifier?
+        /// An authorized Capability on the Pool for which the related Position is in
         access(self) let pool: Capability<auth(EPosition) &Pool>
+        /// The ID of the position in the Pool
         access(self) let positionID: UInt64
+        /// The Type of Vault this Sink provides
         access(self) let type: Type
+        /// Whether withdrawals through this Sink from the Position should pull value from the Position's topUpSource
+        /// in the event the withdrawal puts the position under its target health
         access(self) let pullFromTopUpSource: Bool
 
         init(id: UInt64, pool: Capability<auth(EPosition) &Pool>, type: Type, pullFromTopUpSource: Bool) {
@@ -1466,10 +1545,11 @@ access(all) contract TidalProtocol {
             self.pullFromTopUpSource = pullFromTopUpSource
         }
 
+        /// Returns the Type of Vault this Source provides on withdrawals
         access(all) view fun getSourceType(): Type {
             return self.type
         }
-
+        /// Returns the minimum availble this Source can provide on withdrawal
         access(all) fun minimumAvailable(): UFix64 {
             if !self.pool.check() {
                 return 0.0
@@ -1477,7 +1557,7 @@ access(all) contract TidalProtocol {
             let pool = self.pool.borrow()!
             return pool.availableBalance(pid: self.positionID, type: self.type, pullFromTopUpSource: self.pullFromTopUpSource)
         }
-
+        /// Withdraws up to the max amount as the sourceType Vault
         access(FungibleToken.Withdraw) fun withdrawAvailable(maxAmount: UFix64): @{FungibleToken.Vault} {
             if !self.pool.check() {
                 return <- DFBUtils.getEmptyVault(self.type)
@@ -1494,13 +1574,20 @@ access(all) contract TidalProtocol {
         }
     }
 
+    /// BalanceDirection
+    ///
+    /// The direction of a given balance
     access(all) enum BalanceDirection: UInt8 {
+        /// Denotes that a balance that is withdrawable from the protocol
         access(all) case Credit
+        /// Denotes that a balance that is due to the protocol
         access(all) case Debit
     }
 
-    // A structure returned externally to report a position's balance for a particular token.
-    // This structure is NOT used internally.
+    /// PositionBalance
+    ///
+    /// A structure returned externally to report a position's balance for a particular token.
+    /// This structure is NOT used internally.
     access(all) struct PositionBalance {
         /// The token type for which the balance details relate to
         access(all) let vaultType: Type
@@ -1516,8 +1603,10 @@ access(all) contract TidalProtocol {
         }
     }
 
-    // A structure returned externally to report all of the details associated with a position.
-    // This structure is NOT used internally.
+    /// PositionDetails
+    ///
+    /// A structure returned externally to report all of the details associated with a position.
+    /// This structure is NOT used internally.
     access(all) struct PositionDetails {
         /// Balance details about each Vault Type deposited to the related Position
         access(all) let balances: {Type: PositionBalance}
