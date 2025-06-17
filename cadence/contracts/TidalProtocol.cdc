@@ -17,6 +17,13 @@ access(all) contract TidalProtocol {
     /// The canonical PublicPath where the primary TidalProtocol Pool can be accessed publicly
     access(all) let PoolPublicPath: PublicPath
 
+    /* --- EVENTS ---- */
+
+    access(all) event Opened(pid: UInt64, poolUUID: UInt64)
+    access(all) event Deposited(pid: UInt64, poolUUID: UInt64, type: String, amount: UFix64, depositedUUID: UInt64)
+    access(all) event Withdrawn(pid: UInt64, poolUUID: UInt64, type: String, amount: UFix64, withdrawnUUID: UInt64)
+    access(all) event Rebalanced(pid: UInt64, poolUUID: UInt64, atHealth: UFix64, amount: UFix64, fromUnder: Bool)
+
     /* --- PUBLIC METHODS ---- */
 
     /// Takes out a TidalProtocol loan with the provided collateral, returning a Position that can be used to manage
@@ -552,6 +559,8 @@ access(all) contract TidalProtocol {
 
             // Get a reference to the user's position and global token state for the affected token.
             let type = from.getType()
+            let amount = from.balance
+            let depositedUUID = from.uuid
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
             let tokenState = self.tokenState(type: type)
 
@@ -595,6 +604,8 @@ access(all) contract TidalProtocol {
             if pushToDrawDownSink {
                 self.rebalancePosition(pid: pid, force: true)
             }
+
+            emit Deposited(pid: pid, poolUUID: self.uuid, type: type.identifier, amount: amount, depositedUUID: depositedUUID)
 
             self.queuePositionForUpdateIfNecessary(pid: pid)
         }
@@ -700,7 +711,11 @@ access(all) contract TidalProtocol {
             // Queue for update if necessary
             self.queuePositionForUpdateIfNecessary(pid: pid)
 
-            return <- reserveVault.withdraw(amount: amount)
+            let withdrawn <- reserveVault.withdraw(amount: amount)
+
+            emit Withdrawn(pid: pid, poolUUID: self.uuid, type: type.identifier, amount: withdrawn.balance, withdrawnUUID: withdrawn.uuid)
+
+            return <- withdrawn
         }
 
         // RESTORED: Position queue management from Dieter's implementation
@@ -752,6 +767,9 @@ access(all) contract TidalProtocol {
                     )
 
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
+
+                    emit Rebalanced(pid: pid, poolUUID: self.uuid, atHealth: balanceSheet.health, amount: pulledVault.balance, fromUnder: true)
+
                     self.depositAndPush(pid: pid, from: <-pulledVault, pushToDrawDownSink: false)
                 }
             } else if balanceSheet.health > position.targetHealth {
@@ -786,9 +804,11 @@ access(all) contract TidalProtocol {
                         }
                         position.balances[self.defaultToken]!.recordWithdrawal(amount: sinkAmount, tokenState: tokenState)
                         let sinkVault <- TidalProtocol.borrowMOETMinter().mintTokens(amount: sinkAmount)
+
+                        emit Rebalanced(pid: pid, poolUUID: self.uuid, atHealth: balanceSheet.health, amount: sinkVault.balance, fromUnder: false)
+
                         // Push what we can into the sink, and redeposit the rest
                         drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-
                         if sinkVault.balance > 0.0 {
                             self.depositAndPush(pid: pid, from: <-sinkVault, pushToDrawDownSink: false)
                         } else {
@@ -922,6 +942,7 @@ access(all) contract TidalProtocol {
             self.nextPositionID = self.nextPositionID + 1
             self.positions[id] <-! create InternalPosition()
 
+            emit Opened(pid: id, poolUUID: self.uuid)
 
             // assign issuance & repayment connectors within the InternalPosition
             let iPos = (&self.positions[id] as auth(EImplementation) &InternalPosition?)!
@@ -1645,19 +1666,19 @@ access(all) contract TidalProtocol {
     access(all) struct DummyPriceOracle: DFB.PriceOracle {
         access(self) var prices: {Type: UFix64}
         access(self) let defaultToken: Type
-        
+
         access(all) view fun unitOfAccount(): Type {
             return self.defaultToken
         }
-        
+
         access(all) fun price(ofToken: Type): UFix64 {
             return self.prices[ofToken] ?? 1.0
         }
-        
+
         access(all) fun setPrice(ofToken: Type, price: UFix64) {
             self.prices[ofToken] = price
         }
-        
+
         init(defaultToken: Type) {
             self.defaultToken = defaultToken
             self.prices = {defaultToken: 1.0}
