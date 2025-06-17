@@ -1558,7 +1558,7 @@ access(all) contract TidalProtocol {
 
     // RESTORED: Enhanced position sink from Dieter's implementation
     access(all) struct PositionSink: DFB.Sink {
-        access(contract) let uniqueID: DFB.UniqueIdentifier?
+        access(contract) let uniqueID: {DFB.UniqueIdentifier}?
         access(self) let pool: Capability<auth(EPosition) &Pool>
         access(self) let positionID: UInt64
         access(self) let type: Type
@@ -1594,7 +1594,7 @@ access(all) contract TidalProtocol {
 
     // RESTORED: Enhanced position source from Dieter's implementation
     access(all) struct PositionSource: DFB.Source {
-        access(contract) let uniqueID: DFB.UniqueIdentifier?
+        access(contract) let uniqueID: {DFB.UniqueIdentifier}?
         access(self) let pool: Capability<auth(EPosition) &Pool>
         access(self) let positionID: UInt64
         access(self) let type: Type

@@ -1,8 +1,6 @@
 import Test
-import BlockchainHelpers
 
 import "MOET"
-
 import "test_helpers.cdc"
 
 /*
@@ -55,7 +53,7 @@ fun testCreatePoolSucceeds() {
 
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
 
-    let existsRes = executeScript("../scripts/tidal-protocol/pool_exists.cdc", [protocolAccount.address])
+    let existsRes = _executeScript("../scripts/tidal-protocol/pool_exists.cdc", [protocolAccount.address])
     Test.expect(existsRes, Test.beSucceeded())
 
     let exists = existsRes.returnValue as! Bool

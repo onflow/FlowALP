@@ -13,8 +13,9 @@
 			}
 		},
 		"DFBUtils": {
-			"source": "./DeFiBlocks/cadence/contracts/utils/DFBUtils.cdc",
+			"source": "./cadence/tests/mocks/DFBUtils.cdc",
 			"aliases": {
+				"emulator": "0x0000000000000006",
 				"testing": "0x0000000000000006"
 			}
 		},

@@ -19,13 +19,18 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
     return Test.executeTransaction(txn)
 }
 
+access(all)
+fun executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.TestAccount): Test.TransactionResult {
+    return _executeTransaction(path, args, signer)
+}
+
 /* --- Setup helpers --- */
 
 // Common test setup function that deploys all required contracts
 access(all) fun deployContracts() {
     var err = Test.deployContract(
         name: "DFBUtils",
-        path: "../../DeFiBlocks/cadence/contracts/utils/DFBUtils.cdc",
+        path: "./mocks/DFBUtils.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -84,6 +89,13 @@ fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix64 {
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
     return res.status == Test.ResultStatus.failed ? 0.0 : res.returnValue as! UFix64
+}
+
+access(all)
+fun poolExists(address: Address): Bool {
+    let res = _executeScript("../scripts/tidal-protocol/pool_exists.cdc", [address])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! Bool
 }
 
 /* --- Transaction Helpers --- */
@@ -145,4 +157,51 @@ access(all)
 fun mintMoet(signer: Test.TestAccount, to: Address, amount: UFix64, beFailed: Bool) {
     let mintRes = _executeTransaction("../transactions/moet/mint_moet.cdc", [to, amount], signer)
     Test.expect(mintRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun getCurrentBlockHeight(): UInt64 {
+    return getCurrentBlock().height
+}
+
+// Transfer Flow tokens from service account to recipient
+access(all)
+fun transferFlowTokens(to: Test.TestAccount, amount: UFix64) {
+    let transferTx = Test.Transaction(
+        code: Test.readFile("../transactions/flowtoken/transfer_flowtoken.cdc"),
+        authorizers: [Test.serviceAccount().address],
+        signers: [Test.serviceAccount()],
+        arguments: [to.address, amount]
+    )
+    let res = Test.executeTransaction(transferTx)
+    Test.expect(res, Test.beSucceeded())
+}
+
+// DEPRECATED – kept for backwards-compatibility; will be removed
+access(all)
+fun mintFlow(to: Test.TestAccount, amount: UFix64) {
+    transferFlowTokens(to: to, amount: amount)
+}
+
+access(all)
+fun expectEvents(eventType: Type, expectedCount: Int) {
+    let events = Test.eventsOfType(eventType)
+    Test.assertEqual(expectedCount, events.length)
+}
+
+access(all)
+fun withdrawReserve(
+    signer: Test.TestAccount,
+    poolAddress: Address,
+    tokenTypeIdentifier: String,
+    amount: UFix64,
+    recipient: Address,
+    beFailed: Bool
+) {
+    let txRes = _executeTransaction(
+        "../transactions/tidal-protocol/pool-governance/withdraw_reserve.cdc",
+        [poolAddress, tokenTypeIdentifier, amount, recipient],
+        signer
+    )
+    Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
