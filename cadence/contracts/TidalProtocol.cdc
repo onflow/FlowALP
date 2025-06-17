@@ -512,7 +512,7 @@ access(all) contract TidalProtocol {
         /// Returns the details of a given position as a PositionDetails external struct
         access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
             let position = self._borrowPosition(pid: pid)
-            let balances: {Type: PositionBalance} = {}
+            let balances: [PositionBalance] = []
 
             for type in position.balances.keys {
                 let balance = position.balances[type]!
@@ -521,11 +521,11 @@ access(all) contract TidalProtocol {
                     ? TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.creditInterestIndex)
                     : TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: balance.scaledBalance, interestIndex: tokenState.debitInterestIndex)
 
-                balances[type] = PositionBalance(
+                balances.append(PositionBalance(
                     vaultType: type,
                     direction: balance.direction,
                     balance: trueBalance
-                )
+                ))
             }
 
             let health = self.positionHealth(pid: pid)
@@ -1392,7 +1392,7 @@ access(all) contract TidalProtocol {
         }
 
         /// Returns the balances (both positive and negative) for all tokens in this position.
-        access(all) fun getBalances(): {Type: PositionBalance} {
+        access(all) fun getBalances(): [PositionBalance] {
             let pool = self.pool.borrow()!
             return pool.getPositionDetails(pid: self.id).balances
         }
@@ -1651,7 +1651,7 @@ access(all) contract TidalProtocol {
     /// This structure is NOT used internally.
     access(all) struct PositionDetails {
         /// Balance details about each Vault Type deposited to the related Position
-        access(all) let balances: {Type: PositionBalance}
+        access(all) let balances: [PositionBalance]
         /// The default token Type of the Pool in which the related position is held
         access(all) let poolDefaultToken: Type
         /// The available balance of the Pool's default token Type
@@ -1659,7 +1659,7 @@ access(all) contract TidalProtocol {
         /// The current health of the related position
         access(all) let health: UFix64
 
-        init(balances: {Type: PositionBalance}, poolDefaultToken: Type, defaultTokenAvailableBalance: UFix64, health: UFix64) {
+        init(balances: [PositionBalance], poolDefaultToken: Type, defaultTokenAvailableBalance: UFix64, health: UFix64) {
             self.balances = balances
             self.poolDefaultToken = poolDefaultToken
             self.defaultTokenAvailableBalance = defaultTokenAvailableBalance
