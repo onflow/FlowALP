@@ -1,4 +1,5 @@
 import Test
+import BlockchainHelpers
 
 import "MOET"
 import "test_helpers.cdc"
@@ -8,19 +9,9 @@ access(all) let treasury = Test.createAccount()
 
 access(all) var snapshot: UInt64 = 0
 
-access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
-
 access(all)
 fun setup() {
     deployContracts()
-    
-    // deploy mocks required for pool creation (oracle etc.)
-    var err = Test.deployContract(
-        name: "MockOracle",
-        path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [defaultTokenIdentifier]
-    )
-    Test.expect(err, Test.beNil())
     
     // Take snapshot after setup
     snapshot = getCurrentBlockHeight()

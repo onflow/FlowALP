@@ -14,7 +14,6 @@ access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 
 access(all) var snapshot: UInt64 = 0
 
-access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
@@ -22,14 +21,8 @@ access(all) let flowVaultStoragePath = /storage/flowTokenVault
 access(all)
 fun setup() {
     deployContracts()
-    
-    // Deploy MockOracle for this test suite
-    let err = Test.deployContract(
-        name: "MockOracle",
-        path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [defaultTokenIdentifier]
-    )
-    Test.expect(err, Test.beNil())
+
+    snapshot = getCurrentBlockHeight()
 }
 
 access(all)
@@ -39,8 +32,6 @@ fun testDeploymentSucceeds() {
 
 access(all)
 fun testCreatePoolSucceeds() {
-    snapshot = getCurrentBlockHeight()
-
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
 
     let existsRes = _executeScript("../scripts/tidal-protocol/pool_exists.cdc", [protocolAccount.address])

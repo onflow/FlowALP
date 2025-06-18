@@ -1,5 +1,7 @@
 import Test
-import TidalProtocol from "TidalProtocol"
+// import "TidalProtocol"
+
+access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
 
 /* --- Test execution helpers --- */
 
@@ -19,15 +21,11 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
     return Test.executeTransaction(txn)
 }
 
-access(all)
-fun executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.TestAccount): Test.TransactionResult {
-    return _executeTransaction(path, args, signer)
-}
-
 /* --- Setup helpers --- */
 
 // Common test setup function that deploys all required contracts
-access(all) fun deployContracts() {
+access(all)
+fun deployContracts() {
     var err = Test.deployContract(
         name: "DFBUtils",
         path: "./mocks/DFBUtils.cdc",
@@ -61,6 +59,13 @@ access(all) fun deployContracts() {
         name: "MockTidalProtocolConsumer",
         path: "../contracts/mocks/MockTidalProtocolConsumer.cdc",
         arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "MockOracle",
+        path: "../contracts/mocks/MockOracle.cdc",
+        arguments: [defaultTokenIdentifier]
     )
     Test.expect(err, Test.beNil())
     
@@ -151,6 +156,22 @@ fun addSupportedTokenSimpleInterestCurve(
         signer
     )
     Test.expect(additionRes, Test.beSucceeded())
+}
+
+access(all)
+fun addSupportedTokenSimpleInterestCurveWithResult(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    collateralFactor: UFix64,
+    borrowFactor: UFix64,
+    depositRate: UFix64,
+    depositCapacityCap: UFix64
+): Test.TransactionResult {
+    return _executeTransaction(
+        "../transactions/tidal-protocol/pool-governance/add_supported_token_simple_interest_curve.cdc",
+        [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
+        signer
+    )
 }
 
 access(all)

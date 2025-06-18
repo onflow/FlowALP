@@ -1,4 +1,5 @@
 import Test
+import BlockchainHelpers
 
 import "MOET"
 import "test_helpers.cdc"
@@ -6,31 +7,19 @@ import "test_helpers.cdc"
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) var snapshot: UInt64 = 0
 
-access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
 
 access(all)
 fun setup() {
     deployContracts()
-    var err = Test.deployContract(
-        name: "MockOracle",
-        path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [defaultTokenIdentifier]
-    )
-    Test.expect(err, Test.beNil())
-    err = Test.deployContract(
-        name: "MockTidalProtocolConsumer",
-        path: "../contracts/mocks/MockTidalProtocolConsumer.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
+
     snapshot = getCurrentBlockHeight()
 }
 
 access(all)
 fun testRebalanceUndercollateralised() {
-    Test.reset(to: snapshot)
+    // Test.reset(to: snapshot)
     let initialPrice = 1.0
     let priceDropPct: UFix64 = 0.2
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice)
