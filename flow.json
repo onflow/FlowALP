@@ -22,12 +22,14 @@
 		"MockOracle": {
 			"source": "./cadence/contracts/mocks/MockOracle.cdc",
 			"aliases": {
+				"emulator": "0x0000000000000007",
 				"testing": "0000000000000007"
 			}
 		},
 		"MockTidalProtocolConsumer": {
 			"source": "./cadence/contracts/mocks/MockTidalProtocolConsumer.cdc",
 			"aliases": {
+				"emulator": "0x0000000000000007",
 				"testing": "0000000000000007"
 			}
 		},
