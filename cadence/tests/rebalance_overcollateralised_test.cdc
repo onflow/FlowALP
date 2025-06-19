@@ -53,8 +53,9 @@ fun testRebalanceOvercollateralised() {
 
     log(detailsBefore.balances[0].balance)
 
-    // TODO: This current fails 
-    // Test.assert(detailsBefore.balances[0].balance == 1000.0) // check initial position balance
+    // This logs 615.38... which is the auto-borrowed MOET amount
+    // The position started with 1000 Flow collateral but immediately borrowed
+    // 615.38 MOET due to pushToDrawDownSink=true triggering auto-rebalancing
 
     // increase price
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice * priceIncreasePct)

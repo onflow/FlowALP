@@ -21,6 +21,7 @@ LLM_FILES=(
     "LLM_FILES_MANAGEMENT.md"
     "AUTO_BORROWING_GUIDE.md"
     "AUTO_BORROWING_PROPOSAL.md"
+    "PR_COMMENT_RESPONSES.md"
 )
 
 case "${1:-list}" in
