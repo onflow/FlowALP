@@ -64,6 +64,10 @@ fun testPositionLifecycleHappyPath() {
     let balanceAfterBorrow = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assert(balanceAfterBorrow > 0.0)
 
+    // Check Flow balance before repayment
+    let flowBalanceBefore = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
+    log("Flow balance BEFORE repay: ".concat(flowBalanceBefore.toString()))
+
     /* --- NEW: repay MOET and close position --- */
     let repayRes = executeTransaction(
         "../transactions/tidal-protocol/pool-management/repay_and_close_position.cdc",
@@ -77,6 +81,6 @@ fun testPositionLifecycleHappyPath() {
     Test.assertEqual(0.0, balanceAfterRepay)
 
     let flowBalanceAfter = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-    log("Flow balance after repay: ".concat(flowBalanceAfter.toString()).concat(" (should be ~1000 but is 0 because collateral not returned)"))
+    log("Flow balance after repay: ".concat(flowBalanceAfter.toString()).concat(" - Collateral successfully returned!"))
     Test.assert(flowBalanceAfter >= 999.99)  // allow tiny rounding diff
 } 

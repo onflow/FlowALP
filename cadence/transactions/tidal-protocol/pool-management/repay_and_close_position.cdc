@@ -1,16 +1,16 @@
-// Repay MOET debt for a position
-// NOTE: This transaction can only repay the debt. It CANNOT return collateral
-// due to authorization constraints. The Position.withdraw() function requires
-// FungibleToken.Withdraw access which transactions cannot obtain.
+// Repay MOET debt and withdraw collateral from a position
+// 
+// This transaction uses withdrawAndPull with pullFromTopUpSource: true to:
+// 1. Automatically pull MOET from the user's vault to repay the debt
+// 2. Withdraw and return the collateral to the user
+//
+// The MockTidalProtocolConsumer.PositionWrapper provides the necessary
+// FungibleToken.Withdraw authorization through borrowPositionForWithdraw()
 //
 // After running this transaction:
-// - MOET debt will be repaid (balance goes to 0)
-// - Flow collateral remains locked in the position
-// - User cannot access their collateral without contract changes
-//
-// This is a critical limitation that needs to be addressed by adding a
-// contract method like repayAndClosePosition() that can internally handle
-// both debt repayment and collateral return.
+// - MOET debt will be repaid (balance goes to 0) 
+// - Flow collateral will be returned to the user's vault
+// - The position will be empty (all balances at 0)
 
 import "FungibleToken"
 import "FlowToken"
@@ -61,9 +61,9 @@ transaction(positionWrapperPath: StoragePath) {
         log("Health: ".concat(positionRef.getHealth().toString()))
         log("=========================================")
         
-        // Note: Cannot withdraw collateral due to authorization constraints
-        log("NOTE: Collateral cannot be withdrawn - requires FungibleToken.Withdraw access")
-        log("User's Flow tokens remain locked in the position!")
+        // Success! Debt has been repaid and collateral withdrawn
+        log("SUCCESS: Position closed successfully!")
+        log("Debt repaid and collateral returned to user")
 
         receiverRef.deposit(from: <-withdrawnVault)
     }
