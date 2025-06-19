@@ -25,7 +25,7 @@ transaction(positionWrapperPath: StoragePath) {
             ?? panic("Could not borrow reference to position wrapper")
         
         // Get position reference
-        let positionRef = wrapperRef.borrowPosition()
+        let positionRef = wrapperRef.borrowPositionForWithdraw()
         
         // Log position details BEFORE repayment
         log("=== Position Details BEFORE Repayment ===")
@@ -40,17 +40,25 @@ transaction(positionWrapperPath: StoragePath) {
         log("=========================================")
         
         // Get MOET vault to repay
-        let moetVault = borrower.storage.borrow<auth(FungibleToken.Withdraw) &MOET.Vault>(
-            from: MOET.VaultStoragePath
-        ) ?? panic("Could not borrow MOET vault")
+        // let moetVault = borrower.storage.borrow<auth(FungibleToken.Withdraw) &MOET.Vault>(
+        //     from: MOET.VaultStoragePath
+        // ) ?? panic("Could not borrow MOET vault")
         
-        // Withdraw all MOET to repay
-        let repaymentAmount = moetVault.balance
-        log("Repaying MOET amount: ".concat(repaymentAmount.toString()))
-        let repaymentVault <- moetVault.withdraw(amount: repaymentAmount)
+        // // Withdraw all MOET to repay
+        // let repaymentAmount = moetVault.balance
+        // log("Repaying MOET amount: ".concat(repaymentAmount.toString()))
+        // let repaymentVault <- moetVault.withdraw(amount: repaymentAmount)
         
-        // Deposit to repay the debt
-        positionRef.deposit(from: <-repaymentVault)
+        // // Deposit to repay the debt
+        // positionRef.deposit(from: <-repaymentVault)
+        let receiverRef =  borrower.capabilities.borrow<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
+			?? panic("Could not borrow receiver reference to the recipient's Vault")
+
+        let withdrawnVault <- positionRef.withdrawAndPull(
+            type: Type<@FlowToken.Vault>(),
+            amount: 1000.0,
+            pullFromTopUpSource: true,
+        )
         
         // Log position details AFTER repayment
         log("=== Position Details AFTER Repayment ===")
@@ -67,5 +75,7 @@ transaction(positionWrapperPath: StoragePath) {
         // Note: Cannot withdraw collateral due to authorization constraints
         log("NOTE: Collateral cannot be withdrawn - requires FungibleToken.Withdraw access")
         log("User's Flow tokens remain locked in the position!")
+
+        receiverRef.deposit(from: <-withdrawnVault)
     }
 } 

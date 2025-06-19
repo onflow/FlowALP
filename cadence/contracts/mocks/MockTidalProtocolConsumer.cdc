@@ -48,6 +48,10 @@ access(all) contract MockTidalProtocolConsumer {
         access(all) fun borrowPosition(): &TidalProtocol.Position {
             return &self.position
         }
+
+        access(all) fun borrowPositionForWithdraw(): auth(FungibleToken.Withdraw) &TidalProtocol.Position {
+            return &self.position
+        }
     }
 
     init() {
