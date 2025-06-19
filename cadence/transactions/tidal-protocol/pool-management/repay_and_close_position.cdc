@@ -1,8 +1,16 @@
-// Withdraws all collateral from a Tidal Protocol position and repays the debt.
+// Repay MOET debt and withdraw collateral from a position
+// 
+// This transaction uses withdrawAndPull with pullFromTopUpSource: true to:
+// 1. Automatically pull MOET from the user's vault to repay the debt
+// 2. Withdraw and return the collateral to the user
+//
+// The MockTidalProtocolConsumer.PositionWrapper provides the necessary
+// FungibleToken.Withdraw authorization through borrowPositionForWithdraw()
 //
 // After running this transaction:
-// - MOET debt will be repaid (balance goes to 0)
-// - User's Flow will be returned to their Flow receiver
+// - MOET debt will be repaid (balance goes to 0) 
+// - Flow collateral will be returned to the user's vault
+// - The position will be empty (all balances at 0)
 
 import "FungibleToken"
 import "FlowToken"
@@ -52,6 +60,10 @@ transaction(positionWrapperPath: StoragePath) {
         }
         log("Health: ".concat(positionRef.getHealth().toString()))
         log("=========================================")
+        
+        // Success! Debt has been repaid and collateral withdrawn
+        log("SUCCESS: Position closed successfully!")
+        log("Debt repaid and collateral returned to user")
 
         receiverRef.deposit(from: <-withdrawnVault)
     }
