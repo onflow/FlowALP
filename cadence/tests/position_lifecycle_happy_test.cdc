@@ -66,7 +66,7 @@ fun testPositionLifecycleHappyPath() {
 
     /* --- NEW: repay MOET and close position --- */
     let repayRes = executeTransaction(
-        "../transactions/tidal-protocol/pool-management/repay_and_close_position.cdc",
+        "../transactions/tidal-protocol/pool-management/repay_and_close_position_v2.cdc",
         [wrapperStoragePath],
         user
     )
@@ -76,21 +76,12 @@ fun testPositionLifecycleHappyPath() {
     let balanceAfterRepay = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assertEqual(0.0, balanceAfterRepay)
 
-    // Position state after repayment:
-    // - MOET: 0.00 (Credit) - debt fully repaid
-    // - Flow: 1000.00 (Credit) - collateral still locked in position
-    // - Health: undefined/infinite (no debt)
-    log("=== Position State After Repayment ===")
-    log("MOET balance: 0.0 (debt repaid)")
-    log("Flow balance: 0.0 (collateral still locked in position)")
-    log("Expected Flow balance: ~1000.0 (if collateral was returned)")
-    log("=====================================")
-
-    // TODO: Collateral return requires either:
-    // 1. Contract method like repayAndClosePosition() that handles both repayment and collateral return
-    // 2. Or granting transaction FungibleToken.Withdraw access to Position.withdraw()
-    // Currently Flow collateral remains locked in position (balance = 0)
+    // Check that Flow collateral was returned
     let flowBalanceAfter = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-    log("Flow balance after repay: ".concat(flowBalanceAfter.toString()).concat(" (should be ~1000 but is 0 because collateral not returned)"))
-    // Test.assert(flowBalanceAfter >= 999.99)  // allow tiny rounding diff
+    log("Flow balance after repay and close: ".concat(flowBalanceAfter.toString()))
+    
+    // User should have their ~1000 Flow back (minus any tiny rounding)
+    Test.assert(flowBalanceAfter >= 999.99, message: "Collateral should be returned after position close")
+    
+    log("=== SUCCESS: Position closed, debt repaid, collateral returned! ===")
 } 

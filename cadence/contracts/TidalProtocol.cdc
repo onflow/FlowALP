@@ -988,6 +988,76 @@ access(all) contract TidalProtocol {
             return vaultRef!.balance
         }
 
+        // Repay all debt and close a position, returning all collateral to the provided receivers
+        // This method handles both debt repayment and collateral withdrawal internally, avoiding
+        // the authorization issues that transactions face when trying to withdraw collateral.
+        //
+        // Parameters:
+        // - pid: The position ID to close
+        // - repaymentVault: Vault containing tokens to repay debt (must be MOET for now)
+        // - collateralReceivers: Dictionary mapping token types to receiver capabilities
+        //
+        // Returns: Dictionary of withdrawn collateral vaults by token type
+        //
+        // Note: This is a simplified implementation that assumes:
+        // 1. Only MOET debt needs to be repaid
+        // 2. Caller provides exact repayment amount needed
+        // 3. All collateral types have receivers provided
+        access(all) fun repayAndClosePosition(
+            pid: UInt64,
+            repaymentVault: @{FungibleToken.Vault},
+            collateralReceivers: {Type: Capability<&{FungibleToken.Receiver}>}
+        ): @{Type: {FungibleToken.Vault}} {
+            pre {
+                self.positions[pid] != nil: "Invalid position ID"
+                repaymentVault.getType() == Type<@MOET.Vault>(): "Repayment must be in MOET"
+            }
+
+            let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
+            
+            // First, deposit the repayment to clear any debt
+            self.depositAndPush(pid: pid, from: <-repaymentVault, pushToDrawDownSink: false)
+            
+            // Now withdraw all collateral
+            let withdrawnCollateral: @{Type: {FungibleToken.Vault}} <- {}
+            
+            for tokenType in position.balances.keys {
+                let balance = position.balances[tokenType]!
+                if balance.direction == BalanceDirection.Credit && balance.scaledBalance > 0.0 {
+                    // This is collateral, withdraw it
+                    let tokenState = self.tokenState(type: tokenType)
+                    let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(
+                        scaledBalance: balance.scaledBalance,
+                        interestIndex: tokenState.creditInterestIndex
+                    )
+                    
+                    if trueBalance > 0.0 {
+                        // Check if we have a receiver for this token type
+                        if let receiver = collateralReceivers[tokenType] {
+                            if receiver.check() {
+                                // Withdraw the collateral using internal access
+                                let collateralVault <- self.withdraw(pid: pid, amount: trueBalance, type: tokenType)
+                                receiver.borrow()!.deposit(from: <-collateralVault)
+                            }
+                        } else {
+                            // If no receiver provided, store in return dictionary
+                            let collateralVault <- self.withdraw(pid: pid, amount: trueBalance, type: tokenType)
+                            withdrawnCollateral[tokenType] <-! collateralVault
+                        }
+                    }
+                }
+            }
+            
+            // Verify position has no remaining balances
+            let finalDetails = self.getPositionDetails(pid: pid)
+            for balance in finalDetails.balances {
+                assert(balance.balance == 0.0 || balance.balance < 0.00000001, 
+                    message: "Position still has non-zero balance for ".concat(balance.type.identifier))
+            }
+            
+            return <-withdrawnCollateral
+        }
+
         // Add getPositionDetails function that's used by DFB implementations
         access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
             let position = (&self.positions[pid] as auth(EImplementation) &InternalPosition?)!
@@ -1467,6 +1537,11 @@ access(all) contract TidalProtocol {
         access(all) fun getBalances(): [PositionBalance] {
             let pool = self.pool.borrow()!
             return pool.getPositionDetails(pid: self.id).balances
+        }
+
+        // Returns the position ID
+        access(all) fun getId(): UInt64 {
+            return self.id
         }
 
         // RESTORED: Enhanced available balance from Dieter's implementation
