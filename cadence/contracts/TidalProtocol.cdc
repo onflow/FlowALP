@@ -17,6 +17,13 @@ access(all) contract TidalProtocol {
     /// The canonical PublicPath where the primary TidalProtocol Pool can be accessed publicly
     access(all) let PoolPublicPath: PublicPath
 
+    /* --- EVENTS ---- */
+
+    access(all) event Opened(pid: UInt64, poolUUID: UInt64)
+    access(all) event Deposited(pid: UInt64, poolUUID: UInt64, type: String, amount: UFix64, depositedUUID: UInt64)
+    access(all) event Withdrawn(pid: UInt64, poolUUID: UInt64, type: String, amount: UFix64, withdrawnUUID: UInt64)
+    access(all) event Rebalanced(pid: UInt64, poolUUID: UInt64, atHealth: UFix64, amount: UFix64, fromUnder: Bool)
+
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
     access(all) entitlement EPosition
@@ -912,6 +919,7 @@ access(all) contract TidalProtocol {
             self.nextPositionID = self.nextPositionID + 1
             self.positions[id] <-! create InternalPosition()
 
+            emit Opened(pid: id, poolUUID: self.uuid)
 
             // assign issuance & repayment connectors within the InternalPosition
             let iPos = self._borrowPosition(pid: id)
@@ -954,6 +962,8 @@ access(all) contract TidalProtocol {
             let type = from.getType()
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: type)
+            let amount = from.balance
+            let depositedUUID = from.uuid
 
             // Update time-based state
             // REMOVED: This is now handled by tokenState() helper function
@@ -997,6 +1007,7 @@ access(all) contract TidalProtocol {
             }
 
             self._queuePositionForUpdateIfNecessary(pid: pid)
+            emit Deposited(pid: pid, poolUUID: self.uuid, type: type.identifier, amount: amount, depositedUUID: depositedUUID)
         }
 
         /// Withdraws the requested funds from the specified position. Callers should be careful that the withdrawal
@@ -1098,7 +1109,11 @@ access(all) contract TidalProtocol {
             // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
 
-            return <- reserveVault.withdraw(amount: amount)
+            let withdrawn <- reserveVault.withdraw(amount: amount)
+
+            emit Withdrawn(pid: pid, poolUUID: self.uuid, type: type.identifier, amount: withdrawn.balance, withdrawnUUID: withdrawn.uuid)
+
+            return <- withdrawn
         }
 
         /// Sets the InternalPosition's drawDownSink. If `nil`, the Pool will not be able to push overflown value when
@@ -1179,6 +1194,9 @@ access(all) contract TidalProtocol {
                     )
 
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
+
+                    emit Rebalanced(pid: pid, poolUUID: self.uuid, atHealth: balanceSheet.health, amount: pulledVault.balance, fromUnder: true)
+
                     self.depositAndPush(pid: pid, from: <-pulledVault, pushToDrawDownSink: false)
                 }
             } else if balanceSheet.health > position.targetHealth {
@@ -1213,9 +1231,11 @@ access(all) contract TidalProtocol {
                         }
                         position.balances[self.defaultToken]!.recordWithdrawal(amount: sinkAmount, tokenState: tokenState)
                         let sinkVault <- TidalProtocol._borrowMOETMinter().mintTokens(amount: sinkAmount)
+
+                        emit Rebalanced(pid: pid, poolUUID: self.uuid, atHealth: balanceSheet.health, amount: sinkVault.balance, fromUnder: false)
+
                         // Push what we can into the sink, and redeposit the rest
                         drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-
                         if sinkVault.balance > 0.0 {
                             self.depositAndPush(pid: pid, from: <-sinkVault, pushToDrawDownSink: false)
                         } else {
