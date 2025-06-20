@@ -147,9 +147,9 @@ access(all) contract TidalProtocol {
     /// An struct containing a position's overview in terms of its effective collateral and debt as well as its
     /// current health
     access(all) struct BalanceSheet {
-        /// A position's withdrawable value based on collateral deposits against a Pool's collateral and borrow factors
+        /// A position's withdrawable value based on collateral deposits against the Pool's collateral and borrow factors
         access(all) let effectiveCollateral: UFix64
-        /// A position's withdrawn value based on withdrawals against a Pool's collateral and borrow factors
+        /// A position's withdrawn value based on withdrawals against the Pool's collateral and borrow factors
         access(all) let effectiveDebt: UFix64
         /// The health of the related position
         access(all) let health: UFix64
@@ -238,7 +238,7 @@ access(all) contract TidalProtocol {
 
     /// TokenState
     ///
-    /// The TokenState struct tracks values related to a single token Type within a Pool.
+    /// The TokenState struct tracks values related to a single token Type within the Pool.
     access(all) struct TokenState {
         /// The timestamp at which the TokenState was last updated
         access(all) var lastUpdate: UFix64
@@ -351,7 +351,6 @@ access(all) contract TidalProtocol {
     ///
     /// A Pool is the primary logic for protocol operations. It contains the global state of all positions, credit and
     /// debit balances for each supported token type, and reserves as they are deposited to positions.
-    ///
     access(all) resource Pool {
         /// Global state for tracking each token
         access(self) var globalLedger: {Type: TokenState}
@@ -1351,13 +1350,13 @@ access(all) contract TidalProtocol {
 
     /// PoolFactory
     ///
-    /// Resource enabling the contract account to create a Pool. This pattern is used in place of contract methods to
-    /// ensure limited access to pool creation. While this could be done in contract's init, doing so here will allow
-    /// for the setting of the Pool's PriceOracle without the introduction of a concrete PriceOracle defining contract
-    /// which would include an external contract dependency.
+    /// Resource enabling the contract account to create the contract's Pool. This pattern is used in place of contract
+    /// methods to ensure limited access to pool creation. While this could be done in contract's init, doing so here
+    /// will allow for the setting of the Pool's PriceOracle without the introduction of a concrete PriceOracle defining
+    /// contract which would include an external contract dependency.
     ///
     access(all) resource PoolFactory {
-        /// Creates a Pool and saves it to the canonical path, reverting if one is already stored
+        /// Creates the contract-managed Pool and saves it to the canonical path, reverting if one is already stored
         access(all) fun createPool(defaultToken: Type, priceOracle: {DFB.PriceOracle}) {
             pre {
                 TidalProtocol.account.storage.type(at: TidalProtocol.PoolStoragePath) == nil:
@@ -1376,6 +1375,7 @@ access(all) contract TidalProtocol {
     /// A Position is an external object representing ownership of value deposited to the protocol. From a Position, an
     /// actor can deposit and withdraw funds as well as construct DeFiBlocks components enabling value flows in and out
     /// of the Position from within the context of DeFiBlocks stacks.
+    ///
     // TODO: Consider making this a resource given how critical it is to accessing a loan
     access(all) struct Position {
         /// The unique ID of the Position used to track deposits and withdrawals to the Pool
@@ -1519,7 +1519,6 @@ access(all) contract TidalProtocol {
     ///
     /// A DeFiBlocks connector enabling deposits to a Position from within a DeFiBlocks stack. This Sink is intended to
     /// be constructed from a Position object.
-    ///
     access(all) struct PositionSink: DFB.Sink {
         /// An optional DFB.UniqueIdentifier that identifies this Sink with the DeFiBlocks stack its a part of
         access(contract) let uniqueID: DFB.UniqueIdentifier?
