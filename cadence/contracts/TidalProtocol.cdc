@@ -253,9 +253,11 @@ access(all) contract TidalProtocol {
         access(all) var totalCreditBalance: UFix64
         /// The total debit balance of the related Token across the whole Pool in which this TokenState resides
         access(all) var totalDebitBalance: UFix64
-        /// The index of the credit interest for the related token
+        /// The index of the credit interest for the related token. Interest on a token is stored as an "index" which
+        /// can be thought of as “how many actual tokens does 1 unit of scaled balance represent right now?”
         access(all) var creditInterestIndex: UInt64
-        /// The index of the debit interest for the related token
+        /// The index of the debit interest for the related token. Interest on a token is stored as an "index" which
+        /// can be thought of as “how many actual tokens does 1 unit of scaled balance represent right now?”
         access(all) var debitInterestIndex: UInt64
         /// The interest rate for credit of the associated token
         access(all) var currentCreditRate: UInt64
@@ -1780,8 +1782,9 @@ access(all) contract TidalProtocol {
         return result
     }
 
-    /// Transforms the provided `scaledBalance` to a true balance
-    // TODO: Clarify what "scaled" and "true" balances signify
+    /// Transforms the provided `scaledBalance` to a true balance (or actual balance) where the true balance is the
+    /// scaledBalance + accrued interest and the scaled balance is the amount a borrower has actually interacted with
+    /// (via deposits or withdrawals)
     access(all) view fun scaledBalanceToTrueBalance(scaledBalance: UFix64, interestIndex: UInt64): UFix64 {
         // The interest index is essentially a fixed point number with 16 decimal places, we convert
         // it to a UFix64 by copying the byte representation, and then dividing by 10^8 (leaving and
@@ -1790,8 +1793,9 @@ access(all) contract TidalProtocol {
         return scaledBalance * indexMultiplier
     }
 
-    /// Transforms the provided `trueBalance` to a scaled balance
-    // TODO: Clarify what "scaled" and "true" balances signify
+    /// Transforms the provided `trueBalance` to a scaled balance where the scaled balance is the amount a borrower has
+    /// actually interacted with (via deposits or withdrawals) and the true balance is the amount with respect to
+    /// accrued interest
     access(all) view fun trueBalanceToScaledBalance(trueBalance: UFix64, interestIndex: UInt64): UFix64 {
         // The interest index is essentially a fixed point number with 16 decimal places, we convert
         // it to a UFix64 by copying the byte representation, and then dividing by 10^8 (leaving and
