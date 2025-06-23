@@ -1,5 +1,4 @@
 import Test
-
 import "TidalProtocol"
 
 access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
