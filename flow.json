@@ -13,7 +13,7 @@
 			}
 		},
 		"DFBUtils": {
-			"source": "./cadence/tests/mocks/DFBUtils.cdc",
+			"source": "./DeFiBlocks/cadence/contracts/utils/DFBUtils.cdc",
 			"aliases": {
 				"testing": "0x0000000000000006"
 			}
@@ -21,34 +21,31 @@
 		"MockOracle": {
 			"source": "./cadence/contracts/mocks/MockOracle.cdc",
 			"aliases": {
-				"emulator": "0x0000000000000007",
-				"testing": "0000000000000007"
+				"testing": "0x0000000000000007"
 			}
 		},
 		"MockTidalProtocolConsumer": {
 			"source": "./cadence/contracts/mocks/MockTidalProtocolConsumer.cdc",
 			"aliases": {
-				"emulator": "0x0000000000000007",
-				"testing": "0000000000000007"
+				"testing": "0x0000000000000007"
 			}
 		},
 		"MockYieldToken": {
-			"source": "./cadence/contracts/mocks/MockTidalProtocolConsumer.cdc",
+			"source": "./cadence/contracts/mocks/MockYieldToken.cdc",
 			"aliases": {
-				"emulator": "0x0000000000000007",
-				"testing": "0000000000000007"
+				"testing": "0x0000000000000007"
 			}
 		},
 		"TidalProtocol": {
 			"source": "./cadence/contracts/TidalProtocol.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0x0000000000000007"
 			}
 		},
 		"MOET": {
 			"source": "./cadence/contracts/MOET.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0x0000000000000007"
 			}
 		}
 	},

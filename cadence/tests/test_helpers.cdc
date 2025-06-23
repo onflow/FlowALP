@@ -28,7 +28,7 @@ access(all)
 fun deployContracts() {
     var err = Test.deployContract(
         name: "DFBUtils",
-        path: "./mocks/DFBUtils.cdc",
+        path: "../../DeFiBlocks/cadence/contracts/utils/DFBUtils.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())

@@ -63,6 +63,14 @@ fun testPositionLifecycleHappyPath() {
     // confirm position open and user borrowed MOET
     let balanceAfterBorrow = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assert(balanceAfterBorrow > 0.0)
+    
+    // Verify specific borrowed amount: 
+    // With 1000 Flow at 0.8 collateral factor = 800 effective collateral
+    // Target health 1.3 means: effective debt = 800 / 1.3 ≈ 615.38
+    let expectedBorrowAmount = 615.38461538
+    Test.assert(balanceAfterBorrow >= expectedBorrowAmount - 0.01 && 
+                balanceAfterBorrow <= expectedBorrowAmount + 0.01,
+                message: "Expected MOET balance to be ~615.38, but got ".concat(balanceAfterBorrow.toString()))
 
     // Check Flow balance before repayment
     let flowBalanceBefore = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
@@ -70,7 +78,7 @@ fun testPositionLifecycleHappyPath() {
 
     /* --- NEW: repay MOET and close position --- */
     let repayRes = executeTransaction(
-        "../transactions/tidal-protocol/pool-management/repay_and_close_position.cdc",
+        "./transactions/tidal-protocol/pool-management/repay_and_close_position.cdc",
         [wrapperStoragePath],
         user
     )
