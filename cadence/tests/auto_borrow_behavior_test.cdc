@@ -62,7 +62,7 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     var moetBalance: UFix64 = 0.0
     var moetDirection: TidalProtocol.BalanceDirection? = nil
     for balance in details.balances {
-        if balance.type == Type<@MOET.Vault>() {
+        if balance.vaultType == Type<@MOET.Vault>() {
             moetBalance = balance.balance
             moetDirection = balance.direction
         }
@@ -108,7 +108,7 @@ fun testNoAutoBorrowWhenPushToDrawDownSinkFalse() {
     // Verify no MOET was borrowed
     var hasMoetBalance = false
     for balance in details.balances {
-        if balance.type == Type<@MOET.Vault>() {
+        if balance.vaultType == Type<@MOET.Vault>() {
             hasMoetBalance = true
             Test.assert(balance.balance == 0.0,
                 message: "Expected no MOET balance when pushToDrawDownSink=false")

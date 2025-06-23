@@ -76,7 +76,7 @@ fun testRebalanceUndercollateralised() {
 
     var actualDebt: UFix64 = 0.0
     for bal in detailsAfterRebalance.balances {
-        if bal.type.identifier == defaultTokenIdentifier && bal.balance > 0.0 {
+        if bal.vaultType.identifier == defaultTokenIdentifier && bal.balance > 0.0 {
             actualDebt = bal.balance
         }
     }

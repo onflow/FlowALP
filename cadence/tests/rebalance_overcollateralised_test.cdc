@@ -79,7 +79,7 @@ fun testRebalanceOvercollateralised() {
 
     var actualDebt: UFix64 = 0.0
     for bal in detailsAfterRebalance.balances {
-        if bal.type.identifier == moetTokenIdentifier {
+        if bal.vaultType.identifier == moetTokenIdentifier {
             actualDebt = bal.balance
         }
     }

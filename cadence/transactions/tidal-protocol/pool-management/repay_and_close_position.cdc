@@ -32,7 +32,7 @@ transaction(positionWrapperPath: StoragePath) {
         let balancesBefore = positionRef.getBalances()
         for balance in balancesBefore {
             let direction = balance.direction == TidalProtocol.BalanceDirection.Credit ? "Credit" : "Debit"
-            log("Token: ".concat(balance.type.identifier)
+            log("Token: ".concat(balance.vaultType.identifier)
                 .concat(" | Direction: ").concat(direction)
                 .concat(" | Amount: ").concat(balance.balance.toString()))
         }
@@ -54,7 +54,7 @@ transaction(positionWrapperPath: StoragePath) {
         let balancesAfter = positionRef.getBalances()
         for balance in balancesAfter {
             let direction = balance.direction == TidalProtocol.BalanceDirection.Credit ? "Credit" : "Debit"
-            log("Token: ".concat(balance.type.identifier)
+            log("Token: ".concat(balance.vaultType.identifier)
                 .concat(" | Direction: ").concat(direction)
                 .concat(" | Amount: ").concat(balance.balance.toString()))
         }

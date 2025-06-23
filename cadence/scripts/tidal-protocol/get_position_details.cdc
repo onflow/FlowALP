@@ -19,7 +19,7 @@ access(all) fun main(userAddress: Address, wrapperPath: StoragePath): String {
         
         for balance in balances {
             let direction = balance.direction == TidalProtocol.BalanceDirection.Credit ? "Credit" : "Debit"
-            result = result.concat("  - Token: ").concat(balance.type.identifier)
+            result = result.concat("  - Token: ").concat(balance.vaultType.identifier)
                 .concat(" | Direction: ").concat(direction)
                 .concat(" | Amount: ").concat(balance.balance.toString()).concat("\n")
         }
