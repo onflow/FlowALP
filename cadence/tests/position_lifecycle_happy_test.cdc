@@ -76,7 +76,7 @@ fun testPositionLifecycleHappyPath() {
     let flowBalanceBefore = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
     log("Flow balance BEFORE repay: ".concat(flowBalanceBefore.toString()))
 
-    /* --- NEW: repay MOET and close position --- */
+    // repay MOET and close position
     let repayRes = executeTransaction(
         "./transactions/tidal-protocol/pool-management/repay_and_close_position.cdc",
         [wrapperStoragePath],

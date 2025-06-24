@@ -63,6 +63,10 @@ fun testRebalanceOvercollateralised() {
 
     let healthAfterPriceChange = getPositionHealth(pid: 0, beFailed: false)
 
+    // NEW: After a 20% price increase, health should be at least 1.5 (=960/615.38)
+    Test.assert(healthAfterPriceChange >= 1.5,
+        message: "Expected health after price increase to be >= 1.5 but got ".concat(healthAfterPriceChange.toString()))
+
     rebalancePosition(signer: protocolAccount, pid: 0, force: true, beFailed: false)
 
     let healthAfterRebalance = getPositionHealth(pid: 0, beFailed: false)
@@ -86,4 +90,9 @@ fun testRebalanceOvercollateralised() {
 
     let tolerance: UFix64 = 0.01
     Test.assert((actualDebt >= expectedDebt - tolerance) && (actualDebt <= expectedDebt + tolerance))
+
+    // NEW: Ensure the borrowed MOET after rebalance actually reached the user's Vault
+    let userMoetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
+    Test.assert(userMoetBalance >= expectedDebt - tolerance && userMoetBalance <= expectedDebt + tolerance,
+        message: "User MOET balance should reflect new debt (~".concat(expectedDebt.toString()).concat(") but was ").concat(userMoetBalance.toString()))
 } 

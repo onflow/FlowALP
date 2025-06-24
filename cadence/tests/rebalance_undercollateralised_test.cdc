@@ -50,10 +50,20 @@ fun testRebalanceUndercollateralised() {
 
     let healthBefore = getPositionHealth(pid: 0, beFailed: false)
 
-    // drop price
+    // Capture available balance before price change so we can verify directionality.
+    let availableBeforePriceChange = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
+
+    // Apply price drop.
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice * (1.0 - priceDropPct))
 
     let availableAfterPriceChange = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
+
+    // After a price drop, the position becomes less healthy so the amount that is safely withdrawable should drop.
+    Test.assert(availableAfterPriceChange < availableBeforePriceChange, message: "Expected available balance to decrease after price drop (before: ".concat(availableBeforePriceChange.toString()).concat(", after: ").concat(availableAfterPriceChange.toString()).concat(")"))
+
+    // Record the user's MOET balance before any pay-down so we can verify that the protocol actually
+    // pulled the funds from the user during rebalance.
+    let userMoetBalanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     let healthAfterPriceChange = getPositionHealth(pid: 0, beFailed: false)
 
     rebalancePosition(signer: protocolAccount, pid: 0, force: true, beFailed: false)
@@ -71,6 +81,9 @@ fun testRebalanceUndercollateralised() {
     let healthAfterPriceChangeVal: UFix64 = healthAfterPriceChange
     let target: UFix64 = 1.3
 
+    // Calculate required pay-down to restore health to target (1.3)
+    // Formula derived from: health = effectiveCollateral / effectiveDebt
+    // Solving for the debt reduction needed to achieve target health
     let requiredPaydown: UFix64 = (target - healthAfterPriceChangeVal) * effectiveCollateralAfterDrop / (target * target)
     let expectedDebt: UFix64 = debtBefore - requiredPaydown
 
@@ -83,6 +96,12 @@ fun testRebalanceUndercollateralised() {
 
     let tolerance: UFix64 = 0.5
     Test.assert((actualDebt >= expectedDebt - tolerance) && (actualDebt <= expectedDebt + tolerance))
+
+    // Ensure the user's MOET Vault balance decreased by roughly requiredPaydown.
+    let userMoetBalanceAfter = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
+    let paidDown = userMoetBalanceBefore - userMoetBalanceAfter
+    Test.assert(paidDown >= requiredPaydown - tolerance && paidDown <= requiredPaydown + tolerance,
+        message: "User should have contributed ~".concat(requiredPaydown.toString()).concat(" MOET toward pay-down but actually contributed ").concat(paidDown.toString()))
 
     log("Health after price change: ".concat(healthAfterPriceChange.toString()))
     log("Required paydown: ".concat(requiredPaydown.toString()))

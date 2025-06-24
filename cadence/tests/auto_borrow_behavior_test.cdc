@@ -41,6 +41,9 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
 
+    // Capture MOET balance before opening the position for later comparison (no MOET should be minted)
+    let moetVaultBalanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
+
     // Create position with pushToDrawDownSink=true to trigger auto-rebalancing
     let openRes = executeTransaction(
         "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
@@ -80,6 +83,11 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     let health = getPositionHealth(pid: 0, beFailed: false)
     Test.assert(health >= 1.29 && health <= 1.31,
         message: "Expected health to be at target (1.3), but got \(health)")
+
+    // NEW: Verify the user actually received the borrowed MOET in their Vault (draw-down sink)
+    let userMoetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
+    Test.assert(userMoetBalance >= expectedDebt - 0.01 && userMoetBalance <= expectedDebt + 0.01,
+        message: "Expected user MOET Vault balance to be approximately \(expectedDebt), but got \(userMoetBalance)")
 }
 
 access(all)
@@ -93,6 +101,9 @@ fun testNoAutoBorrowWhenPushToDrawDownSinkFalse() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
+
+    // Capture MOET balance before opening the position for later comparison (no MOET should be minted)
+    let moetVaultBalanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
 
     // Create position with pushToDrawDownSink=false to prevent auto-rebalancing
     let openRes = executeTransaction(
@@ -118,4 +129,9 @@ fun testNoAutoBorrowWhenPushToDrawDownSinkFalse() {
     // Should not have any MOET balance entry
     Test.assert(!hasMoetBalance, 
         message: "Should not have MOET balance when no auto-borrowing occurs")
+
+    // NEW: Ensure user's MOET balance remains unchanged (i.e. no tokens minted)
+    let moetVaultBalanceAfter = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
+    Test.assert(moetVaultBalanceAfter == moetVaultBalanceBefore,
+        message: "User's MOET Vault balance should remain unchanged when no borrow occurs")
 } 
