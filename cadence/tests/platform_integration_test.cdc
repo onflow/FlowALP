@@ -2,7 +2,6 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-
 import "test_helpers.cdc"
 
 /*
@@ -23,25 +22,7 @@ access(all) let flowVaultStoragePath = /storage/flowTokenVault
 access(all)
 fun setup() {
     deployContracts()
-
-    var err = Test.deployContract(
-        name: "MockOracle",
-        path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [defaultTokenIdentifier]
-    )
-    Test.expect(err, Test.beNil())
-    err = Test.deployContract(
-        name: "MockTidalProtocolConsumer",
-        path: "../contracts/mocks/MockTidalProtocolConsumer.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-    err = Test.deployContract(
-        name: "FungibleTokenStack",
-        path: "../../DeFiBlocks/cadence/contracts/connectors/FungibleTokenStack.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
+    snapshot = getCurrentBlockHeight()
 }
 
 access(all)
@@ -51,11 +32,9 @@ fun testDeploymentSucceeds() {
 
 access(all)
 fun testCreatePoolSucceeds() {
-    snapshot = getCurrentBlockHeight()
-
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
 
-    let existsRes = executeScript("../scripts/tidal-protocol/pool_exists.cdc", [protocolAccount.address])
+    let existsRes = _executeScript("../scripts/tidal-protocol/pool_exists.cdc", [protocolAccount.address])
     Test.expect(existsRes, Test.beSucceeded())
 
     let exists = existsRes.returnValue as! Bool

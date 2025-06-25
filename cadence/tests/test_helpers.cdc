@@ -1,6 +1,8 @@
 import Test
 import "TidalProtocol"
 
+access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
+
 /* --- Test execution helpers --- */
 
 access(all)
@@ -22,7 +24,8 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
 /* --- Setup helpers --- */
 
 // Common test setup function that deploys all required contracts
-access(all) fun deployContracts() {
+access(all)
+fun deployContracts() {
     var err = Test.deployContract(
         name: "DFBUtils",
         path: "../../DeFiBlocks/cadence/contracts/utils/DFBUtils.cdc",
@@ -47,6 +50,37 @@ access(all) fun deployContracts() {
     err = Test.deployContract(
         name: "TidalProtocol",
         path: "../contracts/TidalProtocol.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+    
+    // Deploy MockTidalProtocolConsumer
+    err = Test.deployContract(
+        name: "MockTidalProtocolConsumer",
+        path: "../contracts/mocks/MockTidalProtocolConsumer.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "MockOracle",
+        path: "../contracts/mocks/MockOracle.cdc",
+        arguments: [defaultTokenIdentifier]
+    )
+    Test.expect(err, Test.beNil())
+
+    let initialYieldTokenSupply = 0.0
+    err = Test.deployContract(
+        name: "MockYieldToken",
+        path: "../contracts/mocks/MockYieldToken.cdc",
+        arguments: [initialYieldTokenSupply]
+    )
+    Test.expect(err, Test.beNil())
+    
+    // Deploy FungibleTokenStack
+    err = Test.deployContract(
+        name: "FungibleTokenStack",
+        path: "../../DeFiBlocks/cadence/contracts/connectors/FungibleTokenStack.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -84,6 +118,22 @@ fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix64 {
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
     return res.status == Test.ResultStatus.failed ? 0.0 : res.returnValue as! UFix64
+}
+
+access(all)
+fun getPositionDetails(pid: UInt64, beFailed: Bool): TidalProtocol.PositionDetails {
+    let res = _executeScript("../scripts/tidal-protocol/position_details.cdc",
+            [pid]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! TidalProtocol.PositionDetails
+}
+
+access(all)
+fun poolExists(address: Address): Bool {
+    let res = _executeScript("../scripts/tidal-protocol/pool_exists.cdc", [address])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! Bool
 }
 
 /* --- Transaction Helpers --- */
@@ -126,6 +176,22 @@ fun addSupportedTokenSimpleInterestCurve(
 }
 
 access(all)
+fun addSupportedTokenSimpleInterestCurveWithResult(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    collateralFactor: UFix64,
+    borrowFactor: UFix64,
+    depositRate: UFix64,
+    depositCapacityCap: UFix64
+): Test.TransactionResult {
+    return _executeTransaction(
+        "../transactions/tidal-protocol/pool-governance/add_supported_token_simple_interest_curve.cdc",
+        [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
+        signer
+    )
+}
+
+access(all)
 fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFailed: Bool) {
     let rebalanceRes = _executeTransaction(
         "../transactions/tidal-protocol/pool-management/rebalance_position.cdc",
@@ -146,3 +212,60 @@ fun mintMoet(signer: Test.TestAccount, to: Address, amount: UFix64, beFailed: Bo
     let mintRes = _executeTransaction("../transactions/moet/mint_moet.cdc", [to, amount], signer)
     Test.expect(mintRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
+
+
+// Transfer Flow tokens from service account to recipient
+access(all)
+fun transferFlowTokens(to: Test.TestAccount, amount: UFix64) {
+    let transferTx = Test.Transaction(
+        code: Test.readFile("../transactions/flowtoken/transfer_flowtoken.cdc"),
+        authorizers: [Test.serviceAccount().address],
+        signers: [Test.serviceAccount()],
+        arguments: [to.address, amount]
+    )
+    let res = Test.executeTransaction(transferTx)
+    Test.expect(res, Test.beSucceeded())
+}
+
+
+access(all)
+fun expectEvents(eventType: Type, expectedCount: Int) {
+    let events = Test.eventsOfType(eventType)
+    Test.assertEqual(expectedCount, events.length)
+}
+
+access(all)
+fun withdrawReserve(
+    signer: Test.TestAccount,
+    poolAddress: Address,
+    tokenTypeIdentifier: String,
+    amount: UFix64,
+    recipient: Address,
+    beFailed: Bool
+) {
+    let txRes = _executeTransaction(
+        "../transactions/tidal-protocol/pool-governance/withdraw_reserve.cdc",
+        [poolAddress, tokenTypeIdentifier, amount, recipient],
+        signer
+    )
+    Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+/* --- Snapshot Management Helpers --- */
+
+// Example usage pattern for managing blockchain state between tests:
+//
+// In your test file:
+// ```
+// access(all) var snapshot: UInt64 = 0
+// 
+// access(all) fun setup() {
+//     deployContracts()
+//     snapshot = getCurrentBlockHeight()
+// }
+// 
+// access(all) fun testExample() {
+//     Test.reset(to: snapshot) // Reset to clean state
+//     // ... your test logic ...
+// }
+// ```
