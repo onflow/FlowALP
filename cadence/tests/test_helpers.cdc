@@ -2,6 +2,7 @@ import Test
 import "TidalProtocol"
 
 access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
+access(all) let defaultVariance = 0.00000001
 
 /* --- Test execution helpers --- */
 
@@ -136,6 +137,38 @@ fun poolExists(address: Address): Bool {
     return res.returnValue as! Bool
 }
 
+access(all)
+fun fundsAvailableAboveTargetHealthAfterDepositing(
+    pid: UInt64,
+    withdrawType: String,
+    targetHealth: UFix64,
+    depositType: String,
+    depositAmount: UFix64,
+    beFailed: Bool
+): UFix64 {
+    let res = _executeScript("../scripts/tidal-protocol/funds_avail_above_target_health_after_deposit.cdc",
+            [pid, withdrawType, targetHealth, depositType, depositAmount]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun fundsRequiredForTargetHealthAfterWithdrawing(
+    pid: UInt64,
+    depositType: String,
+    targetHealth: UFix64,
+    withdrawType: String,
+    withdrawAmount: UFix64,
+    beFailed: Bool
+): UFix64 {
+    let res = _executeScript("../scripts/tidal-protocol/funds_req_for_target_health_after_withdraw.cdc",
+            [pid, depositType, targetHealth, withdrawType, withdrawAmount]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
@@ -251,21 +284,16 @@ fun withdrawReserve(
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
-/* --- Snapshot Management Helpers --- */
+/* --- Assertion Helpers --- */
 
-// Example usage pattern for managing blockchain state between tests:
-//
-// In your test file:
-// ```
-// access(all) var snapshot: UInt64 = 0
-// 
-// access(all) fun setup() {
-//     deployContracts()
-//     snapshot = getCurrentBlockHeight()
-// }
-// 
-// access(all) fun testExample() {
-//     Test.reset(to: snapshot) // Reset to clean state
-//     // ... your test logic ...
-// }
-// ```
+access(all) fun equalWithinVariance(_ expected: UFix64, _ actual: UFix64, plusMinus: UFix64?): Bool {
+    let _variance = plusMinus ?? defaultVariance
+    if expected == actual {
+        return true
+    } else if expected == actual + _variance {
+        return true
+    } else if actual >= defaultVariance { // protect underflow
+        return expected == actual - defaultVariance
+    }
+    return false
+}
