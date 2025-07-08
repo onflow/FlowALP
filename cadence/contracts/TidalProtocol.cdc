@@ -498,10 +498,7 @@ access(all) contract TidalProtocol {
             }
 
             // Calculate the health as the ratio of collateral to debt.
-            if effectiveDebt == 0.0 {
-                return 1.0
-            }
-            return effectiveCollateral / effectiveDebt
+            return TidalProtocol.healthComputation(effectiveCollateral: effectiveCollateral, effectiveDebt: effectiveDebt)
         }
 
         /// Returns the quantity of funds of a specified token which would need to be deposited to bring the position to
@@ -1436,7 +1433,7 @@ access(all) contract TidalProtocol {
         }
         /// Returns the balance available for withdrawal of a given Vault type. If pullFromTopUpSource is true, the
         /// calculation will be made assuming the position is topped up if the withdrawal amount puts the Position
-        /// below its min health. If pullFromTopUpSource is true, the calculation will return the balance currently
+        /// below its min health. If pullFromTopUpSource is false, the calculation will return the balance currently
         /// available without topping up the position.
         access(all) fun availableBalance(type: Type, pullFromTopUpSource: Bool): UFix64 {
             let pool = self.pool.borrow()!

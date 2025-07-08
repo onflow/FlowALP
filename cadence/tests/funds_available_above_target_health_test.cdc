@@ -17,20 +17,43 @@ access(all) let wrapperStoragePath = /storage/tidalProtocolPositionWrapper
 access(all) let minHealth = 1.1
 access(all) let targetHealth = 1.3
 access(all) let maxHealth = 1.5
+access(all) let ceilingHealth = UFix64.max
 access(all) let flowCollateralFactor = 0.8
 access(all) let flowBorrowFactor = 1.0
-access(all) let flowStartPrice = 1.0            // denominated in MOET
+access(all) let flowStartPrice = 0.5            // denominated in MOET
 access(all) let positionFundingAmount = 100.0
 access(all) var positionID: UInt64 = 0
+
+access(all) var snapshot: UInt64 = 0
+
+/**
+
+    REFERENCE MATHS
+    ---------------
+    NOTE: These methods do not yet account for true balance (i.e. deposited/withdrawn + interest)
+
+    Effective Collateral Value (MOET)
+        effectiveCollateralValue = collateralBalance * collateralPrice * collateralFactor
+    Borrowable Value (MOET)
+        borrowLimit = (effectiveCollateralValue / targetHealth) * borrowFactor
+        borrowLimit = collateralBalance * collateralPrice * collateralFactor / targetHealth * borrowFactor
+    Current Health
+        borrowedValue = collateralBalance * collateralPrice * collateralFactor / targetHealth * borrowFactor
+        borrowedValue * targetHealth = collateralBalance * collateralPrice * collateralFactor * borrowFactor
+        health = collateralBalance * collateralPrice * collateralFactor * borrowFactor / borrowedValue
+        health = effectiveCollateralValue * borrowFactor / borrowedValue
+
+ */
 
 access(all) let startCollateralValue = flowStartPrice * positionFundingAmount
 access(all) let startEffectiveCollateralValue = startCollateralValue * flowCollateralFactor
 access(all) let startBorrowLimitAtTarget = startEffectiveCollateralValue / targetHealth
 
-access(all) var snapshot: UInt64 = 0
-
 access(all)
 fun setup() {
+
+    log("----- SETTING UP funds_available_above_target_health_test.cdc -----")
+
     deployContracts()
 
     // price setup
@@ -51,6 +74,20 @@ fun setup() {
     setupMoetVault(userAccount, beFailed: false)
     mintFlow(to: userAccount, amount: positionFundingAmount)
 
+    snapshot = getCurrentBlockHeight()
+
+    log("----- funds_available_above_target_health_test.cdc SETUP COMPLETE -----")
+}
+
+access(all)
+fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
+    log("==============================")
+    log("Executing testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy()")
+
+    if snapshot < getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
+
     let openRes = executeTransaction(
         "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
         [positionFundingAmount, flowVaultStoragePath, true],
@@ -59,253 +96,171 @@ fun setup() {
     Test.expect(openRes, Test.beSucceeded())
     // assert expected starting point
     let balanceAfterBorrow = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
-    let expectedBorrowAmount = (positionFundingAmount * flowCollateralFactor) / targetHealth
+    let expectedBorrowAmount = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / targetHealth
+    // let expectedBorrowAmount = 0.0
     Test.assert(balanceAfterBorrow >= expectedBorrowAmount - 0.01 && balanceAfterBorrow <= expectedBorrowAmount + 0.01,
         message: "Expected MOET balance to be ~\(expectedBorrowAmount), but got \(balanceAfterBorrow)")
+    // Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
     let evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
     let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
     positionID = openedEvt.pid
 
-    let health = getPositionHealth(pid: positionID, beFailed: false)
+    let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
+    let health = positionDetails.health
+    let moetBalance = positionDetails.balances[0]
+    let flowBalance = positionDetails.balances[1]
+    Test.assertEqual(positionFundingAmount, flowBalance.balance)
+    Test.assertEqual(expectedBorrowAmount, moetBalance.balance)
+    Test.assertEqual(TidalProtocol.BalanceDirection.Credit, flowBalance.direction)
+    Test.assertEqual(TidalProtocol.BalanceDirection.Debit, moetBalance.direction)
+
     Test.assertEqual(targetHealth, health)
-
-    snapshot = getCurrentBlockHeight()
-}
-
-access(all)
-fun testFundsAvailableAboveTargetHealthAfterDepositingFromHealthy() {
-    log("==============================")
-    log("Executing testFundsAvailableAboveTargetHealthAfterDepositingFromHealthy()")
+    // Test.assertEqual(ceilingHealth, health)
 
     log("FLOW price set to \(flowStartPrice)")
 
-    log("..............................")
-    var depositAmount = 0.0
-    var expectedAvailable = 0.0 // already at target health - nothing additional available
-    var actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
-            pid: positionID,
-            withdrawType: moetTokenIdentifier,
-            targetHealth: targetHealth,
-            depositType: flowTokenIdentifier,
-            depositAmount: depositAmount,
-            beFailed: false
-        )
-    log("Depositing: \(depositAmount)")
-    log("Expected Available: \(expectedAvailable)")
-    log("Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil))
+    let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0, 10_000.0, 100_000.0, 1_000_000.0]
+    let expectedExcess = 0.0 // none available above target from healthy state
 
-    log("..............................")
-    depositAmount = 100.0
-    expectedAvailable = ((depositAmount * flowCollateralFactor) / targetHealth) * flowStartPrice
-    actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
+    let internalSnapshot = getCurrentBlockHeight()
+    for i, amount in amounts {
+        runFundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
-            withdrawType: moetTokenIdentifier,
-            targetHealth: targetHealth,
-            depositType: flowTokenIdentifier,
-            depositAmount: depositAmount,
-            beFailed: false
+            existingBorrowed: expectedBorrowAmount,
+            existingFlowCollateral: positionFundingAmount,
+            currentFlowPrice: flowStartPrice,
+            depositAmount: amount,
+            withdrawIdentifier: moetTokenIdentifier,
+            depositIdentifier: flowTokenIdentifier
         )
-    log("Depositing: \(depositAmount)")
-    log("Expected Available: \(expectedAvailable)")
-    log("Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil))
 
-    log("..............................")
-    depositAmount = 1_000.0
-    expectedAvailable = ((depositAmount * flowCollateralFactor) / targetHealth) * flowStartPrice
-    actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
-            pid: positionID,
-            withdrawType: moetTokenIdentifier,
-            targetHealth: targetHealth,
-            depositType: flowTokenIdentifier,
-            depositAmount: depositAmount,
-            beFailed: false
-        )
-    log("Depositing: \(depositAmount)")
-    log("Expected Available: \(expectedAvailable)")
-    log("Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil))
+        // minting to topUpSource Vault which should *not* affect calculation
+        let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
+        log("Minting \(mintToSource) to position topUpSource and running again")
+        mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
 
-    log("..............................")
-    depositAmount = 10_000.0
-    expectedAvailable = ((depositAmount * flowCollateralFactor) / targetHealth) * flowStartPrice
-    actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
+        runFundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
-            withdrawType: moetTokenIdentifier,
-            targetHealth: targetHealth,
-            depositType: flowTokenIdentifier,
-            depositAmount: depositAmount,
-            beFailed: false
+            existingBorrowed: expectedBorrowAmount,
+            existingFlowCollateral: positionFundingAmount,
+            currentFlowPrice: flowStartPrice,
+            depositAmount: amount,
+            withdrawIdentifier: moetTokenIdentifier,
+            depositIdentifier: flowTokenIdentifier
         )
-    log("Depositing: \(depositAmount)")
-    log("Expected Available: \(expectedAvailable)")
-    log("Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil))
 
-    log("..............................")
-    depositAmount = 100_000.0
-    expectedAvailable = ((depositAmount * flowCollateralFactor) / targetHealth) * flowStartPrice
-    actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
-            pid: positionID,
-            withdrawType: moetTokenIdentifier,
-            targetHealth: targetHealth,
-            depositType: flowTokenIdentifier,
-            depositAmount: depositAmount,
-            beFailed: false
-        )
-    log("Depositing: \(depositAmount)")
-    log("Expected Available: \(expectedAvailable)")
-    log("Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil))
-
-    log("..............................")
-    depositAmount = 1_000_000.0
-    expectedAvailable = ((depositAmount * flowCollateralFactor) / targetHealth) * flowStartPrice
-    actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
-            pid: positionID,
-            withdrawType: moetTokenIdentifier,
-            targetHealth: targetHealth,
-            depositType: flowTokenIdentifier,
-            depositAmount: depositAmount,
-            beFailed: false
-        )
-    log("Depositing: \(depositAmount)")
-    log("Expected Available: \(expectedAvailable)")
-    log("Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil))
+        Test.reset(to: internalSnapshot)
+    }
 
     log("==============================")
 }
 
 access(all)
-fun testFundsAvailableAboveTargetHealthAfterDepositingFromUndercollateralized() {
+fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     log("==============================")
-    log("Executing testFundsAvailableAboveTargetHealthAfterDepositingFromUndercollateralized()")
+    log("Executing testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy()")
 
-    let priceDecrease = 0.25
-    let newPrice = flowStartPrice * (1.0 - priceDecrease)
+    if snapshot < getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
 
-    let newCollateralValue = positionFundingAmount * newPrice
-    let newEffectiveCollateralValue = newCollateralValue * flowCollateralFactor
-    let newBorrowLimitAtTarget = newEffectiveCollateralValue / targetHealth
-    let expectedDepositRequiredForTarget = startBorrowLimitAtTarget - newBorrowLimitAtTarget
-
-    setMockOraclePrice(signer: protocolAccount,
-        forTokenIdentifier: flowTokenIdentifier,
-        price: newPrice
+    let openRes = executeTransaction(
+        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        [positionFundingAmount, flowVaultStoragePath, false],
+        userAccount
     )
-    let actualHealth = getPositionHealth(pid: positionID, beFailed: false)
-    Test.assertEqual(targetHealth * (1.0 - priceDecrease), actualHealth)
+    Test.expect(openRes, Test.beSucceeded())
 
-    log("FLOW price set to \(newPrice) from \(flowStartPrice)")
-    log("Position health after price decrease: \(actualHealth)")
-    log("Expected deposit required for target health: \(expectedDepositRequiredForTarget)")
+    // assert expected starting point
+    let balanceAfterBorrow = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
+    let expectedBorrowAmount = 0.0
+    Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
-    log("..............................")
-    // minting to topUpSource Vault which should *not* affect calculation here
-    let mintToSource = 100.0
-    log("Minting \(mintToSource) to position topUpSource")
-    mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
+    let evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
+    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    positionID = openedEvt.pid
 
-    log("..............................")
-    var depositAmount = 0.0
-    var expectedAvailable = 0.0 // already below target health - nothing available
-    var actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
+    let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
+    let health = positionDetails.health
+    let flowBalance = positionDetails.balances[0]
+    Test.assertEqual(positionFundingAmount, flowBalance.balance)
+    Test.assertEqual(TidalProtocol.BalanceDirection.Credit, flowBalance.direction)
+
+    Test.assertEqual(ceilingHealth, health)
+
+    log("FLOW price set to \(flowStartPrice)")
+
+    let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0, 10_000.0, 100_000.0, 1_000_000.0]
+    var expectedExcess = 0.0 // none available above target from healthy state
+    var expectedDeficit = ((positionFundingAmount * flowCollateralFactor) / targetHealth * flowBorrowFactor) * flowStartPrice
+
+    let internalSnapshot = getCurrentBlockHeight()
+    for i, amount in amounts {
+        runFundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
-            withdrawType: moetTokenIdentifier,
-            targetHealth: targetHealth,
-            depositType: flowTokenIdentifier,
-            depositAmount: depositAmount,
-            beFailed: false
+            existingBorrowed: expectedBorrowAmount,
+            existingFlowCollateral: positionFundingAmount,
+            currentFlowPrice: flowStartPrice,
+            depositAmount: amount,
+            withdrawIdentifier: moetTokenIdentifier,
+            depositIdentifier: flowTokenIdentifier
         )
-    log("Depositing: \(depositAmount)")
-    log("Expected Available: \(expectedAvailable)")
-    log("Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil))
 
-    log("..............................")
-    let surplusDeposit = 1.0
-    depositAmount = expectedDepositRequiredForTarget + surplusDeposit
-    expectedAvailable = (surplusDeposit * flowCollateralFactor / targetHealth) * newPrice
-    actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
+        // minting to topUpSource Vault which should *not* affect calculation
+        let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
+        log("Minting \(mintToSource) to position topUpSource and running again")
+        mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
+
+        runFundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
-            withdrawType: moetTokenIdentifier,
-            targetHealth: targetHealth,
-            depositType: flowTokenIdentifier,
-            depositAmount: depositAmount,
-            beFailed: false
+            existingBorrowed: expectedBorrowAmount,
+            existingFlowCollateral: positionFundingAmount,
+            currentFlowPrice: flowStartPrice,
+            depositAmount: amount,
+            withdrawIdentifier: moetTokenIdentifier,
+            depositIdentifier: flowTokenIdentifier
         )
-    log("Depositing: \(depositAmount)")
-    log("Expected Available: \(expectedAvailable)")
-    log("Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil))
+
+        Test.reset(to: internalSnapshot)
+    }
 
     log("==============================")
 }
 
+// TODO
+// - Test deposit & withdraw same type
+// - Test depositing withdraw type without pushing to sink, creating a Credit balance before testing`
+
+/* --- Parameterized runner --- */
+
 access(all)
-fun testFundsAvailableAboveTargetHealthAfterDepositingFromOvercollateralized() {
-    log("==============================")
-    log("Executing testFundsAvailableAboveTargetHealthAfterDepositingFromOvercollateralized()")
-
-    let priceIncrease = 0.25
-    let newPrice = flowStartPrice * (1.0 + priceIncrease)
-
-    let newCollateralValue = positionFundingAmount * newPrice
-    let newEffectiveCollateralValue = newCollateralValue * flowCollateralFactor
-    let newBorrowLimitAtTarget = newEffectiveCollateralValue / targetHealth
-    let expectedAvailableAboveTarget = newBorrowLimitAtTarget - startBorrowLimitAtTarget
-
-    setMockOraclePrice(signer: protocolAccount,
-        forTokenIdentifier: flowTokenIdentifier,
-        price: newPrice
-    )
-    let actualHealth = getPositionHealth(pid: positionID, beFailed: false)
-    Test.assertEqual(targetHealth * (1.0 + priceIncrease), actualHealth)
-
-    log("FLOW price set to \(newPrice) from \(flowStartPrice)")
-    log("Position health after price decrease: \(actualHealth)")
-    log("Expected availabe above target health: \(expectedAvailableAboveTarget)")
-
+fun runFundsAvailableAboveTargetHealthAfterDepositing(
+    pid: UInt64,
+    existingBorrowed: UFix64,
+    existingFlowCollateral: UFix64,
+    currentFlowPrice: UFix64,
+    depositAmount: UFix64,
+    withdrawIdentifier: String,
+    depositIdentifier: String
+) {
     log("..............................")
-    // minting to topUpSource Vault which should *not* affect calculation here
-    let mintToSource = 100.0
-    log("Minting \(mintToSource) to position topUpSource")
-    mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
+    let expectedTotalBorrowCapacity = (existingFlowCollateral + depositAmount) * currentFlowPrice * flowCollateralFactor / targetHealth * flowBorrowFactor
+    let expectedAvailable = expectedTotalBorrowCapacity - existingBorrowed
 
-    log("..............................")
-    var depositAmount = 0.0
-    var expectedAvailable = expectedAvailableAboveTarget * newPrice
-    var actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
-            pid: positionID,
-            withdrawType: moetTokenIdentifier,
+    let actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
+            pid: pid,
+            withdrawType: withdrawIdentifier,
             targetHealth: targetHealth,
-            depositType: flowTokenIdentifier,
+            depositType: depositIdentifier,
             depositAmount: depositAmount,
             beFailed: false
         )
+    log("Withdraw type: \(withdrawIdentifier)")
+    log("Deposit type: \(depositIdentifier)")
     log("Depositing: \(depositAmount)")
     log("Expected Available: \(expectedAvailable)")
     log("Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil))
-
-    log("..............................")
-    depositAmount = 100.0
-    expectedAvailable = (expectedAvailableAboveTarget + depositAmount) * newPrice
-    actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
-            pid: positionID,
-            withdrawType: moetTokenIdentifier,
-            targetHealth: targetHealth,
-            depositType: flowTokenIdentifier,
-            depositAmount: depositAmount,
-            beFailed: false
-        )
-    log("Depositing: \(depositAmount)")
-    log("Expected Available: \(expectedAvailable)")
-    log("Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil))
-
-    log("==============================")
+    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil),
+        message: "Values are not equal within variance - expected: \(expectedAvailable), actual: \(actualAvailable)")
 }
