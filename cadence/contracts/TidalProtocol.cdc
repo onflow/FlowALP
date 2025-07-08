@@ -445,11 +445,14 @@ access(all) contract TidalProtocol {
 		/// available without topping up the position.
 		access(all) fun availableBalance(pid: UInt64, type: Type, pullFromTopUpSource: Bool): UFix64 {
 			let position = self._borrowPosition(pid: pid)
+			log("position, \(pid)")
 
 			if pullFromTopUpSource && position.topUpSource != nil {
 				let topUpSource = position.topUpSource!
 				let sourceType = topUpSource.getSourceType()
 				let sourceAmount = topUpSource.minimumAvailable()
+				log("sourceAmount")
+				log(sourceAmount)
 
 				return self.fundsAvailableAboveTargetHealthAfterDepositing(
 					pid: pid,
@@ -645,8 +648,7 @@ access(all) contract TidalProtocol {
 				if potentialHealth >= targetHealth {
 					// We can reach the target health by paying off some or all of the debt. We can easily
 					// compute how many units of the token would be needed to reach the target health.
-					let healthChange = targetHealth - healthAfterWithdrawal
-					let requiredEffectiveDebt = healthChange * effectiveCollateralAfterWithdrawal / (targetHealth * targetHealth)
+					let requiredEffectiveDebt = effectiveDebtAfterWithdrawal - effectiveCollateralAfterWithdrawal / targetHealth
 
 					// The amount of the token to pay back, in units of the token.
 					let paybackAmount = requiredEffectiveDebt * self.borrowFactor[depositType]! / self.priceOracle.price(ofToken: depositType)!
@@ -680,6 +682,8 @@ access(all) contract TidalProtocol {
 
 			// The amount of the token to deposit, in units of the token.
 			let collateralTokenCount = requiredEffectiveCollateral / self.priceOracle.price(ofToken: depositType)! / self.collateralFactor[depositType]!
+			log("collateralTokenCount")
+			log(collateralTokenCount)
 
 			// debtTokenCount is the number of tokens that went towards debt, zero if there was no debt.
 			return collateralTokenCount + debtTokenCount
@@ -733,17 +737,12 @@ access(all) contract TidalProtocol {
 						scaledBalance: debtBalance,
 						interestIndex: depositTokenState.debitInterestIndex
 					)
-					log("balanceSheetEffectiveDebt \(balanceSheet.effectiveDebt)")
-
-					log("trueDebt \(trueDebt)")
-					log("depositAmount \(depositAmount)")
 
 					if trueDebt >= depositAmount {
 						// This deposit will pay down some debt, but won't result in net collateral, we
 						// just need to account for the debt decrease.
 						effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
 						(depositAmount * self.priceOracle.price(ofToken: depositType)! / self.borrowFactor[depositType]!)
-						log("effectiveDebtAfterDeposit1 \(effectiveDebtAfterDeposit)")
 					} else {
 						// The deposit will wipe out all of the debt, and create some collateral.
 						effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
@@ -751,7 +750,6 @@ access(all) contract TidalProtocol {
 
 						effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
 						((depositAmount - trueDebt) * self.priceOracle.price(ofToken: depositType)! * self.collateralFactor[depositType]!)
-						log("effectiveDebtAfterDeposit2 \(effectiveDebtAfterDeposit)")
 					}
 				}
 			}
@@ -759,16 +757,10 @@ access(all) contract TidalProtocol {
 			// We now have new effective collateral and debt values that reflect the proposed deposit (if any!)
 			// Now we can figure out how many of the withdrawal token are available while keeping the position
 			// at or above the target health value.
-			log("effectiveCollateralAfterDeposit")
-			log(effectiveCollateralAfterDeposit)
-			log("effectiveDebtAfterDeposit")
-			log(effectiveDebtAfterDeposit)
 			var healthAfterDeposit = TidalProtocol.healthComputation(
 				effectiveCollateral: effectiveCollateralAfterDeposit,
 				effectiveDebt: effectiveDebtAfterDeposit
 			)
-			log("healthAfterDeposit")
-			log(healthAfterDeposit)
 
 
 			if healthAfterDeposit <= targetHealth {
@@ -799,14 +791,12 @@ access(all) contract TidalProtocol {
 					effectiveDebt: effectiveDebtAfterDeposit
 				)
 
-				log("potentialHealth \(potentialHealth)")
 
 				// Does drawing down all of the collateral go below the target health? Then the max withdrawal comes from collateral only.
 				if potentialHealth <= targetHealth {
 					// We will hit the health target before using up all of the withdraw token credit. We can easily
 					// compute how many units of the token would bring the position down to the target health.
 					let availableHealth = healthAfterDeposit - targetHealth
-					log("effectiveDebtAfterDeposit \(effectiveDebtAfterDeposit)")
 					let safeHealthAfterDeposit = effectiveDebtAfterDeposit < 0.000001
 					? nil
 					: effectiveCollateralAfterDeposit / effectiveDebtAfterDeposit
@@ -818,10 +808,8 @@ access(all) contract TidalProtocol {
 						availableEffectiveValue = availableHealth * effectiveCollateralAfterDeposit / safeHealthAfterDeposit!
 					}
 
-					log("availableEffectiveValue, \(availableEffectiveValue)")
 					// The amount of the token we can take using that amount of health
 					let availableTokenCount = availableEffectiveValue / self.collateralFactor[withdrawType]! / self.priceOracle.price(ofToken: withdrawType)!
-					log("availableTokenCount, \(availableTokenCount)")
 
 					return availableTokenCount
 				} else {
@@ -1086,8 +1074,6 @@ access(all) contract TidalProtocol {
 
 			var canWithdraw = false
 
-			log("requiredDeposit \(requiredDeposit)")
-
 			if requiredDeposit == 0.0 {
 				// We can service this withdrawal without any top up
 				canWithdraw = true
@@ -1214,10 +1200,6 @@ access(all) contract TidalProtocol {
 				return
 			}
 
-			log("balanceSheet")
-			log("pid \(pid)")
-			log(balanceSheet)
-
 			if balanceSheet.health < position.targetHealth {
 				// The position is undercollateralized, see if the source can get more collateral to bring it up to the target health.
 				if position.topUpSource != nil {
@@ -1231,8 +1213,6 @@ access(all) contract TidalProtocol {
 						targetHealth: position.targetHealth
 					)
 
-					log("idealDeposit \(idealDeposit)")
-
 					let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
 
 					emit Rebalanced(pid: pid, poolUUID: self.uuid, atHealth: balanceSheet.health, amount: pulledVault.balance, fromUnder: true)
@@ -1244,15 +1224,11 @@ access(all) contract TidalProtocol {
 				if position.drawDownSink != nil {
 					let drawDownSink = position.drawDownSink!
 					let sinkType = drawDownSink.getSinkType()
-					log("drawDownSink")
-					log(drawDownSink)
-					log("target health \(position.targetHealth)")
 					let idealWithdrawal = self.fundsAvailableAboveTargetHealth(
 						pid: pid,
 						type: sinkType,
 						targetHealth: position.targetHealth
 					)
-					log("idealWithdrawal \(idealWithdrawal)")
 
 					// Compute how many tokens of the sink's type are available to hit our target health.
 					let sinkCapacity = drawDownSink.minimumCapacity()
@@ -1381,6 +1357,8 @@ access(all) contract TidalProtocol {
 					interestIndex: tokenState.creditInterestIndex)
 
 					let value = priceOracle.price(ofToken: type)! * trueBalance
+					log("credit \(self.collateralFactor[type]!)")
+					log(value)
 
 					effectiveCollateral = effectiveCollateral + (value * self.collateralFactor[type]!)
 				} else {
@@ -1392,6 +1370,8 @@ access(all) contract TidalProtocol {
 					effectiveDebt = effectiveDebt + (value / self.borrowFactor[type]!)
 				}
 			}
+
+			log("here effectiveCollateral, \(effectiveCollateral)")
 
 			return BalanceSheet(effectiveCollateral: effectiveCollateral, effectiveDebt: effectiveDebt)
 		}
