@@ -444,7 +444,7 @@ access(all) contract TidalProtocol {
         /// below its min health. If pullFromTopUpSource is true, the calculation will return the balance currently
         /// available without topping up the position.
         access(all) fun availableBalance(pid: UInt64, type: Type, pullFromTopUpSource: Bool): UFix64 {
-            log("[CONTRACT] availableBalance(pid: \(pid), type: \(type.contractName!), pullFromTopUpSource: \(pullFromTopUpSource))")
+            log("    [CONTRACT] availableBalance(pid: \(pid), type: \(type.contractName!), pullFromTopUpSource: \(pullFromTopUpSource))")
             let position = self._borrowPosition(pid: pid)
 
             if pullFromTopUpSource && position.topUpSource != nil {
@@ -704,7 +704,7 @@ access(all) contract TidalProtocol {
             depositType: Type,
             depositAmount: UFix64
         ): UFix64 {
-            log("[CONTRACT] fundsAvailableAboveTargetHealthAfterDepositing(pid: \(pid), withdrawType: \(withdrawType.contractName!), targetHealth: \(targetHealth), depositType: \(depositType.contractName!), depositAmount: \(depositAmount))")
+            log("    [CONTRACT] fundsAvailableAboveTargetHealthAfterDepositing(pid: \(pid), withdrawType: \(withdrawType.contractName!), targetHealth: \(targetHealth), depositType: \(depositType.contractName!), depositAmount: \(depositAmount))")
             if depositType == withdrawType && depositAmount > 0.0 {
                 // If the deposit and withdrawal types are the same, we compute the available funds assuming
                 // no deposit (which is less work) and increase that by the deposit amount at the end
