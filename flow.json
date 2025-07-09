@@ -42,6 +42,12 @@
 				"testing": "0x0000000000000007"
 			}
 		},
+		"TidalProtocolUtils": {
+			"source": "./cadence/contracts/TidalProtocolUtils.cdc",
+			"aliases": {
+				"testing": "0x0000000000000007"
+			}
+		},
 		"MOET": {
 			"source": "./cadence/contracts/MOET.cdc",
 			"aliases": {
@@ -137,6 +143,7 @@
 			"emulator-account": [
 				"DFBUtils",
 				"DFB",
+				"TidalProtocolUtils",
 				"TidalProtocol",
 				"MOET"
 			]
