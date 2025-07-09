@@ -7,6 +7,7 @@ import "FungibleTokenMetadataViews"
 import "DFBUtils"
 import "DFB"
 import "MOET"
+import "TidalProtocolUtils"
 
 access(all) contract TidalProtocol {
 
@@ -16,6 +17,9 @@ access(all) contract TidalProtocol {
     access(all) let PoolFactoryPath: StoragePath
     /// The canonical PublicPath where the primary TidalProtocol Pool can be accessed publicly
     access(all) let PoolPublicPath: PublicPath
+
+    access(all) let e16: UInt64
+    access(all) let e8: UInt64
 
     /* --- EVENTS ---- */
 
@@ -276,10 +280,10 @@ access(all) contract TidalProtocol {
             self.lastUpdate = getCurrentBlock().timestamp
             self.totalCreditBalance = 0.0
             self.totalDebitBalance = 0.0
-            self.creditInterestIndex = 10000000000000000
-            self.debitInterestIndex = 10000000000000000
-            self.currentCreditRate = 10000000000000000
-            self.currentDebitRate = 10000000000000000
+            self.creditInterestIndex = TidalProtocol.e16
+            self.debitInterestIndex = TidalProtocol.e16
+            self.currentCreditRate = TidalProtocol.e16
+            self.currentDebitRate = TidalProtocol.e16
             self.interestCurve = interestCurve
             self.depositRate = depositRate
             self.depositCapacity = depositCapacityCap
@@ -330,8 +334,8 @@ access(all) contract TidalProtocol {
             // If there's no credit balance, we can't calculate a meaningful credit rate
             // so we'll just set both rates to zero and return early
             if self.totalCreditBalance <= 0.0 {
-                self.currentCreditRate = 10000000000000000  // 1.0 in fixed point (no interest)
-                self.currentDebitRate = 10000000000000000   // 1.0 in fixed point (no interest)
+                self.currentCreditRate = TidalProtocol.e16  // 1.0 in fixed point (no interest)
+                self.currentDebitRate = TidalProtocol.e16   // 1.0 in fixed point (no interest)
                 return
             }
 
@@ -398,8 +402,8 @@ access(all) contract TidalProtocol {
             self.version = 0
             self.globalLedger = {defaultToken: TokenState(
                 interestCurve: SimpleInterestCurve(),
-                depositRate: 1000000.0,        // Default: no rate limiting for default token
-                depositCapacityCap: 1000000.0  // Default: high capacity cap
+                depositRate: 1_000_000.0,        // Default: no rate limiting for default token
+                depositCapacityCap: 1_000_000.0  // Default: high capacity cap
             )}
             self.positions <- {}
             self.reserves <- {}
@@ -1751,8 +1755,8 @@ access(all) contract TidalProtocol {
     /// A multiplication function for interest calculations. It assumes that both values are very close to 1 and
     /// represent fixed point numbers with 16 decimal places of precision.
     access(all) view fun interestMul(_ a: UInt64, _ b: UInt64): UInt64 {
-        let aScaled = a / 100000000
-        let bScaled = b / 100000000
+        let aScaled = a / self.e8
+        let bScaled = b / self.e8
 
         return aScaled * bScaled
     }
@@ -1766,7 +1770,7 @@ access(all) contract TidalProtocol {
         // 10^16. HOWEVER, since we are about to divide by 31536000, we can save multiply a factor
         // 1000 smaller, and then divide by 31536.
         let yearlyScaledValue = UInt64.fromBigEndianBytes(yearlyRate.toBigEndianBytes())! * 100000
-        let perSecondScaledValue = (yearlyScaledValue / 31536) + 10000000000000000
+        let perSecondScaledValue = (yearlyScaledValue / 31536) + self.e16
 
         return perSecondScaledValue
     }
@@ -1796,7 +1800,7 @@ access(all) contract TidalProtocol {
         // The interest index is essentially a fixed point number with 16 decimal places, we convert
         // it to a UFix64 by copying the byte representation, and then dividing by 10^8 (leaving and
         // additional 10^8 as required for the UFix64 representation).
-        let indexMultiplier = UFix64.fromBigEndianBytes(interestIndex.toBigEndianBytes())! / 100000000.0
+        let indexMultiplier = UFix64.fromBigEndianBytes(interestIndex.toBigEndianBytes())! / UFix64(self.e8)
         return scaledBalance * indexMultiplier
     }
 
@@ -1807,7 +1811,7 @@ access(all) contract TidalProtocol {
         // The interest index is essentially a fixed point number with 16 decimal places, we convert
         // it to a UFix64 by copying the byte representation, and then dividing by 10^8 (leaving and
         // additional 10^8 as required for the UFix64 representation).
-        let indexMultiplier = UFix64.fromBigEndianBytes(interestIndex.toBigEndianBytes())! / 100000000.0
+        let indexMultiplier = UFix64.fromBigEndianBytes(interestIndex.toBigEndianBytes())! / UFix64(self.e8)
         return trueBalance / indexMultiplier
     }
 
@@ -1829,6 +1833,9 @@ access(all) contract TidalProtocol {
         self.PoolStoragePath = StoragePath(identifier: "tidalProtocolPool_\(self.account.address)")!
         self.PoolFactoryPath = StoragePath(identifier: "tidalProtocolPoolFactory_\(self.account.address)")!
         self.PoolPublicPath = PublicPath(identifier: "tidalProtocolPool_\(self.account.address)")!
+
+        self.e16 = 10000000000000000
+        self.e8 = 100000000
 
         // save PoolFactory in storage
         self.account.storage.save(
