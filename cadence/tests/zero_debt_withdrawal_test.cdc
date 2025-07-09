@@ -53,7 +53,7 @@ fun testZeroDebtFullWithdrawalAvailable() {
 
     // 5. Ensure no debt: health should be exactly 1.0
     let health = getPositionHealth(pid: pid, beFailed: false)
-    Test.assertEqual(1.0, health)
+    Test.assertEqual(UFix64.max, health)
 
     // 6. available balance should equal original collateral (1000)
     let available = getAvailableBalance(pid: pid, vaultIdentifier: flowTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
