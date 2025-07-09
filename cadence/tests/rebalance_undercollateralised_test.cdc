@@ -84,7 +84,7 @@ fun testRebalanceUndercollateralised() {
     // Calculate required pay-down to restore health to target (1.3)
     // Formula derived from: health = effectiveCollateral / effectiveDebt
     // Solving for the debt reduction needed to achieve target health
-    let requiredPaydown: UFix64 = (target - healthAfterPriceChangeVal) * effectiveCollateralAfterDrop / (target * target)
+	let requiredPaydown: UFix64 = debtBefore - effectiveCollateralAfterDrop / target 
     let expectedDebt: UFix64 = debtBefore - requiredPaydown
 
     var actualDebt: UFix64 = 0.0
