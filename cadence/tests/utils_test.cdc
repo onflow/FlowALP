@@ -308,10 +308,10 @@ access(all)
 fun testBalanceConversionRoundTripSucceeds() {
     // Test round-trip conversion maintains precision
     let originalUFix: UFix64 = 123.45678901
-    
+
     let toUInt = TidalProtocolUtils.toUInt256Balance(originalUFix)
     let backToUFix = TidalProtocolUtils.toUFix64Balance(toUInt)
-    
+
     Test.assertEqual(originalUFix, backToUFix)
 }
 
@@ -319,10 +319,10 @@ access(all)
 fun testBalanceConversionRoundTripWithZeroSucceeds() {
     // Test round-trip conversion with zero
     let originalUFix: UFix64 = 0.0
-    
+
     let toUInt = TidalProtocolUtils.toUInt256Balance(originalUFix)
     let backToUFix = TidalProtocolUtils.toUFix64Balance(toUInt)
-    
+
     Test.assertEqual(originalUFix, backToUFix)
 }
 
@@ -330,10 +330,10 @@ access(all)
 fun testBalanceConversionRoundTripWithLargeNumberSucceeds() {
     // Test round-trip conversion with large number
     let originalUFix: UFix64 = 999_999.99999999
-    
+
     let toUInt = TidalProtocolUtils.toUInt256Balance(originalUFix)
     let backToUFix = TidalProtocolUtils.toUFix64Balance(toUInt)
-    
+
     Test.assertEqual(originalUFix, backToUFix)
 }
 
@@ -347,8 +347,8 @@ fun testConstantsAreCorrect() {
     // Test that e18 equals 10^18
     let expectedE18: UInt256 = 1_000_000_000_000_000_000
     Test.assertEqual(expectedE18, TidalProtocolUtils.e18)
-    
-    // Test that e8 equals 10^8  
+
+    // Test that e8 equals 10^8
     let expectedE8: UInt256 = 100_000_000
     Test.assertEqual(expectedE8, TidalProtocolUtils.e8)
 }
@@ -360,7 +360,7 @@ fun testMulBasicSucceeds() {
     let x: UInt256 = 2 * TidalProtocolUtils.e18  // 2.0 in 18-decimal
     let y: UInt256 = 3 * TidalProtocolUtils.e18  // 3.0 in 18-decimal
     let expected: UInt256 = 6 * TidalProtocolUtils.e18  // 6.0 in 18-decimal
-    
+
     let result = TidalProtocolUtils.mul(x, y)
     Test.assertEqual(expected, result)
 }
@@ -371,7 +371,7 @@ fun testMulFractionalSucceeds() {
     let x: UInt256 = 1_500_000_000_000_000_000  // 1.5 in 18-decimal
     let y: UInt256 = 2_250_000_000_000_000_000  // 2.25 in 18-decimal
     let expected: UInt256 = 3_375_000_000_000_000_000  // 3.375 in 18-decimal
-    
+
     let result = TidalProtocolUtils.mul(x, y)
     Test.assertEqual(expected, result)
 }
@@ -382,7 +382,7 @@ fun testMulWithZeroSucceeds() {
     let x: UInt256 = 5 * TidalProtocolUtils.e18
     let y: UInt256 = 0
     let expected: UInt256 = 0
-    
+
     let result = TidalProtocolUtils.mul(x, y)
     Test.assertEqual(expected, result)
 }
@@ -393,7 +393,7 @@ fun testMulWithOneSucceeds() {
     let x: UInt256 = 5 * TidalProtocolUtils.e18
     let y: UInt256 = TidalProtocolUtils.e18  // 1.0
     let expected: UInt256 = 5 * TidalProtocolUtils.e18
-    
+
     let result = TidalProtocolUtils.mul(x, y)
     Test.assertEqual(expected, result)
 }
@@ -404,7 +404,7 @@ fun testMulSmallNumbersSucceeds() {
     let x: UInt256 = 1_000_000_000_000_000  // 0.001 in 18-decimal
     let y: UInt256 = 2_000_000_000_000_000  // 0.002 in 18-decimal
     let expected: UInt256 = 2_000_000_000_000  // 0.000002 in 18-decimal
-    
+
     let result = TidalProtocolUtils.mul(x, y)
     Test.assertEqual(expected, result)
 }
@@ -415,7 +415,7 @@ fun testMulLargeNumbersSucceeds() {
     let x: UInt256 = 1000 * TidalProtocolUtils.e18
     let y: UInt256 = 2000 * TidalProtocolUtils.e18
     let expected: UInt256 = 2000000 * TidalProtocolUtils.e18
-    
+
     let result = TidalProtocolUtils.mul(x, y)
     Test.assertEqual(expected, result)
 }
@@ -427,7 +427,7 @@ fun testDivBasicSucceeds() {
     let x: UInt256 = 6 * TidalProtocolUtils.e18
     let y: UInt256 = 2 * TidalProtocolUtils.e18
     let expected: UInt256 = 3 * TidalProtocolUtils.e18
-    
+
     let result = TidalProtocolUtils.div(x, y)
     Test.assertEqual(expected, result)
 }
@@ -438,7 +438,7 @@ fun testDivFractionalSucceeds() {
     let x: UInt256 = 3_375_000_000_000_000_000  // 3.375 in 18-decimal
     let y: UInt256 = 1_500_000_000_000_000_000  // 1.5 in 18-decimal
     let expected: UInt256 = 2_250_000_000_000_000_000  // 2.25 in 18-decimal
-    
+
     let result = TidalProtocolUtils.div(x, y)
     Test.assertEqual(expected, result)
 }
@@ -449,7 +449,7 @@ fun testDivWithOneSucceeds() {
     let x: UInt256 = 5 * TidalProtocolUtils.e18
     let y: UInt256 = TidalProtocolUtils.e18  // 1.0
     let expected: UInt256 = 5 * TidalProtocolUtils.e18
-    
+
     let result = TidalProtocolUtils.div(x, y)
     Test.assertEqual(expected, result)
 }
@@ -460,7 +460,7 @@ fun testDivZeroNumeratorSucceeds() {
     let x: UInt256 = 0
     let y: UInt256 = 5 * TidalProtocolUtils.e18
     let expected: UInt256 = 0
-    
+
     let result = TidalProtocolUtils.div(x, y)
     Test.assertEqual(expected, result)
 }
@@ -471,7 +471,7 @@ fun testDivPrecisionSucceeds() {
     let x: UInt256 = TidalProtocolUtils.e18
     let y: UInt256 = 3 * TidalProtocolUtils.e18
     let expected: UInt256 = 333_333_333_333_333_333  // Truncated result
-    
+
     let result = TidalProtocolUtils.div(x, y)
     Test.assertEqual(expected, result)
 }
@@ -480,7 +480,7 @@ access(all)
 fun testDivByZeroFails() {
     let x: UInt256 = 5 * TidalProtocolUtils.e18
     let y: UInt256 = 0
-    
+
     // This should fail due to division by zero precondition
     let divResult = executeScript(
         "./scripts/test_div_by_zero.cdc",
@@ -496,7 +496,7 @@ fun testMulScalarBasicSucceeds() {
     let x: UInt256 = 2_500_000_000_000_000_000  // 2.5 in 18-decimal
     let y: UInt256 = 4  // Regular integer
     let expected: UInt256 = 10 * TidalProtocolUtils.e18  // 10.0 in 18-decimal
-    
+
     let result = TidalProtocolUtils.mulScalar(x, y)
     Test.assertEqual(expected, result)
 }
@@ -507,7 +507,7 @@ fun testMulScalarWithZeroSucceeds() {
     let x: UInt256 = 5 * TidalProtocolUtils.e18
     let y: UInt256 = 0
     let expected: UInt256 = 0
-    
+
     let result = TidalProtocolUtils.mulScalar(x, y)
     Test.assertEqual(expected, result)
 }
@@ -518,7 +518,7 @@ fun testMulScalarWithOneSucceeds() {
     let x: UInt256 = 5_500_000_000_000_000_000  // 5.5 in 18-decimal
     let y: UInt256 = 1
     let expected: UInt256 = 5_500_000_000_000_000_000
-    
+
     let result = TidalProtocolUtils.mulScalar(x, y)
     Test.assertEqual(expected, result)
 }
@@ -529,7 +529,7 @@ fun testMulScalarLargeMultiplierSucceeds() {
     let x: UInt256 = 100_000_000_000_000_000  // 0.1 in 18-decimal
     let y: UInt256 = 1_000
     let expected: UInt256 = 100 * TidalProtocolUtils.e18  // 100.0 in 18-decimal
-    
+
     let result = TidalProtocolUtils.mulScalar(x, y)
     Test.assertEqual(expected, result)
 }
@@ -541,7 +541,7 @@ fun testDivScalarBasicSucceeds() {
     let x: UInt256 = 10 * TidalProtocolUtils.e18
     let y: UInt256 = 4
     let expected: UInt256 = 2_500_000_000_000_000_000  // 2.5 in 18-decimal
-    
+
     let result = TidalProtocolUtils.divScalar(x, y)
     Test.assertEqual(expected, result)
 }
@@ -552,7 +552,7 @@ fun testDivScalarWithOneSucceeds() {
     let x: UInt256 = 5_500_000_000_000_000_000  // 5.5 in 18-decimal
     let y: UInt256 = 1
     let expected: UInt256 = 5_500_000_000_000_000_000
-    
+
     let result = TidalProtocolUtils.divScalar(x, y)
     Test.assertEqual(expected, result)
 }
@@ -563,7 +563,7 @@ fun testDivScalarPrecisionSucceeds() {
     let x: UInt256 = TidalProtocolUtils.e18
     let y: UInt256 = 3
     let expected: UInt256 = 333_333_333_333_333_333  // Truncated result
-    
+
     let result = TidalProtocolUtils.divScalar(x, y)
     Test.assertEqual(expected, result)
 }
@@ -574,7 +574,7 @@ fun testDivScalarZeroNumeratorSucceeds() {
     let x: UInt256 = 0
     let y: UInt256 = 5
     let expected: UInt256 = 0
-    
+
     let result = TidalProtocolUtils.divScalar(x, y)
     Test.assertEqual(expected, result)
 }
@@ -583,7 +583,7 @@ access(all)
 fun testDivScalarByZeroFails() {
     let x: UInt256 = 5 * TidalProtocolUtils.e18
     let y: UInt256 = 0
-    
+
     // This should fail due to division by zero precondition
     let divUpResult = executeScript(
         "./scripts/test_divup_by_zero.cdc",
@@ -598,10 +598,10 @@ fun testMulDivRoundTripSucceeds() {
     // Test that mul and div are inverse operations
     let original: UInt256 = 123_456_789_012_345_678_900  // 123.4567890123456789 in 18-decimal
     let factor: UInt256 = 3 * TidalProtocolUtils.e18  // 3.0
-    
+
     let multiplied = TidalProtocolUtils.mul(original, factor)
     let divided = TidalProtocolUtils.div(multiplied, factor)
-    
+
     Test.assertEqual(original, divided)
 }
 
@@ -610,10 +610,10 @@ fun testMulScalarDivUpRoundTripSucceeds() {
     // Test that mulUp and divUp are inverse operations
     let original: UInt256 = 123_456_789_012_345_678_900  // 123.4567890123456789 in 18-decimal
     let factor: UInt256 = 5  // Regular integer
-    
+
     let multiplied = TidalProtocolUtils.mulScalar(original, factor)
     let divided = TidalProtocolUtils.divScalar(multiplied, factor)
-    
+
     Test.assertEqual(original, divided)
 }
 
@@ -622,10 +622,10 @@ fun testFixedPointPrecisionConsistencySucceeds() {
     // Test that calculations maintain 18-decimal precision
     let price: UInt256 = 1_500_000_000_000_000_000  // $1.50 in 18-decimal
     let amount: UInt256 = 2_333_333_333_333_333_333  // 2.333333333333333333 tokens
-    
+
     let totalValue = TidalProtocolUtils.mul(price, amount)
     let expectedValue: UInt256 = 3_499_999_999_999_999_999  // $3.499999999999999999
-    
+
     Test.assertEqual(expectedValue, totalValue)
 }
 
@@ -636,11 +636,11 @@ fun testComplexCalculationSucceeds() {
     let b: UInt256 = 3_200_000_000_000_000_000  // 3.2
     let c: UInt256 = 2_000_000_000_000_000_000  // 2.0
     let d: UInt256 = 1_500_000_000_000_000_000  // 1.5
-    
+
     let numerator = TidalProtocolUtils.mul(a, b)  // 1.25 * 3.2 = 4.0
     let denominator = c + d  // 2.0 + 1.5 = 3.5 (addition doesn't need scaling)
     let result = TidalProtocolUtils.div(numerator, denominator)  // 4.0 / 3.5 ≈ 1.142857...
-    
+
     let expected: UInt256 = 1_142_857_142_857_142_857  // Truncated result
     Test.assertEqual(expected, result)
 }
@@ -650,10 +650,10 @@ fun testPercentageCalculationSucceeds() {
     // Test percentage calculation: 15% of 1000.0
     let amount: UInt256 = 1_000 * TidalProtocolUtils.e18  // 1000.0
     let percentage: UInt256 = 150_000_000_000_000_000  // 0.15 (15%)
-    
+
     let result = TidalProtocolUtils.mul(amount, percentage)
     let expected: UInt256 = 150 * TidalProtocolUtils.e18  // 150.0
-    
+
     Test.assertEqual(expected, result)
 }
 
@@ -663,10 +663,10 @@ fun testInterestRateCalculationSucceeds() {
     let principal: UInt256 = 1_000 * TidalProtocolUtils.e18  // 1000.0
     let rate: UInt256 = 50_000_000_000_000_000  // 0.05 (5%)
     let one: UInt256 = TidalProtocolUtils.e18  // 1.0
-    
+
     let onePlusRate = one + rate  // 1.05
     let result = TidalProtocolUtils.mul(principal, onePlusRate)
     let expected: UInt256 = 1_050 * TidalProtocolUtils.e18  // 1050.0
-    
+
     Test.assertEqual(expected, result)
 }
