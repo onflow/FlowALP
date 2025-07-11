@@ -806,14 +806,20 @@ access(all) contract TidalProtocol {
                     return availableTokenCount
                 } else {
                     // We can flip this credit position into a debit position, before hitting the target health.
-                    // We have logic below that can determine health changes for debit positions. Rather than copy that here,
-                    // fall through into it. But first we have to record the amount of tokens that are available as collateral
-                    // and then adjust the effective collateral to reflect that it has come out
+                    // We have logic below that can determine health changes for debit positions. We've copied it here
+                    // with an added handling for the case where the health after deposit is an edgecase
                     collateralTokenCount = trueCredit
                     effectiveCollateralAfterDeposit = effectiveCollateralAfterDeposit - collateralEffectiveValue
                     log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
                     log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
-                    // NOTE: The above invalidates the healthAfterDeposit value, but it's not used below...
+
+                    // We can calculate the available debt increase that would bring us to the target health, unless the health
+                    // after deposit is an edgecase, in which case getting to the target health is impossible.
+                    var availableDebtIncrease = (healthAfterDeposit == UFix64.max ? effectiveCollateralAfterDeposit : effectiveCollateralAfterDeposit / targetHealth) - effectiveDebtAfterDeposit
+
+                    // var availableDebtIncrease = (effectiveCollateralAfterDeposit / targetHealth) - effectiveDebtAfterDeposit
+                    let availableTokens = (availableDebtIncrease * self.borrowFactor[withdrawType]!) / self.priceOracle.price(ofToken: withdrawType)!
+                    return availableTokens + collateralTokenCount
                 }
             }
 
