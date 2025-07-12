@@ -732,7 +732,7 @@ access(all) contract TidalProtocol {
             var effectiveDebtAfterDeposit = balanceSheet.effectiveDebt
             log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
             log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
-            
+
             let uintDepositAmount = TidalProtocolUtils.ufix64ToUInt256(depositAmount, decimals: TidalProtocolUtils.decimals)
             let uintDepositPrice = TidalProtocolUtils.ufix64ToUInt256(self.priceOracle.price(ofToken: depositType)!, decimals: TidalProtocolUtils.decimals)
             let uintDepositBorrowFactor = TidalProtocolUtils.ufix64ToUInt256(self.borrowFactor[depositType]!, decimals: TidalProtocolUtils.decimals)
@@ -1408,10 +1408,10 @@ access(all) contract TidalProtocol {
                         interestIndex: tokenState.creditInterestIndex)
 
                     let convertedPrice = TidalProtocolUtils.ufix64ToUInt256(priceOracle.price(ofToken: type)!, decimals: TidalProtocolUtils.decimals)
-                    let value = TidalProtocolUtils.mulScalar(convertedPrice, trueBalance)
+                    let value = TidalProtocolUtils.mul(convertedPrice, trueBalance)
 
                     let convertedCollateralFactor = TidalProtocolUtils.ufix64ToUInt256(self.collateralFactor[type]!, decimals: TidalProtocolUtils.decimals)
-                    effectiveCollateral = effectiveCollateral + TidalProtocolUtils.mulScalar(value, convertedCollateralFactor)
+                    effectiveCollateral = effectiveCollateral + TidalProtocolUtils.mul(value, convertedCollateralFactor)
                 } else {
                     let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(balance.scaledBalance,
                         interestIndex: tokenState.debitInterestIndex)
