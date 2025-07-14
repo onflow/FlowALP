@@ -680,7 +680,7 @@ access(all) contract TidalProtocol {
                 let debtValue = price * debtAmount / bf
 
                 // Check what the new health would be if we paid off all of this debt
-				let potentialHealth = TidalProtocol.healthComputation(
+                let potentialHealth = TidalProtocol.healthComputation(
                     effectiveCollateral: collateral,
                     effectiveDebt: debt - debtValue
                 )
@@ -904,7 +904,7 @@ access(all) contract TidalProtocol {
                     log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
                     log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateral)")
 
-					// this code has been commented by llm, figure out why
+                    // this code has been commented by llm, figure out why
                     // // We can calculate the available debt increase that would bring us to the target health, unless the health
                     // // after deposit is an edgecase, in which case getting to the target health is impossible.
                     // var availableDebtIncrease = (healthAfterDeposit == UFix64.max ? effectiveCollateralAfterDeposit : effectiveCollateralAfterDeposit / targetHealth) - effectiveDebtAfterDeposit
