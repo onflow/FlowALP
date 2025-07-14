@@ -621,9 +621,9 @@ access(all) contract TidalProtocol {
                     // will flip over into debt, or just draw down the collateral.
                 let collateralBalance = maybeBalance!.scaledBalance
                 let trueCollateral = TidalProtocol.scaledBalanceToTrueBalance(
-					scaledBalance: collateralBalance,
-					interestIndex: tokenState.creditInterestIndex
-				)
+                    scaledBalance: collateralBalance,
+                    interestIndex: tokenState.creditInterestIndex
+                )
 
                 if trueCollateral >= withdrawAmount {
                         // This withdrawal will draw down collateral, but won't create debt, we just need to account
