@@ -607,29 +607,32 @@ access(all) contract TidalProtocol {
             }
 
             let price = self.priceOracle.price(ofToken: withdrawType)!
-            let cf = self.collateralFactor[withdrawType]!
-            let bf = self.borrowFactor[withdrawType]!
+            let collateralFactor = self.collateralFactor[withdrawType]!
+            let borrowFactor = self.borrowFactor[withdrawType]!
 
             let maybeBalance = position.balances[withdrawType]
             if maybeBalance == nil || maybeBalance!.direction == BalanceDirection.Debit {
                     // If the position doesn't have any collateral for the withdrawn token, we can just compute how much
                     // additional effective debt the withdrawal will create.
-                debt = debt + (withdrawAmount * price / bf)
+                debt = debt + (withdrawAmount * price / borrowFactor)
             } else {
                 let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
                     // The user has a collateral position in the given token, we need to figure out if this withdrawal
                     // will flip over into debt, or just draw down the collateral.
-                let scaled = maybeBalance!.scaledBalance
-                let trueCollateral = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: scaled, interestIndex: tokenState.creditInterestIndex)
+                let collateralBalance = maybeBalance!.scaledBalance
+                let trueCollateral = TidalProtocol.scaledBalanceToTrueBalance(
+					scaledBalance: collateralBalance,
+					interestIndex: tokenState.creditInterestIndex
+				)
 
                 if trueCollateral >= withdrawAmount {
                         // This withdrawal will draw down collateral, but won't create debt, we just need to account
                         // for the collateral decrease.
-                    collateral = collateral - (withdrawAmount * price * cf)
+                    collateral = collateral - (withdrawAmount * price * collateralFactor)
                 } else {
                     // The withdrawal will wipe out all of the collateral, and create some debt.
-                    debt = debt + ((withdrawAmount - trueCollateral) * price / bf)
-                    collateral = collateral - (trueCollateral * price * cf)
+                    debt = debt + ((withdrawAmount - trueCollateral) * price / borrowFactor)
+                    collateral = collateral - (trueCollateral * price * collateralFactor)
                 }
             }
 
@@ -666,8 +669,8 @@ access(all) contract TidalProtocol {
 
             let maybeBalance = position.balances[depositType]
             let price = self.priceOracle.price(ofToken: depositType)!
-            let cf = self.collateralFactor[depositType]!
-            let bf = self.borrowFactor[depositType]!
+            let collateralFactor = self.collateralFactor[depositType]!
+            let borrowFactor = self.borrowFactor[depositType]!
 
             if maybeBalance != nil && maybeBalance!.direction == BalanceDirection.Debit {
                 // The user has a debt position in the given token, we start by looking at the health impact of paying off
@@ -677,7 +680,7 @@ access(all) contract TidalProtocol {
                 // depositTokenState.updateForTimeChange()
                 let scaled = maybeBalance!.scaledBalance
                 let debtAmount = TidalProtocol.scaledBalanceToTrueBalance(scaledBalance: scaled, interestIndex: tokenState.debitInterestIndex)
-                let debtValue = price * debtAmount / bf
+                let debtValue = price * debtAmount / borrowFactor
 
                 // Check what the new health would be if we paid off all of this debt
                 let potentialHealth = TidalProtocol.healthComputation(
@@ -691,7 +694,7 @@ access(all) contract TidalProtocol {
                     // compute how many units of the token would be needed to reach the target health.
                     let requiredEffectiveDebt = debt - (collateral / targetHealth)
                     // The amount of the token to pay back, in units of the token.
-                    return requiredEffectiveDebt * bf / price
+                    return requiredEffectiveDebt * borrowFactor / price
                 }
 
                     // We can pay off the entire debt, but we still need to deposit more to reach the target health.
@@ -720,7 +723,7 @@ access(all) contract TidalProtocol {
             let requiredCollateral = healthChange * debt
 
             // The amount of the token to deposit, in units of the token.
-            let collateralTokenCount = requiredCollateral / price / cf
+            let collateralTokenCount = requiredCollateral / price / collateralFactor
 
             // debtTokenCount is the number of tokens that went towards debt, zero if there was no debt.
             return debtTokenCount + collateralTokenCount
@@ -860,7 +863,6 @@ access(all) contract TidalProtocol {
             var adjustedCollateral = effectiveCollateral
 
             let maybeBalance = position.balances[withdrawType]
-
             if maybeBalance != nil && maybeBalance!.direction == BalanceDirection.Credit {
                 // The user has a credit position in the withdraw token, we start by looking at the health impact of pulling out all
                 // of that collateral
