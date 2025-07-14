@@ -255,10 +255,10 @@ access(all) contract TidalProtocol {
         /// The total debit balance of the related Token across the whole Pool in which this TokenState resides
         access(all) var totalDebitBalance: UInt256
         /// The index of the credit interest for the related token. Interest on a token is stored as an "index" which
-        /// can be thought of as “how many actual tokens does 1 unit of scaled balance represent right now?”
+        /// can be thought of as "how many actual tokens does 1 unit of scaled balance represent right now?"
         access(all) var creditInterestIndex: UInt64
         /// The index of the debit interest for the related token. Interest on a token is stored as an "index" which
-        /// can be thought of as “how many actual tokens does 1 unit of scaled balance represent right now?”
+        /// can be thought of as "how many actual tokens does 1 unit of scaled balance represent right now?"
         access(all) var debitInterestIndex: UInt64
         /// The interest rate for credit of the associated token
         access(all) var currentCreditRate: UInt64
@@ -639,11 +639,17 @@ access(all) contract TidalProtocol {
                 )
                 let debtEffectiveValue = TidalProtocolUtils.div(TidalProtocolUtils.mul(uintDepositPrice, trueDebt), uintDepositBorrowFactor)
 
+                // Ensure we don't underflow - if debtEffectiveValue is greater than effectiveDebtAfterWithdrawal,
+                // it means we can pay off all debt
+                var effectiveDebtAfterPayment: UInt256 = 0
+                if debtEffectiveValue <= effectiveDebtAfterWithdrawal {
+                    effectiveDebtAfterPayment = effectiveDebtAfterWithdrawal - debtEffectiveValue
+                }
 
                 // Check what the new health would be if we paid off all of this debt
                 let potentialHealth = TidalProtocol.healthComputation(
                     effectiveCollateral: effectiveCollateralAfterWithdrawal,
-                    effectiveDebt: effectiveDebtAfterWithdrawal - debtEffectiveValue
+                    effectiveDebt: effectiveDebtAfterPayment
                 )
 
                 // Does paying off all of the debt reach the target health? Then we're done.
@@ -652,8 +658,8 @@ access(all) contract TidalProtocol {
                     // compute how many units of the token would be needed to reach the target health.
                     let healthChange = targetHealth - healthAfterWithdrawal
                     // let requiredEffectiveDebt = effectiveDebtAfterWithdrawal - effectiveCollateralAfterWithdrawal / targetHealth
-                    let requiredEffectiveDebt = TidalProtocolUtils.div(
-                            effectiveDebtAfterWithdrawal - effectiveCollateralAfterWithdrawal,
+                    let requiredEffectiveDebt = effectiveDebtAfterWithdrawal - TidalProtocolUtils.div(
+                            effectiveCollateralAfterWithdrawal,
                             TidalProtocolUtils.ufix64ToUInt256(targetHealth, decimals: TidalProtocolUtils.decimals)
                         )
 
@@ -671,7 +677,12 @@ access(all) contract TidalProtocol {
                     // we have to record the amount of tokens that went towards debt payback and adjust the effective
                     // debt to reflect that it has been paid off.
                     debtTokenCount = trueDebt
-                    effectiveDebtAfterWithdrawal = effectiveDebtAfterWithdrawal - debtEffectiveValue
+                    // Ensure we don't underflow
+                    if debtEffectiveValue <= effectiveDebtAfterWithdrawal {
+                        effectiveDebtAfterWithdrawal = effectiveDebtAfterWithdrawal - debtEffectiveValue
+                    } else {
+                        effectiveDebtAfterWithdrawal = 0
+                    }
                     healthAfterWithdrawal = potentialHealth
                 }
             }
@@ -1153,6 +1164,16 @@ access(all) contract TidalProtocol {
             }
 
             if !canWithdraw {
+                // Log detailed information about the failed withdrawal
+                let availableBalance = self.availableBalance(pid: pid, type: type, pullFromTopUpSource: false)
+                log("    [CONTRACT] WITHDRAWAL FAILED:")
+                log("    [CONTRACT] Position ID: \(pid)")
+                log("    [CONTRACT] Token type: \(type.identifier)")
+                log("    [CONTRACT] Requested amount: \(amount)")
+                log("    [CONTRACT] Available balance (without topUp): \(availableBalance)")
+                log("    [CONTRACT] Required deposit for minHealth: \(requiredDeposit)")
+                log("    [CONTRACT] Pull from topUpSource: \(pullFromTopUpSource)")
+                
                 // We can't service this withdrawal, so we just abort
                 panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
             }
@@ -1810,10 +1831,12 @@ access(all) contract TidalProtocol {
     }
 
     /// A multiplication function for interest calculations. It assumes that both values are very close to 1 and
-    /// represent fixed point numbers with 16 decimal places of precision.
+    /// represent fixed point numbers with 18 decimal places of precision.
     access(all) view fun interestMul(_ a: UInt64, _ b: UInt64): UInt64 {
-        let aScaled = a / UInt64(TidalProtocolUtils.e8)
-        let bScaled = b / UInt64(TidalProtocolUtils.e8)
+        // For 18-decimal precision, we need to divide by e9 (not e8)
+        // This is because: (a/1e9) * (b/1e9) = (a*b)/1e18
+        let aScaled = a / 1_000_000_000  // 10^9
+        let bScaled = b / 1_000_000_000  // 10^9
 
         return aScaled * bScaled
     }
