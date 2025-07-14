@@ -7,7 +7,7 @@ access(all) contract TidalProtocolUtils {
     /// Constant for 10^18
     access(all) let e18: UInt256
     /// Constant for 10^8
-    access(all) let e8: UInt256
+    access(all) let e9: UInt256
     /// Constant for the number of decimal places/precision of the fixed point numbers
     access(all) let decimals: UInt8
     /// Constant for the number of seconds in a year
@@ -236,8 +236,8 @@ access(all) contract TidalProtocolUtils {
 
     init() {
         self.e18 = 1_000_000_000_000_000_000
-        self.e8 = 100_000_000
+        self.e9 = 1_000_000_000
         self.decimals = 18
-        self.secondsInYearE18 = 31_536_000 * self.e18
+        self.secondsInYearE18 = TidalProtocolUtils.mulScalar(31_536_000, self.e18)
     }
 }

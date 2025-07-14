@@ -348,9 +348,9 @@ fun testConstantsAreCorrect() {
     let expectedE18: UInt256 = 1_000_000_000_000_000_000
     Test.assertEqual(expectedE18, TidalProtocolUtils.e18)
 
-    // Test that e8 equals 10^8
-    let expectedE8: UInt256 = 100_000_000
-    Test.assertEqual(expectedE8, TidalProtocolUtils.e8)
+    // Test that e9 equals 10^9
+    let expectedE9: UInt256 = 1_000_000_000
+    Test.assertEqual(expectedE9, TidalProtocolUtils.e9)
 }
 
 // mul() tests - multiplies two 18-decimal fixed-point numbers

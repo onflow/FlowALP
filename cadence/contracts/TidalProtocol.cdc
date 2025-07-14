@@ -255,11 +255,11 @@ access(all) contract TidalProtocol {
         /// The total debit balance of the related Token across the whole Pool in which this TokenState resides
         access(all) var totalDebitBalance: UInt256
         /// The index of the credit interest for the related token. Interest on a token is stored as an "index" which
-        /// can be thought of as "how many actual tokens does 1 unit of scaled balance represent right now?"
-        access(all) var creditInterestIndex: UInt64
+        /// can be thought of as “how many actual tokens does 1 unit of scaled balance represent right now?”
+        access(all) var creditInterestIndex: UInt256
         /// The index of the debit interest for the related token. Interest on a token is stored as an "index" which
-        /// can be thought of as "how many actual tokens does 1 unit of scaled balance represent right now?"
-        access(all) var debitInterestIndex: UInt64
+        /// can be thought of as “how many actual tokens does 1 unit of scaled balance represent right now?”
+        access(all) var debitInterestIndex: UInt256
         /// The interest rate for credit of the associated token
         access(all) var currentCreditRate: UInt64
         /// The interest rate for debit of the associated token
@@ -277,8 +277,8 @@ access(all) contract TidalProtocol {
             self.lastUpdate = getCurrentBlock().timestamp
             self.totalCreditBalance = 0
             self.totalDebitBalance = 0
-            self.creditInterestIndex = UInt64(TidalProtocolUtils.e18)
-            self.debitInterestIndex = UInt64(TidalProtocolUtils.e18)
+            self.creditInterestIndex = TidalProtocolUtils.e18
+            self.debitInterestIndex = TidalProtocolUtils.e18
             self.currentCreditRate = UInt64(TidalProtocolUtils.e18)
             self.currentDebitRate = UInt64(TidalProtocolUtils.e18)
             self.interestCurve = interestCurve
@@ -303,7 +303,7 @@ access(all) contract TidalProtocol {
         // Enhanced updateInterestIndices with deposit capacity update
         access(all) fun updateInterestIndices() {
             let currentTime = getCurrentBlock().timestamp
-            let timeDelta = currentTime - self.lastUpdate
+            let timeDelta: UFix64 = currentTime - self.lastUpdate
             self.creditInterestIndex = TidalProtocol.compoundInterestIndex(oldIndex: self.creditInterestIndex, perSecondRate: self.currentCreditRate, elapsedSeconds: timeDelta)
             self.debitInterestIndex = TidalProtocol.compoundInterestIndex(oldIndex: self.debitInterestIndex, perSecondRate: self.currentDebitRate, elapsedSeconds: timeDelta)
             self.lastUpdate = currentTime
@@ -657,7 +657,6 @@ access(all) contract TidalProtocol {
                     // We can reach the target health by paying off some or all of the debt. We can easily
                     // compute how many units of the token would be needed to reach the target health.
                     let healthChange = targetHealth - healthAfterWithdrawal
-                    // let requiredEffectiveDebt = effectiveDebtAfterWithdrawal - effectiveCollateralAfterWithdrawal / targetHealth
                     let requiredEffectiveDebt = effectiveDebtAfterWithdrawal - TidalProtocolUtils.div(
                             effectiveCollateralAfterWithdrawal,
                             TidalProtocolUtils.ufix64ToUInt256(targetHealth, decimals: TidalProtocolUtils.decimals)
@@ -1832,11 +1831,11 @@ access(all) contract TidalProtocol {
 
     /// A multiplication function for interest calculations. It assumes that both values are very close to 1 and
     /// represent fixed point numbers with 18 decimal places of precision.
-    access(all) view fun interestMul(_ a: UInt64, _ b: UInt64): UInt64 {
-        // For 18-decimal precision, we need to divide by e9 (not e8)
+    access(all) view fun interestMul(_ a: UInt256, _ b: UInt256): UInt256 {
+        // For 18-decimal precision, we need to divide by e9
         // This is because: (a/1e9) * (b/1e9) = (a*b)/1e18
-        let aScaled = a / 1_000_000_000  // 10^9
-        let bScaled = b / 1_000_000_000  // 10^9
+        let aScaled = a / TidalProtocolUtils.e9
+        let bScaled = b / TidalProtocolUtils.e9
 
         return aScaled * bScaled
     }
@@ -1852,9 +1851,10 @@ access(all) contract TidalProtocol {
 
     /// Returns the compounded interest index reflecting the passage of time
     /// The result is: newIndex = oldIndex * perSecondRate ^ seconds
-    access(all) view fun compoundInterestIndex(oldIndex: UInt64, perSecondRate: UInt64, elapsedSeconds: UFix64): UInt64 {
+    // access(all) view fun compoundInterestIndex(oldIndex: UInt64, perSecondRate: UInt64, elapsedSeconds: UFix64): UInt64 {
+    access(all) fun compoundInterestIndex(oldIndex: UInt256, perSecondRate: UInt64, elapsedSeconds: UFix64): UInt256 {
         var result = oldIndex
-        var current = perSecondRate
+        var current = UInt256(perSecondRate)
         var secondsCounter = UInt64(elapsedSeconds)
 
         while secondsCounter > 0 {
@@ -1871,21 +1871,27 @@ access(all) contract TidalProtocol {
     /// Transforms the provided `scaledBalance` to a true balance (or actual balance) where the true balance is the
     /// scaledBalance + accrued interest and the scaled balance is the amount a borrower has actually interacted with
     /// (via deposits or withdrawals)
-    access(all) view fun scaledBalanceToTrueBalance(_ scaled: UInt256, interestIndex: UInt64): UInt256 {
-        // The interest index is a fixed point number with 16 decimal places. To maintain precision,
+    access(all) view fun scaledBalanceToTrueBalance(_ scaled: UInt256, interestIndex: UInt256): UInt256 {
+        // The interest index is a fixed point number with 18 decimal places. To maintain precision,
         // we multiply the scaled balance by the interest index and then divide by 10^18 to get the
         // true balance with proper decimal alignment.
-        return (scaled * UInt256(interestIndex)) / TidalProtocolUtils.e18
+        return TidalProtocolUtils.div(
+            TidalProtocolUtils.mul(scaled, interestIndex),
+            TidalProtocolUtils.e18
+        )
     }
 
     /// Transforms the provided `trueBalance` to a scaled balance where the scaled balance is the amount a borrower has
     /// actually interacted with (via deposits or withdrawals) and the true balance is the amount with respect to
     /// accrued interest
-    access(all) view fun trueBalanceToScaledBalance(_ trueBalance: UInt256, interestIndex: UInt64): UInt256 {
-        // The interest index is a fixed point number with 16 decimal places. To maintain precision,
+    access(all) view fun trueBalanceToScaledBalance(_ trueBalance: UInt256, interestIndex: UInt256): UInt256 {
+        // The interest index is a fixed point number with 18 decimal places. To maintain precision,
         // we multiply the true balance by 10^18 and then divide by the interest index to get the
         // scaled balance with proper decimal alignment.
-        return (trueBalance * TidalProtocolUtils.e18) / UInt256(interestIndex)
+        return TidalProtocolUtils.div(
+            TidalProtocolUtils.mul(trueBalance, TidalProtocolUtils.e18),
+            interestIndex
+        )
     }
 
     /* --- INTERNAL METHODS --- */
