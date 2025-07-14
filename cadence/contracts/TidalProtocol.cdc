@@ -883,7 +883,7 @@ access(all) contract TidalProtocol {
 
                 // Does drawing down all of the collateral go below the target health? Then the max withdrawal comes from collateral only.
                 if potentialHealth <= targetHealth {
-                    // We will hit the healthV target before using up all of the withdraw token credit. We can easily
+                    // We will hit the health target before using up all of the withdraw token credit. We can easily
                     // compute how many units of the token would bring the position down to the target health.
                     let availableHealth = (healthAfterAdjustment == UFix64.max) ? UFix64.max : healthAfterAdjustment - targetHealth
                     let availableEffectiveValue = (effectiveDebt == 0.0 || availableHealth == UFix64.max)
