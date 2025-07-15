@@ -918,7 +918,7 @@ access(all) contract TidalProtocol {
                     // compute how many units of the token would bring the position down to the target health.
                     let availableHealth = (healthAfterDeposit == UFix64.max) ? UFix64.max : healthAfterDeposit - targetHealth
                     let uintAvailableHealth = TidalProtocolUtils.ufix64ToUInt256(availableHealth, decimals: TidalProtocolUtils.decimals)
-                    let availableEffectiveValue = (effectiveDebtAfterDepositlet potentialHealth = TidalProtocol.healthComputation( == 0.0 || availableHealth == UFix64.max)
+                    let availableEffectiveValue = (effectiveDebtAfterDeposit == 0 || availableHealth == UFix64.max)
                         ? effectiveCollateralAfterDeposit
                         : TidalProtocolUtils.mul(uintAvailableHealth, effectiveDebtAfterDeposit)
                     log("    [CONTRACT] availableHealth: \(availableHealth)")
