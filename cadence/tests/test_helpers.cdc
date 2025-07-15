@@ -1,110 +1,305 @@
 import Test
 import "TidalProtocol"
-import "FungibleToken"
-import "ViewResolver"
+
+access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
+access(all) let defaultVariance = 0.00000001
+
+/* --- Test execution helpers --- */
+
+access(all)
+fun _executeScript(_ path: String, _ args: [AnyStruct]): Test.ScriptResult {
+    return Test.executeScript(Test.readFile(path), args)
+}
+
+access(all)
+fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.TestAccount): Test.TransactionResult {
+    let txn = Test.Transaction(
+        code: Test.readFile(path),
+        authorizers: [signer.address],
+        signers: [signer],
+        arguments: args
+    )    
+    return Test.executeTransaction(txn)
+}
+
+/* --- Setup helpers --- */
 
 // Common test setup function that deploys all required contracts
-access(all) fun deployContracts() {
-    // Deploy DFB first since TidalProtocol imports it
+access(all)
+fun deployContracts() {
     var err = Test.deployContract(
+        name: "DFBUtils",
+        path: "../../DeFiBlocks/cadence/contracts/utils/DFBUtils.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+    err = Test.deployContract(
         name: "DFB",
         path: "../../DeFiBlocks/cadence/contracts/interfaces/DFB.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
     
-    // Deploy TidalProtocol
+    let initialSupply = 0.0
+    err = Test.deployContract(
+        name: "MOET",
+        path: "../contracts/MOET.cdc",
+        arguments: [initialSupply]
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "TidalProtocolUtils",
+        path: "../contracts/TidalProtocolUtils.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
     err = Test.deployContract(
         name: "TidalProtocol",
         path: "../contracts/TidalProtocol.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
+    
+    // Deploy MockTidalProtocolConsumer
+    err = Test.deployContract(
+        name: "MockTidalProtocolConsumer",
+        path: "../contracts/mocks/MockTidalProtocolConsumer.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "MockOracle",
+        path: "../contracts/mocks/MockOracle.cdc",
+        arguments: [defaultTokenIdentifier]
+    )
+    Test.expect(err, Test.beNil())
+
+    let initialYieldTokenSupply = 0.0
+    err = Test.deployContract(
+        name: "MockYieldToken",
+        path: "../contracts/mocks/MockYieldToken.cdc",
+        arguments: [initialYieldTokenSupply]
+    )
+    Test.expect(err, Test.beNil())
+    
+    // Deploy FungibleTokenStack
+    err = Test.deployContract(
+        name: "FungibleTokenStack",
+        path: "../../DeFiBlocks/cadence/contracts/connectors/FungibleTokenStack.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 }
 
-// Helper to create a test account
-access(all) fun createTestAccount(): Test.TestAccount {
-    let account = Test.createAccount()
-    
-    // TODO: Set up FlowToken vault in the account
-    // This will be needed when we fully integrate with FlowToken
-    
-    return account
+/* --- Script Helpers --- */
+
+access(all)
+fun getBalance(address: Address, vaultPublicPath: PublicPath): UFix64? {
+    let res = _executeScript("../scripts/tokens/get_balance.cdc", [address, vaultPublicPath])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64?
 }
 
-// Helper to get the deployed TidalProtocol address
-access(all) fun getTidalProtocolAddress(): Address {
-    return 0x0000000000000007
+access(all)
+fun getReserveBalance(vaultIdentifier: String): UFix64 {
+    let res = _executeScript("../scripts/tidal-protocol/get_reserve_balance_for_type.cdc", [vaultIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
 }
 
-// ADDED: Function to mint FLOW tokens from the service account
-// This replaces createTestVault() to use real FLOW tokens
-access(all) fun mintFlow(_ amount: UFix64): @MockVault {
-    // Get the service account which has minting capability
-    let serviceAccount = Test.serviceAccount()
-    
-    // TODO: Implement proper FLOW minting from service account
-    // For now, we'll use MockVault for testing
-    panic("Real FLOW minting not implemented yet - use createTestVault for now")
+access(all)
+fun getAvailableBalance(pid: UInt64, vaultIdentifier: String, pullFromTopUpSource: Bool, beFailed: Bool): UFix64 {
+    let res = _executeScript("../scripts/tidal-protocol/get_available_balance.cdc",
+            [pid, vaultIdentifier, pullFromTopUpSource]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.status == Test.ResultStatus.failed ? 0.0 : res.returnValue as! UFix64
 }
 
-// CHANGE: Create a mock vault for testing since we can't create FlowToken vaults directly
-access(all) resource MockVault: FungibleToken.Vault {
-    access(all) var balance: UFix64
-    
-    access(all) fun deposit(from: @{FungibleToken.Vault}) {
-        let vault <- from as! @MockVault
-        self.balance = self.balance + vault.balance
-        vault.balance = 0.0
-        destroy vault
-    }
-    
-    access(FungibleToken.Withdraw) fun withdraw(amount: UFix64): @{FungibleToken.Vault} {
-        self.balance = self.balance - amount
-        return <- create MockVault(balance: amount)
-    }
-    
-    access(all) view fun isAvailableToWithdraw(amount: UFix64): Bool {
-        return self.balance >= amount
-    }
-    
-    access(all) fun createEmptyVault(): @{FungibleToken.Vault} {
-        return <- create MockVault(balance: 0.0)
-    }
-    
-    // ViewResolver conformance
-    access(all) view fun getViews(): [Type] {
-        return []
-    }
-    
-    access(all) fun resolveView(_ view: Type): AnyStruct? {
-        return nil
-    }
-    
-    init(balance: UFix64) {
-        self.balance = balance
-    }
+access(all)
+fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix64 {
+    let res = _executeScript("../scripts/tidal-protocol/position_health.cdc",
+            [pid]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.status == Test.ResultStatus.failed ? 0.0 : res.returnValue as! UFix64
 }
 
-// CHANGE: Helper to create test vaults
-access(all) fun createTestVault(balance: UFix64): @MockVault {
-    return <- create MockVault(balance: balance)
+access(all)
+fun getPositionDetails(pid: UInt64, beFailed: Bool): TidalProtocol.PositionDetails {
+    let res = _executeScript("../scripts/tidal-protocol/position_details.cdc",
+            [pid]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! TidalProtocol.PositionDetails
 }
 
-// CHANGE: Helper to create test pools with MockVault as default token
-access(all) fun createTestPool(defaultTokenThreshold: UFix64): @TidalProtocol.Pool {
-    return <- TidalProtocol.createPool(
-        defaultToken: Type<@MockVault>(),
-        defaultTokenThreshold: defaultTokenThreshold
+access(all)
+fun poolExists(address: Address): Bool {
+    let res = _executeScript("../scripts/tidal-protocol/pool_exists.cdc", [address])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! Bool
+}
+
+access(all)
+fun fundsAvailableAboveTargetHealthAfterDepositing(
+    pid: UInt64,
+    withdrawType: String,
+    targetHealth: UFix64,
+    depositType: String,
+    depositAmount: UFix64,
+    beFailed: Bool
+): UFix64 {
+    let res = _executeScript("../scripts/tidal-protocol/funds_avail_above_target_health_after_deposit.cdc",
+            [pid, withdrawType, targetHealth, depositType, depositAmount]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun fundsRequiredForTargetHealthAfterWithdrawing(
+    pid: UInt64,
+    depositType: String,
+    targetHealth: UFix64,
+    withdrawType: String,
+    withdrawAmount: UFix64,
+    beFailed: Bool
+): UFix64 {
+    let res = _executeScript("../scripts/tidal-protocol/funds_req_for_target_health_after_withdraw.cdc",
+            [pid, depositType, targetHealth, withdrawType, withdrawAmount]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+/* --- Transaction Helpers --- */
+
+access(all)
+fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String, beFailed: Bool) {
+    let createRes = _executeTransaction(
+        "../transactions/tidal-protocol/pool-factory/create_and_store_pool.cdc",
+        [defaultTokenIdentifier],
+        signer
+    )
+    Test.expect(createRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, price: UFix64) {
+    let setRes = _executeTransaction(
+        "./transactions/mock-oracle/set_price.cdc",
+        [forTokenIdentifier, price],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun addSupportedTokenSimpleInterestCurve(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    collateralFactor: UFix64,
+    borrowFactor: UFix64,
+    depositRate: UFix64,
+    depositCapacityCap: UFix64
+) {
+    let additionRes = _executeTransaction(
+        "../transactions/tidal-protocol/pool-governance/add_supported_token_simple_interest_curve.cdc",
+        [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
+        signer
+    )
+    Test.expect(additionRes, Test.beSucceeded())
+}
+
+access(all)
+fun addSupportedTokenSimpleInterestCurveWithResult(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    collateralFactor: UFix64,
+    borrowFactor: UFix64,
+    depositRate: UFix64,
+    depositCapacityCap: UFix64
+): Test.TransactionResult {
+    return _executeTransaction(
+        "../transactions/tidal-protocol/pool-governance/add_supported_token_simple_interest_curve.cdc",
+        [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
+        signer
     )
 }
 
-// CHANGE: Helper to create test pools with initial balance
-access(all) fun createTestPoolWithBalance(defaultTokenThreshold: UFix64, initialBalance: UFix64): @TidalProtocol.Pool {
-    var pool <- createTestPool(defaultTokenThreshold: defaultTokenThreshold)
-    let poolRef = &pool as auth(TidalProtocol.EPosition) &TidalProtocol.Pool
-    let pid = poolRef.createPosition()
-    let vault <- createTestVault(balance: initialBalance)
-    poolRef.deposit(pid: pid, funds: <- vault)
-    return <- pool
-} 
+access(all)
+fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFailed: Bool) {
+    let rebalanceRes = _executeTransaction(
+        "../transactions/tidal-protocol/pool-management/rebalance_position.cdc",
+        [ pid, force ],
+        signer
+    )
+    Test.expect(rebalanceRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun setupMoetVault(_ signer: Test.TestAccount, beFailed: Bool) {
+    let setupRes = _executeTransaction("../transactions/moet/setup_vault.cdc", [], signer)
+    Test.expect(setupRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun mintMoet(signer: Test.TestAccount, to: Address, amount: UFix64, beFailed: Bool) {
+    let mintRes = _executeTransaction("../transactions/moet/mint_moet.cdc", [to, amount], signer)
+    Test.expect(mintRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+
+// Transfer Flow tokens from service account to recipient
+access(all)
+fun transferFlowTokens(to: Test.TestAccount, amount: UFix64) {
+    let transferTx = Test.Transaction(
+        code: Test.readFile("../transactions/flowtoken/transfer_flowtoken.cdc"),
+        authorizers: [Test.serviceAccount().address],
+        signers: [Test.serviceAccount()],
+        arguments: [to.address, amount]
+    )
+    let res = Test.executeTransaction(transferTx)
+    Test.expect(res, Test.beSucceeded())
+}
+
+
+access(all)
+fun expectEvents(eventType: Type, expectedCount: Int) {
+    let events = Test.eventsOfType(eventType)
+    Test.assertEqual(expectedCount, events.length)
+}
+
+access(all)
+fun withdrawReserve(
+    signer: Test.TestAccount,
+    poolAddress: Address,
+    tokenTypeIdentifier: String,
+    amount: UFix64,
+    recipient: Address,
+    beFailed: Bool
+) {
+    let txRes = _executeTransaction(
+        "../transactions/tidal-protocol/pool-governance/withdraw_reserve.cdc",
+        [poolAddress, tokenTypeIdentifier, amount, recipient],
+        signer
+    )
+    Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+/* --- Assertion Helpers --- */
+
+access(all) fun equalWithinVariance(_ expected: UFix64, _ actual: UFix64, plusMinus: UFix64?): Bool {
+    let _variance = plusMinus ?? defaultVariance
+    if expected == actual {
+        return true
+    } else if expected == actual + _variance {
+        return true
+    } else if actual >= defaultVariance { // protect underflow
+        return expected == actual - defaultVariance
+    }
+    return false
+}
