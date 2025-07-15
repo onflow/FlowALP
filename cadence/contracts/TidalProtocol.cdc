@@ -797,15 +797,11 @@ access(all) contract TidalProtocol {
                 depositAmount: depositAmount
             )
 
-            let effectiveCollateralAfterDeposit = adjusted.collateral
-            let effectiveDebtAfterDeposit = adjusted.debt
-            log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
-            log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
             return self.computeAvailableWithdrawal(
                 position: position,
                 withdrawType: withdrawType,
-                effectiveCollateral: effectiveCollateralAfterDeposit,
-                effectiveDebt: effectiveDebtAfterDeposit,
+                effectiveCollateral: adjusted.collateral,
+                effectiveDebt: adjusted.debt,
                 targetHealth: targetHealth
             )
         }
@@ -911,6 +907,7 @@ access(all) contract TidalProtocol {
 
                 // Check what the new health would be if we took out all of this collateral
                 let potentialHealth = TidalProtocol.healthComputation(
+                    effectiveCollateral: effectiveCollateralAfterDeposit - collateralEffectiveValue, // ??? - why subtract?
                     effectiveDebt: effectiveDebtAfterDeposit
                 )
 
@@ -921,7 +918,7 @@ access(all) contract TidalProtocol {
                     // compute how many units of the token would bring the position down to the target health.
                     let availableHealth = (healthAfterDeposit == UFix64.max) ? UFix64.max : healthAfterDeposit - targetHealth
                     let uintAvailableHealth = TidalProtocolUtils.ufix64ToUInt256(availableHealth, decimals: TidalProtocolUtils.decimals)
-                    let availableEffectiveValue = (effectiveDebt == 0.0 || availableHealth == UFix64.max)
+                    let availableEffectiveValue = (effectiveDebtAfterDepositlet potentialHealth = TidalProtocol.healthComputation( == 0.0 || availableHealth == UFix64.max)
                         ? effectiveCollateralAfterDeposit
                         : TidalProtocolUtils.mul(uintAvailableHealth, effectiveDebtAfterDeposit)
                     log("    [CONTRACT] availableHealth: \(availableHealth)")
