@@ -861,6 +861,9 @@ access(all) contract TidalProtocol {
             log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
             log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
 
+            // We now have new effective collateral and debt values that reflect the proposed deposit (if any!)
+            // Now we can figure out how many of the withdrawal token are available while keeping the position
+            // at or above the target health value.
             return AdjustedBalances(collateral: effectiveCollateralAfterDeposit, debt: effectiveDebtAfterDeposit)
         }
 
