@@ -282,7 +282,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
 
     log("..............................")
     var depositAmount = 0.0
-    var expectedAvailable = expectedAvailableAboveTarget + (depositAmount * flowCollateralFactor / targetHealth * flowBorrowFactor) * newPrice
+    // var expectedAvailable = expectedAvailableAboveTarget + (depositAmount * flowCollateralFactor / targetHealth * flowBorrowFactor) * newPrice
+    var expectedAvailable = (positionFundingAmount + depositAmount) * newPrice * flowCollateralFactor / targetHealth * flowBorrowFactor
     var actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
             withdrawType: moetTokenIdentifier,
@@ -294,31 +295,11 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     log("[TEST] Depositing: \(depositAmount)")
     log("[TEST] Expected Available: \(expectedAvailable)")
     log("[TEST] Actual Available: \(actualAvailable)")
+    // getting error here -  expected: 76.92307692, actual: 61.53846153
     Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil),
         message: "Values are not equal within variance - expected: \(expectedAvailable), actual: \(actualAvailable)")
 
     log("..............................")
-
-    // ------ TRIAGE START - RECREATE PROBLEM CASE ------
-
-    let recollateralizeAmount = positionFundingAmount
-    mintFlow(to: userAccount, amount: recollateralizeAmount)
-    log("[TRIAGE] Adding \(recollateralizeAmount) FLOW to position")
-    let depositRes: Test.TransactionResult = executeTransaction(
-        "./transactions/mock-tidal-protocol-consumer/deposit_to_wrapped_position.cdc",
-        [recollateralizeAmount, flowVaultStoragePath, true],
-        userAccount
-    )
-    Test.expect(depositRes, Test.beSucceeded())
-
-    log("[TRIAGE] Getting position's available balance")
-    var availableBalance = getAvailableBalance(pid: positionID, vaultIdentifier: flowTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
-    log("[TRIAGE] Available balance before Position rebalance: \(availableBalance)")
-    rebalancePosition(signer: protocolAccount, pid: positionID, force: true, beFailed: false)
-    availableBalance = getAvailableBalance(pid: positionID, vaultIdentifier: flowTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
-    log("[TRIAGE] Available balance after Position rebalance: \(availableBalance)")
-
-    // ------ TRIAGE END ------
 
     depositAmount = 100.0
     expectedAvailable = expectedAvailableAboveTarget + (depositAmount * flowCollateralFactor / targetHealth * flowBorrowFactor) * newPrice
@@ -333,15 +314,15 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     log("[TEST] Depositing: \(depositAmount)")
     log("[TEST] Expected Available: \(expectedAvailable)")
     log("[TEST] Actual Available: \(actualAvailable)")
-    // Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil),
-    //     message: "Values are not equal within variance - expected: \(expectedAvailable), actual: \(actualAvailable)")
+    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, plusMinus: nil),
+        message: "Values are not equal within variance - expected: \(expectedAvailable), actual: \(actualAvailable)")
 
     log("==============================")
 }
 
 // TODO
 // - Test deposit & withdraw same type
-// - Test depositing withdraw type without pushing to sink, creating a Credit balance before testing`
+// - Test depositing withdraw type without pushing to sink, creating a Credit balance before testing
 
 /* --- Parameterized runner --- */
 
