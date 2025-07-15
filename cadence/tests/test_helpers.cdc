@@ -119,12 +119,12 @@ fun getAvailableBalance(pid: UInt64, vaultIdentifier: String, pullFromTopUpSourc
 }
 
 access(all)
-fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix64 {
+fun getPositionHealth(pid: UInt64, beFailed: Bool): UInt256 {
     let res = _executeScript("../scripts/tidal-protocol/position_health.cdc",
             [pid]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-    return res.status == Test.ResultStatus.failed ? 0.0 : res.returnValue as! UFix64
+    return res.status == Test.ResultStatus.failed ? 0 : res.returnValue as! UInt256
 }
 
 access(all)

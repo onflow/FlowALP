@@ -23,7 +23,7 @@ access(all) contract TidalProtocol {
     access(all) event Opened(pid: UInt64, poolUUID: UInt64)
     access(all) event Deposited(pid: UInt64, poolUUID: UInt64, type: String, amount: UFix64, depositedUUID: UInt64)
     access(all) event Withdrawn(pid: UInt64, poolUUID: UInt64, type: String, amount: UFix64, withdrawnUUID: UInt64)
-    access(all) event Rebalanced(pid: UInt64, poolUUID: UInt64, atHealth: UFix64, amount: UFix64, fromUnder: Bool)
+    access(all) event Rebalanced(pid: UInt64, poolUUID: UInt64, atHealth: UInt256, amount: UFix64, fromUnder: Bool)
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
@@ -160,7 +160,7 @@ access(all) contract TidalProtocol {
         /// A position's withdrawn value based on withdrawals against the Pool's collateral and borrow factors
         access(all) let effectiveDebt: UInt256
         /// The health of the related position
-        access(all) let health: UFix64
+        access(all) let health: UInt256
 
         init(effectiveCollateral: UInt256, effectiveDebt: UInt256) {
             self.effectiveCollateral = effectiveCollateral
@@ -207,6 +207,15 @@ access(all) contract TidalProtocol {
             self.topUpSource = nil
         }
 
+        access(all) view fun intMinHealth(): UInt256 {
+            return TidalProtocolUtils.ufix64ToUInt256(self.minHealth, decimals: TidalProtocolUtils.decimals)
+        }
+        access(all) view fun intMaxHealth(): UInt256 {
+            return TidalProtocolUtils.ufix64ToUInt256(self.maxHealth, decimals: TidalProtocolUtils.decimals)
+        }
+        access(all) view fun intTargetHealth(): UInt256 {
+            return TidalProtocolUtils.ufix64ToUInt256(self.targetHealth, decimals: TidalProtocolUtils.decimals)
+        }
         /// Sets the InternalPosition's drawDownSink. If `nil`, the Pool will not be able to push overflown value when
         /// the position exceeds its maximum health. Note, if a non-nil value is provided, the Sink MUST accept MOET
         /// deposits or the operation will revert.
@@ -474,7 +483,7 @@ access(all) contract TidalProtocol {
         /// Returns the health of the given position, which is the ratio of the position's effective collateral to its
         /// debt as denominated in the Pool's default token. "Effective collateral" means the value of each credit balance
         /// times the liquidation threshold for that token. i.e. the maximum borrowable amount
-        access(all) fun positionHealth(pid: UInt64): UFix64 {
+        access(all) fun positionHealth(pid: UInt64): UInt256 {
             let position = self._borrowPosition(pid: pid)
 
             // Get the position's collateral and debt values in terms of the default token.
@@ -617,7 +626,8 @@ access(all) contract TidalProtocol {
                 effectiveDebt: effectiveDebtAfterWithdrawal
             )
 
-            if healthAfterWithdrawal >= targetHealth {
+            let uintTargetHealth = TidalProtocolUtils.ufix64ToUInt256(targetHealth, decimals: TidalProtocolUtils.decimals)
+            if healthAfterWithdrawal >= uintTargetHealth {
                 // The position is already at or above the target health, so we don't need to deposit anything.
                 return 0.0
             }
@@ -653,10 +663,10 @@ access(all) contract TidalProtocol {
                 )
 
                 // Does paying off all of the debt reach the target health? Then we're done.
-                if potentialHealth >= targetHealth {
+                if potentialHealth >= uintTargetHealth {
                     // We can reach the target health by paying off some or all of the debt. We can easily
                     // compute how many units of the token would be needed to reach the target health.
-                    let healthChange = targetHealth - healthAfterWithdrawal
+                    let healthChange = uintTargetHealth - healthAfterWithdrawal
                     let requiredEffectiveDebt = effectiveDebtAfterWithdrawal - TidalProtocolUtils.div(
                             effectiveCollateralAfterWithdrawal,
                             TidalProtocolUtils.ufix64ToUInt256(targetHealth, decimals: TidalProtocolUtils.decimals)
@@ -697,7 +707,7 @@ access(all) contract TidalProtocol {
 
             // We need to increase the effective collateral from its current value to the required value, so we
             // multiply the required health change by the effective debt, and turn that into a token amount.
-            let uintHealthChange = TidalProtocolUtils.ufix64ToUInt256(targetHealth - healthAfterWithdrawal, decimals: TidalProtocolUtils.decimals)
+            let uintHealthChange = uintTargetHealth - healthAfterWithdrawal
             let requiredEffectiveCollateral = TidalProtocolUtils.mul(uintHealthChange, effectiveDebtAfterWithdrawal)
 
             // The amount of the token to deposit, in units of the token.
@@ -792,7 +802,8 @@ access(all) contract TidalProtocol {
             )
             log("    [CONTRACT] healthAfterDeposit: \(healthAfterDeposit)")
 
-            if healthAfterDeposit <= targetHealth {
+            let uintTargetHealth = TidalProtocolUtils.ufix64ToUInt256(targetHealth, decimals: TidalProtocolUtils.decimals)
+            if healthAfterDeposit <= uintTargetHealth {
                 // The position is already at or below the provided target health, so we can't withdraw anything.
                 return 0.0
             }
@@ -822,14 +833,13 @@ access(all) contract TidalProtocol {
 
 
                 // Does drawing down all of the collateral go below the target health? Then the max withdrawal comes from collateral only.
-                if potentialHealth <= targetHealth {
+                if potentialHealth <= uintTargetHealth {
                     // We will hit the health target before using up all of the withdraw token credit. We can easily
                     // compute how many units of the token would bring the position down to the target health.
-                    let availableHealth = healthAfterDeposit == UFix64.max ? UFix64.max : healthAfterDeposit - targetHealth
-                    let uintAvailableHealth = TidalProtocolUtils.ufix64ToUInt256(availableHealth, decimals: TidalProtocolUtils.decimals)
-                    let availableEffectiveValue = (effectiveDebtAfterDeposit == 0 || availableHealth == UFix64.max)
+                    let availableHealth = healthAfterDeposit == UInt256.max ? UInt256.max : healthAfterDeposit - uintTargetHealth
+                    let availableEffectiveValue = (effectiveDebtAfterDeposit == 0 || availableHealth == UInt256.max)
                         ? effectiveCollateralAfterDeposit
-                        : TidalProtocolUtils.mul(uintAvailableHealth, effectiveDebtAfterDeposit)
+                        : TidalProtocolUtils.mul(availableHealth, effectiveDebtAfterDeposit)
                     log("    [CONTRACT] availableHealth: \(availableHealth)")
                     log("    [CONTRACT] availableEffectiveValue: \(availableEffectiveValue)")
 
@@ -863,7 +873,6 @@ access(all) contract TidalProtocol {
             // token, or we've accounted for the credit balance and adjusted the effective collateral above.
 
             // We can calculate the available debt increase that would bring us to the target health
-            let uintTargetHealth = TidalProtocolUtils.ufix64ToUInt256(targetHealth, decimals: TidalProtocolUtils.decimals)
             var availableDebtIncrease = TidalProtocolUtils.div(effectiveCollateralAfterDeposit, uintTargetHealth) - effectiveDebtAfterDeposit
             let availableTokens = TidalProtocolUtils.div(TidalProtocolUtils.mul(availableDebtIncrease, uintWithdrawBorrowFactor), uintWithdrawPrice)
             log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
@@ -873,7 +882,7 @@ access(all) contract TidalProtocol {
         }
 
         /// Returns the position's health if the given amount of the specified token were deposited
-        access(all) fun healthAfterDeposit(pid: UInt64, type: Type, amount: UFix64): UFix64 {
+        access(all) fun healthAfterDeposit(pid: UInt64, type: Type, amount: UFix64): UInt256 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: type)
@@ -926,7 +935,7 @@ access(all) contract TidalProtocol {
         // using the top up source.
         // NOTE: This method can return health values below 1.0, which aren't actually allowed. This indicates
         // that the proposed withdrawal would fail (unless a top up source is available and used).
-        access(all) fun healthAfterWithdrawal(pid: UInt64, type: Type, amount: UFix64): UFix64 {
+        access(all) fun healthAfterWithdrawal(pid: UInt64, type: Type, amount: UFix64): UInt256 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: type)
@@ -1197,9 +1206,9 @@ access(all) contract TidalProtocol {
             let uintAmount = TidalProtocolUtils.ufix64ToUInt256(amount, decimals: TidalProtocolUtils.decimals)
             position.balances[type]!.recordWithdrawal(amount: uintAmount, tokenState: tokenState)
             log(self.positionHealth(pid: pid))
-            if self.positionHealth(pid: pid) != 0.0 {
+            if self.positionHealth(pid: pid) != 0 {
                 // Ensure that this withdrawal doesn't cause the position to be overdrawn.
-                assert(self.positionHealth(pid: pid) >= 1.0, message: "Position is overdrawn")
+                assert(position.intMinHealth() <= self.positionHealth(pid: pid), message: "Position is overdrawn")
             }
 
             // Queue for update if necessary
@@ -1274,12 +1283,12 @@ access(all) contract TidalProtocol {
             let position = self._borrowPosition(pid: pid)
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
 
-            if !force && (balanceSheet.health >= position.minHealth && balanceSheet.health <= position.maxHealth) {
+            if !force && (position.intMinHealth() <= balanceSheet.health  && balanceSheet.health <= position.intMaxHealth()) {
                 // We aren't forcing the update, and the position is already between its desired min and max. Nothing to do!
                 return
             }
 
-            if balanceSheet.health < position.targetHealth {
+            if balanceSheet.health < position.intTargetHealth() {
                 // The position is undercollateralized, see if the source can get more collateral to bring it up to the target health.
                 if position.topUpSource != nil {
                     let topUpSource = position.topUpSource! as auth(FungibleToken.Withdraw) &{DFB.Source}
@@ -1296,7 +1305,7 @@ access(all) contract TidalProtocol {
 
                     self.depositAndPush(pid: pid, from: <-pulledVault, pushToDrawDownSink: false)
                 }
-            } else if balanceSheet.health > position.targetHealth {
+            } else if balanceSheet.health > position.intTargetHealth() {
                 // The position is overcollateralized, we'll withdraw funds to match the target health and offer it to the sink.
                 if position.drawDownSink != nil {
                     let drawDownSink = position.drawDownSink!
@@ -1412,7 +1421,7 @@ access(all) contract TidalProtocol {
 
                 let positionHealth = self.positionHealth(pid: pid)
 
-                if positionHealth < position.minHealth || positionHealth > position.maxHealth {
+                if positionHealth < position.intMinHealth() || positionHealth > position.intMaxHealth() {
                     // This position is outside the configured health bounds, we queue it for an update
                     self.positionsNeedingUpdates.append(pid)
                     return
@@ -1529,7 +1538,7 @@ access(all) contract TidalProtocol {
             return pool.availableBalance(pid: self.id, type: type, pullFromTopUpSource: pullFromTopUpSource)
         }
         /// Returns the current health of the position
-        access(all) fun getHealth(): UFix64 {
+        access(all) fun getHealth(): UInt256 {
             let pool = self.pool.borrow()!
             return pool.positionHealth(pid: self.id)
         }
@@ -1780,9 +1789,9 @@ access(all) contract TidalProtocol {
         /// The available balance of the Pool's default token Type
         access(all) let defaultTokenAvailableBalance: UFix64
         /// The current health of the related position
-        access(all) let health: UFix64
+        access(all) let health: UInt256
 
-        init(balances: [PositionBalance], poolDefaultToken: Type, defaultTokenAvailableBalance: UFix64, health: UFix64) {
+        init(balances: [PositionBalance], poolDefaultToken: Type, defaultTokenAvailableBalance: UFix64, health: UInt256) {
             self.balances = balances
             self.poolDefaultToken = poolDefaultToken
             self.defaultTokenAvailableBalance = defaultTokenAvailableBalance
@@ -1825,17 +1834,16 @@ access(all) contract TidalProtocol {
 
     /// Returns a health value computed from the provided effective collateral and debt values where health is a ratio
     /// of effective collateral over effective debt
-    access(all) view fun healthComputation(effectiveCollateral: UInt256, effectiveDebt: UInt256): UFix64 {
+    access(all) view fun healthComputation(effectiveCollateral: UInt256, effectiveDebt: UInt256): UInt256 {
         if effectiveCollateral == 0 {
-            return 0.0
+            return 0
         } else if effectiveDebt == 0 || TidalProtocolUtils.div(effectiveDebt, effectiveCollateral) == 0 {
             // If debt is so small relative to collateral that division rounds to zero,
             // the health is essentially infinite
-            return UFix64.max
+            return UInt256.max
         }
         // TODO: return this value after refactoring health to UInt256
-        let uintHealth = TidalProtocolUtils.div(effectiveCollateral, effectiveDebt)
-        return TidalProtocolUtils.uint256ToUFix64(uintHealth, decimals: TidalProtocolUtils.decimals)
+        return TidalProtocolUtils.div(effectiveCollateral, effectiveDebt)
     }
 
     /// A multiplication function for interest calculations. It assumes that both values are very close to 1 and
