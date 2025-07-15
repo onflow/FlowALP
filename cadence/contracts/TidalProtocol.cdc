@@ -841,14 +841,21 @@ access(all) contract TidalProtocol {
                     return TidalProtocolUtils.uint256ToUFix64(availableTokenCount, decimals: TidalProtocolUtils.decimals)
                 } else {
                     // We can flip this credit position into a debit position, before hitting the target health.
-                    // We have logic below that can determine health changes for debit positions. Rather than copy that here,
-                    // fall through into it. But first we have to record the amount of tokens that are available as collateral
-                    // and then adjust the effective collateral to reflect that it has come out
+                    // We have logic below that can determine health changes for debit positions. We've copied it here
+                    // with an added handling for the case where the health after deposit is an edgecase
                     collateralTokenCount = trueCredit
                     effectiveCollateralAfterDeposit = effectiveCollateralAfterDeposit - collateralEffectiveValue
                     log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
                     log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
-                    // NOTE: The above invalidates the healthAfterDeposit value, but it's not used below...
+
+                    // We can calculate the available debt increase that would bring us to the target health
+                    let uintTargetHealth = TidalProtocolUtils.ufix64ToUInt256(targetHealth, decimals: TidalProtocolUtils.decimals)
+                    var availableDebtIncrease = TidalProtocolUtils.div(effectiveCollateralAfterDeposit, uintTargetHealth) - effectiveDebtAfterDeposit
+                    let availableTokens = TidalProtocolUtils.div(TidalProtocolUtils.mul(availableDebtIncrease, uintWithdrawBorrowFactor), uintWithdrawPrice)
+                    log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
+                    log("    [CONTRACT] availableTokens: \(availableTokens)")
+                    log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
+                    return TidalProtocolUtils.uint256ToUFix64(availableTokens + collateralTokenCount, decimals: TidalProtocolUtils.decimals)
                 }
             }
 
