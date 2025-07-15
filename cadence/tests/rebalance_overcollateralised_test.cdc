@@ -64,7 +64,7 @@ fun testRebalanceOvercollateralised() {
     let healthAfterPriceChange = getPositionHealth(pid: 0, beFailed: false)
 
     // After a 20% price increase, health should be at least 1.5 (=960/615.38)
-    Test.assert(healthAfterPriceChange >= 1.5,
+    Test.assert(healthAfterPriceChange >= intMaxHealth,
         message: "Expected health after price increase to be >= 1.5 but got ".concat(healthAfterPriceChange.toString()))
 
     rebalancePosition(signer: protocolAccount, pid: 0, force: true, beFailed: false)

@@ -4,7 +4,7 @@ access(all)
 fun main(
     pid: UInt64,
     withdrawType: String,
-    targetHealth: UFix64,
+    targetHealth: UInt256,
     depositType: String,
     depositAmount: UFix64
 ): UFix64 {
