@@ -563,6 +563,7 @@ access(all) contract TidalProtocol {
             withdrawType: Type,
             withdrawAmount: UFix64
         ): UFix64 {
+            log("    [CONTRACT] fundsRequiredForTargetHealthAfterWithdrawing(pid: \(pid), depositType: \(depositType.contractName!), targetHealth: \(targetHealth), withdrawType: \(withdrawType.contractName!), withdrawAmount: \(withdrawAmount))")
             if depositType == withdrawType && withdrawAmount > 0.0 {
                 // If the deposit and withdrawal types are the same, we compute the required deposit assuming
                 // no withdrawal (which is less work) and increase that by the withdraw amount at the end
@@ -574,6 +575,9 @@ access(all) contract TidalProtocol {
 
             var effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral
             var effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt
+
+            log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
+            log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
 
             let uintWithdrawAmount = TidalProtocolUtils.ufix64ToUInt256(withdrawAmount, decimals: TidalProtocolUtils.decimals)
             let uintWithdrawPrice = TidalProtocolUtils.ufix64ToUInt256(self.priceOracle.price(ofToken: withdrawType)!, decimals: TidalProtocolUtils.decimals)
@@ -608,6 +612,8 @@ access(all) contract TidalProtocol {
                     }
                 }
             }
+            log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
+            log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
 
             // We now have new effective collateral and debt values that reflect the proposed withdrawal (if any!)
             // Now we can figure out how many of the given token would need to be deposited to bring the position
@@ -616,6 +622,7 @@ access(all) contract TidalProtocol {
                 effectiveCollateral: effectiveCollateralAfterWithdrawal,
                 effectiveDebt: effectiveDebtAfterWithdrawal
             )
+            log("    [CONTRACT] healthAfterWithdrawal: \(healthAfterWithdrawal)")
 
             // let uintTargetHealth = TidalProtocolUtils.ufix64ToUInt256(targetHealth, decimals: TidalProtocolUtils.decimals)
             if healthAfterWithdrawal >= targetHealth {
@@ -626,8 +633,8 @@ access(all) contract TidalProtocol {
             // For situations where the required deposit will BOTH pay off debt and accumulate collateral, we keep
             // track of the number of tokens that went towards paying off debt.
             var debtTokenCount: UInt256 = 0
-            let uintDepositPrice = TidalProtocolUtils.ufix64ToUInt256(self.priceOracle.price(ofToken: withdrawType)!, decimals: TidalProtocolUtils.decimals)
-            let uintDepositBorrowFactor = TidalProtocolUtils.ufix64ToUInt256(self.borrowFactor[withdrawType]!, decimals: TidalProtocolUtils.decimals)
+            let uintDepositPrice = TidalProtocolUtils.ufix64ToUInt256(self.priceOracle.price(ofToken: depositType)!, decimals: TidalProtocolUtils.decimals)
+            let uintDepositBorrowFactor = TidalProtocolUtils.ufix64ToUInt256(self.borrowFactor[depositType]!, decimals: TidalProtocolUtils.decimals)
             if position.balances[depositType] != nil && position.balances[depositType]!.direction == BalanceDirection.Debit {
                 // The user has a debt position in the given token, we start by looking at the health impact of paying off
                 // the entire debt.
@@ -667,6 +674,8 @@ access(all) contract TidalProtocol {
                             uintDepositPrice
                         )
 
+                    log("    [CONTRACT] paybackAmount: \(paybackAmount)")
+
                     return TidalProtocolUtils.uint256ToUFix64(paybackAmount, decimals: TidalProtocolUtils.decimals)
                 } else {
                     // We can pay off the entire debt, but we still need to deposit more to reach the target health.
@@ -674,7 +683,7 @@ access(all) contract TidalProtocol {
                     // from this new health position. Rather than copy that logic here, we fall through into it. But first
                     // we have to record the amount of tokens that went towards debt payback and adjust the effective
                     // debt to reflect that it has been paid off.
-                    debtTokenCount = trueDebt
+                    debtTokenCount = TidalProtocolUtils.div(trueDebt, uintDepositPrice)
                     // Ensure we don't underflow
                     if debtEffectiveValue <= effectiveDebtAfterWithdrawal {
                         effectiveDebtAfterWithdrawal = effectiveDebtAfterWithdrawal - debtEffectiveValue
@@ -697,6 +706,10 @@ access(all) contract TidalProtocol {
 
             // The amount of the token to deposit, in units of the token.
             let collateralTokenCount = TidalProtocolUtils.div(requiredEffectiveCollateral, uintDepositPrice)
+            log("    [CONTRACT] requiredEffectiveCollateral: \(requiredEffectiveCollateral)")
+            log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
+            log("    [CONTRACT] debtTokenCount: \(debtTokenCount)")
+            log("    [CONTRACT] collateralTokenCount + debtTokenCount: \(collateralTokenCount) + \(debtTokenCount) = \(collateralTokenCount + debtTokenCount)")
 
             // debtTokenCount is the number of tokens that went towards debt, zero if there was no debt.
             return TidalProtocolUtils.uint256ToUFix64(collateralTokenCount + debtTokenCount, decimals: TidalProtocolUtils.decimals)

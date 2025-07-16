@@ -95,7 +95,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     // assert expected starting point
     let balanceAfterBorrow = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
     let expectedBorrowAmount = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / targetHealth
-    Test.assert(balanceAfterBorrow >= expectedBorrowAmount - 0.01 && balanceAfterBorrow <= expectedBorrowAmount + 0.01,
+    Test.assert(equalWithinVariance(expectedBorrowAmount, balanceAfterBorrow),
         message: "Expected MOET balance to be ~\(expectedBorrowAmount), but got \(balanceAfterBorrow)")
 
     let evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
@@ -124,8 +124,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
         runFundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
             existingBorrowed: expectedBorrowAmount,
-            existingFlowCollateral: positionFundingAmount,
-            currentFlowPrice: flowStartPrice,
+            existingFLOWCollateral: positionFundingAmount,
+            currentFLOWPrice: flowStartPrice,
             depositAmount: amount,
             withdrawIdentifier: moetTokenIdentifier,
             depositIdentifier: flowTokenIdentifier
@@ -139,8 +139,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
         runFundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
             existingBorrowed: expectedBorrowAmount,
-            existingFlowCollateral: positionFundingAmount,
-            currentFlowPrice: flowStartPrice,
+            existingFLOWCollateral: positionFundingAmount,
+            currentFLOWPrice: flowStartPrice,
             depositAmount: amount,
             withdrawIdentifier: moetTokenIdentifier,
             depositIdentifier: flowTokenIdentifier
@@ -196,8 +196,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
         runFundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
             existingBorrowed: expectedBorrowAmount,
-            existingFlowCollateral: positionFundingAmount,
-            currentFlowPrice: flowStartPrice,
+            existingFLOWCollateral: positionFundingAmount,
+            currentFLOWPrice: flowStartPrice,
             depositAmount: amount,
             withdrawIdentifier: moetTokenIdentifier,
             depositIdentifier: flowTokenIdentifier
@@ -211,8 +211,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
         runFundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
             existingBorrowed: expectedBorrowAmount,
-            existingFlowCollateral: positionFundingAmount,
-            currentFlowPrice: flowStartPrice,
+            existingFLOWCollateral: positionFundingAmount,
+            currentFLOWPrice: flowStartPrice,
             depositAmount: amount,
             withdrawIdentifier: moetTokenIdentifier,
             depositIdentifier: flowTokenIdentifier
@@ -280,7 +280,6 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
 
     log("..............................")
     var depositAmount = 0.0
-    // var expectedAvailable = expectedAvailableAboveTarget + (depositAmount * flowCollateralFactor / targetHealth * flowBorrowFactor) * newPrice
     var expectedAvailable = (positionFundingAmount + depositAmount) * newPrice * flowCollateralFactor / targetHealth * flowBorrowFactor
     var actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
@@ -327,14 +326,14 @@ access(all)
 fun runFundsAvailableAboveTargetHealthAfterDepositing(
     pid: UInt64,
     existingBorrowed: UFix64,
-    existingFlowCollateral: UFix64,
-    currentFlowPrice: UFix64,
+    existingFLOWCollateral: UFix64,
+    currentFLOWPrice: UFix64,
     depositAmount: UFix64,
     withdrawIdentifier: String,
     depositIdentifier: String
 ) {
     log("..............................")
-    let expectedTotalBorrowCapacity = (existingFlowCollateral + depositAmount) * currentFlowPrice * flowCollateralFactor / targetHealth * flowBorrowFactor
+    let expectedTotalBorrowCapacity = (existingFLOWCollateral + depositAmount) * currentFLOWPrice * flowCollateralFactor / targetHealth * flowBorrowFactor
     let expectedAvailable = expectedTotalBorrowCapacity - existingBorrowed
 
     let actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(

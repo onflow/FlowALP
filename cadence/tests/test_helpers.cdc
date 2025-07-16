@@ -175,7 +175,7 @@ access(all)
 fun fundsRequiredForTargetHealthAfterWithdrawing(
     pid: UInt64,
     depositType: String,
-    targetHealth: UFix64,
+    targetHealth: UInt256,
     withdrawType: String,
     withdrawAmount: UFix64,
     beFailed: Bool
