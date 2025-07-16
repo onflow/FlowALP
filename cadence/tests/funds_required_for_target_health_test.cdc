@@ -71,204 +71,204 @@ fun setup() {
     snapshot = getCurrentBlockHeight()
 }
 
-// access(all)
-// fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
-//     log("==============================")
-//     log("[TEST] Executing testFundsAvailableAboveTargetHealthAfterDepositingFromHealthy()")
+access(all)
+fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
+    log("==============================")
+    log("[TEST] Executing testFundsAvailableAboveTargetHealthAfterDepositingFromHealthy()")
 
-//     if snapshot < getCurrentBlockHeight() {
-//         Test.reset(to: snapshot)
-//     }
+    if snapshot < getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
 
-//     let openRes = executeTransaction(
-//         "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
-//         [positionFundingAmount, flowVaultStoragePath, true],
-//         userAccount
-//     )
-//     Test.expect(openRes, Test.beSucceeded())
-//     // assert expected starting point
-//     startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
-//     let expectedStartingDebt = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / targetHealth
-//     Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
-//         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
+    let openRes = executeTransaction(
+        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        [positionFundingAmount, flowVaultStoragePath, true],
+        userAccount
+    )
+    Test.expect(openRes, Test.beSucceeded())
+    // assert expected starting point
+    startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
+    let expectedStartingDebt = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / targetHealth
+    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
+        message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-//     var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
-//     let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
-//     positionID = openedEvt.pid
+    var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
+    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    positionID = openedEvt.pid
 
-//     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-//     evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
-//     let rebalancedEvt = evts[evts.length - 1] as! TidalProtocol.Rebalanced
-//     Test.assertEqual(positionID, rebalancedEvt.pid)
-//     Test.assertEqual(startingDebt, rebalancedEvt.amount)
-//     Test.assertEqual(rebalancedEvt.amount, startingDebt)
+    // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
+    evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! TidalProtocol.Rebalanced
+    Test.assertEqual(positionID, rebalancedEvt.pid)
+    Test.assertEqual(startingDebt, rebalancedEvt.amount)
+    Test.assertEqual(rebalancedEvt.amount, startingDebt)
 
-//     let health = getPositionHealth(pid: positionID, beFailed: false)
-//     Test.assert(equalWithinVariance(intTargetHealth, health),
-//         message: "Expected health to be \(intTargetHealth), but got \(health)")
+    let health = getPositionHealth(pid: positionID, beFailed: false)
+    Test.assert(equalWithinVariance(intTargetHealth, health),
+        message: "Expected health to be \(intTargetHealth), but got \(health)")
 
-//     log("[TEST] FLOW price set to \(flowStartPrice)")
+    log("[TEST] FLOW price set to \(flowStartPrice)")
 
-//     let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0, 10_000.0, 100_000.0]
-//     let expectedExcess = 0.0 // none available above target from healthy state
+    let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0, 10_000.0, 100_000.0]
+    let expectedExcess = 0.0 // none available above target from healthy state
 
-//     let internalSnapshot = getCurrentBlockHeight()
-//     for i, amount in amounts {
-//         // minting to topUpSource Vault which should *not* affect calculation
-//         let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
-//         log("[TEST] Minting \(mintToSource) to position topUpSource and running again")
-//         mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
-//         runFundsRequiredForTargetHealthAfterWithdrawing(
-//             pid: positionID,
-//             existingFLOWCollateral: positionFundingAmount,
-//             existingBorrowed: startingDebt,
-//             currentFLOWPrice: flowStartPrice,
-//             depositIdentifier: flowTokenIdentifier,
-//             withdrawIdentifier: moetTokenIdentifier,
-//             withdrawAmount: amount
-//         )
+    let internalSnapshot = getCurrentBlockHeight()
+    for i, amount in amounts {
+        // minting to topUpSource Vault which should *not* affect calculation
+        let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
+        log("[TEST] Minting \(mintToSource) to position topUpSource and running again")
+        mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
+        runFundsRequiredForTargetHealthAfterWithdrawing(
+            pid: positionID,
+            existingFLOWCollateral: positionFundingAmount,
+            existingBorrowed: startingDebt,
+            currentFLOWPrice: flowStartPrice,
+            depositIdentifier: flowTokenIdentifier,
+            withdrawIdentifier: moetTokenIdentifier,
+            withdrawAmount: amount
+        )
 
-//         Test.reset(to: internalSnapshot)
-//     }
+        Test.reset(to: internalSnapshot)
+    }
 
-//     log("==============================")
-// }
+    log("==============================")
+}
 
-// access(all)
-// fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy() {
-//     log("==============================")
-//     log("[TEST] Executing testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy()")
+access(all)
+fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy() {
+    log("==============================")
+    log("[TEST] Executing testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy()")
 
-//     if snapshot < getCurrentBlockHeight() {
-//         Test.reset(to: snapshot)
-//     }
+    if snapshot < getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
 
-//     let openRes = executeTransaction(
-//         "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
-//         [positionFundingAmount, flowVaultStoragePath, false],
-//         userAccount
-//     )
-//     Test.expect(openRes, Test.beSucceeded())
-//     // assert expected starting point
-//     startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
-//     let expectedStartingDebt = 0.0
-//     Test.assert(expectedStartingDebt == startingDebt,
-//         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
+    let openRes = executeTransaction(
+        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        [positionFundingAmount, flowVaultStoragePath, false],
+        userAccount
+    )
+    Test.expect(openRes, Test.beSucceeded())
+    // assert expected starting point
+    startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
+    let expectedStartingDebt = 0.0
+    Test.assert(expectedStartingDebt == startingDebt,
+        message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-//     var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
-//     let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
-//     positionID = openedEvt.pid
+    var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
+    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    positionID = openedEvt.pid
 
-//     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-//     evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
-//     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
+    // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
+    evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
+    Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
-//     let health = getPositionHealth(pid: positionID, beFailed: false)
-//     Test.assert(ceilingHealth == health,
-//         message: "Expected health to be \(intTargetHealth), but got \(health)")
+    let health = getPositionHealth(pid: positionID, beFailed: false)
+    Test.assert(ceilingHealth == health,
+        message: "Expected health to be \(intTargetHealth), but got \(health)")
 
-//     log("[TEST] FLOW price set to \(flowStartPrice)")
+    log("[TEST] FLOW price set to \(flowStartPrice)")
 
-//     let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0]
-//     let expectedExcess = 0.0 // none available above target from healthy state
+    let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0]
+    let expectedExcess = 0.0 // none available above target from healthy state
 
-//     let internalSnapshot = getCurrentBlockHeight()
-//     for i, amount in amounts {
-//         // minting to topUpSource Vault which should *not* affect calculation
-//         let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
-//         log("[TEST] Minting \(mintToSource) to position topUpSource and running again")
-//         mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
-//         runFundsRequiredForTargetHealthAfterWithdrawing(
-//             pid: positionID,
-//             existingFLOWCollateral: positionFundingAmount,
-//             existingBorrowed: startingDebt,
-//             currentFLOWPrice: flowStartPrice,
-//             depositIdentifier: flowTokenIdentifier,
-//             withdrawIdentifier: moetTokenIdentifier,
-//             withdrawAmount: amount
-//         )
+    let internalSnapshot = getCurrentBlockHeight()
+    for i, amount in amounts {
+        // minting to topUpSource Vault which should *not* affect calculation
+        let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
+        log("[TEST] Minting \(mintToSource) to position topUpSource and running again")
+        mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
+        runFundsRequiredForTargetHealthAfterWithdrawing(
+            pid: positionID,
+            existingFLOWCollateral: positionFundingAmount,
+            existingBorrowed: startingDebt,
+            currentFLOWPrice: flowStartPrice,
+            depositIdentifier: flowTokenIdentifier,
+            withdrawIdentifier: moetTokenIdentifier,
+            withdrawAmount: amount
+        )
 
-//         Test.reset(to: internalSnapshot)
-//     }
+        Test.reset(to: internalSnapshot)
+    }
 
-//     log("==============================")
-// }
+    log("==============================")
+}
 
-// access(all)
-// fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollateralized() {
-//     log("==============================")
-//     log("[TEST] Executing testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollateralized()")
+access(all)
+fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollateralized() {
+    log("==============================")
+    log("[TEST] Executing testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollateralized()")
 
-//     if snapshot < getCurrentBlockHeight() {
-//         Test.reset(to: snapshot)
-//     }
+    if snapshot < getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
 
-//     let openRes = executeTransaction(
-//         "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
-//         [positionFundingAmount, flowVaultStoragePath, false],
-//         userAccount
-//     )
-//     Test.expect(openRes, Test.beSucceeded())
-//     // assert expected starting point
-//     startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
-//     let expectedStartingDebt = 0.0
-//     Test.assert(expectedStartingDebt == startingDebt,
-//         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
+    let openRes = executeTransaction(
+        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        [positionFundingAmount, flowVaultStoragePath, false],
+        userAccount
+    )
+    Test.expect(openRes, Test.beSucceeded())
+    // assert expected starting point
+    startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
+    let expectedStartingDebt = 0.0
+    Test.assert(expectedStartingDebt == startingDebt,
+        message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-//     var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
-//     let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
-//     positionID = openedEvt.pid
+    var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
+    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    positionID = openedEvt.pid
 
-//     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-//     evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
-//     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
+    // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
+    evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
+    Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
-//     let health = getPositionHealth(pid: positionID, beFailed: false)
-//     Test.assert(ceilingHealth == health,
-//         message: "Expected health to be \(intTargetHealth), but got \(health)")
+    let health = getPositionHealth(pid: positionID, beFailed: false)
+    Test.assert(ceilingHealth == health,
+        message: "Expected health to be \(intTargetHealth), but got \(health)")
 
-//     let priceIncrease = 0.25
-//     let newPrice = flowStartPrice * (1.0 + priceIncrease)
+    let priceIncrease = 0.25
+    let newPrice = flowStartPrice * (1.0 + priceIncrease)
 
-//     let newCollateralValue = positionFundingAmount * newPrice
-//     let newEffectiveCollateralValue = newCollateralValue * flowCollateralFactor
-//     let expectedAvailableAboveTarget = newEffectiveCollateralValue / targetHealth * flowBorrowFactor
+    let newCollateralValue = positionFundingAmount * newPrice
+    let newEffectiveCollateralValue = newCollateralValue * flowCollateralFactor
+    let expectedAvailableAboveTarget = newEffectiveCollateralValue / targetHealth * flowBorrowFactor
 
-//     setMockOraclePrice(signer: protocolAccount,
-//         forTokenIdentifier: flowTokenIdentifier,
-//         price: newPrice
-//     )
-//     let actualHealth = getPositionHealth(pid: positionID, beFailed: false)
-//     Test.assertEqual(ceilingHealth, actualHealth) // no debt should virtually infinite health, capped by UFix64 type
+    setMockOraclePrice(signer: protocolAccount,
+        forTokenIdentifier: flowTokenIdentifier,
+        price: newPrice
+    )
+    let actualHealth = getPositionHealth(pid: positionID, beFailed: false)
+    Test.assertEqual(ceilingHealth, actualHealth) // no debt should virtually infinite health, capped by UFix64 type
 
-//     log("[TEST] FLOW price set to \(newPrice) from \(flowStartPrice)")
-//     log("[TEST] Position health after price increase: \(actualHealth)")
-//     log("[TEST] Expected available above target health: \(expectedAvailableAboveTarget) MOET")
+    log("[TEST] FLOW price set to \(newPrice) from \(flowStartPrice)")
+    log("[TEST] Position health after price increase: \(actualHealth)")
+    log("[TEST] Expected available above target health: \(expectedAvailableAboveTarget) MOET")
 
-//     let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0]
-//     let expectedExcess = 0.0 // none available above target from healthy state
+    let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0]
+    let expectedExcess = 0.0 // none available above target from healthy state
 
-//     let internalSnapshot = getCurrentBlockHeight()
-//     for i, amount in amounts {
-//         // minting to topUpSource Vault which should *not* affect calculation
-//         let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
-//         log("[TEST] Minting \(mintToSource) to position topUpSource and running again")
-//         mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
-//         runFundsRequiredForTargetHealthAfterWithdrawing(
-//             pid: positionID,
-//             existingFLOWCollateral: positionFundingAmount,
-//             existingBorrowed: startingDebt,
-//             currentFLOWPrice: newPrice,
-//             depositIdentifier: flowTokenIdentifier,
-//             withdrawIdentifier: moetTokenIdentifier,
-//             withdrawAmount: amount
-//         )
+    let internalSnapshot = getCurrentBlockHeight()
+    for i, amount in amounts {
+        // minting to topUpSource Vault which should *not* affect calculation
+        let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
+        log("[TEST] Minting \(mintToSource) to position topUpSource and running again")
+        mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
+        runFundsRequiredForTargetHealthAfterWithdrawing(
+            pid: positionID,
+            existingFLOWCollateral: positionFundingAmount,
+            existingBorrowed: startingDebt,
+            currentFLOWPrice: newPrice,
+            depositIdentifier: flowTokenIdentifier,
+            withdrawIdentifier: moetTokenIdentifier,
+            withdrawAmount: amount
+        )
 
-//         Test.reset(to: internalSnapshot)
-//     }
+        Test.reset(to: internalSnapshot)
+    }
 
-//     log("==============================")
-// }
+    log("==============================")
+}
 
 access(all)
 fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateralized() {
