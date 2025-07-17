@@ -886,7 +886,7 @@ access(all) contract TidalProtocol {
             withdrawType: Type,
             effectiveCollateral: UInt256,
             effectiveDebt: UInt256,
-            targetHealth: UFix64
+            targetHealth: UFix256
         ): UFix64 {
             var effectiveCollateralAfterDeposit = effectiveCollateral
             var effectiveDebtAfterDeposit = effectiveDebt
