@@ -702,7 +702,11 @@ access(all) contract TidalProtocol {
             // We need to increase the effective collateral from its current value to the required value, so we
             // multiply the required health change by the effective debt, and turn that into a token amount.
             let uintHealthChange = targetHealth - healthAfterWithdrawal
-            let requiredEffectiveCollateral = TidalProtocolUtils.mul(uintHealthChange, effectiveDebtAfterWithdrawal)
+            // TODO: apply the same logic as below to the early return blocks above
+            let uintDepositCollateralFactor = TidalProtocolUtils.ufix64ToUInt256(self.collateralFactor[depositType]!, decimals: TidalProtocolUtils.decimals)
+            var requiredEffectiveCollateral = TidalProtocolUtils.mul(uintHealthChange, effectiveDebtAfterWithdrawal)
+            requiredEffectiveCollateral = TidalProtocolUtils.div(requiredEffectiveCollateral, uintDepositCollateralFactor)
+            requiredEffectiveCollateral = TidalProtocolUtils.div(requiredEffectiveCollateral, uintWithdrawBorrowFactor)
 
             // The amount of the token to deposit, in units of the token.
             let collateralTokenCount = TidalProtocolUtils.div(requiredEffectiveCollateral, uintDepositPrice)

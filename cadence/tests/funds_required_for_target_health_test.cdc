@@ -533,14 +533,17 @@ fun runFundsRequiredForTargetHealthAfterWithdrawing(
     let intFLOWBorrowed = TidalProtocolUtils.ufix64ToUInt256(existingBorrowed, decimals: TidalProtocolUtils.decimals)
     let intWithdrawAmount = TidalProtocolUtils.ufix64ToUInt256(withdrawAmount, decimals: TidalProtocolUtils.decimals)
 
+    // effectiveCollateralValue = collateralBalance * collateralPrice * collateralFactor
     let effectiveFLOWCollateralValue = TidalProtocolUtils.mul(TidalProtocolUtils.mul(intFLOWCollateral, intFLOWPrice), intFLOWCollateralFactor)
+    // borrowLimit = (effectiveCollateralValue / targetHealth) * borrowFactor
     let expectedBorrowCapacity = TidalProtocolUtils.mul(TidalProtocolUtils.div(effectiveFLOWCollateralValue, intTargetHealth), intFLOWBorrowFactor)
     let desiredFinalDebt = intFLOWBorrowed + intWithdrawAmount
 
     var expectedRequired: UInt256 = 0
     if desiredFinalDebt > expectedBorrowCapacity {
-        let diff = desiredFinalDebt - expectedBorrowCapacity
-        expectedRequired = TidalProtocolUtils.div(TidalProtocolUtils.mul(diff, intTargetHealth), intFLOWPrice)
+        let valueDiff = desiredFinalDebt - expectedBorrowCapacity
+        expectedRequired = TidalProtocolUtils.div(TidalProtocolUtils.mul(valueDiff, intTargetHealth), intFLOWPrice)
+        expectedRequired = TidalProtocolUtils.div(expectedRequired, intFLOWCollateralFactor)
     }
     let ufixExpectedRequired = TidalProtocolUtils.uint256ToUFix64(expectedRequired, decimals: TidalProtocolUtils.decimals)
 
