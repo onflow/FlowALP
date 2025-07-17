@@ -356,16 +356,6 @@ access(all) contract TidalProtocol {
         }
     }
 
-    access(all) struct AdjustedBalances {
-        access(all) let collateral: UInt256
-        access(all) let debt: UInt256
-
-        init (collateral: UInt256, debt: UInt256) {
-            self.collateral = collateral
-            self.debt = debt
-        }
-    }
-
     /// Pool
     ///
     /// A Pool is the primary logic for protocol operations. It contains the global state of all positions, credit and
@@ -594,8 +584,8 @@ access(all) contract TidalProtocol {
                 position: position,
                 depositType: depositType,
                 withdrawType: withdrawType,
-                effectiveCollateral: adjusted.collateral,
-                effectiveDebt: adjusted.debt,
+                effectiveCollateral: adjusted.effectiveCollateral,
+                effectiveDebt: adjusted.effectiveDebt,
                 targetHealth: targetHealth
             )
         }
@@ -605,12 +595,12 @@ access(all) contract TidalProtocol {
             position: &InternalPosition,
             withdrawType: Type,
             withdrawAmount: UFix64
-        ): AdjustedBalances {
+        ): BalanceSheet {
             var effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral
             var effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt
 
             if withdrawAmount == 0.0 {
-                return AdjustedBalances(collateral: effectiveCollateralAfterWithdrawal, debt: effectiveDebtAfterWithdrawal)
+                return BalanceSheet(effectiveCollateral: effectiveCollateralAfterWithdrawal, effectiveDebt: effectiveDebtAfterWithdrawal)
             }
             log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
             log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
@@ -649,7 +639,7 @@ access(all) contract TidalProtocol {
                     }
                 }
 
-            return AdjustedBalances(collateral: effectiveCollateralAfterWithdrawal, debt: effectiveDebtAfterWithdrawal)
+            return BalanceSheet(effectiveCollateral: effectiveCollateralAfterWithdrawal, effectiveDebt: effectiveDebtAfterWithdrawal)
         }
 
 
@@ -659,7 +649,7 @@ access(all) contract TidalProtocol {
             withdrawType: Type,
             effectiveCollateral: UInt256,
             effectiveDebt: UInt256,
-            targetHealth: UFix256
+            targetHealth: UInt256
         ): UFix64 {
             var effectiveCollateralAfterWithdrawal = effectiveCollateral
             var effectiveDebtAfterWithdrawal = effectiveDebt
@@ -813,8 +803,8 @@ access(all) contract TidalProtocol {
             return self.computeAvailableWithdrawal(
                 position: position,
                 withdrawType: withdrawType,
-                effectiveCollateral: adjusted.collateral,
-                effectiveDebt: adjusted.debt,
+                effectiveCollateral: adjusted.effectiveCollateral,
+                effectiveDebt: adjusted.effectiveDebt,
                 targetHealth: targetHealth
             )
         }
@@ -825,14 +815,14 @@ access(all) contract TidalProtocol {
             position: &InternalPosition,
             depositType: Type,
             depositAmount: UFix64
-        ): AdjustedBalances {
+        ): BalanceSheet {
             var effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral
             var effectiveDebtAfterDeposit = balanceSheet.effectiveDebt
 
             log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
             log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
             if depositAmount == 0.0 {
-                return AdjustedBalances(collateral: effectiveCollateralAfterDeposit, debt: effectiveDebtAfterDeposit)
+                return BalanceSheet(effectiveCollateral: effectiveCollateralAfterDeposit, effectiveDebt: effectiveDebtAfterDeposit)
             }
 
             let uintDepositAmount = TidalProtocolUtils.ufix64ToUInt256(depositAmount, decimals: TidalProtocolUtils.decimals)
@@ -877,7 +867,7 @@ access(all) contract TidalProtocol {
             // We now have new effective collateral and debt values that reflect the proposed deposit (if any!)
             // Now we can figure out how many of the withdrawal token are available while keeping the position
             // at or above the target health value.
-            return AdjustedBalances(collateral: effectiveCollateralAfterDeposit, debt: effectiveDebtAfterDeposit)
+            return BalanceSheet(effectiveCollateral: effectiveCollateralAfterDeposit, effectiveDebt: effectiveDebtAfterDeposit)
         }
 
         // Helper function to compute available withdrawal
@@ -886,7 +876,7 @@ access(all) contract TidalProtocol {
             withdrawType: Type,
             effectiveCollateral: UInt256,
             effectiveDebt: UInt256,
-            targetHealth: UFix256
+            targetHealth: UInt256 
         ): UFix64 {
             var effectiveCollateralAfterDeposit = effectiveCollateral
             var effectiveDebtAfterDeposit = effectiveDebt
