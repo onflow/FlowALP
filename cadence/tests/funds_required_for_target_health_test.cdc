@@ -74,7 +74,7 @@ fun setup() {
 access(all)
 fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
     log("==============================")
-    log("[TEST] Executing testFundsAvailableAboveTargetHealthAfterDepositingFromHealthy()")
+    log("[TEST] Executing testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy()")
 
     if snapshot < getCurrentBlockHeight() {
         Test.reset(to: snapshot)
@@ -110,7 +110,6 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
     log("[TEST] FLOW price set to \(flowStartPrice)")
 
     let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0, 10_000.0, 100_000.0]
-    let expectedExcess = 0.0 // none available above target from healthy state
 
     let internalSnapshot = getCurrentBlockHeight()
     for i, amount in amounts {
@@ -170,7 +169,6 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy() {
     log("[TEST] FLOW price set to \(flowStartPrice)")
 
     let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0]
-    let expectedExcess = 0.0 // none available above target from healthy state
 
     let internalSnapshot = getCurrentBlockHeight()
     for i, amount in amounts {
@@ -246,7 +244,6 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollatera
     log("[TEST] Expected available above target health: \(expectedAvailableAboveTarget) MOET")
 
     let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0]
-    let expectedExcess = 0.0 // none available above target from healthy state
 
     let internalSnapshot = getCurrentBlockHeight()
     for i, amount in amounts {
@@ -273,7 +270,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollatera
 access(all)
 fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateralized() {
     log("==============================")
-    log("[TEST] Executing testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollateralized()")
+    log("[TEST] Executing testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateralized()")
 
     if snapshot < getCurrentBlockHeight() {
         Test.reset(to: snapshot)
@@ -330,7 +327,164 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     log("[TEST] Expected available above target health: \(expectedAvailableAboveTarget) MOET")
 
     let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0]
-    let expectedExcess = 0.0 // none available above target from healthy state
+
+    let internalSnapshot = getCurrentBlockHeight()
+    for i, amount in amounts {
+        // minting to topUpSource Vault which should *not* affect calculation
+        let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
+        log("[TEST] Minting \(mintToSource) to position topUpSource and running again")
+        mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
+        runFundsRequiredForTargetHealthAfterWithdrawing(
+            pid: positionID,
+            existingFLOWCollateral: positionFundingAmount,
+            existingBorrowed: startingDebt,
+            currentFLOWPrice: newPrice,
+            depositIdentifier: flowTokenIdentifier,
+            withdrawIdentifier: moetTokenIdentifier,
+            withdrawAmount: amount
+        )
+
+        Test.reset(to: internalSnapshot)
+    }
+
+    log("==============================")
+}
+
+access(all)
+fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromUndercollateralized() {
+    log("==============================")
+    log("[TEST] Executing testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromUndercollateralized()")
+
+    if snapshot < getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
+
+    let openRes = executeTransaction(
+        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        [positionFundingAmount, flowVaultStoragePath, false],
+        userAccount
+    )
+    Test.expect(openRes, Test.beSucceeded())
+    // assert expected starting point
+    startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
+    let expectedStartingDebt = 0.0
+    Test.assert(expectedStartingDebt == startingDebt,
+        message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
+
+    var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
+    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    positionID = openedEvt.pid
+
+    // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
+    evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
+    Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
+
+    let actualHealthBeforePriceDecrease = getPositionHealth(pid: positionID, beFailed: false)
+    Test.assert(ceilingHealth == actualHealthBeforePriceDecrease,
+        message: "Expected health to be \(intTargetHealth), but got \(actualHealthBeforePriceDecrease)")
+
+    let priceDecrease = 0.25
+    let newPrice = flowStartPrice * (1.0 - priceDecrease)
+
+    let newCollateralValue = positionFundingAmount * newPrice
+    let newEffectiveCollateralValue = newCollateralValue * flowCollateralFactor
+    let expectedAvailableAboveTarget = newEffectiveCollateralValue / targetHealth * flowBorrowFactor
+
+    setMockOraclePrice(signer: protocolAccount,
+        forTokenIdentifier: flowTokenIdentifier,
+        price: newPrice
+    )
+    let actualHealthAfterPriceDecrease = getPositionHealth(pid: positionID, beFailed: false)
+    Test.assertEqual(ceilingHealth, actualHealthAfterPriceDecrease) // no debt should virtually infinite health, capped by UFix64 type
+
+    log("[TEST] FLOW price set to \(newPrice) from \(flowStartPrice)")
+    log("[TEST] Position health after price decrease: \(actualHealthAfterPriceDecrease)")
+    log("[TEST] Expected available above target health: \(expectedAvailableAboveTarget) MOET")
+
+    let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0]
+
+    let internalSnapshot = getCurrentBlockHeight()
+    for i, amount in amounts {
+        // minting to topUpSource Vault which should *not* affect calculation
+        let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
+        log("[TEST] Minting \(mintToSource) to position topUpSource and running again")
+        mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
+        runFundsRequiredForTargetHealthAfterWithdrawing(
+            pid: positionID,
+            existingFLOWCollateral: positionFundingAmount,
+            existingBorrowed: startingDebt,
+            currentFLOWPrice: newPrice,
+            depositIdentifier: flowTokenIdentifier,
+            withdrawIdentifier: moetTokenIdentifier,
+            withdrawAmount: amount
+        )
+
+        Test.reset(to: internalSnapshot)
+    }
+
+    log("==============================")
+}
+
+access(all)
+fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollateralized() {
+    log("==============================")
+    log("[TEST] Executing testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollateralized()")
+
+    if snapshot < getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
+
+    let openRes = executeTransaction(
+        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        [positionFundingAmount, flowVaultStoragePath, true],
+        userAccount
+    )
+    Test.expect(openRes, Test.beSucceeded())
+    // assert expected starting point
+    startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
+    let expectedStartingDebt = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / targetHealth
+    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
+        message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
+
+    var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
+    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    positionID = openedEvt.pid
+
+    // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
+    evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! TidalProtocol.Rebalanced
+    Test.assertEqual(positionID, rebalancedEvt.pid)
+    Test.assertEqual(startingDebt, rebalancedEvt.amount)
+    Test.assertEqual(rebalancedEvt.amount, startingDebt)
+
+    let actualHealthBeforePriceIncrease = getPositionHealth(pid: positionID, beFailed: false)
+    Test.assert(equalWithinVariance(intTargetHealth, actualHealthBeforePriceIncrease),
+        message: "Expected health to be \(intTargetHealth), but got \(actualHealthBeforePriceIncrease)")
+
+    let priceDecrease = 0.25
+    let newPrice = flowStartPrice * (1.0 - priceDecrease)
+
+    let newCollateralValue = positionFundingAmount * newPrice
+    let newEffectiveCollateralValue = newCollateralValue * flowCollateralFactor
+    let expectedAvailableAboveTarget = newEffectiveCollateralValue / targetHealth * flowBorrowFactor
+
+    setMockOraclePrice(signer: protocolAccount,
+        forTokenIdentifier: flowTokenIdentifier,
+        price: newPrice
+    )
+    let actualHealthAfterPriceDecrease = getPositionHealth(pid: positionID, beFailed: false)
+    // calculate new health based on updated collateral value - should increase proportionally to price increase
+    let expectedHealthAfterPriceDecrease = TidalProtocolUtils.mul(
+            actualHealthBeforePriceIncrease,
+            TidalProtocolUtils.ufix64ToUInt256(1.0 - priceDecrease, decimals: TidalProtocolUtils.decimals)
+        )
+    Test.assertEqual(expectedHealthAfterPriceDecrease, actualHealthAfterPriceDecrease)
+
+    log("[TEST] FLOW price set to \(newPrice) from \(flowStartPrice)")
+    log("[TEST] Position health after price decrease: \(actualHealthAfterPriceDecrease)")
+    log("[TEST] Expected available above target health: \(expectedAvailableAboveTarget) MOET")
+
+    let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0]
 
     let internalSnapshot = getCurrentBlockHeight()
     for i, amount in amounts {
