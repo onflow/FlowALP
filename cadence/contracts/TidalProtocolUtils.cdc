@@ -186,7 +186,26 @@ access(all) contract TidalProtocolUtils {
     /// @param y: Second operand (scaled by 10^18)
     /// @return: Product scaled by 10^18
     access(all) view fun mul(_ x: UInt256, _ y: UInt256): UInt256 {
-        return (x * y) / self.e18
+        // multiply the two values as 18-decimal fixed-point numbers in a manner that avoids overflow in the cases where
+        // the result would be greater than 2^256 but also avoids rounding to 0 in the cases where the result would be
+        // less than 10^18
+        // To avoid overflow, perform the multiplication in two steps if either x or y is large.
+        // If both x and y are less than sqrt(UInt256.max), safe to multiply directly.
+        // Otherwise, rearrange: (x * y) / e18 = x * (y / e18) if y >= e18, or y * (x / e18) if x >= e18.
+        if x == 0 || y == 0 {
+            return 0
+        }
+        // Calculate sqrt(2^256) = 2^128 using a bitshift, using the value as a threshold to avoid overflow
+        let sqrtMax = UInt256(1) << 128
+        if x < sqrtMax && y < sqrtMax {
+            return (x * y) / self.e18
+        }
+        // Prefer to divide the larger value first to avoid loss of precision
+        if x >= y {
+            return x * (y / self.e18)
+        } else {
+            return y * (x / self.e18)
+        }
     }
 
     /// Divides two 18-decimal fixed-point numbers
