@@ -1,19 +1,19 @@
 {
 	"contracts": {
 		"FungibleTokenStack": {
-			"source": "./DeFiBlocks/cadence/contracts/connectors/FungibleTokenStack.cdc",
+			"source": "./DeFiActions/cadence/contracts/connectors/FungibleTokenStack.cdc",
 			"aliases": {
 				"testing": "0x0000000000000006"
 			}
 		},
-		"DFB": {
-			"source": "./DeFiBlocks/cadence/contracts/interfaces/DFB.cdc",
+		"DeFiActions": {
+			"source": "./DeFiActions/cadence/contracts/interfaces/DeFiActions.cdc",
 			"aliases": {
 				"testing": "0x0000000000000006"
 			}
 		},
-		"DFBUtils": {
-			"source": "./DeFiBlocks/cadence/contracts/utils/DFBUtils.cdc",
+		"DeFiActionsUtils": {
+			"source": "./DeFiActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
 			"aliases": {
 				"testing": "0x0000000000000006"
 			}
@@ -141,8 +141,8 @@
 	"deployments": {
 		"emulator": {
 			"emulator-account": [
-				"DFBUtils",
-				"DFB",
+				"DeFiActionsUtils",
+				"DeFiActions",
 				{
 					"name": "MOET",
 					"args": [
