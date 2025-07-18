@@ -830,8 +830,8 @@ access(all) contract TidalProtocol {
             let uintDepositPrice = TidalProtocolUtils.ufix64ToUInt256(self.priceOracle.price(ofToken: depositType)!, decimals: TidalProtocolUtils.decimals)
             let uintDepositBorrowFactor = TidalProtocolUtils.ufix64ToUInt256(self.borrowFactor[depositType]!, decimals: TidalProtocolUtils.decimals)
             let uintDepositCollateralFactor = TidalProtocolUtils.ufix64ToUInt256(self.collateralFactor[depositType]!, decimals: TidalProtocolUtils.decimals)
-
-                if position.balances[depositType] == nil || position.balances[depositType]!.direction == BalanceDirection.Credit {
+            let maybeBalance = position.balances[depositType]
+                if maybeBalance?.direction == BalanceDirection.Credit {
                     // If there's no debt for the deposit token, we can just compute how much additional effective collateral the deposit will create.
                     effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
                         TidalProtocolUtils.mul(TidalProtocolUtils.mul(uintDepositAmount, uintDepositPrice), uintDepositCollateralFactor)
@@ -840,7 +840,7 @@ access(all) contract TidalProtocol {
 
                     // The user has a debt position in the given token, we need to figure out if this deposit
                     // will result in net collateral, or just bring down the debt.
-                    let debtBalance = position.balances[depositType]!.scaledBalance
+                    let debtBalance = maybeBalance!.scaledBalance
                     let trueDebt = TidalProtocol.scaledBalanceToTrueBalance(debtBalance,
                         interestIndex: depositTokenState.debitInterestIndex
                     )
