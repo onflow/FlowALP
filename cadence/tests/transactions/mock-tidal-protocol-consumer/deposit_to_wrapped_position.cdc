@@ -1,6 +1,5 @@
 import "FungibleToken"
 
-import "DFB"
 import "FungibleTokenStack"
 
 import "MOET"

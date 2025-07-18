@@ -45,8 +45,8 @@ While `pushToDrawDownSink=false` works, it's not immediately obvious to users th
 ```cadence
 access(all) fun openPositionWithoutAutoBorrow(
     collateral: @{FungibleToken.Vault},
-    issuanceSink: {DFB.Sink},
-    repaymentSource: {DFB.Source}?
+    issuanceSink: {DeFiActions.Sink},
+    repaymentSource: {DeFiActions.Source}?
 ): Position {
     // Always use pushToDrawDownSink=false to prevent auto-borrowing
     return self.openPosition(

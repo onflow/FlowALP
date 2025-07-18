@@ -40,14 +40,14 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
 access(all)
 fun deployContracts() {
     var err = Test.deployContract(
-        name: "DFBUtils",
-        path: "../../DeFiBlocks/cadence/contracts/utils/DFBUtils.cdc",
+        name: "DeFiActionsUtils",
+        path: "../../DeFiActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
     err = Test.deployContract(
-        name: "DFB",
-        path: "../../DeFiBlocks/cadence/contracts/interfaces/DFB.cdc",
+        name: "DeFiActions",
+        path: "../../DeFiActions/cadence/contracts/interfaces/DeFiActions.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -99,7 +99,7 @@ fun deployContracts() {
     // Deploy FungibleTokenStack
     err = Test.deployContract(
         name: "FungibleTokenStack",
-        path: "../../DeFiBlocks/cadence/contracts/connectors/FungibleTokenStack.cdc",
+        path: "../../DeFiActions/cadence/contracts/connectors/FungibleTokenStack.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
