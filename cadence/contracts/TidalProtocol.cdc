@@ -929,7 +929,7 @@ access(all) contract TidalProtocol {
                     //     : TidalProtocolUtils.mul(availableHealth, effectiveDebtAfterDeposit)
 
                     let availableEffectiveValue = effectiveCollateralAfterDeposit - TidalProtocolUtils.mul(targetHealth, effectiveDebtAfterDeposit)
-                    log("    [CONTRACT] availableHealth: \(availableHealth)")
+                    // log("    [CONTRACT] availableHealth: \(availableHealth)")
                     log("    [CONTRACT] availableEffectiveValue: \(availableEffectiveValue)")
 
                     // The amount of the token we can take using that amount of health
