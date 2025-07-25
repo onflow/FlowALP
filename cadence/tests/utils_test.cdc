@@ -305,6 +305,39 @@ fun testUInt256BalanceToUFix64PrecisionLossSucceeds() {
 }
 
 access(all)
+fun testUInt256BalanceToUFix64PrecisionLossTrimSucceeds() {
+    // Test that precision loss is handled correctly when converting back
+    let ufixAmount: UFix64 = 1.12345678
+    // separate uintAmount with underscores to avoid confusion
+    let uintAmount: UInt256 = 1_123_456_789_999_999_999
+
+    let actualUFixAmount = TidalProtocolUtils.toUFix64Balance(uintAmount)
+    Test.assertEqual(ufixAmount, actualUFixAmount)
+}
+
+access(all)
+fun testUInt256ToUFix64RoundDownSucceeds() {
+    // Test that precision loss is handled correctly when converting back
+    let ufixAmount: UFix64 = 1.12345678
+    // separate uintAmount with underscores to avoid confusion
+    let uintAmount: UInt256 = 1_123_456_784_444_444_444
+
+    let actualUFixAmount = TidalProtocolUtils.roundToUFix64(uintAmount)
+    Test.assertEqual(ufixAmount, actualUFixAmount)
+}
+
+access(all)
+fun testUInt256ToUFix64RoundUpSucceeds() {
+    // Test that precision loss is handled correctly when converting back
+    let ufixAmount: UFix64 = 1.12345679
+    // separate uintAmount with underscores to avoid confusion
+    let uintAmount: UInt256 = 1_123_456_789_999_999_999
+
+    let actualUFixAmount = TidalProtocolUtils.roundToUFix64(uintAmount)
+    Test.assertEqual(ufixAmount, actualUFixAmount)
+}
+
+access(all)
 fun testBalanceConversionRoundTripSucceeds() {
     // Test round-trip conversion maintains precision
     let originalUFix: UFix64 = 123.45678901

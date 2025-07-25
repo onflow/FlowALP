@@ -253,6 +253,25 @@ access(all) contract TidalProtocolUtils {
         return x / y
     }
 
+    /// Rounds a UInt256 value with 18 decimal precision to a UFix64 value (8 decimals)
+    ///
+    /// Example: 1e18 -> 1.0, 123456000000000000000 -> 1.23456000, 123456789012345678901 -> 1.23456789
+    /// Example: 123456789999999999999 -> 1.23456790
+    ///
+    /// @param value: The UInt256 value to convert and round
+    /// @return: The UFix64 value, rounded to the nearest 8 decimals
+    access(all) view fun roundToUFix64(_ value: UInt256): UFix64 {
+        let decimalsFrom: UInt8 = 18
+        let decimalsTo: UInt8 = 8
+        let factor = self.pow(UInt256(10), to: decimalsFrom - decimalsTo) // 10^10
+
+        // Add half the factor to round (instead of floor)
+        let rounded = (value + (factor / 2)) / factor
+
+        // UFix64 expects up to 8 decimals, so we can safely cast
+        return UFix64(rounded) / UFix64(1_00_000_000)
+    }
+
     init() {
         self.e18 = 1_000_000_000_000_000_000
         self.e9 = 1_000_000_000
