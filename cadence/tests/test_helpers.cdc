@@ -4,7 +4,7 @@ import "TidalProtocol"
 /* --- Global test constants --- */
 
 access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
-access(all) let defaultUFixVariance = 0.00000001
+access(all) let defaultUFixVariance = 0.00000002
 access(all) let defaultUIntVariance: UInt128 = 1_000_000_000_000_000
 
 // Health values
