@@ -124,28 +124,28 @@ fun getReserveBalance(vaultIdentifier: String): UFix64 {
 access(all)
 fun getAvailableBalance(pid: UInt64, vaultIdentifier: String, pullFromTopUpSource: Bool, beFailed: Bool): UFix64 {
     let res = _executeScript("../scripts/tidal-protocol/get_available_balance.cdc",
-    [pid, vaultIdentifier, pullFromTopUpSource]
-)
-Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-return res.status == Test.ResultStatus.failed ? 0.0 : res.returnValue as! UFix64
+            [pid, vaultIdentifier, pullFromTopUpSource]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.status == Test.ResultStatus.failed ? 0.0 : res.returnValue as! UFix64
 }
 
 access(all)
 fun getPositionHealth(pid: UInt64, beFailed: Bool): UInt128 {
     let res = _executeScript("../scripts/tidal-protocol/position_health.cdc",
-    [pid]
-)
-Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-return res.status == Test.ResultStatus.failed ? 0 : res.returnValue as! UInt128
+            [pid]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.status == Test.ResultStatus.failed ? 0 : res.returnValue as! UInt128
 }
 
 access(all)
 fun getPositionDetails(pid: UInt64, beFailed: Bool): TidalProtocol.PositionDetails {
     let res = _executeScript("../scripts/tidal-protocol/position_details.cdc",
-    [pid]
-)
-Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-return res.returnValue as! TidalProtocol.PositionDetails
+        [pid]
+    )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! TidalProtocol.PositionDetails
 }
 
 access(all)
@@ -165,10 +165,10 @@ fun fundsAvailableAboveTargetHealthAfterDepositing(
     beFailed: Bool
 ): UFix64 {
     let res = _executeScript("../scripts/tidal-protocol/funds_avail_above_target_health_after_deposit.cdc",
-    [pid, withdrawType, targetHealth, depositType, depositAmount]
-)
-Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-return res.returnValue as! UFix64
+            [pid, withdrawType, targetHealth, depositType, depositAmount]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! UFix64
 }
 
 access(all)
@@ -181,10 +181,10 @@ fun fundsRequiredForTargetHealthAfterWithdrawing(
     beFailed: Bool
 ): UFix64 {
     let res = _executeScript("../scripts/tidal-protocol/funds_req_for_target_health_after_withdraw.cdc",
-    [pid, depositType, targetHealth, withdrawType, withdrawAmount]
-)
-Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-return res.returnValue as! UFix64
+            [pid, depositType, targetHealth, withdrawType, withdrawAmount]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! UFix64
 }
 
 /* --- Transaction Helpers --- */
