@@ -1295,7 +1295,6 @@ access(all) contract TidalProtocol {
             // Reflect the withdrawal in the position's balance
             let uintAmount = DeFiActionsMathUtils.toUInt128(amount)
             position.balances[type]!.recordWithdrawal(amount: uintAmount, tokenState: tokenState)
-            log(self.positionHealth(pid: pid))
             if self.positionHealth(pid: pid) != 0 {
                 // Ensure that this withdrawal doesn't cause the position to be overdrawn.
                 assert(position.minHealth <= self.positionHealth(pid: pid), message: "Position is overdrawn")
