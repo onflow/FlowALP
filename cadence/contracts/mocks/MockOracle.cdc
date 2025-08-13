@@ -16,7 +16,11 @@ access(all) contract MockOracle {
     access(self) let bumpVariance: UInt16
 
     access(all) struct PriceOracle : DeFiActions.PriceOracle {
+        access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
 
+        init() {
+            self.uniqueID = nil 
+        }
         /// Returns the asset type serving as the price basis - e.g. USD in FLOW/USD
         access(all) view fun unitOfAccount(): Type {
             return MockOracle.unitOfAccount
@@ -29,6 +33,19 @@ access(all) contract MockOracle {
             }
             return MockOracle.mockedPrices[ofToken]
         }
+        access(all) fun getComponentInfo(): DeFiActions.ComponentInfo {
+            return DeFiActions.ComponentInfo(
+                type: self.getType(),
+                id: self.id(),
+                innerComponents: []
+            )
+        }
+        access(contract) view fun copyID(): DeFiActions.UniqueIdentifier? {
+            return self.uniqueID
+        }
+        access(contract) fun setID(_ id: DeFiActions.UniqueIdentifier?) {
+            self.uniqueID = id
+        }
     }
 
     // resets the price of the token within 0-bumpVariance (bps) of the current price
@@ -38,7 +55,7 @@ access(all) contract MockOracle {
             return
         }
         let current = self.mockedPrices[forToken]
-            ?? panic("MockOracle does not have a price set for token \(forToken.identifier)")
+        ?? panic("MockOracle does not have a price set for token \(forToken.identifier)")
         let sign = revertibleRandom<UInt8>(modulo: 2) // 0 - down | 1 - up
         let variance = self.convertToBPS(revertibleRandom<UInt16>(modulo: self.bumpVariance)) // bps up or down
         if sign == 0 {

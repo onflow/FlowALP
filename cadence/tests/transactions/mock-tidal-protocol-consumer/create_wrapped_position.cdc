@@ -1,7 +1,7 @@
 import "FungibleToken"
 
 import "DeFiActions"
-import "FungibleTokenStack"
+import "FungibleTokenConnectors"
 
 import "MOET"
 import "MockTidalProtocolConsumer"
@@ -12,7 +12,7 @@ import "MockTidalProtocolConsumer"
 /// MockTidalProtocolConsumer PositionWrapper
 ///
 transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
-    
+
     // the funds that will be used as collateral for a TidalProtocol loan
     let collateral: @{FungibleToken.Vault}
     // this DeFiActions Sink that will receive the loaned funds
@@ -37,21 +37,21 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         let depositVaultCap = signer.capabilities.get<&{FungibleToken.Vault}>(MOET.VaultPublicPath)
         let withdrawVaultCap = signer.capabilities.storage.issue<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(MOET.VaultStoragePath)
         assert(depositVaultCap.check(),
-            message: "Invalid MOET Vault public Capability issued - ensure the Vault is properly configured")
+        message: "Invalid MOET Vault public Capability issued - ensure the Vault is properly configured")
         assert(withdrawVaultCap.check(),
-            message: "Invalid MOET Vault private Capability issued - ensure the Vault is properly configured")
-        
+        message: "Invalid MOET Vault private Capability issued - ensure the Vault is properly configured")
+
         // withdraw the collateral from the signer's stored Vault
         let collateralSource = signer.storage.borrow<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(from: vaultStoragePath)
-            ?? panic("Could not borrow reference to Vault from \(vaultStoragePath)")
+        ?? panic("Could not borrow reference to Vault from \(vaultStoragePath)")
         self.collateral <- collateralSource.withdraw(amount: amount)
         // construct the DeFiActions Sink that will receive the loaned amount
-        self.sink = FungibleTokenStack.VaultSink(
+        self.sink = FungibleTokenConnectors.VaultSink(
             max: nil,
             depositVault: depositVaultCap,
             uniqueID: nil
         )
-        self.source = FungibleTokenStack.VaultSource(
+        self.source = FungibleTokenConnectors.VaultSource(
             min: nil,
             withdrawVault: withdrawVaultCap,
             uniqueID: nil

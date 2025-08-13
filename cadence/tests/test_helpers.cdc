@@ -96,10 +96,10 @@ fun deployContracts() {
     )
     Test.expect(err, Test.beNil())
 
-    // Deploy FungibleTokenStack
+    // Deploy FungibleTokenConnectors
     err = Test.deployContract(
-        name: "FungibleTokenStack",
-        path: "../../DeFiActions/cadence/contracts/connectors/FungibleTokenStack.cdc",
+        name: "FungibleTokenConnectors",
+        path: "../../DeFiActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())

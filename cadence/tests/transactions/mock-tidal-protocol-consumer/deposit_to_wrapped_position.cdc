@@ -1,6 +1,6 @@
 import "FungibleToken"
 
-import "FungibleTokenStack"
+import "FungibleTokenConnectors"
 
 import "MOET"
 import "TidalProtocol"

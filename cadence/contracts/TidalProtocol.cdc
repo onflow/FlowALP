@@ -1742,7 +1742,7 @@ access(all) contract TidalProtocol {
     /// be constructed from a Position object.
     access(all) struct PositionSink: DeFiActions.Sink {
         /// An optional DeFiActions.UniqueIdentifier that identifies this Sink with the DeFiActions stack its a part of
-        access(contract) let uniqueID: DeFiActions.UniqueIdentifier?
+        access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
         /// An authorized Capability on the Pool for which the related Position is in
         access(self) let pool: Capability<auth(EPosition) &Pool>
         /// The ID of the position in the Pool
@@ -1779,6 +1779,19 @@ access(all) contract TidalProtocol {
                 )
             }
         }
+        access(all) fun getComponentInfo(): DeFiActions.ComponentInfo {
+            return DeFiActions.ComponentInfo(
+                type: self.getType(),
+                id: self.id(),
+                innerComponents: []
+            )
+        }
+        access(contract) view fun copyID(): DeFiActions.UniqueIdentifier? {
+            return self.uniqueID
+        }
+        access(contract) fun setID(_ id: DeFiActions.UniqueIdentifier?) {
+            self.uniqueID = id
+        }
     }
 
     /// PositionSource
@@ -1788,7 +1801,7 @@ access(all) contract TidalProtocol {
     ///
     access(all) struct PositionSource: DeFiActions.Source {
         /// An optional DeFiActions.UniqueIdentifier that identifies this Sink with the DeFiActions stack its a part of
-        access(contract) let uniqueID: DeFiActions.UniqueIdentifier?
+        access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
         /// An authorized Capability on the Pool for which the related Position is in
         access(self) let pool: Capability<auth(EPosition) &Pool>
         /// The ID of the position in the Pool
@@ -1833,6 +1846,19 @@ access(all) contract TidalProtocol {
                 // Create an empty vault - this is a limitation we need to handle properly
                 return <- DeFiActionsUtils.getEmptyVault(self.type)
             }
+        }
+        access(all) fun getComponentInfo(): DeFiActions.ComponentInfo {
+            return DeFiActions.ComponentInfo(
+                type: self.getType(),
+                id: self.id(),
+                innerComponents: []
+            )
+        }
+        access(contract) view fun copyID(): DeFiActions.UniqueIdentifier? {
+            return self.uniqueID
+        }
+        access(contract) fun setID(_ id: DeFiActions.UniqueIdentifier?) {
+            self.uniqueID = id
         }
     }
 
