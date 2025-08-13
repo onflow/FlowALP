@@ -63,7 +63,7 @@ access(all) contract TidalProtocol {
                 // only cause problems for very small deposits (fractions of a cent), so we save computational
                 // cycles by just scaling the deposit amount and adding it directly to the scaled balance.
                 let scaledDeposit = TidalProtocol.trueBalanceToScaledBalance(amount,
-                interestIndex: tokenState.creditInterestIndex)
+                    interestIndex: tokenState.creditInterestIndex)
 
                 self.scaledBalance = self.scaledBalance + scaledDeposit
 
@@ -73,14 +73,14 @@ access(all) contract TidalProtocol {
                 // When depositing into a debit position, we first need to compute the true balance to see
                 // if this deposit will flip the position from debit to credit.
                 let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(self.scaledBalance,
-                interestIndex: tokenState.debitInterestIndex)
+                    interestIndex: tokenState.debitInterestIndex)
 
                 if trueBalance > amount {
                     // The deposit isn't big enough to clear the debt, so we just decrement the debt.
                     let updatedBalance = trueBalance - amount
 
                     self.scaledBalance = TidalProtocol.trueBalanceToScaledBalance(updatedBalance,
-                    interestIndex: tokenState.debitInterestIndex)
+                        interestIndex: tokenState.debitInterestIndex)
 
                     // Decrease the total debit balance for the token
                     tokenState.updateDebitBalance(amount: -1 * Int256(amount))
@@ -90,7 +90,7 @@ access(all) contract TidalProtocol {
 
                     self.direction = BalanceDirection.Credit
                     self.scaledBalance = TidalProtocol.trueBalanceToScaledBalance(updatedBalance,
-                    interestIndex: tokenState.creditInterestIndex)
+                        interestIndex: tokenState.creditInterestIndex)
 
                     // Increase the credit balance AND decrease the debit balance
                     tokenState.updateCreditBalance(amount: Int256(updatedBalance))
@@ -112,7 +112,7 @@ access(all) contract TidalProtocol {
                 // only cause problems for very small withdrawals (fractions of a cent), so we save computational
                 // cycles by just scaling the withdrawal amount and subtracting it directly from the scaled balance.
                 let scaledWithdrawal = TidalProtocol.trueBalanceToScaledBalance(amount,
-                interestIndex: tokenState.debitInterestIndex)
+                    interestIndex: tokenState.debitInterestIndex)
 
                 self.scaledBalance = self.scaledBalance + scaledWithdrawal
 
@@ -122,7 +122,7 @@ access(all) contract TidalProtocol {
                 // When withdrawing from a credit position, we first need to compute the true balance to see
                 // if this withdrawal will flip the position from credit to debit.
                 let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(self.scaledBalance,
-                interestIndex: tokenState.creditInterestIndex)
+                    interestIndex: tokenState.creditInterestIndex)
 
                 if trueBalance >= amount {
                     // The withdrawal isn't big enough to push the position into debt, so we just decrement the
@@ -130,7 +130,7 @@ access(all) contract TidalProtocol {
                     let updatedBalance = trueBalance - amount
 
                     self.scaledBalance = TidalProtocol.trueBalanceToScaledBalance(updatedBalance,
-                    interestIndex: tokenState.creditInterestIndex)
+                        interestIndex: tokenState.creditInterestIndex)
 
                     // Decrease the total credit balance for the token
                     tokenState.updateCreditBalance(amount: -1 * Int256(amount))
@@ -140,7 +140,7 @@ access(all) contract TidalProtocol {
 
                     self.direction = BalanceDirection.Debit
                     self.scaledBalance = TidalProtocol.trueBalanceToScaledBalance(updatedBalance,
-                    interestIndex: tokenState.debitInterestIndex)
+                        interestIndex: tokenState.debitInterestIndex)
 
                     // Decrease the credit balance AND increase the debit balance
                     tokenState.updateCreditBalance(amount: -1 * Int256(trueBalance))
@@ -490,14 +490,14 @@ access(all) contract TidalProtocol {
                 let uintPrice = DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: type)!)
                 if balance.direction == BalanceDirection.Credit {
                     let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(balance.scaledBalance,
-                    interestIndex: tokenState.creditInterestIndex)
+                        interestIndex: tokenState.creditInterestIndex)
 
                     let value = DeFiActionsMathUtils.mul(uintPrice, trueBalance)
                     let effectiveCollateralValue = DeFiActionsMathUtils.mul(value, uintCollateralFactor)
                     effectiveCollateral = effectiveCollateral + effectiveCollateralValue
                 } else {
                     let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(balance.scaledBalance,
-                    interestIndex: tokenState.debitInterestIndex)
+                        interestIndex: tokenState.debitInterestIndex)
 
                     let value = DeFiActionsMathUtils.mul(uintPrice, trueBalance)
                     let effectiveDebtValue = DeFiActionsMathUtils.div(value, uintBorrowFactor)
@@ -532,8 +532,8 @@ access(all) contract TidalProtocol {
                 let balance = position.balances[type]!
                 let tokenState = self._borrowUpdatedTokenState(type: type)
                 let trueBalance = balance.direction == BalanceDirection.Credit
-                ? TidalProtocol.scaledBalanceToTrueBalance(balance.scaledBalance, interestIndex: tokenState.creditInterestIndex)
-                : TidalProtocol.scaledBalanceToTrueBalance(balance.scaledBalance, interestIndex: tokenState.debitInterestIndex)
+                    ? TidalProtocol.scaledBalanceToTrueBalance(balance.scaledBalance, interestIndex: tokenState.creditInterestIndex)
+                    : TidalProtocol.scaledBalanceToTrueBalance(balance.scaledBalance, interestIndex: tokenState.debitInterestIndex)
 
                 balances.append(PositionBalance(
                     vaultType: type,
@@ -611,264 +611,264 @@ access(all) contract TidalProtocol {
             let uintWithdrawBorrowFactor = DeFiActionsMathUtils.toUInt128(self.borrowFactor[withdrawType]!)
 
             let maybeBalance = position.balances[withdrawType]
-            if maybeBalance == nil || maybeBalance!.direction == BalanceDirection.Debit {
-                // If the position doesn't have any collateral for the withdrawn token, we can just compute how much
-                // additional effective debt the withdrawal will create.
-                effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt +
-                DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uintWithdrawAmount, uintWithdrawPrice), uintWithdrawBorrowFactor)
-            } else {
-                let withdrawTokenState = self._borrowUpdatedTokenState(type: withdrawType)
+                if maybeBalance == nil || maybeBalance!.direction == BalanceDirection.Debit {
+                    // If the position doesn't have any collateral for the withdrawn token, we can just compute how much
+                    // additional effective debt the withdrawal will create.
+                    effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt +
+                        DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uintWithdrawAmount, uintWithdrawPrice), uintWithdrawBorrowFactor)
+                } else {
+                    let withdrawTokenState = self._borrowUpdatedTokenState(type: withdrawType)
 
-                // The user has a collateral position in the given token, we need to figure out if this withdrawal
-                // will flip over into debt, or just draw down the collateral.
-                let collateralBalance = maybeBalance!.scaledBalance
-                let trueCollateral = TidalProtocol.scaledBalanceToTrueBalance(collateralBalance,
-                interestIndex: withdrawTokenState.creditInterestIndex
+                    // The user has a collateral position in the given token, we need to figure out if this withdrawal
+                    // will flip over into debt, or just draw down the collateral.
+                    let collateralBalance = maybeBalance!.scaledBalance
+                    let trueCollateral = TidalProtocol.scaledBalanceToTrueBalance(collateralBalance,
+                        interestIndex: withdrawTokenState.creditInterestIndex
+                    )
+                    let uintCollateralFactor = DeFiActionsMathUtils.toUInt128(self.collateralFactor[withdrawType]!)
+                    if trueCollateral >= uintWithdrawAmount {
+                        // This withdrawal will draw down collateral, but won't create debt, we just need to account
+                        // for the collateral decrease.
+                        effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral -
+                            DeFiActionsMathUtils.mul(DeFiActionsMathUtils.mul(uintWithdrawAmount, uintWithdrawPrice), uintCollateralFactor)
+                    } else {
+                        // The withdrawal will wipe out all of the collateral, and create some debt.
+                        effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt +
+                            DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uintWithdrawAmount - trueCollateral, uintWithdrawPrice), uintWithdrawBorrowFactor)
+                        effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral -
+                            DeFiActionsMathUtils.mul(DeFiActionsMathUtils.mul(trueCollateral, uintWithdrawPrice), uintCollateralFactor)
+                    }
+                }
+
+            return BalanceSheet(effectiveCollateral: effectiveCollateralAfterWithdrawal, effectiveDebt: effectiveDebtAfterWithdrawal)
+        }
+
+
+        access(self) fun computeRequiredDepositForHealth(
+            position: &InternalPosition,
+            depositType: Type,
+            withdrawType: Type,
+            effectiveCollateral: UInt128,
+            effectiveDebt: UInt128,
+            targetHealth: UInt128
+        ): UFix64 {
+            var effectiveCollateralAfterWithdrawal = effectiveCollateral
+            var effectiveDebtAfterWithdrawal = effectiveDebt
+
+            log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
+            log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
+
+            // We now have new effective collateral and debt values that reflect the proposed withdrawal (if any!)
+            // Now we can figure out how many of the given token would need to be deposited to bring the position
+            // to the target health value.
+            var healthAfterWithdrawal = TidalProtocol.healthComputation(
+                effectiveCollateral: effectiveCollateralAfterWithdrawal,
+                effectiveDebt: effectiveDebtAfterWithdrawal
             )
-            let uintCollateralFactor = DeFiActionsMathUtils.toUInt128(self.collateralFactor[withdrawType]!)
-            if trueCollateral >= uintWithdrawAmount {
-                // This withdrawal will draw down collateral, but won't create debt, we just need to account
-                // for the collateral decrease.
-                effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral -
-                DeFiActionsMathUtils.mul(DeFiActionsMathUtils.mul(uintWithdrawAmount, uintWithdrawPrice), uintCollateralFactor)
-            } else {
-                // The withdrawal will wipe out all of the collateral, and create some debt.
-                effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt +
-                DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uintWithdrawAmount - trueCollateral, uintWithdrawPrice), uintWithdrawBorrowFactor)
-                effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral -
-                DeFiActionsMathUtils.mul(DeFiActionsMathUtils.mul(trueCollateral, uintWithdrawPrice), uintCollateralFactor)
+            log("    [CONTRACT] healthAfterWithdrawal: \(healthAfterWithdrawal)")
+
+            if healthAfterWithdrawal >= targetHealth {
+                // The position is already at or above the target health, so we don't need to deposit anything.
+                return 0.0
             }
-        }
 
-        return BalanceSheet(effectiveCollateral: effectiveCollateralAfterWithdrawal, effectiveDebt: effectiveDebtAfterWithdrawal)
-    }
+            // For situations where the required deposit will BOTH pay off debt and accumulate collateral, we keep
+            // track of the number of tokens that went towards paying off debt.
+            var debtTokenCount: UInt128 = 0
+            let uintDepositPrice = DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: depositType)!)
+            let uintDepositBorrowFactor = DeFiActionsMathUtils.toUInt128(self.borrowFactor[depositType]!)
+            let uintWithdrawBorrowFactor = DeFiActionsMathUtils.toUInt128(self.borrowFactor[withdrawType]!)
+            let maybeBalance = position.balances[depositType]
+            if maybeBalance?.direction == BalanceDirection.Debit {
+                // The user has a debt position in the given token, we start by looking at the health impact of paying off
+                // the entire debt.
+                let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
+                let debtBalance = maybeBalance!.scaledBalance
+                let trueDebt = TidalProtocol.scaledBalanceToTrueBalance(debtBalance,
+                    interestIndex: depositTokenState.debitInterestIndex
+                )
+                let debtEffectiveValue = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uintDepositPrice, trueDebt), uintDepositBorrowFactor)
 
+                // Ensure we don't underflow - if debtEffectiveValue is greater than effectiveDebtAfterWithdrawal,
+                // it means we can pay off all debt
+                var effectiveDebtAfterPayment: UInt128 = 0
+                if debtEffectiveValue <= effectiveDebtAfterWithdrawal {
+                    effectiveDebtAfterPayment = effectiveDebtAfterWithdrawal - debtEffectiveValue
+                }
 
-    access(self) fun computeRequiredDepositForHealth(
-        position: &InternalPosition,
-        depositType: Type,
-        withdrawType: Type,
-        effectiveCollateral: UInt128,
-        effectiveDebt: UInt128,
-        targetHealth: UInt128
-    ): UFix64 {
-        var effectiveCollateralAfterWithdrawal = effectiveCollateral
-        var effectiveDebtAfterWithdrawal = effectiveDebt
+                // Check what the new health would be if we paid off all of this debt
+                let potentialHealth = TidalProtocol.healthComputation(
+                    effectiveCollateral: effectiveCollateralAfterWithdrawal,
+                    effectiveDebt: effectiveDebtAfterPayment
+                )
 
-        log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
-        log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
+                // Does paying off all of the debt reach the target health? Then we're done.
+                if potentialHealth >= targetHealth {
+                    // We can reach the target health by paying off some or all of the debt. We can easily
+                    // compute how many units of the token would be needed to reach the target health.
+                    let healthChange = targetHealth - healthAfterWithdrawal
+                    let requiredEffectiveDebt = effectiveDebtAfterWithdrawal - DeFiActionsMathUtils.div(
+                            effectiveCollateralAfterWithdrawal,
+                            targetHealth
+                        )
 
-        // We now have new effective collateral and debt values that reflect the proposed withdrawal (if any!)
-        // Now we can figure out how many of the given token would need to be deposited to bring the position
-        // to the target health value.
-        var healthAfterWithdrawal = TidalProtocol.healthComputation(
-            effectiveCollateral: effectiveCollateralAfterWithdrawal,
-            effectiveDebt: effectiveDebtAfterWithdrawal
-        )
-        log("    [CONTRACT] healthAfterWithdrawal: \(healthAfterWithdrawal)")
+                    // The amount of the token to pay back, in units of the token.
+                    let paybackAmount = DeFiActionsMathUtils.div(
+                            DeFiActionsMathUtils.mul(requiredEffectiveDebt, uintDepositBorrowFactor),
+                            uintDepositPrice
+                        )
 
-        if healthAfterWithdrawal >= targetHealth {
-            // The position is already at or above the target health, so we don't need to deposit anything.
-            return 0.0
-        }
+                    log("    [CONTRACT] paybackAmount: \(paybackAmount)")
 
-        // For situations where the required deposit will BOTH pay off debt and accumulate collateral, we keep
-        // track of the number of tokens that went towards paying off debt.
-        var debtTokenCount: UInt128 = 0
-        let uintDepositPrice = DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: depositType)!)
-        let uintDepositBorrowFactor = DeFiActionsMathUtils.toUInt128(self.borrowFactor[depositType]!)
-        let uintWithdrawBorrowFactor = DeFiActionsMathUtils.toUInt128(self.borrowFactor[withdrawType]!)
-        let maybeBalance = position.balances[depositType]
-        if maybeBalance?.direction == BalanceDirection.Debit {
-            // The user has a debt position in the given token, we start by looking at the health impact of paying off
-            // the entire debt.
-            let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
-            let debtBalance = maybeBalance!.scaledBalance
-            let trueDebt = TidalProtocol.scaledBalanceToTrueBalance(debtBalance,
-            interestIndex: depositTokenState.debitInterestIndex
-        )
-        let debtEffectiveValue = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uintDepositPrice, trueDebt), uintDepositBorrowFactor)
-
-        // Ensure we don't underflow - if debtEffectiveValue is greater than effectiveDebtAfterWithdrawal,
-        // it means we can pay off all debt
-        var effectiveDebtAfterPayment: UInt128 = 0
-        if debtEffectiveValue <= effectiveDebtAfterWithdrawal {
-            effectiveDebtAfterPayment = effectiveDebtAfterWithdrawal - debtEffectiveValue
-        }
-
-        // Check what the new health would be if we paid off all of this debt
-        let potentialHealth = TidalProtocol.healthComputation(
-            effectiveCollateral: effectiveCollateralAfterWithdrawal,
-            effectiveDebt: effectiveDebtAfterPayment
-        )
-
-        // Does paying off all of the debt reach the target health? Then we're done.
-        if potentialHealth >= targetHealth {
-            // We can reach the target health by paying off some or all of the debt. We can easily
-            // compute how many units of the token would be needed to reach the target health.
-            let healthChange = targetHealth - healthAfterWithdrawal
-            let requiredEffectiveDebt = effectiveDebtAfterWithdrawal - DeFiActionsMathUtils.div(
-                effectiveCollateralAfterWithdrawal,
-                targetHealth
-            )
-
-            // The amount of the token to pay back, in units of the token.
-            let paybackAmount = DeFiActionsMathUtils.div(
-                DeFiActionsMathUtils.mul(requiredEffectiveDebt, uintDepositBorrowFactor),
-                uintDepositPrice
-            )
-
-            log("    [CONTRACT] paybackAmount: \(paybackAmount)")
-
-            return DeFiActionsMathUtils.toUFix64RoundUp(paybackAmount)
-        } else {
-            // We can pay off the entire debt, but we still need to deposit more to reach the target health.
-            // We have logic below that can determine the collateral deposition required to reach the target health
-            // from this new health position. Rather than copy that logic here, we fall through into it. But first
-            // we have to record the amount of tokens that went towards debt payback and adjust the effective
-            // debt to reflect that it has been paid off.
-            debtTokenCount = DeFiActionsMathUtils.div(trueDebt, uintDepositPrice)
-            // Ensure we don't underflow
-            if debtEffectiveValue <= effectiveDebtAfterWithdrawal {
-                effectiveDebtAfterWithdrawal = effectiveDebtAfterWithdrawal - debtEffectiveValue
-            } else {
-                effectiveDebtAfterWithdrawal = 0
+                    return DeFiActionsMathUtils.toUFix64RoundUp(paybackAmount)
+                } else {
+                    // We can pay off the entire debt, but we still need to deposit more to reach the target health.
+                    // We have logic below that can determine the collateral deposition required to reach the target health
+                    // from this new health position. Rather than copy that logic here, we fall through into it. But first
+                    // we have to record the amount of tokens that went towards debt payback and adjust the effective
+                    // debt to reflect that it has been paid off.
+                    debtTokenCount = DeFiActionsMathUtils.div(trueDebt, uintDepositPrice)
+                    // Ensure we don't underflow
+                    if debtEffectiveValue <= effectiveDebtAfterWithdrawal {
+                        effectiveDebtAfterWithdrawal = effectiveDebtAfterWithdrawal - debtEffectiveValue
+                    } else {
+                        effectiveDebtAfterWithdrawal = 0
+                    }
+                    healthAfterWithdrawal = potentialHealth
+                }
             }
-            healthAfterWithdrawal = potentialHealth
+
+            // At this point, we're either dealing with a position that didn't have a debt position in the deposit
+            // token, or we've accounted for the debt payoff and adjusted the effective debt above.
+            // Now we need to figure out how many tokens would need to be deposited (as collateral) to reach the
+            // target health. We can rearrange the health equation to solve for the required collateral:
+
+            // We need to increase the effective collateral from its current value to the required value, so we
+            // multiply the required health change by the effective debt, and turn that into a token amount.
+            let uintHealthChange = targetHealth - healthAfterWithdrawal
+            // TODO: apply the same logic as below to the early return blocks above
+            let uintDepositCollateralFactor = DeFiActionsMathUtils.toUInt128(self.collateralFactor[depositType]!)
+            var requiredEffectiveCollateral = DeFiActionsMathUtils.mul(uintHealthChange, effectiveDebtAfterWithdrawal)
+            requiredEffectiveCollateral = DeFiActionsMathUtils.div(requiredEffectiveCollateral, uintDepositCollateralFactor)
+            requiredEffectiveCollateral = DeFiActionsMathUtils.div(requiredEffectiveCollateral, uintWithdrawBorrowFactor)
+
+            // The amount of the token to deposit, in units of the token.
+            let collateralTokenCount = DeFiActionsMathUtils.div(requiredEffectiveCollateral, uintDepositPrice)
+            log("    [CONTRACT] requiredEffectiveCollateral: \(requiredEffectiveCollateral)")
+            log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
+            log("    [CONTRACT] debtTokenCount: \(debtTokenCount)")
+            log("    [CONTRACT] collateralTokenCount + debtTokenCount: \(collateralTokenCount) + \(debtTokenCount) = \(collateralTokenCount + debtTokenCount)")
+
+            // debtTokenCount is the number of tokens that went towards debt, zero if there was no debt.
+            return DeFiActionsMathUtils.toUFix64Round(collateralTokenCount + debtTokenCount)
         }
-    }
 
-    // At this point, we're either dealing with a position that didn't have a debt position in the deposit
-    // token, or we've accounted for the debt payoff and adjusted the effective debt above.
-    // Now we need to figure out how many tokens would need to be deposited (as collateral) to reach the
-    // target health. We can rearrange the health equation to solve for the required collateral:
+        /// Returns the quantity of the specified token that could be withdrawn while still keeping the position's
+        /// health at or above the provided target.
+        access(all) fun fundsAvailableAboveTargetHealth(pid: UInt64, type: Type, targetHealth: UInt128): UFix64 {
+            return self.fundsAvailableAboveTargetHealthAfterDepositing(
+                pid: pid,
+                withdrawType: type,
+                targetHealth: targetHealth,
+                depositType: self.defaultToken,
+                depositAmount: 0.0
+            )
+        }
 
-    // We need to increase the effective collateral from its current value to the required value, so we
-    // multiply the required health change by the effective debt, and turn that into a token amount.
-    let uintHealthChange = targetHealth - healthAfterWithdrawal
-    // TODO: apply the same logic as below to the early return blocks above
-    let uintDepositCollateralFactor = DeFiActionsMathUtils.toUInt128(self.collateralFactor[depositType]!)
-    var requiredEffectiveCollateral = DeFiActionsMathUtils.mul(uintHealthChange, effectiveDebtAfterWithdrawal)
-    requiredEffectiveCollateral = DeFiActionsMathUtils.div(requiredEffectiveCollateral, uintDepositCollateralFactor)
-    requiredEffectiveCollateral = DeFiActionsMathUtils.div(requiredEffectiveCollateral, uintWithdrawBorrowFactor)
+        /// Returns the quantity of the specified token that could be withdrawn while still keeping the position's health
+        /// at or above the provided target, assuming we also deposit a specified amount of another token.
+        access(all) fun fundsAvailableAboveTargetHealthAfterDepositing(
+            pid: UInt64,
+            withdrawType: Type,
+            targetHealth: UInt128,
+            depositType: Type,
+            depositAmount: UFix64
+        ): UFix64 {
+            log("    [CONTRACT] fundsAvailableAboveTargetHealthAfterDepositing(pid: \(pid), withdrawType: \(withdrawType.contractName!), targetHealth: \(targetHealth), depositType: \(depositType.contractName!), depositAmount: \(depositAmount))")
+            if depositType == withdrawType && depositAmount > 0.0 {
+                // If the deposit and withdrawal types are the same, we compute the available funds assuming
+                // no deposit (which is less work) and increase that by the deposit amount at the end
+                return self.fundsAvailableAboveTargetHealth(pid: pid, type: withdrawType, targetHealth: targetHealth) + depositAmount
+            }
 
-    // The amount of the token to deposit, in units of the token.
-    let collateralTokenCount = DeFiActionsMathUtils.div(requiredEffectiveCollateral, uintDepositPrice)
-    log("    [CONTRACT] requiredEffectiveCollateral: \(requiredEffectiveCollateral)")
-    log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
-    log("    [CONTRACT] debtTokenCount: \(debtTokenCount)")
-    log("    [CONTRACT] collateralTokenCount + debtTokenCount: \(collateralTokenCount) + \(debtTokenCount) = \(collateralTokenCount + debtTokenCount)")
+            let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+            let position = self._borrowPosition(pid: pid)
 
-    // debtTokenCount is the number of tokens that went towards debt, zero if there was no debt.
-    return DeFiActionsMathUtils.toUFix64Round(collateralTokenCount + debtTokenCount)
-}
+            let adjusted = self.computeAdjustedBalancesAfterDeposit(
+                balanceSheet: balanceSheet,
+                position: position,
+                depositType: depositType,
+                depositAmount: depositAmount
+            )
 
-/// Returns the quantity of the specified token that could be withdrawn while still keeping the position's
-/// health at or above the provided target.
-access(all) fun fundsAvailableAboveTargetHealth(pid: UInt64, type: Type, targetHealth: UInt128): UFix64 {
-    return self.fundsAvailableAboveTargetHealthAfterDepositing(
-        pid: pid,
-        withdrawType: type,
-        targetHealth: targetHealth,
-        depositType: self.defaultToken,
-        depositAmount: 0.0
-    )
-}
+            return self.computeAvailableWithdrawal(
+                position: position,
+                withdrawType: withdrawType,
+                effectiveCollateral: adjusted.effectiveCollateral,
+                effectiveDebt: adjusted.effectiveDebt,
+                targetHealth: targetHealth
+            )
+        }
 
-/// Returns the quantity of the specified token that could be withdrawn while still keeping the position's health
-/// at or above the provided target, assuming we also deposit a specified amount of another token.
-access(all) fun fundsAvailableAboveTargetHealthAfterDepositing(
-    pid: UInt64,
-    withdrawType: Type,
-    targetHealth: UInt128,
-    depositType: Type,
-    depositAmount: UFix64
-): UFix64 {
-    log("    [CONTRACT] fundsAvailableAboveTargetHealthAfterDepositing(pid: \(pid), withdrawType: \(withdrawType.contractName!), targetHealth: \(targetHealth), depositType: \(depositType.contractName!), depositAmount: \(depositAmount))")
-    if depositType == withdrawType && depositAmount > 0.0 {
-        // If the deposit and withdrawal types are the same, we compute the available funds assuming
-        // no deposit (which is less work) and increase that by the deposit amount at the end
-        return self.fundsAvailableAboveTargetHealth(pid: pid, type: withdrawType, targetHealth: targetHealth) + depositAmount
-    }
+        // Helper function to compute balances after deposit
+        access(self) fun computeAdjustedBalancesAfterDeposit(
+            balanceSheet: BalanceSheet,
+            position: &InternalPosition,
+            depositType: Type,
+            depositAmount: UFix64
+        ): BalanceSheet {
+            var effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral
+            var effectiveDebtAfterDeposit = balanceSheet.effectiveDebt
 
-    let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
-    let position = self._borrowPosition(pid: pid)
+            log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
+            log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
+            if depositAmount == 0.0 {
+                return BalanceSheet(effectiveCollateral: effectiveCollateralAfterDeposit, effectiveDebt: effectiveDebtAfterDeposit)
+            }
 
-    let adjusted = self.computeAdjustedBalancesAfterDeposit(
-        balanceSheet: balanceSheet,
-        position: position,
-        depositType: depositType,
-        depositAmount: depositAmount
-    )
+            let uintDepositAmount = DeFiActionsMathUtils.toUInt128(depositAmount)
+            let uintDepositPrice = DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: depositType)!)
+            let uintDepositBorrowFactor = DeFiActionsMathUtils.toUInt128(self.borrowFactor[depositType]!)
+            let uintDepositCollateralFactor = DeFiActionsMathUtils.toUInt128(self.collateralFactor[depositType]!)
+            let maybeBalance = position.balances[depositType]
+                if maybeBalance == nil || maybeBalance!.direction == BalanceDirection.Credit {
+                    // If there's no debt for the deposit token, we can just compute how much additional effective collateral the deposit will create.
+                    effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
+                        DeFiActionsMathUtils.mul(DeFiActionsMathUtils.mul(uintDepositAmount, uintDepositPrice), uintDepositCollateralFactor)
+                } else {
+                    let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
 
-    return self.computeAvailableWithdrawal(
-        position: position,
-        withdrawType: withdrawType,
-        effectiveCollateral: adjusted.effectiveCollateral,
-        effectiveDebt: adjusted.effectiveDebt,
-        targetHealth: targetHealth
-    )
-}
+                    // The user has a debt position in the given token, we need to figure out if this deposit
+                    // will result in net collateral, or just bring down the debt.
+                    let debtBalance = maybeBalance!.scaledBalance
+                    let trueDebt = TidalProtocol.scaledBalanceToTrueBalance(debtBalance,
+                        interestIndex: depositTokenState.debitInterestIndex
+                    )
+                    log("    [CONTRACT] trueDebt: \(trueDebt)")
 
-// Helper function to compute balances after deposit
-access(self) fun computeAdjustedBalancesAfterDeposit(
-    balanceSheet: BalanceSheet,
-    position: &InternalPosition,
-    depositType: Type,
-    depositAmount: UFix64
-): BalanceSheet {
-    var effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral
-    var effectiveDebtAfterDeposit = balanceSheet.effectiveDebt
+                    if trueDebt >= uintDepositAmount {
+                        // This deposit will pay down some debt, but won't result in net collateral, we
+                        // just need to account for the debt decrease.
+                        // TODO - validate if this should deal with withdrawType or depositType
+                        effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
+                            DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uintDepositAmount, uintDepositPrice), uintDepositBorrowFactor)
+                    } else {
+                        // The deposit will wipe out all of the debt, and create some collateral.
+                        // TODO - validate if this should deal with withdrawType or depositType
+                        effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
+                            DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(trueDebt, uintDepositPrice), uintDepositBorrowFactor)
+                        effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
+                            DeFiActionsMathUtils.mul(DeFiActionsMathUtils.mul(uintDepositAmount - trueDebt, uintDepositPrice), uintDepositCollateralFactor)
+                    }
+                }
 
-    log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
-    log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
-    if depositAmount == 0.0 {
-        return BalanceSheet(effectiveCollateral: effectiveCollateralAfterDeposit, effectiveDebt: effectiveDebtAfterDeposit)
-    }
+            log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
+            log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
 
-    let uintDepositAmount = DeFiActionsMathUtils.toUInt128(depositAmount)
-    let uintDepositPrice = DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: depositType)!)
-    let uintDepositBorrowFactor = DeFiActionsMathUtils.toUInt128(self.borrowFactor[depositType]!)
-    let uintDepositCollateralFactor = DeFiActionsMathUtils.toUInt128(self.collateralFactor[depositType]!)
-    let maybeBalance = position.balances[depositType]
-    if maybeBalance == nil || maybeBalance!.direction == BalanceDirection.Credit {
-        // If there's no debt for the deposit token, we can just compute how much additional effective collateral the deposit will create.
-        effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
-        DeFiActionsMathUtils.mul(DeFiActionsMathUtils.mul(uintDepositAmount, uintDepositPrice), uintDepositCollateralFactor)
-    } else {
-        let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
-
-        // The user has a debt position in the given token, we need to figure out if this deposit
-        // will result in net collateral, or just bring down the debt.
-        let debtBalance = maybeBalance!.scaledBalance
-        let trueDebt = TidalProtocol.scaledBalanceToTrueBalance(debtBalance,
-        interestIndex: depositTokenState.debitInterestIndex
-    )
-    log("    [CONTRACT] trueDebt: \(trueDebt)")
-
-    if trueDebt >= uintDepositAmount {
-        // This deposit will pay down some debt, but won't result in net collateral, we
-        // just need to account for the debt decrease.
-        // TODO - validate if this should deal with withdrawType or depositType
-        effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
-        DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uintDepositAmount, uintDepositPrice), uintDepositBorrowFactor)
-    } else {
-        // The deposit will wipe out all of the debt, and create some collateral.
-        // TODO - validate if this should deal with withdrawType or depositType
-        effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
-        DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(trueDebt, uintDepositPrice), uintDepositBorrowFactor)
-        effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
-        DeFiActionsMathUtils.mul(DeFiActionsMathUtils.mul(uintDepositAmount - trueDebt, uintDepositPrice), uintDepositCollateralFactor)
-    }
-}
-
-log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
-log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
-
-// We now have new effective collateral and debt values that reflect the proposed deposit (if any!)
-// Now we can figure out how many of the withdrawal token are available while keeping the position
-// at or above the target health value.
-return BalanceSheet(effectiveCollateral: effectiveCollateralAfterDeposit, effectiveDebt: effectiveDebtAfterDeposit)
+            // We now have new effective collateral and debt values that reflect the proposed deposit (if any!)
+            // Now we can figure out how many of the withdrawal token are available while keeping the position
+            // at or above the target health value.
+            return BalanceSheet(effectiveCollateral: effectiveCollateralAfterDeposit, effectiveDebt: effectiveDebtAfterDeposit)
         }
 
         // Helper function to compute available withdrawal
@@ -908,171 +908,171 @@ return BalanceSheet(effectiveCollateral: effectiveCollateralAfterDeposit, effect
                 let withdrawTokenState = self._borrowUpdatedTokenState(type: withdrawType)
                 let creditBalance = maybeBalance!.scaledBalance
                 let trueCredit = TidalProtocol.scaledBalanceToTrueBalance(creditBalance,
-                interestIndex: withdrawTokenState.creditInterestIndex
-            )
-            let collateralEffectiveValue = DeFiActionsMathUtils.mul(DeFiActionsMathUtils.mul(uintWithdrawPrice, trueCredit), uintWithdrawCollateralFactor)
+                    interestIndex: withdrawTokenState.creditInterestIndex
+                )
+                let collateralEffectiveValue = DeFiActionsMathUtils.mul(DeFiActionsMathUtils.mul(uintWithdrawPrice, trueCredit), uintWithdrawCollateralFactor)
 
-            // Check what the new health would be if we took out all of this collateral
-            let potentialHealth = TidalProtocol.healthComputation(
-                effectiveCollateral: effectiveCollateralAfterDeposit - collateralEffectiveValue, // ??? - why subtract?
-                effectiveDebt: effectiveDebtAfterDeposit
-            )
+                // Check what the new health would be if we took out all of this collateral
+                let potentialHealth = TidalProtocol.healthComputation(
+                    effectiveCollateral: effectiveCollateralAfterDeposit - collateralEffectiveValue, // ??? - why subtract?
+                    effectiveDebt: effectiveDebtAfterDeposit
+                )
 
 
-            // Does drawing down all of the collateral go below the target health? Then the max withdrawal comes from collateral only.
-            if potentialHealth <= targetHealth {
-                // We will hit the health target before using up all of the withdraw token credit. We can easily
-                // compute how many units of the token would bring the position down to the target health.
-                // let availableHealth = healthAfterDeposit == UInt128.max ? UInt128.max : healthAfterDeposit - targetHealth
-                // let availableEffectiveValue = (effectiveDebtAfterDeposit == 0 || availableHealth == UInt128.max)
-                //     ? effectiveCollateralAfterDeposit
-                //     : DeFiActionsMathUtils.mul(availableHealth, effectiveDebtAfterDeposit)
+                // Does drawing down all of the collateral go below the target health? Then the max withdrawal comes from collateral only.
+                if potentialHealth <= targetHealth {
+                    // We will hit the health target before using up all of the withdraw token credit. We can easily
+                    // compute how many units of the token would bring the position down to the target health.
+                    // let availableHealth = healthAfterDeposit == UInt128.max ? UInt128.max : healthAfterDeposit - targetHealth
+                    // let availableEffectiveValue = (effectiveDebtAfterDeposit == 0 || availableHealth == UInt128.max)
+                    //     ? effectiveCollateralAfterDeposit
+                    //     : DeFiActionsMathUtils.mul(availableHealth, effectiveDebtAfterDeposit)
 
-                let availableEffectiveValue = effectiveCollateralAfterDeposit - DeFiActionsMathUtils.mul(targetHealth, effectiveDebtAfterDeposit)
-                log("    [CONTRACT] availableEffectiveValue: \(availableEffectiveValue)")
+                    let availableEffectiveValue = effectiveCollateralAfterDeposit - DeFiActionsMathUtils.mul(targetHealth, effectiveDebtAfterDeposit)
+                    log("    [CONTRACT] availableEffectiveValue: \(availableEffectiveValue)")
 
-                // The amount of the token we can take using that amount of health
-                let availableTokenCount = DeFiActionsMathUtils.div(DeFiActionsMathUtils.div(availableEffectiveValue, uintWithdrawCollateralFactor), uintWithdrawPrice)
-                log("    [CONTRACT] availableTokenCount: \(availableTokenCount)")
+                    // The amount of the token we can take using that amount of health
+                    let availableTokenCount = DeFiActionsMathUtils.div(DeFiActionsMathUtils.div(availableEffectiveValue, uintWithdrawCollateralFactor), uintWithdrawPrice)
+                    log("    [CONTRACT] availableTokenCount: \(availableTokenCount)")
 
-                return DeFiActionsMathUtils.toUFix64RoundDown(availableTokenCount)
-            } else {
-                // We can flip this credit position into a debit position, before hitting the target health.
-                // We have logic below that can determine health changes for debit positions. We've copied it here
-                // with an added handling for the case where the health after deposit is an edgecase
-                collateralTokenCount = trueCredit
-                effectiveCollateralAfterDeposit = effectiveCollateralAfterDeposit - collateralEffectiveValue
-                log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
-                log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
+                    return DeFiActionsMathUtils.toUFix64RoundDown(availableTokenCount)
+                } else {
+                    // We can flip this credit position into a debit position, before hitting the target health.
+                    // We have logic below that can determine health changes for debit positions. We've copied it here
+                    // with an added handling for the case where the health after deposit is an edgecase
+                    collateralTokenCount = trueCredit
+                    effectiveCollateralAfterDeposit = effectiveCollateralAfterDeposit - collateralEffectiveValue
+                    log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
+                    log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
 
-                // We can calculate the available debt increase that would bring us to the target health
-                var availableDebtIncrease = DeFiActionsMathUtils.div(effectiveCollateralAfterDeposit, targetHealth) - effectiveDebtAfterDeposit
-                let availableTokens = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(availableDebtIncrease, uintWithdrawBorrowFactor), uintWithdrawPrice)
-                log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
-                log("    [CONTRACT] availableTokens: \(availableTokens)")
-                log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
-                return DeFiActionsMathUtils.toUFix64RoundDown(availableTokens + collateralTokenCount)
+                    // We can calculate the available debt increase that would bring us to the target health
+                    var availableDebtIncrease = DeFiActionsMathUtils.div(effectiveCollateralAfterDeposit, targetHealth) - effectiveDebtAfterDeposit
+                    let availableTokens = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(availableDebtIncrease, uintWithdrawBorrowFactor), uintWithdrawPrice)
+                    log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
+                    log("    [CONTRACT] availableTokens: \(availableTokens)")
+                    log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
+                    return DeFiActionsMathUtils.toUFix64RoundDown(availableTokens + collateralTokenCount)
+                }
             }
+
+            // At this point, we're either dealing with a position that didn't have a credit balance in the withdraw
+            // token, or we've accounted for the credit balance and adjusted the effective collateral above.
+
+            // We can calculate the available debt increase that would bring us to the target health
+            var availableDebtIncrease = DeFiActionsMathUtils.div(effectiveCollateralAfterDeposit, targetHealth) - effectiveDebtAfterDeposit
+            let availableTokens = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(availableDebtIncrease, uintWithdrawBorrowFactor), uintWithdrawPrice)
+            log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
+            log("    [CONTRACT] availableTokens: \(availableTokens)")
+            log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
+            return DeFiActionsMathUtils.toUFix64RoundDown(availableTokens + collateralTokenCount)
         }
 
-        // At this point, we're either dealing with a position that didn't have a credit balance in the withdraw
-        // token, or we've accounted for the credit balance and adjusted the effective collateral above.
+        /// Returns the position's health if the given amount of the specified token were deposited
+        access(all) fun healthAfterDeposit(pid: UInt64, type: Type, amount: UFix64): UInt128 {
+            let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+            let position = self._borrowPosition(pid: pid)
+            let tokenState = self._borrowUpdatedTokenState(type: type)
 
-        // We can calculate the available debt increase that would bring us to the target health
-        var availableDebtIncrease = DeFiActionsMathUtils.div(effectiveCollateralAfterDeposit, targetHealth) - effectiveDebtAfterDeposit
-        let availableTokens = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(availableDebtIncrease, uintWithdrawBorrowFactor), uintWithdrawPrice)
-        log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
-        log("    [CONTRACT] availableTokens: \(availableTokens)")
-        log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
-        return DeFiActionsMathUtils.toUFix64RoundDown(availableTokens + collateralTokenCount)
-    }
+            var effectiveCollateralIncrease: UInt128 = 0
+            var effectiveDebtDecrease: UInt128 = 0
 
-    /// Returns the position's health if the given amount of the specified token were deposited
-    access(all) fun healthAfterDeposit(pid: UInt64, type: Type, amount: UFix64): UInt128 {
-        let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
-        let position = self._borrowPosition(pid: pid)
-        let tokenState = self._borrowUpdatedTokenState(type: type)
+            let uintAmount = DeFiActionsMathUtils.toUInt128(amount)
+            let uintPrice = DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: type)!)
+            let uintCollateralFactor = DeFiActionsMathUtils.toUInt128(self.collateralFactor[type]!)
+            let uintBorrowFactor = DeFiActionsMathUtils.toUInt128(self.borrowFactor[type]!)
+            if position.balances[type] == nil || position.balances[type]!.direction == BalanceDirection.Credit {
+                // Since the user has no debt in the given token, we can just compute how much
+                // additional collateral this deposit will create.
+                effectiveCollateralIncrease = DeFiActionsMathUtils.mul(
+                    DeFiActionsMathUtils.mul(uintAmount, uintPrice),
+                    uintCollateralFactor
+                )
+            } else {
+                // The user has a debit position in the given token, we need to figure out if this deposit
+                // will only pay off some of the debt, or if it will also create new collateral.
+                let debtBalance = position.balances[type]!.scaledBalance
+                let trueDebt = TidalProtocol.scaledBalanceToTrueBalance(debtBalance,
+                    interestIndex: tokenState.debitInterestIndex
+                )
 
-        var effectiveCollateralIncrease: UInt128 = 0
-        var effectiveDebtDecrease: UInt128 = 0
+                if trueDebt >= uintAmount {
+                    // This deposit will wipe out some or all of the debt, but won't create new collateral, we
+                    // just need to account for the debt decrease.
+                    effectiveDebtDecrease = DeFiActionsMathUtils.div(
+                        DeFiActionsMathUtils.mul(uintAmount, uintPrice),
+                        uintBorrowFactor
+                    )
+                } else {
+                    // This deposit will wipe out all of the debt, and create new collateral.
+                    effectiveCollateralIncrease = DeFiActionsMathUtils.mul(
+                        DeFiActionsMathUtils.mul(uintAmount - trueDebt, uintPrice),
+                        uintCollateralFactor
+                    )
+                }
+            }
 
-        let uintAmount = DeFiActionsMathUtils.toUInt128(amount)
-        let uintPrice = DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: type)!)
-        let uintCollateralFactor = DeFiActionsMathUtils.toUInt128(self.collateralFactor[type]!)
-        let uintBorrowFactor = DeFiActionsMathUtils.toUInt128(self.borrowFactor[type]!)
-        if position.balances[type] == nil || position.balances[type]!.direction == BalanceDirection.Credit {
-            // Since the user has no debt in the given token, we can just compute how much
-            // additional collateral this deposit will create.
-            effectiveCollateralIncrease = DeFiActionsMathUtils.mul(
-                DeFiActionsMathUtils.mul(uintAmount, uintPrice),
-                uintCollateralFactor
-            )
-        } else {
-            // The user has a debit position in the given token, we need to figure out if this deposit
-            // will only pay off some of the debt, or if it will also create new collateral.
-            let debtBalance = position.balances[type]!.scaledBalance
-            let trueDebt = TidalProtocol.scaledBalanceToTrueBalance(debtBalance,
-            interestIndex: tokenState.debitInterestIndex
-        )
-
-        if trueDebt >= uintAmount {
-            // This deposit will wipe out some or all of the debt, but won't create new collateral, we
-            // just need to account for the debt decrease.
-            effectiveDebtDecrease = DeFiActionsMathUtils.div(
-                DeFiActionsMathUtils.mul(uintAmount, uintPrice),
-                uintBorrowFactor
-            )
-        } else {
-            // This deposit will wipe out all of the debt, and create new collateral.
-            effectiveCollateralIncrease = DeFiActionsMathUtils.mul(
-                DeFiActionsMathUtils.mul(uintAmount - trueDebt, uintPrice),
-                uintCollateralFactor
+            return TidalProtocol.healthComputation(
+                effectiveCollateral: balanceSheet.effectiveCollateral + effectiveCollateralIncrease,
+                effectiveDebt: balanceSheet.effectiveDebt - effectiveDebtDecrease
             )
         }
-    }
 
-    return TidalProtocol.healthComputation(
-        effectiveCollateral: balanceSheet.effectiveCollateral + effectiveCollateralIncrease,
-        effectiveDebt: balanceSheet.effectiveDebt - effectiveDebtDecrease
-    )
-}
+        // Returns health value of this position if the given amount of the specified token were withdrawn without
+        // using the top up source.
+        // NOTE: This method can return health values below 1.0, which aren't actually allowed. This indicates
+        // that the proposed withdrawal would fail (unless a top up source is available and used).
+        access(all) fun healthAfterWithdrawal(pid: UInt64, type: Type, amount: UFix64): UInt128 {
+            let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+            let position = self._borrowPosition(pid: pid)
+            let tokenState = self._borrowUpdatedTokenState(type: type)
 
-// Returns health value of this position if the given amount of the specified token were withdrawn without
-// using the top up source.
-// NOTE: This method can return health values below 1.0, which aren't actually allowed. This indicates
-// that the proposed withdrawal would fail (unless a top up source is available and used).
-access(all) fun healthAfterWithdrawal(pid: UInt64, type: Type, amount: UFix64): UInt128 {
-    let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
-    let position = self._borrowPosition(pid: pid)
-    let tokenState = self._borrowUpdatedTokenState(type: type)
+            var effectiveCollateralDecrease: UInt128 = 0
+            var effectiveDebtIncrease: UInt128 = 0
 
-    var effectiveCollateralDecrease: UInt128 = 0
-    var effectiveDebtIncrease: UInt128 = 0
+            let uintAmount = DeFiActionsMathUtils.toUInt128(amount)
+            let uintPrice = DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: type)!)
+            let uintCollateralFactor = DeFiActionsMathUtils.toUInt128(self.collateralFactor[type]!)
+            let uintBorrowFactor = DeFiActionsMathUtils.toUInt128(self.borrowFactor[type]!)
+            if position.balances[type] == nil || position.balances[type]!.direction == BalanceDirection.Debit {
+                // The user has no credit position in the given token, we can just compute how much
+                // additional effective debt this withdrawal will create.
+                effectiveDebtIncrease = DeFiActionsMathUtils.div(
+                    DeFiActionsMathUtils.mul(uintAmount, uintPrice),
+                    uintBorrowFactor
+                )
+            } else {
+                // The user has a credit position in the given token, we need to figure out if this withdrawal
+                // will only draw down some of the collateral, or if it will also create new debt.
+                let creditBalance = position.balances[type]!.scaledBalance
+                let trueCredit = TidalProtocol.scaledBalanceToTrueBalance(creditBalance,
+                    interestIndex: tokenState.creditInterestIndex
+                )
 
-    let uintAmount = DeFiActionsMathUtils.toUInt128(amount)
-    let uintPrice = DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: type)!)
-    let uintCollateralFactor = DeFiActionsMathUtils.toUInt128(self.collateralFactor[type]!)
-    let uintBorrowFactor = DeFiActionsMathUtils.toUInt128(self.borrowFactor[type]!)
-    if position.balances[type] == nil || position.balances[type]!.direction == BalanceDirection.Debit {
-        // The user has no credit position in the given token, we can just compute how much
-        // additional effective debt this withdrawal will create.
-        effectiveDebtIncrease = DeFiActionsMathUtils.div(
-            DeFiActionsMathUtils.mul(uintAmount, uintPrice),
-            uintBorrowFactor
-        )
-    } else {
-        // The user has a credit position in the given token, we need to figure out if this withdrawal
-        // will only draw down some of the collateral, or if it will also create new debt.
-        let creditBalance = position.balances[type]!.scaledBalance
-        let trueCredit = TidalProtocol.scaledBalanceToTrueBalance(creditBalance,
-        interestIndex: tokenState.creditInterestIndex
-    )
+                if trueCredit >= uintAmount {
+                    // This withdrawal will draw down some collateral, but won't create new debt, we
+                    // just need to account for the collateral decrease.
+                    // effectiveCollateralDecrease = amount * self.priceOracle.price(ofToken: type)! * self.collateralFactor[type]!
+                    effectiveCollateralDecrease = DeFiActionsMathUtils.mul(
+                        DeFiActionsMathUtils.mul(uintAmount, uintPrice),
+                        uintCollateralFactor
+                    )
+                } else {
+                    // The withdrawal will wipe out all of the collateral, and create new debt.
+                    effectiveDebtIncrease = DeFiActionsMathUtils.div(
+                        DeFiActionsMathUtils.mul(uintAmount - trueCredit, uintPrice),
+                        uintBorrowFactor
+                    )
+                    effectiveCollateralDecrease = DeFiActionsMathUtils.mul(
+                        DeFiActionsMathUtils.mul(trueCredit, uintPrice),
+                        uintCollateralFactor
+                    )
+                }
+            }
 
-    if trueCredit >= uintAmount {
-        // This withdrawal will draw down some collateral, but won't create new debt, we
-        // just need to account for the collateral decrease.
-        // effectiveCollateralDecrease = amount * self.priceOracle.price(ofToken: type)! * self.collateralFactor[type]!
-        effectiveCollateralDecrease = DeFiActionsMathUtils.mul(
-            DeFiActionsMathUtils.mul(uintAmount, uintPrice),
-            uintCollateralFactor
-        )
-    } else {
-        // The withdrawal will wipe out all of the collateral, and create new debt.
-        effectiveDebtIncrease = DeFiActionsMathUtils.div(
-            DeFiActionsMathUtils.mul(uintAmount - trueCredit, uintPrice),
-            uintBorrowFactor
-        )
-        effectiveCollateralDecrease = DeFiActionsMathUtils.mul(
-            DeFiActionsMathUtils.mul(trueCredit, uintPrice),
-            uintCollateralFactor
-        )
-    }
-}
-
-return TidalProtocol.healthComputation(
-    effectiveCollateral: balanceSheet.effectiveCollateral - effectiveCollateralDecrease,
-    effectiveDebt: balanceSheet.effectiveDebt + effectiveDebtIncrease
-)
+            return TidalProtocol.healthComputation(
+                effectiveCollateral: balanceSheet.effectiveCollateral - effectiveCollateralDecrease,
+                effectiveDebt: balanceSheet.effectiveDebt + effectiveDebtIncrease
+            )
         }
 
         ///////////////////////////
@@ -1278,7 +1278,7 @@ return TidalProtocol.healthComputation(
                 log("    [CONTRACT] Available balance (without topUp): \(availableBalance)")
                 log("    [CONTRACT] Required deposit for minHealth: \(requiredDeposit)")
                 log("    [CONTRACT] Pull from topUpSource: \(pullFromTopUpSource)")
-
+                
                 // We can't service this withdrawal, so we just abort
                 panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
             }
@@ -1531,7 +1531,7 @@ return TidalProtocol.healthComputation(
                 let tokenState = self._borrowUpdatedTokenState(type: type)
                 if balance.direction == BalanceDirection.Credit {
                     let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(balance.scaledBalance,
-                    interestIndex: tokenState.creditInterestIndex)
+                        interestIndex: tokenState.creditInterestIndex)
 
                     let convertedPrice = DeFiActionsMathUtils.toUInt128(priceOracle.price(ofToken: type)!)
                     let value = DeFiActionsMathUtils.mul(convertedPrice, trueBalance)
@@ -1540,7 +1540,7 @@ return TidalProtocol.healthComputation(
                     effectiveCollateral = effectiveCollateral + DeFiActionsMathUtils.mul(value, convertedCollateralFactor)
                 } else {
                     let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(balance.scaledBalance,
-                    interestIndex: tokenState.debitInterestIndex)
+                        interestIndex: tokenState.debitInterestIndex)
 
                     let convertedPrice = DeFiActionsMathUtils.toUInt128(priceOracle.price(ofToken: type)!)
                     let value = DeFiActionsMathUtils.mul(convertedPrice, trueBalance)
@@ -1565,7 +1565,7 @@ return TidalProtocol.healthComputation(
         /// Returns an authorized reference to the requested InternalPosition or `nil` if the position does not exist
         access(self) view fun _borrowPosition(pid: UInt64): auth(EImplementation) &InternalPosition {
             return &self.positions[pid] as auth(EImplementation) &InternalPosition?
-            ?? panic("Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool")
+                ?? panic("Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool")
         }
     }
 
@@ -1937,11 +1937,11 @@ return TidalProtocol.healthComputation(
         pushToDrawDownSink: Bool
     ): Position {
         let pid = self._borrowPool().createPosition(
-            funds: <-collateral,
-            issuanceSink: issuanceSink,
-            repaymentSource: repaymentSource,
-            pushToDrawDownSink: pushToDrawDownSink
-        )
+                funds: <-collateral,
+                issuanceSink: issuanceSink,
+                repaymentSource: repaymentSource,
+                pushToDrawDownSink: pushToDrawDownSink
+            )
         let cap = self.account.capabilities.storage.issue<auth(EPosition) &Pool>(self.PoolStoragePath)
         return Position(id: pid, pool: cap)
     }
@@ -2018,13 +2018,13 @@ return TidalProtocol.healthComputation(
     /// Returns an authorized reference to the contract account's Pool resource
     access(self) view fun _borrowPool(): auth(EPosition) &Pool {
         return self.account.storage.borrow<auth(EPosition) &Pool>(from: self.PoolStoragePath)
-        ?? panic("Could not borrow reference to internal TidalProtocol Pool resource")
+            ?? panic("Could not borrow reference to internal TidalProtocol Pool resource")
     }
 
     /// Returns a reference to the contract account's MOET Minter resource
     access(self) view fun _borrowMOETMinter(): &MOET.Minter {
         return self.account.storage.borrow<&MOET.Minter>(from: MOET.AdminStoragePath)
-        ?? panic("Could not borrow reference to internal MOET Minter resource")
+            ?? panic("Could not borrow reference to internal MOET Minter resource")
     }
 
     init() {
