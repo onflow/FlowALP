@@ -557,14 +557,6 @@ access(all) contract TidalProtocol {
             }
             let uintLiquidationAmountInType = DeFiActionsMathUtils.div(netQuote, uintDepositTokenPrice)
 
-            log("simulateLiquidationValue details:")
-            log("  sourceAmount: \(uintSourceAmount)")
-            log("  depositCreditQuote: \(depositCreditQuote)")
-            log("  depositDebtQuote: \(depositDebtQuote)")
-            log("  sourceDebtQuote: \(sourceDebtQuote)")
-            log("  netQuote: \(netQuote)")
-            log("  liquidationAmount(type): \(uintLiquidationAmountInType)")
-
             return DeFiActionsMathUtils.toUFix64Round(uintLiquidationAmountInType)
         }
 
