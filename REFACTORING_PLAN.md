@@ -68,17 +68,17 @@ access(all) struct TokenSnapshot {
 /// Copy-only representation of a position used by pure math
 access(all) struct PositionView {
     access(all) let balances: {Type: TidalProtocol.InternalBalance}     // copy
-    access(all) let tokenSnaps: {Type: TokenSnapshot}
+    access(all) let snapshots: {Type: TokenSnapshot}
     access(all) let defaultToken: Type
     access(all) let minHealth: UInt256
     access(all) let maxHealth: UInt256
     init(balances: {Type: TidalProtocol.InternalBalance},
-         snaps: {Type: TokenSnapshot},
+         snapshots: {Type: TokenSnapshot},
          def: Type,
          min: UInt256,
          max: UInt256) {
         self.balances = balances
-        self.tokenSnaps = snaps
+        self.snapshots = snapshots
         self.defaultToken = def
         self.minHealth = min
         self.maxHealth = max
@@ -105,7 +105,7 @@ access(all) fun healthFactor(view: PositionView): UInt256 {
     var debt: UInt256 = 0
     for t in view.balances.keys {
         let b = view.balances[t]!
-        let snap = view.tokenSnaps[t]!
+        let snap = view.snapshots[t]!
         if b.direction == TidalProtocol.BalanceDirection.Credit {
             let trueBal = TidalProtocol.scaledBalanceToTrueBalance(b.scaledBalance,
                               interestIndex: snap.creditIndex)
@@ -138,7 +138,7 @@ access(all) fun maxWithdraw(
     var effDebt: UInt256 = 0
     for t in view.balances.keys {
         let b = view.balances[t]!
-        let snap = view.tokenSnaps[t]!
+        let snap = view.snapshots[t]!
         if b.direction == BalanceDirection.Credit {
             let trueBal = TidalProtocol.scaledBalanceToTrueBalance(b.scaledBalance,
                               interestIndex: snap.creditIndex)
@@ -208,7 +208,7 @@ access(all) fun buildPositionView(pid: UInt64): TidalProtocol.PositionView {
     }
     return TidalProtocol.PositionView(
         balances: balancesCopy,
-        snaps: snaps,
+        snapshots: snaps,
         def: self.defaultToken,
         min: position.minHealth,
         max: position.maxHealth
@@ -265,7 +265,7 @@ access(EPosition) fun applyWithdraw(
 
     // pure validation
     let view = self.buildPositionView(pid: pid)
-    let snap = view.tokenSnaps[t]!
+    let snap = view.snapshots[t]!
     let bal = view.balances[t]
     let limit = maxWithdraw(
             view: view,
@@ -308,7 +308,7 @@ test fun healthFactor_edgeCases() {
         risk: RiskParams(cf: 1e18, bf: 1e18, lb: 1e18))
     var balances: {Type: InternalBalance} = {}
     // zero debt & collateral
-    let pv = PositionView(balances: balances, snaps: {}, def: Type<@MOET.Vault>(), min: 1e18, max: 2e18)
+    let pv = PositionView(balances: balances, snapshots: {}, def: Type<@MOET.Vault>(), min: 1e18, max: 2e18)
     assert(healthFactor(view: pv) == zero, message: "zero health expected")
 }
 

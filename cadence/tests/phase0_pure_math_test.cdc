@@ -16,12 +16,12 @@ fun setup() {
 access(all)
 fun snap(price: UFix64, creditIdx: UInt256, debitIdx: UInt256, cf: UFix64, bf: UFix64): TidalProtocol.TokenSnapshot {
     return TidalProtocol.TokenSnapshot(
-        price: TidalProtocolUtils.ufix64ToUInt256(price, decimals: 18),
+        price: TidalProtocolUtils.ufix64ToUInt256(price, decimals: TidalProtocolUtils.decimals),
         credit: creditIdx,
         debit: debitIdx,
         risk: TidalProtocol.RiskParams(
-            cf: TidalProtocolUtils.ufix64ToUInt256(cf, decimals: 18),
-            bf: TidalProtocolUtils.ufix64ToUInt256(bf, decimals: 18),
+            cf: TidalProtocolUtils.ufix64ToUInt256(cf, decimals: TidalProtocolUtils.decimals),
+            bf: TidalProtocolUtils.ufix64ToUInt256(bf, decimals: TidalProtocolUtils.decimals),
             lb: TidalProtocolUtils.e18
         )
     )
@@ -36,7 +36,7 @@ fun test_healthFactor_zeroBalances_returnsZero() {
     let snaps: {Type: TidalProtocol.TokenSnapshot} = {}
     let view = TidalProtocol.PositionView(
         balances: balances,
-        snaps: snaps,
+        snapshots: snaps,
         def: Type<@MOET.Vault>(),
         min: 1_100_000_000_000_000_000,
         max: 1_500_000_000_000_000_000
@@ -59,20 +59,20 @@ fun test_healthFactor_simpleCollateralAndDebt() {
     // Balances: +100 collateral units, -50 debt units
     let balances: {Type: TidalProtocol.InternalBalance} = {}
     balances[tColl] = TidalProtocol.InternalBalance(direction: TidalProtocol.BalanceDirection.Credit,
-        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: 18))
+        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: TidalProtocolUtils.decimals))
     balances[tDebt] = TidalProtocol.InternalBalance(direction: TidalProtocol.BalanceDirection.Debit,
-        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(50.0, decimals: 18))
+        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(50.0, decimals: TidalProtocolUtils.decimals))
 
     let view = TidalProtocol.PositionView(
         balances: balances,
-        snaps: snapshots,
+        snapshots: snapshots,
         def: tColl,
         min: 1_100_000_000_000_000_000,
         max: 1_500_000_000_000_000_000
     )
 
     // Expected health = (100 * 2 * 0.5) / (50 * 1 / 1.0) = 100 / 50 = 2.0
-    let expected = TidalProtocolUtils.ufix64ToUInt256(2.0, decimals: 18)
+    let expected = TidalProtocolUtils.ufix64ToUInt256(2.0, decimals: TidalProtocolUtils.decimals)
     let h = TidalProtocol.healthFactor(view: view)
     Test.assertEqual(expected, h)
 }
@@ -89,11 +89,11 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     // Balances: +100 collateral units on tColl, no entry for t (debt token)
     let balances: {Type: TidalProtocol.InternalBalance} = {}
     balances[tColl] = TidalProtocol.InternalBalance(direction: TidalProtocol.BalanceDirection.Credit,
-        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: 18))
+        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: TidalProtocolUtils.decimals))
 
     let view = TidalProtocol.PositionView(
         balances: balances,
-        snaps: snapshots,
+        snapshots: snapshots,
         def: t,
         min: 1_100_000_000_000_000_000,
         max: 1_500_000_000_000_000_000
@@ -107,7 +107,7 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     )
     // Expected tokens = effColl / targetHealth (bf=1, price=1), computed in 18-decimal UInt256 math
     // effColl = 100 * 1 * 0.8 = 80 (as 80e18)
-    let effColl = TidalProtocolUtils.ufix64ToUInt256(80.0, decimals: 18)
+    let effColl = TidalProtocolUtils.ufix64ToUInt256(80.0, decimals: TidalProtocolUtils.decimals)
     let expected = TidalProtocolUtils.div(effColl, 1_300_000_000_000_000_000)
     log("max (uint256): ".concat(max.toString()))
     log("expected (uint256): ".concat(expected.toString()))
@@ -123,11 +123,11 @@ fun test_maxWithdraw_fromCollateralLimitedByHealth() {
 
     let balances: {Type: TidalProtocol.InternalBalance} = {}
     balances[t] = TidalProtocol.InternalBalance(direction: TidalProtocol.BalanceDirection.Credit,
-        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: 18))
+        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: TidalProtocolUtils.decimals))
 
     let view = TidalProtocol.PositionView(
         balances: balances,
-        snaps: snapshots,
+        snapshots: snapshots,
         def: t,
         min: 1_100_000_000_000_000_000,
         max: 1_500_000_000_000_000_000
@@ -140,7 +140,7 @@ fun test_maxWithdraw_fromCollateralLimitedByHealth() {
         targetHealth: 1_300_000_000_000_000_000
     )
     // With no debt, health is infinite; withdrawal limited by credit balance (100)
-    let expected = TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: 18)
+    let expected = TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: TidalProtocolUtils.decimals)
     Test.assertEqual(expected, max)
 }
 
