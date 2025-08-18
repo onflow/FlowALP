@@ -1,6 +1,6 @@
 import Test
 import "TidalProtocol"
-import "TidalProtocolUtils"
+import "DeFiActionsMathUtils"
 import "FungibleToken"
 import "MOET"
 import "test_helpers.cdc"
@@ -14,21 +14,21 @@ fun setup() {
 
 // Helper to build a TokenSnapshot quickly
 access(all)
-fun snap(price: UFix64, creditIdx: UInt256, debitIdx: UInt256, cf: UFix64, bf: UFix64): TidalProtocol.TokenSnapshot {
+fun snap(price: UFix64, creditIdx: UInt128, debitIdx: UInt128, cf: UFix64, bf: UFix64): TidalProtocol.TokenSnapshot {
     return TidalProtocol.TokenSnapshot(
-        price: TidalProtocolUtils.ufix64ToUInt256(price, decimals: TidalProtocolUtils.decimals),
+        price: DeFiActionsMathUtils.toUInt128(price),
         credit: creditIdx,
         debit: debitIdx,
         risk: TidalProtocol.RiskParams(
-            cf: TidalProtocolUtils.ufix64ToUInt256(cf, decimals: TidalProtocolUtils.decimals),
-            bf: TidalProtocolUtils.ufix64ToUInt256(bf, decimals: TidalProtocolUtils.decimals),
-            lb: TidalProtocolUtils.e18
+            cf: DeFiActionsMathUtils.toUInt128(cf),
+            bf: DeFiActionsMathUtils.toUInt128(bf),
+            lb: DeFiActionsMathUtils.e24
         )
     )
 }
 
-// e18 constant alias
-access(all) let WAD: UInt256 = 1_000_000_000_000_000_000
+// e24 constant alias
+access(all) let WAD: UInt128 = 1_000_000_000_000_000_000_000_000
 
 access(all)
 fun test_healthFactor_zeroBalances_returnsZero() {
@@ -38,11 +38,11 @@ fun test_healthFactor_zeroBalances_returnsZero() {
         balances: balances,
         snapshots: snaps,
         def: Type<@MOET.Vault>(),
-        min: 1_100_000_000_000_000_000,
-        max: 1_500_000_000_000_000_000
+        min: DeFiActionsMathUtils.toUInt128(1.1),
+        max: DeFiActionsMathUtils.toUInt128(1.5)
     )
     let h = TidalProtocol.healthFactor(view: view)
-    Test.assertEqual(UInt256(0), h)
+    Test.assertEqual(UInt128(0), h)
 }
 
 access(all)
@@ -59,20 +59,20 @@ fun test_healthFactor_simpleCollateralAndDebt() {
     // Balances: +100 collateral units, -50 debt units
     let balances: {Type: TidalProtocol.InternalBalance} = {}
     balances[tColl] = TidalProtocol.InternalBalance(direction: TidalProtocol.BalanceDirection.Credit,
-        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: TidalProtocolUtils.decimals))
+        scaledBalance: DeFiActionsMathUtils.toUInt128(100.0))
     balances[tDebt] = TidalProtocol.InternalBalance(direction: TidalProtocol.BalanceDirection.Debit,
-        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(50.0, decimals: TidalProtocolUtils.decimals))
+        scaledBalance: DeFiActionsMathUtils.toUInt128(50.0))
 
     let view = TidalProtocol.PositionView(
         balances: balances,
         snapshots: snapshots,
         def: tColl,
-        min: 1_100_000_000_000_000_000,
-        max: 1_500_000_000_000_000_000
+        min: DeFiActionsMathUtils.toUInt128(1.1),
+        max: DeFiActionsMathUtils.toUInt128(1.5)
     )
 
     // Expected health = (100 * 2 * 0.5) / (50 * 1 / 1.0) = 100 / 50 = 2.0
-    let expected = TidalProtocolUtils.ufix64ToUInt256(2.0, decimals: TidalProtocolUtils.decimals)
+    let expected = DeFiActionsMathUtils.toUInt128(2.0)
     let h = TidalProtocol.healthFactor(view: view)
     Test.assertEqual(expected, h)
 }
@@ -89,28 +89,28 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     // Balances: +100 collateral units on tColl, no entry for t (debt token)
     let balances: {Type: TidalProtocol.InternalBalance} = {}
     balances[tColl] = TidalProtocol.InternalBalance(direction: TidalProtocol.BalanceDirection.Credit,
-        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: TidalProtocolUtils.decimals))
+        scaledBalance: DeFiActionsMathUtils.toUInt128(100.0))
 
     let view = TidalProtocol.PositionView(
         balances: balances,
         snapshots: snapshots,
         def: t,
-        min: 1_100_000_000_000_000_000,
-        max: 1_500_000_000_000_000_000
+        min: DeFiActionsMathUtils.toUInt128(1.1),
+        max: DeFiActionsMathUtils.toUInt128(1.5)
     )
 
     let max = TidalProtocol.maxWithdraw(
         view: view,
         withdrawSnap: snapshots[t]!,
         withdrawBal: view.balances[t],
-        targetHealth: 1_300_000_000_000_000_000
+        targetHealth: DeFiActionsMathUtils.toUInt128(1.3)
     )
-    // Expected tokens = effColl / targetHealth (bf=1, price=1), computed in 18-decimal UInt256 math
-    // effColl = 100 * 1 * 0.8 = 80 (as 80e18)
-    let effColl = TidalProtocolUtils.ufix64ToUInt256(80.0, decimals: TidalProtocolUtils.decimals)
-    let expected = TidalProtocolUtils.div(effColl, 1_300_000_000_000_000_000)
-    log("max (uint256): ".concat(max.toString()))
-    log("expected (uint256): ".concat(expected.toString()))
+    // Expected tokens = effColl / targetHealth (bf=1, price=1), computed in 24-decimal UInt128 math
+    // effColl = 100 * 1 * 0.8 = 80 (as 80e24)
+    let effColl = DeFiActionsMathUtils.toUInt128(80.0)
+    let expected = DeFiActionsMathUtils.div(effColl, DeFiActionsMathUtils.toUInt128(1.3))
+    log("max (uint128): ".concat(max.toString()))
+    log("expected (uint128): ".concat(expected.toString()))
     Test.assert(uintEqualWithinVariance(expected, max), message: "maxWithdraw debt increase mismatch")
 }
 
@@ -123,24 +123,24 @@ fun test_maxWithdraw_fromCollateralLimitedByHealth() {
 
     let balances: {Type: TidalProtocol.InternalBalance} = {}
     balances[t] = TidalProtocol.InternalBalance(direction: TidalProtocol.BalanceDirection.Credit,
-        scaledBalance: TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: TidalProtocolUtils.decimals))
+        scaledBalance: DeFiActionsMathUtils.toUInt128(100.0))
 
     let view = TidalProtocol.PositionView(
         balances: balances,
         snapshots: snapshots,
         def: t,
-        min: 1_100_000_000_000_000_000,
-        max: 1_500_000_000_000_000_000
+        min: DeFiActionsMathUtils.toUInt128(1.1),
+        max: DeFiActionsMathUtils.toUInt128(1.5)
     )
 
     let max = TidalProtocol.maxWithdraw(
         view: view,
         withdrawSnap: snapshots[t]!,
         withdrawBal: view.balances[t],
-        targetHealth: 1_300_000_000_000_000_000
+        targetHealth: DeFiActionsMathUtils.toUInt128(1.3)
     )
     // With no debt, health is infinite; withdrawal limited by credit balance (100)
-    let expected = TidalProtocolUtils.ufix64ToUInt256(100.0, decimals: TidalProtocolUtils.decimals)
+    let expected = DeFiActionsMathUtils.toUInt128(100.0)
     Test.assertEqual(expected, max)
 }
 

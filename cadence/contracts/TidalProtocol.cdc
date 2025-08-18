@@ -46,7 +46,7 @@ access(all) contract TidalProtocol {
         access(all) var scaledBalance: UInt128
 
         // Single initializer that can handle both cases
-        init(direction: BalanceDirection, scaledBalance: UInt256) {
+        init(direction: BalanceDirection, scaledBalance: UInt128) {
             self.direction = direction
             self.scaledBalance = scaledBalance
         }
@@ -637,13 +637,13 @@ access(all) contract TidalProtocol {
             // Build a TokenSnapshot for the requested withdraw type (may not exist in view.snapshots)
             let tokenState = self._borrowUpdatedTokenState(type: type)
             let snap = TidalProtocol.TokenSnapshot(
-                price: TidalProtocolUtils.ufix64ToUInt256(self.priceOracle.price(ofToken: type)!, decimals: TidalProtocolUtils.decimals),
+                price: DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: type)!),
                 credit: tokenState.creditInterestIndex,
                 debit: tokenState.debitInterestIndex,
                 risk: TidalProtocol.RiskParams(
-                    cf: TidalProtocolUtils.ufix64ToUInt256(self.collateralFactor[type]!, decimals: TidalProtocolUtils.decimals),
-                    bf: TidalProtocolUtils.ufix64ToUInt256(self.borrowFactor[type]!, decimals: TidalProtocolUtils.decimals),
-                    lb: TidalProtocolUtils.e18 + 50_000_000_000_000_000
+                    cf: DeFiActionsMathUtils.toUInt128(self.collateralFactor[type]!),
+                    bf: DeFiActionsMathUtils.toUInt128(self.borrowFactor[type]!),
+                    lb: DeFiActionsMathUtils.e24 + 50_000_000_000_000_000_000_000
                 )
             )
 
@@ -654,7 +654,7 @@ access(all) contract TidalProtocol {
                 withdrawBal: withdrawBal,
                 targetHealth: view.minHealth
             )
-            return TidalProtocolUtils.uint256ToUFix64(uintMax, decimals: TidalProtocolUtils.decimals)
+            return DeFiActionsMathUtils.toUFix64Round(uintMax)
         }
 
         /// Returns the health of the given position, which is the ratio of the position's effective collateral to its
@@ -1762,13 +1762,13 @@ access(all) contract TidalProtocol {
             for t in position.balances.keys {
                 let tokenState = self._borrowUpdatedTokenState(type: t)
                 snaps[t] = TidalProtocol.TokenSnapshot(
-                    price: TidalProtocolUtils.ufix64ToUInt256(self.priceOracle.price(ofToken: t)!, decimals: TidalProtocolUtils.decimals),
+                    price: DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: t)!),
                     credit: tokenState.creditInterestIndex,
                     debit: tokenState.debitInterestIndex,
                     risk: TidalProtocol.RiskParams(
-                        cf: TidalProtocolUtils.ufix64ToUInt256(self.collateralFactor[t]!, decimals: TidalProtocolUtils.decimals),
-                        bf: TidalProtocolUtils.ufix64ToUInt256(self.borrowFactor[t]!, decimals: TidalProtocolUtils.decimals),
-                        lb: TidalProtocolUtils.e18 + 50_000_000_000_000_000
+                        cf: DeFiActionsMathUtils.toUInt128(self.collateralFactor[t]!),
+                        bf: DeFiActionsMathUtils.toUInt128(self.borrowFactor[t]!),
+                        lb: DeFiActionsMathUtils.e24 + 50_000_000_000_000_000_000_000
                     )
                 )
             }
