@@ -45,9 +45,10 @@ access(all) contract TidalProtocol {
         /// of magnitude as the actual balance (thus we can use UFix64 for the scaled balance).
         access(all) var scaledBalance: UInt128
 
-        init() {
-            self.direction = BalanceDirection.Credit
-            self.scaledBalance = 0
+        // Single initializer that can handle both cases
+        init(direction: BalanceDirection, scaledBalance: UInt128) {
+            self.direction = direction
+            self.scaledBalance = scaledBalance
         }
 
         /// Records a deposit of the defined amount, updating the inner scaledBalance as well as relevant values in the
@@ -206,6 +207,10 @@ access(all) contract TidalProtocol {
             self.drawDownSink = nil
             self.topUpSource = nil
         }
+        /// Returns a value-copy of `balances` suitable for constructing a `PositionView`.
+        access(all) fun copyBalances(): {Type: InternalBalance} {
+            return self.balances
+        }
         /// Sets the InternalPosition's drawDownSink. If `nil`, the Pool will not be able to push overflown value when
         /// the position exceeds its maximum health. Note, if a non-nil value is provided, the Sink MUST accept MOET
         /// deposits or the operation will revert.
@@ -254,10 +259,10 @@ access(all) contract TidalProtocol {
         /// The total debit balance of the related Token across the whole Pool in which this TokenState resides
         access(all) var totalDebitBalance: UInt128
         /// The index of the credit interest for the related token. Interest on a token is stored as an "index" which
-        /// can be thought of as “how many actual tokens does 1 unit of scaled balance represent right now?”
+        /// can be thought of as "how many actual tokens does 1 unit of scaled balance represent right now?"
         access(all) var creditInterestIndex: UInt128
         /// The index of the debit interest for the related token. Interest on a token is stored as an "index" which
-        /// can be thought of as “how many actual tokens does 1 unit of scaled balance represent right now?”
+        /// can be thought of as "how many actual tokens does 1 unit of scaled balance represent right now?"
         access(all) var debitInterestIndex: UInt128
         /// The interest rate for credit of the associated token
         access(all) var currentCreditRate: UInt128
@@ -357,6 +362,163 @@ access(all) contract TidalProtocol {
         }
     }
 
+    // ----- Phase 0 Refactor: Pure Value Types & Helpers ------------------------
+
+    access(all) struct RiskParams {
+        access(all) let collateralFactor: UInt128
+        access(all) let borrowFactor: UInt128
+        access(all) let liquidationBonus: UInt128
+        init(cf: UInt128, bf: UInt128, lb: UInt128) {
+            self.collateralFactor = cf
+            self.borrowFactor = bf
+            self.liquidationBonus = lb
+        }
+    }
+
+    /// Immutable snapshot of token-level data required for math
+    access(all) struct TokenSnapshot {
+        access(all) let price: UInt128
+        access(all) let creditIndex: UInt128
+        access(all) let debitIndex: UInt128
+        access(all) let risk: RiskParams
+        init(price: UInt128, credit: UInt128, debit: UInt128, risk: RiskParams) {
+            self.price = price
+            self.creditIndex = credit
+            self.debitIndex = debit
+            self.risk = risk
+        }
+    }
+
+    /// Copy-only representation of a position used by pure math
+    access(all) struct PositionView {
+        access(all) let balances: {Type: InternalBalance}
+        access(all) let snapshots: {Type: TokenSnapshot}
+        access(all) let defaultToken: Type
+        access(all) let minHealth: UInt128
+        access(all) let maxHealth: UInt128
+        init(balances: {Type: InternalBalance},
+             snapshots: {Type: TokenSnapshot},
+             def: Type,
+             min: UInt128,
+             max: UInt128) {
+            self.balances = balances
+            self.snapshots = snapshots
+            self.defaultToken = def
+            self.minHealth = min
+            self.maxHealth = max
+        }
+    }
+
+    // PURE HELPERS -------------------------------------------------------------
+
+    access(all) view fun effectiveCollateral(credit: UInt128, snap: TokenSnapshot): UInt128 {
+        return DeFiActionsMathUtils.mul(
+            DeFiActionsMathUtils.mul(credit, snap.price),
+            snap.risk.collateralFactor
+        )
+    }
+
+    access(all) view fun effectiveDebt(debit: UInt128, snap: TokenSnapshot): UInt128 {
+        return DeFiActionsMathUtils.div(
+            DeFiActionsMathUtils.mul(debit, snap.price),
+            snap.risk.borrowFactor
+        )
+    }
+
+    /// Computes health = totalEffectiveCollateral / totalEffectiveDebt (∞ when debt == 0)
+    access(all) view fun healthFactor(view: PositionView): UInt128 {
+        var effectiveCollateralTotal: UInt128 = 0
+        var effectiveDebtTotal: UInt128 = 0
+        for tokenType in view.balances.keys {
+            let balance = view.balances[tokenType]!
+            let snap = view.snapshots[tokenType]!
+            if balance.direction == BalanceDirection.Credit {
+                let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(
+                    balance.scaledBalance,
+                    interestIndex: snap.creditIndex
+                )
+                effectiveCollateralTotal = effectiveCollateralTotal + TidalProtocol.effectiveCollateral(credit: trueBalance, snap: snap)
+            } else {
+                let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(
+                    balance.scaledBalance,
+                    interestIndex: snap.debitIndex
+                )
+                effectiveDebtTotal = effectiveDebtTotal + TidalProtocol.effectiveDebt(debit: trueBalance, snap: snap)
+            }
+        }
+        return TidalProtocol.healthComputation(
+            effectiveCollateral: effectiveCollateralTotal,
+            effectiveDebt: effectiveDebtTotal
+        )
+    }
+
+    /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth
+    access(all) view fun maxWithdraw(
+        view: PositionView,
+        withdrawSnap: TokenSnapshot,
+        withdrawBal: InternalBalance?,
+        targetHealth: UInt128
+    ): UInt128 {
+        let preHealth = TidalProtocol.healthFactor(view: view)
+        if preHealth <= targetHealth {
+            return 0
+        }
+
+        var effectiveCollateralTotal: UInt128 = 0
+        var effectiveDebtTotal: UInt128 = 0
+        for tokenType in view.balances.keys {
+            let balance = view.balances[tokenType]!
+            let snap = view.snapshots[tokenType]!
+            if balance.direction == BalanceDirection.Credit {
+                let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(
+                    balance.scaledBalance,
+                    interestIndex: snap.creditIndex
+                )
+                effectiveCollateralTotal = effectiveCollateralTotal + TidalProtocol.effectiveCollateral(credit: trueBalance, snap: snap)
+            } else {
+                let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(
+                    balance.scaledBalance,
+                    interestIndex: snap.debitIndex
+                )
+                effectiveDebtTotal = effectiveDebtTotal + TidalProtocol.effectiveDebt(debit: trueBalance, snap: snap)
+            }
+        }
+
+        let collateralFactor = withdrawSnap.risk.collateralFactor
+        let borrowFactor = withdrawSnap.risk.borrowFactor
+
+        if withdrawBal == nil || withdrawBal!.direction == BalanceDirection.Debit {
+            // withdrawing increases debt
+            let numerator = effectiveCollateralTotal
+            let denominatorTarget = DeFiActionsMathUtils.div(numerator, targetHealth)
+            let deltaDebt = denominatorTarget > effectiveDebtTotal ? denominatorTarget - effectiveDebtTotal : UInt128(0)
+            let tokens = DeFiActionsMathUtils.div(
+                DeFiActionsMathUtils.mul(deltaDebt, borrowFactor),
+                withdrawSnap.price
+            )
+            return tokens
+        } else {
+            // withdrawing reduces collateral
+            let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(
+                withdrawBal!.scaledBalance,
+                interestIndex: withdrawSnap.creditIndex
+            )
+            let maxPossible = trueBalance
+            let requiredCollateral = DeFiActionsMathUtils.mul(effectiveDebtTotal, targetHealth)
+            if effectiveCollateralTotal <= requiredCollateral {
+                return 0
+            }
+            let deltaCollateralEffective = effectiveCollateralTotal - requiredCollateral
+            let deltaTokens = DeFiActionsMathUtils.div(
+                DeFiActionsMathUtils.div(deltaCollateralEffective, collateralFactor),
+                withdrawSnap.price
+            )
+            return deltaTokens > maxPossible ? maxPossible : deltaTokens
+        }
+    }
+
+    // ----- End Phase 0 additions ---------------------------------------------
+
     /// Pool
     ///
     /// A Pool is the primary logic for protocol operations. It contains the global state of all positions, credit and
@@ -440,10 +602,9 @@ access(all) contract TidalProtocol {
             return vaultRef!.balance
         }
 
-        /// Returns a position's balance available for withdrawal of a given Vault type. If pullFromTopUpSource is true,
-        /// the calculation will be made assuming the position is topped up if the withdrawal amount puts the Position
-        /// below its min health. If pullFromTopUpSource is true, the calculation will return the balance currently
-        /// available without topping up the position.
+        /// Returns a position's balance available for withdrawal of a given Vault type.
+        /// Phase 0 refactor: compute via pure helpers using a PositionView and TokenSnapshot for the base path.
+        /// When pullFromTopUpSource is true and a topUpSource exists, preserve deposit-assisted semantics.
         access(all) fun availableBalance(pid: UInt64, type: Type, pullFromTopUpSource: Bool): UFix64 {
             log("    [CONTRACT] availableBalance(pid: \(pid), type: \(type.contractName!), pullFromTopUpSource: \(pullFromTopUpSource))")
             let position = self._borrowPosition(pid: pid)
@@ -461,14 +622,31 @@ access(all) contract TidalProtocol {
                     depositType: sourceType,
                     depositAmount: sourceAmount
                 )
-            } else {
-                log("    [CONTRACT] Calling to fundsAvailableAboveTargetHealth with targetHealth \(position.minHealth)")
-                return self.fundsAvailableAboveTargetHealth(
-                    pid: pid,
-                    type: type,
-                    targetHealth: position.minHealth
-                )
             }
+
+            let view = self.buildPositionView(pid: pid)
+
+            // Build a TokenSnapshot for the requested withdraw type (may not exist in view.snapshots)
+            let tokenState = self._borrowUpdatedTokenState(type: type)
+            let snap = TidalProtocol.TokenSnapshot(
+                price: DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: type)!),
+                credit: tokenState.creditInterestIndex,
+                debit: tokenState.debitInterestIndex,
+                risk: TidalProtocol.RiskParams(
+                    cf: DeFiActionsMathUtils.toUInt128(self.collateralFactor[type]!),
+                    bf: DeFiActionsMathUtils.toUInt128(self.borrowFactor[type]!),
+                    lb: DeFiActionsMathUtils.e24 + 50_000_000_000_000_000_000_000
+                )
+            )
+
+            let withdrawBal = view.balances[type]
+            let uintMax = TidalProtocol.maxWithdraw(
+                view: view,
+                withdrawSnap: snap,
+                withdrawBal: withdrawBal,
+                targetHealth: view.minHealth
+            )
+            return DeFiActionsMathUtils.toUFix64Round(uintMax)
         }
 
         /// Returns the health of the given position, which is the ratio of the position's effective collateral to its
@@ -1165,7 +1343,7 @@ access(all) contract TidalProtocol {
 
             // If this position doesn't currently have an entry for this token, create one.
             if position.balances[type] == nil {
-                position.balances[type] = InternalBalance()
+                position.balances[type] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0)
             }
 
             // CHANGE: Create vault if it doesn't exist yet
@@ -1285,7 +1463,7 @@ access(all) contract TidalProtocol {
 
             // If this position doesn't currently have an entry for this token, create one.
             if position.balances[type] == nil {
-                position.balances[type] = InternalBalance()
+                position.balances[type] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0)
             }
 
             let reserveVault = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
@@ -1422,7 +1600,7 @@ access(all) contract TidalProtocol {
 
                         let tokenState = self._borrowUpdatedTokenState(type: self.defaultToken)
                         if position.balances[self.defaultToken] == nil {
-                            position.balances[self.defaultToken] = InternalBalance()
+                            position.balances[self.defaultToken] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0)
                         }
                         // record the withdrawal and mint the tokens
                         let uintSinkAmount = DeFiActionsMathUtils.toUInt128(sinkAmount)
@@ -1566,6 +1744,33 @@ access(all) contract TidalProtocol {
         access(self) view fun _borrowPosition(pid: UInt64): auth(EImplementation) &InternalPosition {
             return &self.positions[pid] as auth(EImplementation) &InternalPosition?
                 ?? panic("Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool")
+        }
+
+        /// Build a PositionView for the given position ID
+        access(all) fun buildPositionView(pid: UInt64): TidalProtocol.PositionView {
+            let position = self._borrowPosition(pid: pid)
+            let snaps: {Type: TidalProtocol.TokenSnapshot} = {}
+            let balancesCopy: {Type: TidalProtocol.InternalBalance} = position.copyBalances()
+            for t in position.balances.keys {
+                let tokenState = self._borrowUpdatedTokenState(type: t)
+                snaps[t] = TidalProtocol.TokenSnapshot(
+                    price: DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: t)!),
+                    credit: tokenState.creditInterestIndex,
+                    debit: tokenState.debitInterestIndex,
+                    risk: TidalProtocol.RiskParams(
+                        cf: DeFiActionsMathUtils.toUInt128(self.collateralFactor[t]!),
+                        bf: DeFiActionsMathUtils.toUInt128(self.borrowFactor[t]!),
+                        lb: DeFiActionsMathUtils.e24 + 50_000_000_000_000_000_000_000
+                    )
+                )
+            }
+            return TidalProtocol.PositionView(
+                balances: balancesCopy,
+                snapshots: snaps,
+                def: self.defaultToken,
+                min: position.minHealth,
+                max: position.maxHealth
+            )
         }
     }
 
