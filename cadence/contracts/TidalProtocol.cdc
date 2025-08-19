@@ -207,17 +207,9 @@ access(all) contract TidalProtocol {
             self.drawDownSink = nil
             self.topUpSource = nil
         }
-        /// Returns a shallow copy of `balances` suitable for constructing a `PositionView`.
+        /// Returns a value-copy of `balances` suitable for constructing a `PositionView`.
         access(all) fun copyBalances(): {Type: InternalBalance} {
-            let copy: {Type: InternalBalance} = {}
-            for tokenType in self.balances.keys {
-                let balance = self.balances[tokenType]!
-                copy[tokenType] = TidalProtocol.InternalBalance(
-                    direction: balance.direction,
-                    scaledBalance: balance.scaledBalance
-                )
-            }
-            return copy
+            return self.balances
         }
         /// Sets the InternalPosition's drawDownSink. If `nil`, the Pool will not be able to push overflown value when
         /// the position exceeds its maximum health. Note, if a non-nil value is provided, the Sink MUST accept MOET
