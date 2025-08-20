@@ -306,18 +306,60 @@ access(all) contract TidalProtocol {
 
         // Enhanced updateInterestIndices with deposit capacity update
         access(all) fun updateInterestIndices() {
-            let currentTime = getCurrentBlock().timestamp
-            let timeDelta: UFix64 = currentTime - self.lastUpdate
-            self.creditInterestIndex = TidalProtocol.compoundInterestIndex(oldIndex: self.creditInterestIndex, perSecondRate: self.currentCreditRate, elapsedSeconds: timeDelta)
-            self.debitInterestIndex = TidalProtocol.compoundInterestIndex(oldIndex: self.debitInterestIndex, perSecondRate: self.currentDebitRate, elapsedSeconds: timeDelta)
+            let currentTime: UFix64 = getCurrentBlock().timestamp
+            let dt: UFix64 = currentTime - self.lastUpdate
+
+            // No time elapsed or already at cap → nothing to do
+            if dt <= 0.0 {
+                return
+            }
+
+            // Update interest indices (dt > 0 ensures sensible compounding)
+            self.creditInterestIndex = TidalProtocol.compoundInterestIndex(
+                oldIndex: self.creditInterestIndex,
+                perSecondRate: self.currentCreditRate,
+                elapsedSeconds: dt
+            )
+            self.debitInterestIndex = TidalProtocol.compoundInterestIndex(
+                oldIndex: self.debitInterestIndex,
+                perSecondRate: self.currentDebitRate,
+                elapsedSeconds: dt
+            )
+
+            // Record the moment we accounted for
             self.lastUpdate = currentTime
 
-            // Update deposit capacity based on time
-            let newDepositCapacity = self.depositCapacity + (self.depositRate * timeDelta)
-            if newDepositCapacity >= self.depositCapacityCap {
+            // ---- Deposit capacity with overflow-proof, saturating growth ----
+            // Early exits keep gas down and avoid unnecessary math
+            if self.depositCapacity >= self.depositCapacityCap {
                 self.depositCapacity = self.depositCapacityCap
-            } else {
-                self.depositCapacity = newDepositCapacity
+                return
+            }
+            if self.depositRate <= 0.0 {
+                return
+            }
+
+            // Remaining headroom before hitting the cap
+            let remaining: UFix64 = self.depositCapacityCap - self.depositCapacity
+            if remaining <= 0.0 {
+                self.depositCapacity = self.depositCapacityCap
+                return
+            }
+
+            // Bound the multiplier BEFORE multiplying to prevent overflow:
+            // choose the largest rate that still ensures rate*dt <= remaining
+            let maxRateForStep: UFix64 = remaining / dt
+            let effectiveRate: UFix64 = self.depositRate < maxRateForStep
+                ? self.depositRate
+                : maxRateForStep
+
+            // Safe: growth <= remaining, so the addition cannot overflow
+            let growth: UFix64 = effectiveRate * dt
+            self.depositCapacity = self.depositCapacity + growth
+
+            // Defensive clamp (handles any rounding edge cases)
+            if self.depositCapacity > self.depositCapacityCap {
+                self.depositCapacity = self.depositCapacityCap
             }
         }
 
