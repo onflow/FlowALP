@@ -1737,7 +1737,7 @@ access(all) contract TidalProtocol {
                 self._queuePositionForUpdateIfNecessary(pid: pid)
                 processed = processed + 1
             }
-        } 
+        }
 
         /// Executes an asynchronous update on the specified position
         access(EImplementation) fun asyncUpdatePosition(pid: UInt64) {
