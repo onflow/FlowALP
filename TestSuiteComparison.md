@@ -25,7 +25,7 @@ Key Differences
 | Layer | Current branch | Legacy branch |
 |-------|----------------|---------------|
 | Helper file | `test_helpers.cdc` (≈150 LOC, concise) | `test_helpers.cdc` (≈300 LOC, bespoke utilities) |
-| Account/Vault utils | Uses real `FlowTokenStack` & on-chain vault paths; leans on DeFiBlocks connectors. | Manufactures an in-memory `resource MockVault` to mimic FlowToken; therefore never validates interactions with real vault APIs. |
+| Account/Vault utils | Uses real `FlowTokenStack` & on-chain vault paths; leans on DeFiActions connectors. | Manufactures an in-memory `resource MockVault` to mimic FlowToken; therefore never validates interactions with real vault APIs. |
 | Oracle mocks | Separate `MockOracle` contract deployed once during `setup()`. | Builds a string-concat Cadence script at runtime (`createDummyOracle`) and executes it every time a price oracle is needed → fragile and slow. |
 | State control | Snapshot + `Test.reset(to:)` isolates cases. | No snapshot/reset; each test implicitly assumes fresh emulator or isolated file. |
 | Failure asserts | "`beFailed` flag" pattern allows a single helper to test success & expected-failure flows. | Success only (almost no negative-path coverage). |

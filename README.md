@@ -6,37 +6,37 @@
 - **Tests**: ✅ 100% Passing (22/22 tests)
 - **Coverage**: ✅ 89.7%
 - **Documentation**: ✅ Complete
-- **Standards**: ✅ FungibleToken & DeFi Blocks Compatible
+- **Standards**: ✅ FungibleToken & DeFi Actions Compatible
 - **FlowVault Removal**: ✅ Complete (Ready for Tidal Integration)
 
 ## 🎯 Tidal Integration Milestones
 
 ### Current Status (Tracer Bullet Phase)
 - ✅ **Smart Contract Integration**: TidalProtocol provides sink/source interfaces for token swapping
-- ✅ **Development & Testing**: Automated testing framework for TidalProtocol and DefiBlocks
-- ✅ **Repository Structure**: TidalProtocol code in private repo, DefiBlocks in public repo
+- ✅ **Development & Testing**: Automated testing framework for TidalProtocol and DefiActions
+- ✅ **Repository Structure**: TidalProtocol code in private repo, DefiActions in public repo
 - 💛 **Test Coverage**: Working towards comprehensive test suite for Tidal functionality
 - 👌 **AMM Integration**: Currently using dummy swapper, real AMM deployment planned
 
 ### Upcoming (Limited Beta)
 - ✅ **Documentation**: First pass documentation of TidalProtocol (this README)
-- ✅ **Testing**: Extensive test suite for TidalProtocol and DefiBlocks
-- 💛 **Sample Code**: DefiBlocks sample code and tutorials needed
+- ✅ **Testing**: Extensive test suite for TidalProtocol and DefiActions
+- 💛 **Sample Code**: DefiActions sample code and tutorials needed
 - 👌 **Advanced Features**: Per-user limits and controlled testing capabilities
 
 ### Future (Open Beta)
-- ✅ **Open Access**: Full public access to TidalProtocol and DefiBlocks
+- ✅ **Open Access**: Full public access to TidalProtocol and DefiActions
 - 💛 **Documentation**: Improved documentation and tutorials
-- ✅ **Sample Code**: Complete tutorials for DefiBlocks integration
+- ✅ **Sample Code**: Complete tutorials for DefiActions integration
 
 ## 🏦 About TidalProtocol
 
-TidalProtocol is a decentralized lending and borrowing protocol built on the Flow blockchain. It implements the Flow FungibleToken standard and integrates with DeFi Blocks for composability.
+TidalProtocol is a decentralized lending and borrowing protocol built on the Flow blockchain. It implements the Flow FungibleToken standard and integrates with DeFi Actions for composability.
 
 ### Key Features
 
 - **FungibleToken Standard**: Full compatibility with Flow wallets and DEXs
-- **DeFi Blocks Integration**: Composable with other DeFi protocols via Sink/Source interfaces
+- **DeFi Actions Integration**: Composable with other DeFi protocols via Sink/Source interfaces
 - **Vault Operations**: Secure deposit and withdraw functionality
 - **Position Management**: Create and manage lending/borrowing positions
 - **Interest Mechanics**: Compound interest calculations with configurable rates
@@ -47,7 +47,7 @@ TidalProtocol is a decentralized lending and borrowing protocol built on the Flo
 ### Technical Highlights
 
 - Implements `FungibleToken.Vault` interface for standard token operations
-- Provides `DFB.Sink` and `DFB.Source` for DeFi composability
+- Provides `DeFiActions.Sink` and `DeFiActions.Source` for DeFi composability
 - Uses scaled balance tracking for efficient interest accrual
 - Supports multiple positions per pool with independent tracking
 - Includes comprehensive metadata views for wallet integration
@@ -121,20 +121,20 @@ flow project deploy --network=emulator
 TidalProtocol/
 ├── cadence/
 │   ├── contracts/
-│   │   └── TidalProtocol.cdc          # Main lending protocol contract
+│   │   └── TidalProtocol.cdc           # Main lending protocol contract
 │   ├── tests/
-│   │   ├── test_helpers.cdc       # Shared test utilities
-│   │   ├── core_vault_test.cdc    # Vault operation tests
-│   │   ├── interest_mechanics_test.cdc  # Interest calculation tests
-│   │   └── ...                    # Other test files
-│   ├── transactions/              # Transaction templates (coming soon)
-│   └── scripts/                   # Query scripts (coming soon)
-├── DeFiBlocks/
+│   │   ├── test_helpers.cdc            # Shared test utilities
+│   │   ├── core_vault_test.cdc         # Vault operation tests
+│   │   ├── interest_mechanics_test.cdc # Interest calculation tests
+│   │   └── ...                         # Other test files
+│   ├── transactions/                   # Transaction templates (coming soon)
+│   └── scripts/                        # Query scripts (coming soon)
+├── DeFiActions/
 │   └── cadence/contracts/interfaces/
-│       └── DFB.cdc               # DeFi Blocks interface
-├── imports/                       # Flow standard contracts
-├── flow.json                      # Flow configuration
-└── README.md                      # This file
+│       └── DeFiActions.cdc             # DeFi Actions interface
+├── imports/                            # Flow standard contracts
+├── flow.json                           # Flow configuration
+└── README.md                           # This file
 ```
 
 ## 🔧 Contract Architecture
@@ -144,14 +144,14 @@ TidalProtocol/
 1. **Pool**: Main lending pool managing positions and reserves
 2. **Position**: User positions tracking deposits and borrows
 3. **TokenState**: Per-token state including interest indices
-4. **TidalProtocolSink/Source**: DeFi Blocks integration for composability
+4. **TidalProtocolSink/Source**: DeFi Actions integration for composability
 
 ### Key Interfaces
 
 - `FungibleToken.Vault`: Standard token operations
 - `ViewResolver`: Metadata views for wallets
 - `Burner.Burnable`: Token burning capability
-- `DFB.Sink/Source`: DeFi protocol composability
+- `DeFiActions.Sink/Source`: DeFi protocol composability
 
 ## 🛠️ Development
 
@@ -207,7 +207,7 @@ This project is licensed under the MIT License.
 - [Flow Documentation](https://developers.flow.com/)
 - [Cadence Language](https://cadence-lang.org/)
 - [FungibleToken Standard](https://github.com/onflow/flow-ft)
-- [DeFi Blocks](https://github.com/onflow/defi-blocks)
+- [DeFi Actions](https://github.com/onflow/defiactions)
 - [Flow Discord](https://discord.gg/flow)
 
 ## Note

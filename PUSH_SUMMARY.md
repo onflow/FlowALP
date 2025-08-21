@@ -29,7 +29,7 @@
 ### 4. Contract Improvements ✅
 - Added `createPool()` function that accepts token type
 - Fixed `reserveBalance()` to handle empty reserves
-- Updated DFB Sink/Source implementations
+- Updated DFA Sink/Source implementations
 - Improved error messages for deprecated functions
 
 ## 📊 Test Results

@@ -1,6 +1,12 @@
 name: CI
 
-on: pull_request
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   tests:
@@ -31,3 +37,10 @@ jobs:
         run: flow deps install --skip-alias --skip-deployments
       - name: Run tests
         run: flow test --cover --covercode="contracts" --coverprofile="coverage.lcov" ./cadence/tests/*_test.cdc
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v5
+        with:
+          file: coverage.lcov
+          flags: unittests
+          name: codecov-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}

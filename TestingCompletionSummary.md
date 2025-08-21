@@ -22,7 +22,7 @@ Successfully restructured and fixed the TidalProtocol test suite to match the ac
 - Updated `createTestPool()` to panic and direct users to use `createPool()` with explicit token type
 - Added `createPool()` function that accepts token type as parameter
 - Fixed pool initialization to not create empty vaults - vaults are created on first deposit
-- Updated DFB Sink/Source implementations to be token-agnostic
+- Updated DFA Sink/Source implementations to be token-agnostic
 - Fixed `reserveBalance()` to handle case where no vault exists yet (returns 0.0)
 
 ## Test Results
