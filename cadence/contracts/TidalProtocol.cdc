@@ -478,7 +478,7 @@ access(all) contract TidalProtocol {
 
             // If there's no top-up source configured, nothing can be pulled during liquidation.
             if position.topUpSource == nil {
-                log("simulateLiquidationAmount: no topUpSource; returning 0.0")
+                log("simulateLiquidationAmount: no topUpSource found for position \(pid) - returning 0.0")
                 return 0.0
             }
 
@@ -525,7 +525,7 @@ access(all) contract TidalProtocol {
             // ----- Source token debt leg (debt in the top-up token we must cover first) -----
             let maybeSourceBalance = position.balances[sourceType]
             var sourceDebtQuote: UInt128 = 0
-            if maybeSourceBalance != nil && maybeSourceBalance!.direction == BalanceDirection.Debit {
+            if maybeSourceBalance?.direction == BalanceDirection.Debit {
                 let sourceTokenState = self._borrowUpdatedTokenState(type: sourceType)
                 let trueSourceDebt = TidalProtocol.scaledBalanceToTrueBalance(
                     maybeSourceBalance!.scaledBalance,
