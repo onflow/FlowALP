@@ -196,7 +196,7 @@ access(all) contract TidalProtocol {
         /// A DeFiActions Source that if non-nil will enable the Pool to pull underflown value automatically when the
         /// position falls below its minimum health based on the value of deposited collateral versus withdrawals. If
         /// this value is not set, liquidation may occur in the event of undercollateralization.
-        access(mapping ImplementationUpdates) var topUpSource: {DeFiActions.Source, DeFiActions.Liquidator}?
+        access(mapping ImplementationUpdates) var topUpSource: {DeFiActions.Source}?
 
         init() {
             self.balances = {}
@@ -223,7 +223,7 @@ access(all) contract TidalProtocol {
         }
         /// Sets the InternalPosition's topUpSource. If `nil`, the Pool will not be able to pull underflown value when
         /// the position falls below its minimum health which may result in liquidation.
-        access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source, DeFiActions.Liquidator}?) {
+        access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source}?) {
             self.topUpSource = source
         }
     }
@@ -1238,7 +1238,7 @@ access(all) contract TidalProtocol {
                 )
             )
 
-            let topUpAvailable = DeFiActionsMathUtils.toUInt128(topUpSource.liquidationAmount())
+            let topUpAvailable = DeFiActionsMathUtils.toUInt128(topUpSource.minimumAvailable())
             let uintAmount = TidalProtocol.calculateCloseoutBalance(
                 view: view,
                 withdrawSnap: withdrawSnap,
@@ -1366,7 +1366,7 @@ access(all) contract TidalProtocol {
         access(all) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DeFiActions.Sink},
-            repaymentSource: {DeFiActions.Source, DeFiActions.Liquidator}?,
+            repaymentSource: {DeFiActions.Source}?,
             pushToDrawDownSink: Bool
         ): UInt64 {
             pre {
@@ -1660,7 +1660,7 @@ access(all) contract TidalProtocol {
             if balanceSheet.health < position.targetHealth {
                 // The position is undercollateralized, see if the source can get more collateral to bring it up to the target health.
                 if position.topUpSource != nil {
-                    let topUpSource = position.topUpSource! as auth(FungibleToken.Withdraw) &{DeFiActions.Source, DeFiActions.Liquidator}
+                    let topUpSource = position.topUpSource! as auth(FungibleToken.Withdraw) &{DeFiActions.Source}
                     let idealDeposit = self.fundsRequiredForTargetHealth(
                         pid: pid,
                         type: topUpSource.getSourceType(),
@@ -2255,7 +2255,7 @@ access(all) contract TidalProtocol {
     access(all) fun openPosition(
         collateral: @{FungibleToken.Vault},
         issuanceSink: {DeFiActions.Sink},
-        repaymentSource: {DeFiActions.Source, DeFiActions.Liquidator}?,
+        repaymentSource: {DeFiActions.Source}?,
         pushToDrawDownSink: Bool
     ): Position {
         let pid = self._borrowPool().createPosition(
