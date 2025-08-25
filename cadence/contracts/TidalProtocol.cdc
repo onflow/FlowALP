@@ -1599,7 +1599,7 @@ access(all) contract TidalProtocol {
 
         /// Sets the InternalPosition's topUpSource. If `nil`, the Pool will not be able to pull underflown value when
         /// the position falls below its minimum health which may result in liquidation.
-        access(EPosition) fun provideTopUpSource(pid: UInt64, source: {DeFiActions.Source, DeFiActions.Liquidator}?) {
+        access(EPosition) fun provideTopUpSource(pid: UInt64, source: {DeFiActions.Source}?) {
             let position = self._borrowPosition(pid: pid)
             position.setTopUpSource(source)
         }
@@ -2038,7 +2038,7 @@ access(all) contract TidalProtocol {
         /// Each position can have only one source, and the source must accept the default token type configured for the
         /// pool. Providing a new source will replace the existing source. Pass nil to configure the position to not
         /// pull tokens.
-        access(all) fun provideSource(source: {DeFiActions.Source, DeFiActions.Liquidator}?) {
+        access(all) fun provideSource(source: {DeFiActions.Source}?) {
             let pool = self.pool.borrow()!
             pool.provideTopUpSource(pid: self.id, source: source)
         }
