@@ -951,6 +951,12 @@ access(all) contract TidalProtocol {
             let newEffColl = effColl > seizeEff ? effColl - seizeEff : UInt128(0)
             let newEffDebt = effDebt > repayEff ? effDebt - repayEff : UInt128(0)
             let newHF = newEffDebt == UInt128(0) ? UInt128.max : DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(newEffColl, DeFiActionsMathUtils.e24), newEffDebt)
+
+            // Prevent liquidation if it would worsen HF (deep insolvency case)
+            if newHF < health {
+                return TidalProtocol.LiquidationQuote(requiredRepay: 0.0, seizeType: seizeType, seizeAmount: 0.0, newHF: health)
+            }
+
             log("[LIQ][QUOTE] repayExact=\(repayExact) seizeExact=\(seizeExact) trueCollateralSeize=\(DeFiActionsMathUtils.toUFix64Round(trueCollateralSeize))")
             return TidalProtocol.LiquidationQuote(requiredRepay: repayExact, seizeType: seizeType, seizeAmount: seizeExact, newHF: newHF)
         }
@@ -1053,7 +1059,9 @@ access(all) contract TidalProtocol {
             let seizeReserveRef = (&self.reserves[seizeType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
             let payout <- seizeReserveRef.withdraw(amount: quote.seizeAmount)
 
-            emit LiquidationExecuted(pid: pid, poolUUID: self.uuid, debtType: debtType.identifier, repayAmount: quote.requiredRepay, seizeType: seizeType.identifier, seizeAmount: quote.seizeAmount, newHF: self.liquidationTargetHF)
+            let actualNewHF = self.positionHealth(pid: pid)
+
+            emit LiquidationExecuted(pid: pid, poolUUID: self.uuid, debtType: debtType.identifier, repayAmount: quote.requiredRepay, seizeType: seizeType.identifier, seizeAmount: quote.seizeAmount, newHF: actualNewHF)
 
             return <- create LiquidationResult(seized: <-payout, remainder: <-from)
         }
