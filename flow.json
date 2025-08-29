@@ -48,6 +48,12 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"TestHelpers": {
+			"source": "./cadence/contracts/mocks/TestHelpers.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"TidalProtocol": {
 			"source": "./cadence/contracts/TidalProtocol.cdc",
 			"aliases": {
