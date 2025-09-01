@@ -1,49 +1,39 @@
-import "FungibleToken"
-import "TidalProtocol"
-import "DeFiActions"
-import "IncrementFiSwapConnectors"
+import TidalProtocol from 0x0000000000000007
 
-/// Liquidate a position via DEX: seize collateral, swap via allowlisted Swapper to debt token, repay debt
+import FungibleToken from 0xee82856bf20e2aa6
+import DeFiActions from 0x0000000000000006
+
 transaction(
     pid: UInt64,
-    debtVaultIdentifier: String,
-    seizeVaultIdentifier: String,
-    path: [String],
+    debtType: Type,
+    seizeType: Type,
     maxSeizeAmount: UFix64,
-    minRepayAmount: UFix64
+    minRepayAmount: UFix64,
+    swapperAddr: Address,
+    routePath: [Type], // Example route param
+    deadline: UFix64
 ) {
-    let pool: &TidalProtocol.Pool
-    let debtType: Type
-    let seizeType: Type
-    let swapper: {DeFiActions.Swapper}
 
-    prepare(signer: auth(BorrowValue) &Account) {
-        let protocolAddress = Type<@TidalProtocol.Pool>().address!
-        self.pool = getAccount(protocolAddress).capabilities.borrow<&TidalProtocol.Pool>(TidalProtocol.PoolPublicPath)
-            ?? panic("Could not borrow Pool at \(TidalProtocol.PoolPublicPath)")
+    prepare(signer: auth(Storage) &Account) {
+        // Assume pool is stored or capability exists; borrow pool
+        let poolCap = signer.capabilities.get<&TidalProtocol.Pool>(/public/TidalPool)
+        let pool = poolCap.borrow() ?? panic("Could not borrow pool")
 
-        self.debtType = CompositeType(debtVaultIdentifier) ?? panic("Invalid debtVaultIdentifier: \(debtVaultIdentifier)")
-        self.seizeType = CompositeType(seizeVaultIdentifier) ?? panic("Invalid seizeVaultIdentifier: \(seizeVaultIdentifier)")
-        // Instantiate IncrementFi swapper for provided path
-        self.swapper = IncrementFiSwapConnectors.Swapper(
-            path: path,
-            inVault: self.seizeType,
-            outVault: self.debtType,
-            uniqueID: nil
-        )
-    }
+        let routeParams: {String: AnyStruct} = {
+            "path": routePath,
+            "deadline": deadline
+        }
 
-    execute {
-        self.pool.liquidateViaDex(
+        pool.liquidateViaDex(
             pid: pid,
-            debtType: self.debtType,
-            seizeType: self.seizeType,
+            debtType: debtType,
+            seizeType: seizeType,
             maxSeizeAmount: maxSeizeAmount,
             minRepayAmount: minRepayAmount,
-            swapper: self.swapper,
-            quote: nil
+            swapperAddr: swapperAddr,
+            routeParams: routeParams
         )
     }
+
+    execute {}
 }
-
-
