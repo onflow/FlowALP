@@ -42,6 +42,12 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"MockDexSwapper": {
+			"source": "./cadence/contracts/mocks/MockDexSwapper.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"MockYieldToken": {
 			"source": "./cadence/contracts/mocks/MockYieldToken.cdc",
 			"aliases": {
