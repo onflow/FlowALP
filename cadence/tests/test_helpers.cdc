@@ -103,6 +103,13 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
+    // Deploy MockDexSwapper for DEX liquidation tests
+    err = Test.deployContract(
+        name: "MockDexSwapper",
+        path: "../contracts/mocks/MockDexSwapper.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 }
 
 /* --- Script Helpers --- */

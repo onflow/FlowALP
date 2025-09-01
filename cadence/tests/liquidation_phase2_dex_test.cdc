@@ -48,15 +48,11 @@ fun test_liquidation_via_dex() {
 
     // perform liquidation via mock dex using signer as protocol
     let protocol = Test.getAccount(0x0000000000000007)
-    // Build and call transaction inline to avoid address import failures
-    let code = Test.readFile("../transactions/tidal-protocol/pool-management/liquidate_via_mock_dex.cdc")
-    let tx = Test.Transaction(
-        code: code,
-        authorizers: [protocol.address],
-        signers: [protocol],
-        arguments: [pid, Type<@MOET.Vault>(), Type<@FlowToken.Vault>(), 1000.0, 0.0, 1.0]
+    let txRes = _executeTransaction(
+        "../transactions/tidal-protocol/pool-management/liquidate_via_mock_dex.cdc",
+        [pid, Type<@MOET.Vault>(), Type<@FlowToken.Vault>(), 1000.0, 0.0, 1.0],
+        protocol
     )
-    let txRes = Test.executeTransaction(tx)
     Test.expect(txRes, Test.beSucceeded())
 
     // HF should improve to at/near target
