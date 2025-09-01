@@ -28,6 +28,7 @@ access(all) contract TidalProtocol {
     access(all) event LiquidationsPaused(poolUUID: UInt64)
     access(all) event LiquidationsUnpaused(poolUUID: UInt64, warmupEndsAt: UInt64)
     access(all) event LiquidationExecuted(pid: UInt64, poolUUID: UInt64, debtType: String, repayAmount: UFix64, seizeType: String, seizeAmount: UFix64, newHF: UInt128)
+    access(all) event LiquidationExecutedViaDex(pid: UInt64, poolUUID: UInt64, seizeType: String, seized: UFix64, debtType: String, repaid: UFix64, slippageBps: UInt16, newHF: UInt128)
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
@@ -597,6 +598,10 @@ access(all) contract TidalProtocol {
         access(self) var liquidationWarmupSec: UInt64
         access(self) var lastUnpausedAt: UInt64?
         access(self) var protocolLiquidationFeeBps: UInt16
+        /// Allowlist of permitted DeFiActions Swapper types for DEX liquidations
+        access(self) var allowedSwapperTypes: {Type: Bool}
+        /// Max allowed deviation in basis points between DEX-implied price and oracle price
+        access(self) var dexOracleDeviationBps: UInt16
 
         init(defaultToken: Type, priceOracle: {DeFiActions.PriceOracle}) {
             pre {
@@ -624,6 +629,8 @@ access(all) contract TidalProtocol {
             self.liquidationWarmupSec = 300
             self.lastUnpausedAt = nil
             self.protocolLiquidationFeeBps = UInt16(0)
+            self.allowedSwapperTypes = {}
+            self.dexOracleDeviationBps = UInt16(300) // 3% default
 
             // CHANGE: Don't create vault here - let the caller provide initial reserves
             // The pool starts with empty reserves map
@@ -654,6 +661,18 @@ access(all) contract TidalProtocol {
                 triggerHF: DeFiActionsMathUtils.e24, // 1.0e24
                 protocolFeeBps: self.protocolLiquidationFeeBps
             )
+        }
+
+        /// Returns Oracle-DEX guards and allowlists for frontends/keepers
+        access(all) fun getDexLiquidationConfig(): {String: AnyStruct} {
+            let allowed: [String] = []
+            for t in self.allowedSwapperTypes.keys {
+                allowed.append(t.identifier)
+            }
+            return {
+                "dexOracleDeviationBps": self.dexOracleDeviationBps,
+                "allowedSwappers": allowed
+            }
         }
 
         /// Returns true if the position is under the global liquidation trigger (health < 1.0)
@@ -1064,6 +1083,109 @@ access(all) contract TidalProtocol {
             emit LiquidationExecuted(pid: pid, poolUUID: self.uuid, debtType: debtType.identifier, repayAmount: quote.requiredRepay, seizeType: seizeType.identifier, seizeAmount: quote.seizeAmount, newHF: actualNewHF)
 
             return <- create LiquidationResult(seized: <-payout, remainder: <-from)
+        }
+
+        /// Liquidation via DEX: seize collateral, swap via allowlisted Swapper to debt token, repay debt
+        access(all) fun liquidateViaDex(
+            pid: UInt64,
+            debtType: Type,
+            seizeType: Type,
+            maxSeizeAmount: UFix64,
+            minRepayAmount: UFix64,
+            swapper: {DeFiActions.Swapper},
+            quote: {DeFiActions.Quote}?
+        ) {
+            pre {
+                self.globalLedger[debtType] != nil: "Invalid debt type"
+                self.globalLedger[seizeType] != nil: "Invalid seize type"
+                swapper.inType() == seizeType: "Swapper must accept seizeType"
+                swapper.outType() == debtType: "Swapper must output debtType"
+                self.allowedSwapperTypes[swapper.getType()] == true: "Swapper not allowlisted"
+            }
+            // Pause/warm-up checks
+            assert(!self.liquidationsPaused, message: "Liquidations paused")
+            if self.lastUnpausedAt != nil {
+                let now = UInt64(getCurrentBlock().timestamp)
+                assert(now >= self.lastUnpausedAt! + self.liquidationWarmupSec, message: "Liquidations in warm-up period")
+            }
+
+            // Validate position is liquidatable
+            let health = self.positionHealth(pid: pid)
+            assert(health < DeFiActionsMathUtils.e24, message: "Position not liquidatable")
+
+            // Ensure reserve vaults
+            if self.reserves[seizeType] == nil {
+                self.reserves[seizeType] <-! DeFiActionsUtils.getEmptyVault(seizeType)
+            }
+            if self.reserves[debtType] == nil {
+                self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
+            }
+
+            // Seize collateral from position up to maxSeizeAmount
+            let position = self._borrowPosition(pid: pid)
+            let seizeState = self._borrowUpdatedTokenState(type: seizeType)
+            let debtState = self._borrowUpdatedTokenState(type: debtType)
+
+            // Compute available true collateral for seizeType
+            var trueCollateralSeize: UFix64 = 0.0
+            if position.balances[seizeType] != nil && position.balances[seizeType]!.direction == BalanceDirection.Credit {
+                let bal = position.balances[seizeType]!
+                let trueBalU128 = TidalProtocol.scaledBalanceToTrueBalance(bal.scaledBalance, interestIndex: seizeState.creditInterestIndex)
+                trueCollateralSeize = DeFiActionsMathUtils.toUFix64Round(trueBalU128)
+            }
+            assert(trueCollateralSeize > 0.0, message: "No collateral available to seize")
+            let seizeAmount = maxSeizeAmount < trueCollateralSeize ? maxSeizeAmount : trueCollateralSeize
+            assert(seizeAmount > 0.0, message: "maxSeizeAmount too low")
+
+            // Update accounting: reduce collateral from position and pull from reserves
+            let seizeUint = DeFiActionsMathUtils.toUInt128(seizeAmount)
+            if position.balances[seizeType] == nil {
+                position.balances[seizeType] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0)
+            }
+            position.balances[seizeType]!.recordWithdrawal(amount: seizeUint, tokenState: seizeState)
+            let seizeReserveRef = (&self.reserves[seizeType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let seized <- seizeReserveRef.withdraw(amount: seizeAmount)
+
+            // Oracle vs DEX price deviation guard
+            let Pc = self.priceOracle.price(ofToken: seizeType)!
+            let Pd = self.priceOracle.price(ofToken: debtType)!
+            // implied rate: seized_value / expected_out => compare to Pd/Pc
+            let dexQuote = swapper.quoteOut(forProvided: seized.balance, reverse: false)
+            let impliedPrice = dexQuote.outAmount / seized.balance // debt per collateral
+            let oraclePrice = Pd / Pc
+            let deviation = impliedPrice > oraclePrice ? impliedPrice - oraclePrice : oraclePrice - impliedPrice
+            let deviationBps = UInt16(DeFiActionsMathUtils.toUFix64Round(DeFiActionsMathUtils.mul(DeFiActionsMathUtils.toUInt128(deviation / oraclePrice), 10000)))
+            assert(deviationBps <= self.dexOracleDeviationBps, message: "DEX price deviates beyond allowed bps")
+
+            // Swap seized collateral to debt token
+            let outDebt <- swapper.swap(quote: quote, inVault: <-seized)
+            assert(outDebt.getType() == debtType, message: "Swapper returned wrong out type")
+            assert(outDebt.balance >= minRepayAmount, message: "Insufficient swap output for minRepayAmount")
+
+            // Deposit swapped debt into reserves and reduce position debt up to amount
+            let debtReserveRef = (&self.reserves[debtType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let depositAmount = outDebt.balance
+            debtReserveRef.deposit(from: <-outDebt)
+            let repayUint = DeFiActionsMathUtils.toUInt128(depositAmount)
+            if position.balances[debtType] == nil {
+                position.balances[debtType] = InternalBalance(direction: BalanceDirection.Debit, scaledBalance: 0)
+            }
+            position.balances[debtType]!.recordDeposit(amount: repayUint, tokenState: debtState)
+
+            // Compute slippage vs provided quote if any
+            var slip: UInt16 = 0 as UInt16
+            if quote != nil {
+                let expected = quote!.outAmount
+                if expected > 0.0 {
+                    let diff = depositAmount > expected ? depositAmount - expected : expected - depositAmount
+                    let frac = diff / expected
+                    let bps = frac * 10000.0
+                    slip = UInt16(bps)
+                }
+            }
+
+            let newHF = self.positionHealth(pid: pid)
+            emit LiquidationExecutedViaDex(pid: pid, poolUUID: self.uuid, seizeType: seizeType.identifier, seized: seizeAmount, debtType: debtType.identifier, repaid: depositAmount, slippageBps: slip, newHF: newHF)
         }
 
         access(self) fun computeAdjustedBalancesAfterWithdrawal(
@@ -1819,6 +1941,23 @@ access(all) contract TidalProtocol {
                 self.protocolLiquidationFeeBps = protocolFeeBps!
             }
             emit LiquidationParamsUpdated(poolUUID: self.uuid)
+        }
+
+        /// Governance: set DEX oracle deviation guard and toggle allowlisted swapper types
+        access(EGovernance) fun setDexLiquidationConfig(dexOracleDeviationBps: UInt16?, allowSwappers: [Type]?, disallowSwappers: [Type]?) {
+            if dexOracleDeviationBps != nil {
+                self.dexOracleDeviationBps = dexOracleDeviationBps!
+            }
+            if allowSwappers != nil {
+                for t in allowSwappers! {
+                    self.allowedSwapperTypes[t] = true
+                }
+            }
+            if disallowSwappers != nil {
+                for t in disallowSwappers! {
+                    self.allowedSwapperTypes.remove(key: t)
+                }
+            }
         }
 
         /// Pauses or unpauses liquidations; when unpausing, starts a warm-up window
