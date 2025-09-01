@@ -60,7 +60,7 @@ fun test_liquidation_via_dex() {
     Test.expect(allowRes, Test.beSucceeded())
     let txRes = _executeTransaction(
         "../transactions/tidal-protocol/pool-management/liquidate_via_mock_dex.cdc",
-        [pid, Type<@MOET.Vault>(), Type<@FlowToken.Vault>(), 1000.0, 0.0, 1.0],
+        [pid, Type<@MOET.Vault>(), Type<@FlowToken.Vault>(), 1000.0, 0.0, 1.42857143],
         protocol
     )
     Test.expect(txRes, Test.beSucceeded())
