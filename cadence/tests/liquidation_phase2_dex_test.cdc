@@ -48,6 +48,15 @@ fun test_liquidation_via_dex() {
 
     // perform liquidation via mock dex using signer as protocol
     let protocol = Test.getAccount(0x0000000000000007)
+    // allowlist MockDexSwapper
+    let allowTx = Test.Transaction(
+        code: Test.readFile("../transactions/tidal-protocol/pool-governance/set_dex_liquidation_config.cdc"),
+        authorizers: [protocol.address],
+        signers: [protocol],
+        arguments: [nil, [MockDexSwapper.Swapper.getType().identifier], nil, nil, nil]
+    )
+    let allowRes = Test.executeTransaction(allowTx)
+    Test.expect(allowRes, Test.beSucceeded())
     let txRes = _executeTransaction(
         "../transactions/tidal-protocol/pool-management/liquidate_via_mock_dex.cdc",
         [pid, Type<@MOET.Vault>(), Type<@FlowToken.Vault>(), 1000.0, 0.0, 1.0],
