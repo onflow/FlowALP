@@ -3,6 +3,7 @@ import "FungibleToken"
 import "TidalProtocol"
 import "DeFiActions"
 import "MockDexSwapper"
+import "MOET"
 
 /// TEST-ONLY: Liquidate a position via DEX using a mock swapper that withdraws MOET from a provided vault source.
 /// Assumes the signer has a MOET Vault with sufficient balance.
@@ -19,8 +20,8 @@ transaction(
             .borrow<&TidalProtocol.Pool>(TidalProtocol.PoolPublicPath)
             ?? panic("Could not borrow Pool at \(TidalProtocol.PoolPublicPath)")
 
-        // For tests, withdraw out token (debtType) from signer's Vault
-        let sourceCap = signer.capabilities.storage.issue<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(/storage/moetTokenVault_0x0000000000000007)
+        // For tests, withdraw out token (debtType) from signer's MOET Vault
+        let sourceCap = signer.capabilities.storage.issue<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(MOET.VaultStoragePath)
 
         let swapper = MockDexSwapper.Swapper(
             inVault: seizeType,

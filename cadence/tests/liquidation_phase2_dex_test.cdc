@@ -58,6 +58,9 @@ fun test_liquidation_via_dex() {
     )
     let allowRes = Test.executeTransaction(allowTx)
     Test.expect(allowRes, Test.beSucceeded())
+    // ensure protocol MOET liquidity for DEX swapper source
+    setupMoetVault(protocol, beFailed: false)
+    mintMoet(signer: protocol, to: protocol.address, amount: 1_000_000.0, beFailed: false)
     let txRes = _executeTransaction(
         "../transactions/tidal-protocol/pool-management/liquidate_via_mock_dex.cdc",
         [pid, Type<@MOET.Vault>(), Type<@FlowToken.Vault>(), 1000.0, 0.0, 1.42857143],
