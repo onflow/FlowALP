@@ -1,39 +1,27 @@
-import TidalProtocol from 0x0000000000000007
-
-import FungibleToken from 0xee82856bf20e2aa6
-import DeFiActions from 0x0000000000000006
+import "TidalProtocol"
+import "DeFiActions"
 
 transaction(
     pid: UInt64,
     debtType: Type,
     seizeType: Type,
     maxSeizeAmount: UFix64,
-    minRepayAmount: UFix64,
-    swapperAddr: Address,
-    routePath: [Type], // Example route param
-    deadline: UFix64
+    minRepayAmount: UFix64
 ) {
-
     prepare(signer: auth(Storage) &Account) {
-        // Assume pool is stored or capability exists; borrow pool
-        let poolCap = signer.capabilities.get<&TidalProtocol.Pool>(/public/TidalPool)
+        let poolCap = signer.capabilities.get<&TidalProtocol.Pool>(TidalProtocol.PoolPublicPath)
         let pool = poolCap.borrow() ?? panic("Could not borrow pool")
-
-        let routeParams: {String: AnyStruct} = {
-            "path": routePath,
-            "deadline": deadline
-        }
-
+        // Swapper must be provided by the signer via a stored resource capability; here we just assume it was passed in from the outer context
+        let swapperRef = signer.capabilities.get<&{DeFiActions.Swapper}>(/public/Swapper)
+        let swapper = swapperRef.borrow() ?? panic("Missing swapper capability at /public/Swapper")
         pool.liquidateViaDex(
             pid: pid,
             debtType: debtType,
             seizeType: seizeType,
             maxSeizeAmount: maxSeizeAmount,
             minRepayAmount: minRepayAmount,
-            swapperAddr: swapperAddr,
-            routeParams: routeParams
+            swapper: swapper,
+            quote: nil
         )
     }
-
-    execute {}
 }

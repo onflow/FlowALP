@@ -1100,65 +1100,113 @@ access(all) contract TidalProtocol {
             seizeType: Type,
             maxSeizeAmount: UFix64,
             minRepayAmount: UFix64,
-            swapperAddr: Address,
-            routeParams: {String: AnyStruct},
+            swapper: {DeFiActions.Swapper},
             quote: {DeFiActions.Quote}?
         ) {
             pre {
+                self.globalLedger[debtType] != nil: "Invalid debt type"
+                self.globalLedger[seizeType] != nil: "Invalid seize type"
                 !self.liquidationsPaused: "Liquidations paused"
-                // Warm-up check...
             }
-            // ... existing preconditions ...
+            if self.lastUnpausedAt != nil {
+                let now = UInt64(getCurrentBlock().timestamp)
+                assert(now >= self.lastUnpausedAt! + self.liquidationWarmupSec, message: "Liquidations in warm-up period")
+            }
 
-            // Quote computation (use existing)
+            // Ensure reserve vaults exist for both tokens
+            if self.reserves[seizeType] == nil { self.reserves[seizeType] <-! DeFiActionsUtils.getEmptyVault(seizeType) }
+            if self.reserves[debtType] == nil { self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType) }
+
+            // Validate position is liquidatable
+            let health = self.positionHealth(pid: pid)
+            assert(health < DeFiActionsMathUtils.e24, message: "Position not liquidatable")
+
+            // Internal quote to determine required seize (capped by max)
             let internalQuote = self.quoteLiquidation(pid: pid, debtType: debtType, seizeType: seizeType)
-            let requiredSeize = internalQuote.seizeAmount < maxSeizeAmount ? internalQuote.seizeAmount : maxSeizeAmount
+            var requiredSeize = internalQuote.seizeAmount
+            if requiredSeize > maxSeizeAmount { requiredSeize = maxSeizeAmount }
+            assert(requiredSeize > 0.0, message: "Nothing to seize")
 
-            // Deviation check (merge: use quote if provided, else compute)
+            // Allowlist/type checks
+            assert(self.allowedSwapperTypes[swapper.getType()] == true, message: "Swapper not allowlisted")
+            assert(swapper.inType() == seizeType, message: "Swapper must accept seizeType")
+            assert(swapper.outType() == debtType, message: "Swapper must output debtType")
+
+            // Oracle vs DEX price deviation guard
             let Pc = self.priceOracle.price(ofToken: seizeType)!
             let Pd = self.priceOracle.price(ofToken: debtType)!
-            var dexOut: UFix64 = 0.0
-            if quote != nil {
-                dexOut = quote!.outAmount
-            } else {
-                // Borrow swapper and get quote (my style)
-                let swapperCap = getAccount(swapperAddr).capabilities.get<&{DeFiActions.Swapper}>(/public/SwapperPath) // Assume path
-                let swapper = swapperCap.borrow() ?? panic("Invalid swapper")
-                dexOut = swapper.getAmountsOut(amountIn: requiredSeize, path: routeParams["path"] as! [Type])
-            }
+            let dexQuote = quote != nil ? quote! : swapper.quoteOut(forProvided: requiredSeize, reverse: false)
+            let dexOut = dexQuote.outAmount
             let impliedPrice = dexOut / requiredSeize
             let oraclePrice = Pd / Pc
             let deviation = impliedPrice > oraclePrice ? impliedPrice - oraclePrice : oraclePrice - impliedPrice
             let deviationBps = UInt16((deviation / oraclePrice) * 10000.0)
             assert(deviationBps <= self.dexOracleDeviationBps, message: "DEX price deviates too high")
 
-            // Enforce max slippage if param used
-            // Similar check...
+            // Seize collateral and swap
+            let seized <- self.internalSeize(pid: pid, tokenType: seizeType, amount: requiredSeize)
+            let outDebt <- swapper.swap(quote: dexQuote, inVault: <-seized)
+            assert(outDebt.getType() == debtType, message: "Swapper returned wrong out type")
 
-            // Seize using my internalSeize
-            let tempVault <- self.internalSeize(pid: pid, tokenType: seizeType, amount: requiredSeize)
-
-            // Swap (borrow capability)
-            let swapperCap = getAccount(swapperAddr).capabilities.get<&{DeFiActions.Swapper}>(/public/SwapperPath)
-            let swapper = swapperCap.borrow() ?? panic("Invalid swapper")
-            let outDebt <- swapper.swap(quote: quote, inVault: <-tempVault, params: routeParams) // Merge quote and params
-
-            // Repay using my internalRepay
-            let repaid = self.internalRepay(pid: pid, debtType: debtType, from: <-outDebt)
-
-            // Compute slippage (from other branch)
-            var slip: UInt16 = 0
-            if quote != nil {
-                let expected = quote!.outAmount
-                if expected > 0.0 {
-                    let diff = repaid > expected ? repaid - expected : expected - repaid
-                    let frac = diff / expected
-                    slip = UInt16(frac * 10000.0)
-                }
+            // Slippage guard if quote provided
+            var slipBps: UInt16 = 0
+            if quote != nil && dexQuote.outAmount > 0.0 {
+                let diff: UFix64 = outDebt.balance > dexQuote.outAmount ? outDebt.balance - dexQuote.outAmount : dexQuote.outAmount - outDebt.balance
+                let frac: UFix64 = diff / dexQuote.outAmount
+                let bpsU: UFix64 = frac * 10000.0
+                slipBps = UInt16(bpsU)
+                assert(UInt64(slipBps) <= self.dexMaxSlippageBps, message: "Swap slippage too high")
             }
 
-            // Emit with merged fields
-            emit LiquidationExecutedViaDex(pid: pid, poolUUID: self.uuid, seizeType: seizeType.identifier, seized: requiredSeize, debtType: debtType.identifier, repaid: repaid, slippageBps: slip, newHF: self.positionHealth(pid: pid))
+            // Repay debt using swap output
+            let repaid = self.internalRepay(pid: pid, debtType: debtType, from: <-outDebt)
+            assert(repaid >= minRepayAmount, message: "Insufficient repay after swap")
+
+            emit LiquidationExecutedViaDex(
+                pid: pid,
+                poolUUID: self.uuid,
+                seizeType: seizeType.identifier,
+                seized: requiredSeize,
+                debtType: debtType.identifier,
+                repaid: repaid,
+                slippageBps: slipBps,
+                newHF: self.positionHealth(pid: pid)
+            )
+        }
+
+        // Internal helpers for DEX liquidation path (resource-scoped)
+        access(self) fun internalSeize(pid: UInt64, tokenType: Type, amount: UFix64): @{FungibleToken.Vault} {
+            let position = self._borrowPosition(pid: pid)
+            let tokenState = self._borrowUpdatedTokenState(type: tokenType)
+            let seizeUint = DeFiActionsMathUtils.toUInt128(amount)
+            if position.balances[tokenType] == nil {
+                position.balances[tokenType] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0)
+            }
+            position.balances[tokenType]!.recordWithdrawal(amount: seizeUint, tokenState: tokenState)
+            if self.reserves[tokenType] == nil {
+                self.reserves[tokenType] <-! DeFiActionsUtils.getEmptyVault(tokenType)
+            }
+            let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            return <- reserveRef.withdraw(amount: amount)
+        }
+
+        access(self) fun internalRepay(pid: UInt64, debtType: Type, from: @{FungibleToken.Vault}): UFix64 {
+            pre { from.getType() == debtType: "Vault type mismatch for repay" }
+            if self.reserves[debtType] == nil {
+                self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
+            }
+            let toDeposit <- from
+            let amount = toDeposit.balance
+            let reserveRef = (&self.reserves[debtType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            reserveRef.deposit(from: <-toDeposit)
+            let position = self._borrowPosition(pid: pid)
+            let debtState = self._borrowUpdatedTokenState(type: debtType)
+            let repayUint = DeFiActionsMathUtils.toUInt128(amount)
+            if position.balances[debtType] == nil {
+                position.balances[debtType] = InternalBalance(direction: BalanceDirection.Debit, scaledBalance: 0)
+            }
+            position.balances[debtType]!.recordDeposit(amount: repayUint, tokenState: debtState)
+            return amount
         }
 
         access(self) fun computeAdjustedBalancesAfterWithdrawal(
@@ -2723,12 +2771,5 @@ access(all) contract TidalProtocol {
         }
     }
 
-    // Add my internal helpers at end
-    access(self) fun internalSeize(pid: UInt64, tokenType: Type, amount: UFix64): @{FungibleToken.Vault} {
-        // ... as before ...
-    }
-
-    access(self) fun internalRepay(pid: UInt64, debtType: Type, from: @{FungibleToken.Vault}): UFix64 {
-        // ... as before ...
-    }
+    // (contract-level helpers removed; resource-scoped versions live in Pool)
 }

@@ -7,5 +7,3 @@ fun main(): {String: AnyStruct} {
         ?? panic("Could not find Pool at path \(TidalProtocol.PoolPublicPath)")
     return pool.getDexLiquidationConfig()
 }
-
-

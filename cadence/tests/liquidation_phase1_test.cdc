@@ -3,6 +3,7 @@ import BlockchainHelpers
 import "test_helpers.cdc"
 import "TidalProtocol"
 import "MOET"
+import "FlowToken"
 import "DeFiActionsMathUtils"
 
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
@@ -95,6 +96,8 @@ fun test_liquidation_phase1_quote_and_execute() {
     let detailsAfter = getPositionDetails(pid: pid, beFailed: false)
     Test.assert(detailsAfter.health >= targetHF - tolerance, message: "Health not restored")
 }
+
+// DEX liquidation tests moved to liquidation_phase2_dex_test.cdc
 
 access(all)
 fun test_liquidation_insolvency() {
@@ -379,5 +382,4 @@ fun test_liquidation_healthy_zero_quote() {
     Test.assert(quote.newHF == h, message: "New HF not matching current health")
 }
 
-// Uncomment the warmup test
 // Time-based warmup enforcement test removed
