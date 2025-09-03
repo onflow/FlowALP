@@ -980,27 +980,80 @@ access(all) contract TidalProtocol {
             let newHF = newEffDebt == UInt128(0) ? UInt128.max : DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(newEffColl, DeFiActionsMathUtils.e24), newEffDebt)
 
             // Prevent liquidation if it would worsen HF (deep insolvency case).
-            // As a fallback, try maximizing HF by seizing all available collateral of the chosen seizeType.
+            // Enhanced fallback: search for the repay/seize pair (under protocol pricing relation
+            // and available-collateral/debt caps) that maximizes HF. We discretize the search to keep costs bounded.
             if newHF < health {
-                var seizeTrueFallback = trueCollateralSeize
-                if seizeTrueFallback > UInt128(0) {
-                    let uAllowed = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(seizeTrueFallback, Pc), (DeFiActionsMathUtils.e24 + LB))
-                    var repayTrueFallback = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uAllowed, BF), Pd)
-                    if repayTrueFallback > trueDebt {
-                        repayTrueFallback = trueDebt
-                    }
-                    let repayEff2 = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(repayTrueFallback, Pd), BF)
-                    let seizeEff2 = DeFiActionsMathUtils.mul(seizeTrueFallback, DeFiActionsMathUtils.mul(Pc, CF))
-                    let newEffColl2 = effColl > seizeEff2 ? effColl - seizeEff2 : UInt128(0)
-                    let newEffDebt2 = effDebt > repayEff2 ? effDebt - repayEff2 : UInt128(0)
-                    let newHF2 = newEffDebt2 == UInt128(0) ? UInt128.max : DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(newEffColl2, DeFiActionsMathUtils.e24), newEffDebt2)
-                    if newHF2 > health && repayTrueFallback > UInt128(0) {
-                        let repayExact2 = DeFiActionsMathUtils.toUFix64RoundUp(repayTrueFallback)
-                        let seizeExact2 = DeFiActionsMathUtils.toUFix64RoundUp(seizeTrueFallback)
-                        log("[LIQ][QUOTE][FALLBACK] repayExact=\(repayExact2) seizeExact=\(seizeExact2) fullSeize=true")
-                        return TidalProtocol.LiquidationQuote(requiredRepay: repayExact2, seizeType: seizeType, seizeAmount: seizeExact2, newHF: newHF2)
-                    }
+                // Compute the maximum repay allowed by available seize collateral (Rcap), preserving R<->S pricing relation.
+                // uAllowed = seizeTrue * Pc / (1 + LB)
+                let uAllowedMax = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(trueCollateralSeize, Pc), (DeFiActionsMathUtils.e24 + LB))
+                var repayCapBySeize = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uAllowedMax, BF), Pd)
+                if repayCapBySeize > trueDebt { repayCapBySeize = trueDebt }
+
+                var bestHF: UInt128 = health
+                var bestRepayTrue: UInt128 = 0
+                var bestSeizeTrue: UInt128 = 0
+
+                // If nothing can be repaid or seized, abort with no quote
+                if repayCapBySeize == UInt128(0) || trueCollateralSeize == UInt128(0) {
+                    return TidalProtocol.LiquidationQuote(requiredRepay: 0.0, seizeType: seizeType, seizeAmount: 0.0, newHF: health)
                 }
+
+                // Discrete bounded search over repay in [1..repayCapBySeize]
+                // Use up to 16 steps to balance precision and cost
+                let stepsU: UInt128 = UInt128(16)
+                var step: UInt128 = repayCapBySeize / stepsU
+                if step == UInt128(0) { step = UInt128(1) }
+
+                var r: UInt128 = step
+                while r <= repayCapBySeize {
+                    // Compute S for this R under pricing relation, capped by available collateral
+                    let uForR = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(r, Pd), BF)
+                    var sForR = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uForR, (DeFiActionsMathUtils.e24 + LB)), Pc)
+                    if sForR > trueCollateralSeize { sForR = trueCollateralSeize }
+
+                    // Compute resulting HF
+                    let repayEffC = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(r, Pd), BF)
+                    let seizeEffC = DeFiActionsMathUtils.mul(sForR, DeFiActionsMathUtils.mul(Pc, CF))
+                    let newEffCollC = effColl > seizeEffC ? effColl - seizeEffC : UInt128(0)
+                    let newEffDebtC = effDebt > repayEffC ? effDebt - repayEffC : UInt128(0)
+                    let newHFC = newEffDebtC == UInt128(0) ? UInt128.max : DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(newEffCollC, DeFiActionsMathUtils.e24), newEffDebtC)
+
+                    if newHFC > bestHF {
+                        bestHF = newHFC
+                        bestRepayTrue = r
+                        bestSeizeTrue = sForR
+                    }
+
+                    // Advance; ensure we always reach the cap
+                    let next = r + step
+                    if next > repayCapBySeize { break }
+                    r = next
+                }
+
+                // Also evaluate at the cap explicitly (in case step didn't land exactly)
+                let rCap = repayCapBySeize
+                let uForR2 = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(rCap, Pd), BF)
+                var sForR2 = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(uForR2, (DeFiActionsMathUtils.e24 + LB)), Pc)
+                if sForR2 > trueCollateralSeize { sForR2 = trueCollateralSeize }
+                let repayEffC2 = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(rCap, Pd), BF)
+                let seizeEffC2 = DeFiActionsMathUtils.mul(sForR2, DeFiActionsMathUtils.mul(Pc, CF))
+                let newEffCollC2 = effColl > seizeEffC2 ? effColl - seizeEffC2 : UInt128(0)
+                let newEffDebtC2 = effDebt > repayEffC2 ? effDebt - repayEffC2 : UInt128(0)
+                let newHFC2 = newEffDebtC2 == UInt128(0) ? UInt128.max : DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(newEffCollC2, DeFiActionsMathUtils.e24), newEffDebtC2)
+                if newHFC2 > bestHF {
+                    bestHF = newHFC2
+                    bestRepayTrue = rCap
+                    bestSeizeTrue = sForR2
+                }
+
+                if bestHF > health && bestRepayTrue > UInt128(0) && bestSeizeTrue > UInt128(0) {
+                    let repayExactBest = DeFiActionsMathUtils.toUFix64RoundUp(bestRepayTrue)
+                    let seizeExactBest = DeFiActionsMathUtils.toUFix64RoundUp(bestSeizeTrue)
+                    log("[LIQ][QUOTE][FALLBACK][SEARCH] repayExact=\(repayExactBest) seizeExact=\(seizeExactBest)")
+                    return TidalProtocol.LiquidationQuote(requiredRepay: repayExactBest, seizeType: seizeType, seizeAmount: seizeExactBest, newHF: bestHF)
+                }
+
+                // No improving pair found
                 return TidalProtocol.LiquidationQuote(requiredRepay: 0.0, seizeType: seizeType, seizeAmount: 0.0, newHF: health)
             }
 
