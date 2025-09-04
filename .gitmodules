@@ -1,0 +1,3 @@
+[submodule "DeFiActions"]
+	path = DeFiActions
+	url = git@github.com:onflow/DeFiActions.git
