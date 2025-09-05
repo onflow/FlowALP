@@ -39,10 +39,10 @@ access(all) contract TidalProtocolClosedBeta {
 
     init() {
         self.BetaBadgeStoragePath = StoragePath(
-            identifier: "BetaBadge_\(self.account.address)"
+            identifier: "TidalProtocolBetaBadge_\(self.account.address)"
         )!
         self.AdminHandleStoragePath = StoragePath(
-            identifier: "ClosedBetaAdmin_\(self.account.address)"
+            identifier: "TidalProtocolClosedBetaAdmin_\(self.account.address)"
         )!
 
         // Create and store the admin handle in *this* (deployer) account
