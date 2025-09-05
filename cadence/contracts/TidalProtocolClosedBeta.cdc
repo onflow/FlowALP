@@ -39,7 +39,7 @@ access(all) contract TidalProtocolClosedBeta {
 
     init() {
         self.BetaBadgeStoragePath = StoragePath(
-            identifier: "TidalProtocolBetaBadge_\(self.account.address)"
+            identifier: "TidalProtocolClosedBetaBadge_\(self.account.address)"
         )!
         self.AdminHandleStoragePath = StoragePath(
             identifier: "TidalProtocolClosedBetaAdmin_\(self.account.address)"
