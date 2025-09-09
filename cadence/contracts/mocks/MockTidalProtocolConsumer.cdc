@@ -36,8 +36,6 @@ access(all) contract MockTidalProtocolConsumer {
                 pushToDrawDownSink: pushToDrawDownSink
             )
         let position = TidalProtocol.Position(id: pid, pool: poolCap)
-        log("poolCap")
-        log(poolCap)
         self.account.storage.save(poolCap, to: TidalProtocol.PoolCapStoragePath)
         return <- create PositionWrapper(
             position: position
