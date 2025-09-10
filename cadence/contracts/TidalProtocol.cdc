@@ -2140,13 +2140,16 @@ access(all) contract TidalProtocol {
             let pool = self.pool.borrow()!
             return pool.availableBalance(pid: self.positionID, type: self.type, pullFromTopUpSource: self.pullFromTopUpSource)
         }
+        access(all) view fun getLiquidationType(): Type {
+            return self.type
+        }
         access(all) fun liquidationAmount(): UFix64 {
             if let pool = self.pool.borrow() {
                 return pool.simulateCloseoutWithdrawalAmount(pid: self.positionID, type: self.type)
             }
             return 0.0
         }
-        access(all) fun liquidate(data: AnyStruct?): @{FungibleToken.Vault} {
+        access(FungibleToken.Withdraw) fun liquidate(data: AnyStruct?): @{FungibleToken.Vault} {
             if let pool = self.pool.borrow() {
                 let amt = pool.simulateCloseoutWithdrawalAmount(pid: self.positionID, type: self.type)
                 return <- self.withdrawAvailable(maxAmount: amt)
