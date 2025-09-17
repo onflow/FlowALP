@@ -76,7 +76,8 @@ access(all) contract TidalProtocol {
                 let trueBalance = TidalProtocol.scaledBalanceToTrueBalance(self.scaledBalance,
                     interestIndex: tokenState.debitInterestIndex)
 
-                if trueBalance > amount {
+                // Harmonize comparison with withdrawal: treat an exact match as "does not flip to credit"
+                if trueBalance >= amount {
                     // The deposit isn't big enough to clear the debt, so we just decrement the debt.
                     let updatedBalance = trueBalance - amount
 
@@ -295,13 +296,17 @@ access(all) contract TidalProtocol {
         access(all) fun updateCreditBalance(amount: Int256) {
             // temporary cast the credit balance to a signed value so we can add/subtract
             let adjustedBalance = Int256(self.totalCreditBalance) + amount
-            self.totalCreditBalance = adjustedBalance > 0 ? UInt128(adjustedBalance) : 0
+            // Do not silently clamp: underflow indicates a serious accounting error
+            assert(adjustedBalance >= 0, message: "totalCreditBalance underflow")
+            self.totalCreditBalance = UInt128(adjustedBalance)
         }
 
         access(all) fun updateDebitBalance(amount: Int256) {
             // temporary cast the debit balance to a signed value so we can add/subtract
             let adjustedBalance = Int256(self.totalDebitBalance) + amount
-            self.totalDebitBalance = adjustedBalance > 0 ? UInt128(adjustedBalance) : 0
+            // Do not silently clamp: underflow indicates a serious accounting error
+            assert(adjustedBalance >= 0, message: "totalDebitBalance underflow")
+            self.totalDebitBalance = UInt128(adjustedBalance)
         }
 
         // Enhanced updateInterestIndices with deposit capacity update
@@ -361,8 +366,12 @@ access(all) contract TidalProtocol {
         }
 
         // Deposit limit function
+        // Rationale: cap per-deposit size to a fraction of the time-based
+        // depositCapacity so a single large deposit cannot monopolize capacity.
+        // Excess is queued and drained in chunks (see asyncUpdatePosition),
+        // enabling fair throughput across many deposits in a block. The 5%
+        // fraction is conservative and can be tuned by protocol parameters.
         access(all) fun depositLimit(): UFix64 {
-            // Each deposit is limited to 5% of the total deposit capacity
             return self.depositCapacity * 0.05
         }
 
@@ -1363,7 +1372,8 @@ access(all) contract TidalProtocol {
             // REMOVED: This is now handled by tokenState() helper function
             // tokenState.updateForTimeChange()
 
-            // Deposit rate limiting
+            // Deposit rate limiting: prevent a single large deposit from monopolizing capacity.
+            // Excess is queued to be processed asynchronously (see asyncUpdatePosition).
             let depositAmount = from.balance
             let uintDepositAmount = DeFiActionsMathUtils.toUInt128(depositAmount)
             let depositLimit = tokenState.depositLimit()
@@ -1509,10 +1519,11 @@ access(all) contract TidalProtocol {
             // Reflect the withdrawal in the position's balance
             let uintAmount = DeFiActionsMathUtils.toUInt128(amount)
             position.balances[type]!.recordWithdrawal(amount: uintAmount, tokenState: tokenState)
-            if self.positionHealth(pid: pid) != 0 {
-                // Ensure that this withdrawal doesn't cause the position to be overdrawn.
-                assert(position.minHealth <= self.positionHealth(pid: pid), message: "Position is overdrawn")
-            }
+            // Ensure that this withdrawal doesn't cause the position to be overdrawn.
+            // We explicitly compute health and compare against minHealth; an empty position
+            // is treated as healthy by definition (health >= 1.0) elsewhere in the codebase.
+            let postHealth = self.positionHealth(pid: pid)
+            assert(position.minHealth <= postHealth, message: "Position is overdrawn")
 
             // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
