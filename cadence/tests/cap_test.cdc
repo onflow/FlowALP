@@ -69,3 +69,15 @@ fun testNegativeCap() {
     Test.expect(negativeResult, Test.beFailed())
 }
 
+access(all)
+fun testPublishClaimCap() {
+    Test.reset(to: snapshot)
+    
+    let publishCapResult = _executeTransaction("../transactions/tidal-protocol/beta/publish_beta_cap.cdc", [protocolAccount.address], protocolAccount)
+    Test.expect(publishCapResult, Test.beSucceeded())
+
+    let claimCapResult = _executeTransaction("../transactions/tidal-protocol/beta/claim_and_save_beta_cap.cdc", [protocolAccount.address], protocolAccount)
+    Test.expect(claimCapResult, Test.beSucceeded())
+
+    let createPositionResult = _executeTransaction("../tests/transactions/tidal-protocol/pool-management/04_create_position.cdc", [], protocolAccount)
+}
