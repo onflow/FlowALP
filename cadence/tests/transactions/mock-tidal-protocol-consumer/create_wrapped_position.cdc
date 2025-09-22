@@ -5,6 +5,7 @@ import "FungibleTokenConnectors"
 
 import "MOET"
 import "MockTidalProtocolConsumer"
+import "TidalProtocol"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///

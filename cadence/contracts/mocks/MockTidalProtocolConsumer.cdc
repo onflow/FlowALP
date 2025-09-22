@@ -23,13 +23,22 @@ access(all) contract MockTidalProtocolConsumer {
         repaymentSource: {DeFiActions.Source}?,
         pushToDrawDownSink: Bool
     ): @PositionWrapper {
-        return <- create PositionWrapper(
-            position: TidalProtocol.openPosition(
-                collateral: <-collateral,
+        let poolCap = self.account.storage.load<Capability<auth(TidalProtocol.EParticipant, TidalProtocol.EPosition) &TidalProtocol.Pool>>(
+            from: TidalProtocol.PoolCapStoragePath
+        ) ?? panic("Missing pool capability")
+
+        let poolRef = poolCap.borrow() ?? panic("Invalid Pool Cap")
+
+        let pid = poolRef.createPosition(
+                funds: <-collateral,
                 issuanceSink: issuanceSink,
                 repaymentSource: repaymentSource,
                 pushToDrawDownSink: pushToDrawDownSink
             )
+        let position = TidalProtocol.Position(id: pid, pool: poolCap)
+        self.account.storage.save(poolCap, to: TidalProtocol.PoolCapStoragePath)
+        return <- create PositionWrapper(
+            position: position
         )
     }
 

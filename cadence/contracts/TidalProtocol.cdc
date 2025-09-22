@@ -23,6 +23,8 @@ access(all) contract TidalProtocol {
     /// The canonical PublicPath where the primary TidalProtocol Pool can be accessed publicly
     access(all) let PoolPublicPath: PublicPath
 
+    access(all) let PoolCapStoragePath: StoragePath
+
     /* --- EVENTS ---- */
 
     access(all) event Opened(pid: UInt64, poolUUID: UInt64)
@@ -36,8 +38,7 @@ access(all) contract TidalProtocol {
     access(all) entitlement EPosition
     access(all) entitlement EGovernance
     access(all) entitlement EImplementation
-
-    
+    access(all) entitlement EParticipant
 
     /// InternalBalance
     ///
@@ -63,7 +64,7 @@ access(all) contract TidalProtocol {
         /// provided TokenState. It's assumed the TokenState and InternalBalance relate to the same token Type, but
         /// since neither struct have values defining the associated token, callers should be sure to make the arguments
         /// do in fact relate to the same token Type.
-        access(all) fun recordDeposit(amount: UInt128, tokenState: auth(EImplementation) &TokenState) {
+        access(contract) fun recordDeposit(amount: UInt128, tokenState: auth(EImplementation) &TokenState) {
             if self.direction == BalanceDirection.Credit {
                 // Depositing into a credit position just increases the balance.
 
@@ -237,7 +238,7 @@ access(all) contract TidalProtocol {
         /// deposits or the operation will revert.
         access(EImplementation) fun setDrawDownSink(_ sink: {DeFiActions.Sink}?) {
             pre {
-                sink?.getSinkType() ?? Type<@MOET.Vault>() == Type<@MOET.Vault>():
+                (sink?.getSinkType() ?? Type<@MOET.Vault>()) == Type<@MOET.Vault>():
                 "Invalid Sink provided - Sink \(sink.getType().identifier) must accept MOET"
             }
             self.drawDownSink = sink
@@ -768,7 +769,7 @@ access(all) contract TidalProtocol {
         access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
             if self.debugLogging { log("    [CONTRACT] getPositionDetails(pid: \(pid))") }
             let position = self._borrowPosition(pid: pid)
-            let balances: [PositionBalance] = []
+            var balances: [PositionBalance] = []
 
             for type in position.balances.keys {
                 let balance = position.balances[type]!
@@ -1323,7 +1324,7 @@ access(all) contract TidalProtocol {
         /// Creates a lending position against the provided collateral funds, depositing the loaned amount to the
         /// given Sink. If a Source is provided, the position will be configured to pull loan repayment when the loan
         /// becomes undercollateralized, preferring repayment to outright liquidation.
-        access(all) fun createPosition(
+        access(EParticipant) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DeFiActions.Sink},
             repaymentSource: {DeFiActions.Source}?,
@@ -1358,7 +1359,7 @@ access(all) contract TidalProtocol {
 
         /// Allows anyone to deposit funds into any position. If the provided Vault is not supported by the Pool, the
         /// operation reverts.
-        access(all) fun depositToPosition(pid: UInt64, from: @{FungibleToken.Vault}) {
+        access(EParticipant) fun depositToPosition(pid: UInt64, from: @{FungibleToken.Vault}) {
             self.depositAndPush(pid: pid, from: <-from, pushToDrawDownSink: false)
         }
 
@@ -1930,9 +1931,9 @@ access(all) contract TidalProtocol {
         /// The unique ID of the Position used to track deposits and withdrawals to the Pool
         access(self) let id: UInt64
         /// An authorized Capability to which the Position was opened
-        access(self) let pool: Capability<auth(EPosition) &Pool>
+        access(self) let pool: Capability<auth(EPosition, EParticipant) &Pool>
 
-        init(id: UInt64, pool: Capability<auth(EPosition) &Pool>) {
+        init(id: UInt64, pool: Capability<auth(EPosition, EParticipant) &Pool>) {
             pre {
                 pool.check(): "Invalid Pool Capability provided - cannot construct Position"
             }
@@ -2001,13 +2002,13 @@ access(all) contract TidalProtocol {
         }
         /// Deposits funds to the Position without pushing to the drawDownSink if the deposit puts the Position above
         /// its maximum health
-        access(all) fun deposit(from: @{FungibleToken.Vault}) {
+        access(EParticipant) fun deposit(from: @{FungibleToken.Vault}) {
             let pool = self.pool.borrow()!
             pool.depositAndPush(pid: self.id, from: <-from, pushToDrawDownSink: false)
         }
         /// Deposits funds to the Position enabling the caller to configure whether excess value should be pushed to the
         /// drawDownSink if the deposit puts the Position above its maximum health
-        access(all) fun depositAndPush(from: @{FungibleToken.Vault}, pushToDrawDownSink: Bool) {
+        access(EParticipant) fun depositAndPush(from: @{FungibleToken.Vault}, pushToDrawDownSink: Bool) {
             let pool = self.pool.borrow()!
             pool.depositAndPush(pid: self.id, from: <-from, pushToDrawDownSink: pushToDrawDownSink)
         }
@@ -2069,7 +2070,7 @@ access(all) contract TidalProtocol {
         /// Each position can have only one source, and the source must accept the default token type configured for the
         /// pool. Providing a new source will replace the existing source. Pass nil to configure the position to not
         /// pull tokens.
-        access(all) fun provideSource(source: {DeFiActions.Source}?) {
+        access(EParticipant) fun provideSource(source: {DeFiActions.Source}?) {
             let pool = self.pool.borrow()!
             pool.provideTopUpSource(pid: self.id, source: source)
         }
@@ -2253,38 +2254,6 @@ access(all) contract TidalProtocol {
     }
 
     /* --- PUBLIC METHODS ---- */
-
-    /// Takes out a TidalProtocol loan with the provided collateral, returning a Position that can be used to manage
-    /// collateral and borrowed fund flows
-    ///
-    /// @param collateral: The collateral used as the basis for a loan. Only certain collateral types are supported, so
-    ///     callers should be sure to check the provided Vault is supported to prevent reversion.
-    /// @param issuanceSink: The DeFiActions Sink connector where the protocol will deposit borrowed funds. If the
-    ///     position becomes overcollateralized, additional funds will be borrowed (to maintain target LTV) and
-    ///     deposited to the provided Sink.
-    /// @param repaymentSource: An optional DeFiActions Source connector from which the protocol will attempt to source
-    ///     borrowed funds in the event of undercollateralization prior to liquidating. If none is provided, the
-    ///     position health will not be actively managed on the down side, meaning liquidation is possible as soon as
-    ///     the loan becomes undercollateralized.
-    ///
-    /// @return the Position via which the caller can manage their position
-    ///
-    access(all) fun openPosition(
-        collateral: @{FungibleToken.Vault},
-        issuanceSink: {DeFiActions.Sink},
-        repaymentSource: {DeFiActions.Source}?,
-        pushToDrawDownSink: Bool
-    ): Position {
-        let pid = self._borrowPool().createPosition(
-                funds: <-collateral,
-                issuanceSink: issuanceSink,
-                repaymentSource: repaymentSource,
-                pushToDrawDownSink: pushToDrawDownSink
-            )
-        let cap = self.account.capabilities.storage.issue<auth(EPosition) &Pool>(self.PoolStoragePath)
-        return Position(id: pid, pool: cap)
-    }
-
     /// Returns a health value computed from the provided effective collateral and debt values where health is a ratio
     /// of effective collateral over effective debt
     access(all) view fun healthComputation(effectiveCollateral: UInt128, effectiveDebt: UInt128): UInt128 {
@@ -2310,7 +2279,7 @@ access(all) contract TidalProtocol {
 
     /// Returns the compounded interest index reflecting the passage of time
     /// The result is: newIndex = oldIndex * perSecondRate ^ seconds
-    access(all) fun compoundInterestIndex(oldIndex: UInt128, perSecondRate: UInt128, elapsedSeconds: UFix64): UInt128 {
+    access(all) view fun compoundInterestIndex(oldIndex: UInt128, perSecondRate: UInt128, elapsedSeconds: UFix64): UInt128 {
         var result = oldIndex
         var current = UInt128(perSecondRate)
         var secondsCounter = UInt128(elapsedSeconds)
@@ -2354,12 +2323,6 @@ access(all) contract TidalProtocol {
 
     /* --- INTERNAL METHODS --- */
 
-    /// Returns an authorized reference to the contract account's Pool resource
-    access(self) view fun _borrowPool(): auth(EPosition) &Pool {
-        return self.account.storage.borrow<auth(EPosition) &Pool>(from: self.PoolStoragePath)
-            ?? panic("Could not borrow reference to internal TidalProtocol Pool resource")
-    }
-
     /// Returns a reference to the contract account's MOET Minter resource
     access(self) view fun _borrowMOETMinter(): &MOET.Minter {
         return self.account.storage.borrow<&MOET.Minter>(from: MOET.AdminStoragePath)
@@ -2370,6 +2333,7 @@ access(all) contract TidalProtocol {
         self.PoolStoragePath = StoragePath(identifier: "tidalProtocolPool_\(self.account.address)")!
         self.PoolFactoryPath = StoragePath(identifier: "tidalProtocolPoolFactory_\(self.account.address)")!
         self.PoolPublicPath = PublicPath(identifier: "tidalProtocolPool_\(self.account.address)")!
+        self.PoolCapStoragePath = StoragePath(identifier: "tidalProtocolPoolCap_\(self.account.address)")!
 
         // save PoolFactory in storage
         self.account.storage.save(

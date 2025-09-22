@@ -7,6 +7,7 @@ import "MOET"
 import "TidalProtocol"
 
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
+access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 access(all) let userAccount = Test.createAccount()
 
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
@@ -52,6 +53,10 @@ fun setup() {
     log("----- SETTING UP funds_available_above_target_health_test.cdc -----")
 
     deployContracts()
+
+    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
+
+    Test.expect(betaTxResult, Test.beSucceeded())
 
     // price setup
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: flowStartPrice)

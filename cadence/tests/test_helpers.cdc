@@ -34,6 +34,17 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
     return Test.executeTransaction(txn)
 }
 
+access(all)
+fun grantBeta(_ admin: Test.TestAccount, _ grantee: Test.TestAccount): Test.TransactionResult {
+    let signers = admin.address == grantee.address ? [admin] : [admin, grantee]
+    let betaTxn = Test.Transaction(
+        code: Test.readFile("./transactions/tidal-protocol/pool-management/03_grant_beta.cdc"),
+        authorizers: [admin.address, grantee.address],
+        signers: signers,
+        arguments: []
+    )
+    return Test.executeTransaction(betaTxn)
+}
 /* --- Setup helpers --- */
 
 // Common test setup function that deploys all required contracts
@@ -93,6 +104,13 @@ fun deployContracts() {
         name: "MockYieldToken",
         path: "../contracts/mocks/MockYieldToken.cdc",
         arguments: [initialYieldTokenSupply]
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "DummyConnectors",
+        path: "../contracts/mocks/DummyConnectors.cdc",
+        arguments: []
     )
     Test.expect(err, Test.beNil())
 
