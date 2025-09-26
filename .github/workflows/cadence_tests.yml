@@ -28,11 +28,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - name: Install Flow CLI
+        env:
+          FLOW_CLI_VERSION: v2.7.2
         run: sh -ci "$(curl -fsSL https://raw.githubusercontent.com/onflow/flow-cli/master/install.sh)"
-      - name: Flow CLI Version
-        run: flow version
-      - name: Update PATH
-        run: echo "/root/.local/bin" >> $GITHUB_PATH
+      - name: Update PATH and show Flow version
+        run: |
+          echo "/root/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          which flow || true
+          flow version
       - name: Install dependencies
         run: flow deps install --skip-alias --skip-deployments
       - name: Run tests
