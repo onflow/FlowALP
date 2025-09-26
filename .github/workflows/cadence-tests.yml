@@ -13,11 +13,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Flow CLI
-        run: |
-          sh -ci "$(curl -fsSL https://raw.githubusercontent.com/onflow/flow-cli/master/install.sh)"
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          flow version
+      - name: Setup Flow CLI
+        uses: onflow/setup-flow-cli@v1
+        with:
+          version: "v2.7.3"
 
       - name: Cache Flow emulator data (disabled)
         run: echo "We intentionally avoid caching ~/.flow to prevent state collisions between tests."
