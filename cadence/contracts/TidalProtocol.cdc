@@ -370,9 +370,7 @@ access(all) contract TidalProtocol {
             // Record the moment we accounted for
             self.lastUpdate = currentTime
 
-            // Deposit capacity growth removed: capacity is fixed at the cap.
-            // Rationale: capacity is initialized to the cap and never reduced, so
-            // growth logic never takes effect; per-deposit limit uses the cap directly.
+            // Deposit capacity is fixed at the cap; growth logic is disabled.
         }
 
         // Deposit limit function
@@ -623,7 +621,7 @@ access(all) contract TidalProtocol {
             }
 
             self.version = 0
-            self.debugLogging = true
+            self.debugLogging = false
             self.globalLedger = {defaultToken: TokenState(
                 interestCurve: SimpleInterestCurve(),
                 depositRate: 1_000_000.0,        // Default: no rate limiting for default token
@@ -639,9 +637,7 @@ access(all) contract TidalProtocol {
             self.positionsNeedingUpdates = []
             self.positionsProcessedPerCallback = 100
 
-            // CHANGE: Don't create vault here - let the caller provide initial reserves
-            // The pool starts with empty reserves map
-            // Vaults will be added when tokens are first deposited
+            // The pool starts with an empty reserves map. Vaults will be created when tokens are first deposited.
         }
 
         ///////////////
@@ -1385,9 +1381,7 @@ access(all) contract TidalProtocol {
             let amount = from.balance
             let depositedUUID = from.uuid
 
-            // Update time-based state
-            // REMOVED: This is now handled by tokenState() helper function
-            // tokenState.updateForTimeChange()
+            // Time-based state is handled by the tokenState() helper function
 
             // Deposit rate limiting: prevent a single large deposit from monopolizing capacity.
             // Excess is queued to be processed asynchronously (see asyncUpdatePosition).
@@ -1411,7 +1405,7 @@ access(all) contract TidalProtocol {
                 position.balances[type] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0)
             }
 
-            // CHANGE: Create vault if it doesn't exist yet
+            // Create vault if it doesn't exist yet
             if self.reserves[type] == nil {
                 self.reserves[type] <-! from.createEmptyVault()
             }
@@ -1462,9 +1456,7 @@ access(all) contract TidalProtocol {
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: type)
 
-            // Update the global interest indices on the affected token to reflect the passage of time.
-            // REMOVED: This is now handled by tokenState() helper function
-            // tokenState.updateForTimeChange()
+            // Global interest indices are updated via tokenState() helper
 
             // Preflight to see if the funds are available
             let topUpSource = position.topUpSource as auth(FungibleToken.Withdraw) &{DeFiActions.Source}?
@@ -1516,16 +1508,18 @@ access(all) contract TidalProtocol {
             }
 
             if !canWithdraw {
-                // Log detailed information about the failed withdrawal
-                let availableBalance = self.availableBalance(pid: pid, type: type, pullFromTopUpSource: false)
-                if self.debugLogging { log("    [CONTRACT] WITHDRAWAL FAILED:") }
-                if self.debugLogging { log("    [CONTRACT] Position ID: \(pid)") }
-                if self.debugLogging { log("    [CONTRACT] Token type: \(type.identifier)") }
-                if self.debugLogging { log("    [CONTRACT] Requested amount: \(amount)") }
-                if self.debugLogging { log("    [CONTRACT] Available balance (without topUp): \(availableBalance)") }
-                if self.debugLogging { log("    [CONTRACT] Required deposit for minHealth: \(requiredDeposit)") }
-                if self.debugLogging { log("    [CONTRACT] Pull from topUpSource: \(pullFromTopUpSource)") }
-                
+                // Log detailed information about the failed withdrawal (only if debugging enabled)
+                if self.debugLogging {
+                    let availableBalance = self.availableBalance(pid: pid, type: type, pullFromTopUpSource: false)
+                    log("    [CONTRACT] WITHDRAWAL FAILED:")
+                    log("    [CONTRACT] Position ID: \(pid)")
+                    log("    [CONTRACT] Token type: \(type.identifier)")
+                    log("    [CONTRACT] Requested amount: \(amount)")
+                    log("    [CONTRACT] Available balance (without topUp): \(availableBalance)")
+                    log("    [CONTRACT] Required deposit for minHealth: \(requiredDeposit)")
+                    log("    [CONTRACT] Pull from topUpSource: \(pullFromTopUpSource)")
+                }
+
                 // We can't service this withdrawal, so we just abort
                 panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
             }
