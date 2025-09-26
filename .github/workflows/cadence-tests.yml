@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ "**" ]
   push:
-    branches: [ feature/liquidation-mechanism ]
+    branches: [ main, feature/liquidation-mechanism ]
 
 jobs:
   cadence-tests:
@@ -20,6 +20,9 @@ jobs:
 
       - name: Cache Flow emulator data (disabled)
         run: echo "We intentionally avoid caching ~/.flow to prevent state collisions between tests."
+
+      - name: Install Cadence dependencies
+        run: flow deps install --skip-alias --skip-deployments
 
       - name: Make test runner executable
         run: chmod +x ./run_tests.sh
