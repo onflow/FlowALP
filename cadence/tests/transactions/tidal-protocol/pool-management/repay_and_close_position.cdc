@@ -14,6 +14,7 @@
 
 import "FungibleToken"
 import "FlowToken"
+import "DeFiActions"
 import "TidalProtocol"
 import "MockTidalProtocolConsumer"
 import "MOET"
@@ -44,10 +45,10 @@ transaction(positionWrapperPath: StoragePath) {
     }
     
     execute {
-        // Repay all MOET debt by depositing borrower's entire MOET balance
+        // Repay all MOET debt without requiring EParticipant: use a Sink and depositCapacity
         if self.moetWithdrawRef.balance > 0.0 {
-            let repayVault <- self.moetWithdrawRef.withdraw(amount: self.moetWithdrawRef.balance)
-            self.positionRef.depositAndPush(from: <-repayVault, pushToDrawDownSink: false)
+            let sink: {DeFiActions.Sink} = self.positionRef.createSink(type: Type<@MOET.Vault>())
+            sink.depositCapacity(from: self.moetWithdrawRef)
         }
 
         // Now withdraw all available Flow collateral without top-up assistance
