@@ -1,0 +1,29 @@
+name: Cadence Tests
+
+on:
+  pull_request:
+    branches: [ "**" ]
+  push:
+    branches: [ feature/liquidation-mechanism ]
+
+jobs:
+  cadence-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flow CLI
+        uses: onflow/setup-flow-cli@v1
+        with:
+          version: "v2.7.3"
+
+      - name: Cache Flow emulator data (disabled)
+        run: echo "We intentionally avoid caching ~/.flow to prevent state collisions between tests."
+
+      - name: Make test runner executable
+        run: chmod +x ./run_tests.sh
+
+      - name: Run Cadence tests with runner
+        run: ./run_tests.sh
+
