@@ -13,11 +13,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Go (for Flow CLI install)
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
       - name: Install Flow CLI v2.7.2 (matches local)
         run: |
-          curl -sL https://github.com/onflow/flow-cli/releases/download/v2.7.2/flow-linux-amd64 -o flow
-          chmod +x flow
-          sudo mv flow /usr/local/bin/flow
+          go install github.com/onflow/flow-cli/v2/cmd/flow@v2.7.2
+          echo "$HOME/go/bin" >> $GITHUB_PATH
           flow version
 
       - name: Cache Flow emulator data (disabled)
