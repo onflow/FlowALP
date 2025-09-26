@@ -16,5 +16,3 @@ transaction(adminAddr: Address) {
         user.storage.save(claimed, to: capPath)
     }
 }
-
-

@@ -13,5 +13,3 @@ transaction(grantee: Address) {
         admin.inbox.publish(poolCap, name: "TidalProtocolBetaCap", recipient: grantee)
     }
 }
-
-

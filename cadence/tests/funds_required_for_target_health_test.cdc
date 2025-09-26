@@ -8,6 +8,7 @@ import "TidalProtocol"
 import "DeFiActionsMathUtils"
 
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
+access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 access(all) let userAccount = Test.createAccount()
 
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
@@ -49,6 +50,10 @@ access(all) let startBorrowLimitAtTarget = startEffectiveCollateralValue / targe
 access(all)
 fun setup() {
     deployContracts()
+
+    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
+
+    Test.expect(betaTxResult, Test.beSucceeded())
 
     // price setup
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: flowStartPrice)
