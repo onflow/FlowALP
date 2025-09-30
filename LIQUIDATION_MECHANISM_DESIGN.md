@@ -50,7 +50,7 @@
 - **`lastUnpausedAt: UInt64?`** to compute warm-up window (`liquidationWarmupSec`).
 
 ### Events
-- **LiquidationParamsUpdated**
+- **LiquidationParamsUpdated(poolUUID, targetHF, warmupSec, protocolFeeBps)**
 - **LiquidationsPaused(by)** / **LiquidationsUnpaused(by, warmupEndsAt)**
 - **LiquidationExecuted**(pid, liquidator, debtType, repayAmount, seizeType, seizeAmount, bonusBps, newHF)
 - **LiquidationExecutedViaDex**(pid, seizeType, seized, debtType, repaid, slippageBps, newHF)
@@ -204,5 +204,4 @@
     - `maxRepayAmount < requiredRepay` → revert; `minSeizeAmount > seizeAmount` → revert.
   - Add rounding guard test:
     - Feasible case should not end below target due to rounding.
-
 

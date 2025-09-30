@@ -26,9 +26,8 @@ access(all) contract TidalProtocol {
     access(all) event Deposited(pid: UInt64, poolUUID: UInt64, type: String, amount: UFix64, depositedUUID: UInt64)
     access(all) event Withdrawn(pid: UInt64, poolUUID: UInt64, type: String, amount: UFix64, withdrawnUUID: UInt64)
     access(all) event Rebalanced(pid: UInt64, poolUUID: UInt64, atHealth: UInt128, amount: UFix64, fromUnder: Bool)
-    access(all) event LiquidationParamsUpdated(poolUUID: UInt64)
-    // Backward-compatible v2 event including updated params for observability
-    access(all) event LiquidationParamsUpdatedV2(
+    // Consolidated liquidation params update event including all updated values
+    access(all) event LiquidationParamsUpdated(
         poolUUID: UInt64,
         targetHF: UInt128,
         warmupSec: UInt64,
@@ -1291,7 +1290,7 @@ access(all) contract TidalProtocol {
             }
 
             // Repay debt using swap output
-            let repaid = self.internalRepayInferred(pid: pid, from: <-outDebt)
+            let repaid = self.internalRepay(pid: pid, from: <-outDebt)
             assert(repaid >= minRepayAmount, message: "Insufficient repay after swap - required \(minRepayAmount) but repaid \(repaid)")
             // Optional safety: ensure improved health meets target
             let postHF = self.positionHealth(pid: pid)
@@ -1325,8 +1324,8 @@ access(all) contract TidalProtocol {
             return <- reserveRef.withdraw(amount: amount)
         }
 
-        access(self) fun internalRepay(pid: UInt64, debtType: Type, from: @{FungibleToken.Vault}): UFix64 {
-            pre { from.getType() == debtType: "Vault type mismatch for repay" }
+        access(self) fun internalRepay(pid: UInt64, from: @{FungibleToken.Vault}): UFix64 {
+            let debtType = from.getType()
             if self.reserves[debtType] == nil {
                 self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
             }
@@ -1342,12 +1341,6 @@ access(all) contract TidalProtocol {
             }
             position.balances[debtType]!.recordDeposit(amount: repayUint, tokenState: debtState)
             return amount
-        }
-
-        /// Convenience helper that infers the debt type from the Vault passed in
-        access(self) fun internalRepayInferred(pid: UInt64, from: @{FungibleToken.Vault}): UFix64 {
-            let inferredType = from.getType()
-            return self.internalRepay(pid: pid, debtType: inferredType, from: <-from)
         }
 
         access(self) fun computeAdjustedBalancesAfterWithdrawal(
@@ -2107,8 +2100,7 @@ access(all) contract TidalProtocol {
                 self.protocolLiquidationFeeBps = protocolFeeBps!
                 newProtocolFee = protocolFeeBps!
             }
-            emit LiquidationParamsUpdated(poolUUID: self.uuid)
-            emit LiquidationParamsUpdatedV2(poolUUID: self.uuid, targetHF: newTarget, warmupSec: newWarmup, protocolFeeBps: newProtocolFee)
+            emit LiquidationParamsUpdated(poolUUID: self.uuid, targetHF: newTarget, warmupSec: newWarmup, protocolFeeBps: newProtocolFee)
         }
 
         /// Governance: set DEX oracle deviation guard and toggle allowlisted swapper types
@@ -2181,32 +2173,12 @@ access(all) contract TidalProtocol {
 
             // Set borrow factor (risk adjustment for borrowed amounts)
             self.borrowFactor[tokenType] = borrowFactor
+
             // Default liquidation bonus per token = 5%
             self.liquidationBonus[tokenType] = 0.05
         }
 
-        /// Adds a new token type to the pool with an explicit liquidation bonus override
-        access(EGovernance) fun addSupportedTokenWithLiquidationBonus(
-            tokenType: Type,
-            collateralFactor: UFix64,
-            borrowFactor: UFix64,
-            interestCurve: {InterestCurve},
-            depositRate: UFix64,
-            depositCapacityCap: UFix64,
-            liquidationBonus: UFix64?
-        ) {
-            self.addSupportedToken(
-                tokenType: tokenType,
-                collateralFactor: collateralFactor,
-                borrowFactor: borrowFactor,
-                interestCurve: interestCurve,
-                depositRate: depositRate,
-                depositCapacityCap: depositCapacityCap
-            )
-            if liquidationBonus != nil {
-                self.setTokenLiquidationBonus(tokenType: tokenType, bonus: liquidationBonus!)
-            }
-        }
+        // Removed: addSupportedTokenWithLiquidationBonus — callers should use addSupportedToken then setTokenLiquidationBonus if needed
 
         /// Sets per-token liquidation bonus fraction (0.0 to 1.0). E.g., 0.05 means +5% seize bonus.
         access(EGovernance) fun setTokenLiquidationBonus(tokenType: Type, bonus: UFix64) {
