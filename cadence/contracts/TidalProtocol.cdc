@@ -842,8 +842,10 @@ access(all) contract TidalProtocol {
             if withdrawAmount == 0.0 {
                 return BalanceSheet(effectiveCollateral: effectiveCollateralAfterWithdrawal, effectiveDebt: effectiveDebtAfterWithdrawal)
             }
-            if self.debugLogging { log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)") }
-            if self.debugLogging { log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)") }
+            if self.debugLogging {
+                log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
+                log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
+            }
 
             let uintWithdrawAmount = DeFiActionsMathUtils.toUInt128(withdrawAmount)
             let uintWithdrawPrice = DeFiActionsMathUtils.toUInt128(self.priceOracle.price(ofToken: withdrawType)!)
@@ -894,8 +896,10 @@ access(all) contract TidalProtocol {
             var effectiveCollateralAfterWithdrawal = effectiveCollateral
             var effectiveDebtAfterWithdrawal = effectiveDebt
 
-            if self.debugLogging { log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)") }
-            if self.debugLogging { log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)") }
+            if self.debugLogging {
+                log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
+                log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
+            }
 
             // We now have new effective collateral and debt values that reflect the proposed withdrawal (if any!)
             // Now we can figure out how many of the given token would need to be deposited to bring the position
@@ -992,10 +996,12 @@ access(all) contract TidalProtocol {
 
             // The amount of the token to deposit, in units of the token.
             let collateralTokenCount = DeFiActionsMathUtils.div(requiredEffectiveCollateral, uintDepositPrice)
-            if self.debugLogging { log("    [CONTRACT] requiredEffectiveCollateral: \(requiredEffectiveCollateral)") }
-            if self.debugLogging { log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)") }
-            if self.debugLogging { log("    [CONTRACT] debtTokenCount: \(debtTokenCount)") }
-            if self.debugLogging { log("    [CONTRACT] collateralTokenCount + debtTokenCount: \(collateralTokenCount) + \(debtTokenCount) = \(collateralTokenCount + debtTokenCount)") }
+            if self.debugLogging {
+                log("    [CONTRACT] requiredEffectiveCollateral: \(requiredEffectiveCollateral)")
+                log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
+                log("    [CONTRACT] debtTokenCount: \(debtTokenCount)")
+                log("    [CONTRACT] collateralTokenCount + debtTokenCount: \(collateralTokenCount) + \(debtTokenCount) = \(collateralTokenCount + debtTokenCount)")
+            }
 
             // debtTokenCount is the number of tokens that went towards debt, zero if there was no debt.
             return DeFiActionsMathUtils.toUFix64Round(collateralTokenCount + debtTokenCount)
@@ -1058,8 +1064,10 @@ access(all) contract TidalProtocol {
             var effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral
             var effectiveDebtAfterDeposit = balanceSheet.effectiveDebt
 
-            if self.debugLogging { log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)") }
-            if self.debugLogging { log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)") }
+            if self.debugLogging {
+                log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
+                log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
+            }
             if depositAmount == 0.0 {
                 return BalanceSheet(effectiveCollateral: effectiveCollateralAfterDeposit, effectiveDebt: effectiveDebtAfterDeposit)
             }
@@ -1100,8 +1108,10 @@ access(all) contract TidalProtocol {
                     }
                 }
 
-            if self.debugLogging { log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)") }
-            if self.debugLogging { log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)") }
+            if self.debugLogging {
+                log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
+                log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
+            }
 
             // We now have new effective collateral and debt values that reflect the proposed deposit (if any!)
             // Now we can figure out how many of the withdrawal token are available while keeping the position
@@ -1180,15 +1190,19 @@ access(all) contract TidalProtocol {
                     // with an added handling for the case where the health after deposit is an edgecase
                     collateralTokenCount = trueCredit
                     effectiveCollateralAfterDeposit = effectiveCollateralAfterDeposit - collateralEffectiveValue
-                    if self.debugLogging { log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)") }
-                    if self.debugLogging { log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)") }
+                    if self.debugLogging {
+                        log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
+                        log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
+                    }
 
                     // We can calculate the available debt increase that would bring us to the target health
                     var availableDebtIncrease = DeFiActionsMathUtils.div(effectiveCollateralAfterDeposit, targetHealth) - effectiveDebtAfterDeposit
                     let availableTokens = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(availableDebtIncrease, uintWithdrawBorrowFactor), uintWithdrawPrice)
-                    if self.debugLogging { log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)") }
-                    if self.debugLogging { log("    [CONTRACT] availableTokens: \(availableTokens)") }
-                    if self.debugLogging { log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)") }
+                    if self.debugLogging {
+                        log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
+                        log("    [CONTRACT] availableTokens: \(availableTokens)")
+                        log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
+                    }
                     return DeFiActionsMathUtils.toUFix64RoundDown(availableTokens + collateralTokenCount)
                 }
             }
@@ -1199,9 +1213,11 @@ access(all) contract TidalProtocol {
             // We can calculate the available debt increase that would bring us to the target health
             var availableDebtIncrease = DeFiActionsMathUtils.div(effectiveCollateralAfterDeposit, targetHealth) - effectiveDebtAfterDeposit
             let availableTokens = DeFiActionsMathUtils.div(DeFiActionsMathUtils.mul(availableDebtIncrease, uintWithdrawBorrowFactor), uintWithdrawPrice)
-            if self.debugLogging { log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)") }
-            if self.debugLogging { log("    [CONTRACT] availableTokens: \(availableTokens)") }
-            if self.debugLogging { log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)") }
+            if self.debugLogging {
+                log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
+                log("    [CONTRACT] availableTokens: \(availableTokens)")
+                log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
+            }
             return DeFiActionsMathUtils.toUFix64RoundDown(availableTokens + collateralTokenCount)
         }
 
