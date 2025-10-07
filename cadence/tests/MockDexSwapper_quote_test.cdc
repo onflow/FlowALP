@@ -10,7 +10,13 @@ fun test_mockdex_quote_math() {
     )
     Test.expect(err, Test.beNil())
 
-    // No longer need DeFiActionsMathUtils for this test
+    // Deploy MathUtils to satisfy DeFiActions import
+    err = Test.deployContract(
+        name: "DeFiActionsMathUtils",
+        path: "../../DeFiActions/cadence/contracts/utils/DeFiActionsMathUtils.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
         name: "DeFiActions",
