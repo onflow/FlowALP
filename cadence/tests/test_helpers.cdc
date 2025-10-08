@@ -84,6 +84,10 @@ fun deployContracts() {
     )
     Test.expect(err, Test.beNil())
 
+    // NOTE: Do not publish beta capability here; some tests create the Pool later and
+    // publishing before pool creation will fail. Tests that need the cap should call
+    // grantPoolCapToConsumer() after creating the pool.
+
     // Deploy MockTidalProtocolConsumer
     err = Test.deployContract(
         name: "MockTidalProtocolConsumer",
@@ -118,6 +122,13 @@ fun deployContracts() {
     err = Test.deployContract(
         name: "FungibleTokenConnectors",
         path: "../../DeFiActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+    // Deploy MockDexSwapper for DEX liquidation tests
+    err = Test.deployContract(
+        name: "MockDexSwapper",
+        path: "../contracts/mocks/MockDexSwapper.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -320,6 +331,25 @@ fun withdrawReserve(
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
+/* --- Capability Helpers --- */
+
+// Grants the Pool capability with EParticipant and EPosition entitlements to the MockTidalProtocolConsumer account (0x8)
+// Must be called AFTER the pool is created and stored, otherwise publishing will fail the capability check.
+access(all)
+fun grantPoolCapToConsumer() {
+    let protocolAccount = Test.getAccount(0x0000000000000007)
+    let consumerAccount = Test.getAccount(0x0000000000000008)
+    // Check pool exists (defensively handle CI ordering). If not, no-op.
+    let existsRes = _executeScript("../scripts/tidal-protocol/pool_exists.cdc", [protocolAccount.address])
+    Test.expect(existsRes, Test.beSucceeded())
+    if !(existsRes.returnValue as! Bool) {
+        return
+    }
+
+    // Use in-repo grant transaction that issues EParticipant+EPosition and saves to PoolCapStoragePath
+    let grantRes = grantBeta(protocolAccount, consumerAccount)
+    Test.expect(grantRes, Test.beSucceeded())
+}
 /* --- Assertion Helpers --- */
 
 access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct): Bool {
