@@ -58,6 +58,13 @@ access(all) contract MockTidalProtocolConsumer {
             return &self.position
         }
 
+        /// NOT SAFE FOR PRODUCTION
+        ///
+        /// Returns a reference to the wrapped Position with EParticipant entitlement for deposits
+        access(all) fun borrowPositionForDeposit(): auth(TidalProtocol.EParticipant) &TidalProtocol.Position {
+            return &self.position
+        }
+
         access(all) fun borrowPositionForWithdraw(): auth(FungibleToken.Withdraw) &TidalProtocol.Position {
             return &self.position
         }
