@@ -4,7 +4,6 @@ import "MOET"
 import "test_helpers.cdc"
 
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 
 access(all)
 fun setup() {
@@ -29,34 +28,13 @@ fun test_setGovernanceParams_and_exercise_paths() {
     // Setup user and deposit small amount to create minimal credit, then call a read that triggers interest update via helper flows
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
-    mintMoet(signer: protocolAccount, to: user.address, amount: 10.0, beFailed: false)
-
-    // Enable FLOW token support in pool
-    addSupportedTokenSimpleInterestCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
-        collateralFactor: 0.8,
-        borrowFactor: 1.0,
-        depositRate: 1_000_000.0,
-        depositCapacityCap: 1_000_000.0
-    )
+    mintMoet(signer: protocolAccount, to: user.address, amount: 200.0, beFailed: false)
 
     // Open minimal position and deposit to ensure token has credit balance
     grantPoolCapToConsumer()
-    let flowVaultPath = /storage/flowTokenVault
-    // Use existing integration test helper path to mint Flow via transaction
-    let collateralAmount = 100.0
-    let mintFlowRes = Test.executeTransaction(Test.Transaction(
-        code: Test.readFile("../transactions/flowtoken/transfer_flowtoken.cdc"),
-        authorizers: [Test.serviceAccount().address],
-        signers: [Test.serviceAccount()],
-        arguments: [user.address, collateralAmount]
-    ))
-    Test.expect(mintFlowRes, Test.beSucceeded())
-
     let openRes = _executeTransaction(
         "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
-        [50.0, flowVaultPath, false],
+        [50.0, MOET.VaultStoragePath, false],
         user
     )
     Test.expect(openRes, Test.beSucceeded())
