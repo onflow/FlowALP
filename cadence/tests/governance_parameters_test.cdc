@@ -75,9 +75,9 @@ fun test_setGovernanceParams_and_exercise_paths() {
     let poolExistsRes = _executeScript("../scripts/tidal-protocol/pool_exists.cdc", [protocolAccount.address])
     Test.expect(poolExistsRes, Test.beSucceeded())
 
-    // Use Position details which relies on accessors
+    // Use Position details to verify health is populated
     let posDetails = getPositionDetails(pid: 0, beFailed: false)
-    Test.assert(posDetails.minHealth > 0)
+    Test.assert(posDetails.health > 0)
 }
 
 
