@@ -28,7 +28,7 @@ fun snap(price: UFix64, creditIdx: UFix128, debitIdx: UFix128, cf: UFix64, bf: U
 access(all) let ONE: UFix128 = 1.0 as UFix128
 
 access(all)
-fun test_healthFactor_zeroBalances_returnsZero() {
+fun test_healthFactor_zeroBalances_returnsInfinite() {  // Renamed for clarity
     let balances: {Type: TidalProtocol.InternalBalance} = {}
     let snaps: {Type: TidalProtocol.TokenSnapshot} = {}
     let view = TidalProtocol.PositionView(
@@ -38,6 +38,30 @@ fun test_healthFactor_zeroBalances_returnsZero() {
         min: 1.1 as UFix128,
         max: 1.5 as UFix128
     )
+    let h = TidalProtocol.healthFactor(view: view)
+    Test.assertEqual(UFix128.max, h)  // Empty position (0/0) is safe with infinite health
+}
+
+// New test: Zero collateral with positive debt should return 0 health (unsafe)
+access(all)
+fun test_healthFactor_zeroCollateral_positiveDebt_returnsZero() {
+    let tDebt = Type<@MockYieldToken.Vault>()
+    
+    let snapshots: {Type: TidalProtocol.TokenSnapshot} = {}
+    snapshots[tDebt] = snap(price: 1.0, creditIdx: ONE, debitIdx: ONE, cf: 0.5, bf: 1.0)
+    
+    let balances: {Type: TidalProtocol.InternalBalance} = {}
+    balances[tDebt] = TidalProtocol.InternalBalance(direction: TidalProtocol.BalanceDirection.Debit,
+        scaledBalance: 50.0 as UFix128)
+    
+    let view = TidalProtocol.PositionView(
+        balances: balances,
+        snapshots: snapshots,
+        def: tDebt,
+        min: 1.1 as UFix128,
+        max: 1.5 as UFix128
+    )
+    
     let h = TidalProtocol.healthFactor(view: view)
     Test.assertEqual(0.0 as UFix128, h)
 }

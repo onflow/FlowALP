@@ -14,8 +14,8 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     
     // the funds that will be used as collateral for a TidalProtocol loan
     let collateral: @{FungibleToken.Vault}
-    // the position to deposit to
-    let position: &TidalProtocol.Position
+    // the position to deposit to (requires EParticipant entitlement for deposit)
+    let position: auth(TidalProtocol.EParticipant) &TidalProtocol.Position
 
     prepare(signer: auth(BorrowValue) &Account) {
         // withdraw the collateral from the signer's stored Vault
@@ -25,7 +25,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         // reference the wrapped position
         self.position = signer.storage.borrow<&MockTidalProtocolConsumer.PositionWrapper>(
                 from: MockTidalProtocolConsumer.WrapperStoragePath
-            )?.borrowPosition()
+            )?.borrowPositionForDeposit()
             ?? panic("Could not find a WrappedPosition in signer's storage at \(MockTidalProtocolConsumer.WrapperStoragePath)")
     }
 
