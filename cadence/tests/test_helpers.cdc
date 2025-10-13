@@ -226,6 +226,14 @@ fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String,
         signer
     )
     Test.expect(createRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+
+    // Enable debug logs for tests to aid diagnostics
+    let debugRes = _executeTransaction(
+        "../transactions/tidal-protocol/pool-governance/set_debug_logging.cdc",
+        [true],
+        signer
+    )
+    Test.expect(debugRes, Test.beSucceeded())
 }
 
 access(all)

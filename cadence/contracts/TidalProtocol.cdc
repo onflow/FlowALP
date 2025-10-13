@@ -2280,6 +2280,11 @@ access(all) contract TidalProtocol {
             tsRef.setDepositLimitFraction(fraction)
         }
 
+        /// Enables or disables verbose logging inside the Pool for testing and diagnostics
+        access(EGovernance) fun setDebugLogging(_ enabled: Bool) {
+            self.debugLogging = enabled
+        }
+
         /// Rebalances the position to the target health value. If `force` is `true`, the position will be rebalanced
         /// even if it is currently healthy. Otherwise, this function will do nothing if the position is within the
         /// min/max health bounds.
