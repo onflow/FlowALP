@@ -321,10 +321,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     )
     let actualHealthAfterPriceIncrease = getPositionHealth(pid: positionID, beFailed: false)
     // calculate new health based on updated collateral value - should increase proportionally to price increase
-    let expectedHealthAfterPriceIncrease = TidalMath.mul(
-            actualHealthBeforePriceIncrease,
-            TidalMath.toUFix128(1.0 + priceIncrease)
-        )
+    let expectedHealthAfterPriceIncrease = actualHealthBeforePriceIncrease * TidalMath.toUFix128(1.0 + priceIncrease)
     Test.assertEqual(expectedHealthAfterPriceIncrease, actualHealthAfterPriceIncrease)
 
     log("[TEST] FLOW price set to \(newPrice) from \(flowStartPrice)")
@@ -479,10 +476,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     )
     let actualHealthAfterPriceDecrease = getPositionHealth(pid: positionID, beFailed: false)
     // calculate new health based on updated collateral value - should increase proportionally to price increase
-    let expectedHealthAfterPriceDecrease = TidalMath.mul(
-            actualHealthBeforePriceIncrease,
-            TidalMath.toUFix128(1.0 - priceDecrease)
-        )
+    let expectedHealthAfterPriceDecrease = actualHealthBeforePriceIncrease * TidalMath.toUFix128(1.0 - priceDecrease)
     Test.assertEqual(expectedHealthAfterPriceDecrease, actualHealthAfterPriceDecrease)
 
     log("[TEST] FLOW price set to \(newPrice) from \(flowStartPrice)")
@@ -539,15 +533,15 @@ fun runFundsRequiredForTargetHealthAfterWithdrawing(
     let intWithdrawAmount = TidalMath.toUFix128(withdrawAmount)
 
     // effectiveCollateralValue = collateralBalance * collateralPrice * collateralFactor
-    let effectiveFLOWCollateralValue = TidalMath.mul(TidalMath.mul(intFLOWCollateral, intFLOWPrice), intFLOWCollateralFactor)
+    let effectiveFLOWCollateralValue = (intFLOWCollateral * intFLOWPrice) * intFLOWCollateralFactor
     // borrowLimit = (effectiveCollateralValue / targetHealth) * borrowFactor
-    let expectedBorrowCapacity = TidalMath.mul(TidalMath.div(effectiveFLOWCollateralValue, intTargetHealth), intFLOWBorrowFactor)
+    let expectedBorrowCapacity = TidalMath.div(effectiveFLOWCollateralValue, intTargetHealth) * intFLOWBorrowFactor
     let desiredFinalDebt = intFLOWBorrowed + intWithdrawAmount
 
     var expectedRequired: UFix128 = 0.0 as UFix128
     if desiredFinalDebt > expectedBorrowCapacity {
         let valueDiff = desiredFinalDebt - expectedBorrowCapacity
-        expectedRequired = TidalMath.div(TidalMath.mul(valueDiff, intTargetHealth), intFLOWPrice)
+        expectedRequired = TidalMath.div(valueDiff * intTargetHealth, intFLOWPrice)
         expectedRequired = TidalMath.div(expectedRequired, intFLOWCollateralFactor)
     }
     let ufixExpectedRequired = TidalMath.toUFix64Round(expectedRequired)

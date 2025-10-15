@@ -15,9 +15,7 @@ access(all) contract TidalMath {
         access(all) case RoundEven
     }
 
-    access(all) view fun mul(_ x: UFix128, _ y: UFix128): UFix128 {
-        return x * y
-    }
+    // mul removed: use the built-in * operator directly
 
     access(all) view fun div(_ x: UFix128, _ y: UFix128): UFix128 {
         pre {
@@ -35,7 +33,7 @@ access(all) contract TidalMath {
         let truncatedAs128: UFix128 = UFix128(truncated)
         let remainder: UFix128 = value - truncatedAs128
 
-        if remainder <= 0.0 as UFix128 {
+        if remainder == 0.0 as UFix128 {
             return truncated
         }
 

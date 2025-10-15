@@ -146,7 +146,7 @@ fun test_liquidation_insolvency() {
         return
     }
     Test.assert(quote.seizeAmount > 0.0, message: "Expected positive seizeAmount")
-    Test.assert(quote.newHF > hAfter && quote.newHF < TidalMath.toUFix128(1.0))
+    Test.assert(quote.newHF > hAfter && quote.newHF < TidalMath.one)
 
     // Execute and assert improvement, HF < target
     let keeper = Test.createAccount()
