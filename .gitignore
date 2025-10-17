@@ -5,3 +5,4 @@ imports
 coverage.lcov
 coverage.json
 /.pr-body.md
+/.github/pr_bodies/

@@ -1627,15 +1627,15 @@ access(all) contract TidalProtocol {
                 return BalanceSheet(effectiveCollateral: effectiveCollateralAfterDeposit, effectiveDebt: effectiveDebtAfterDeposit)
             }
 
-            let depositAmountU = TidalMath.toUFix128(depositAmount)
-            let depositPrice2 = TidalMath.toUFix128(self.priceOracle.price(ofToken: depositType)!)
-            let depositBorrowFactor2 = TidalMath.toUFix128(self.borrowFactor[depositType]!)
-            let depositCollateralFactor2 = TidalMath.toUFix128(self.collateralFactor[depositType]!)
+            let depositAmountCasted = TidalMath.toUFix128(depositAmount)
+            let depositPriceCasted = TidalMath.toUFix128(self.priceOracle.price(ofToken: depositType)!)
+            let depositBorrowFactorCasted = TidalMath.toUFix128(self.borrowFactor[depositType]!)
+            let depositCollateralFactorCasted = TidalMath.toUFix128(self.collateralFactor[depositType]!)
             let maybeBalance = position.balances[depositType]
                 if maybeBalance == nil || maybeBalance!.direction == BalanceDirection.Credit {
                     // If there's no debt for the deposit token, we can just compute how much additional effective collateral the deposit will create.
                     effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
-                        (depositAmountU * depositPrice2) * depositCollateralFactor2
+                        (depositAmountCasted * depositPriceCasted) * depositCollateralFactorCasted
                 } else {
                     let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
 
@@ -1647,19 +1647,19 @@ access(all) contract TidalProtocol {
                     )
                     if self.debugLogging { log("    [CONTRACT] trueDebt: \(trueDebt)") }
 
-                    if trueDebt >= depositAmountU {
+                    if trueDebt >= depositAmountCasted {
                         // This deposit will pay down some debt, but won't result in net collateral, we
                         // just need to account for the debt decrease.
                         // TODO - validate if this should deal with withdrawType or depositType
                         effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
-                            TidalMath.div(depositAmountU * depositPrice2, depositBorrowFactor2)
+                            TidalMath.div(depositAmountCasted * depositPriceCasted, depositBorrowFactorCasted)
                     } else {
                         // The deposit will wipe out all of the debt, and create some collateral.
                         // TODO - validate if this should deal with withdrawType or depositType
                         effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
-                            TidalMath.div(trueDebt * depositPrice2, depositBorrowFactor2)
+                            TidalMath.div(trueDebt * depositPriceCasted, depositBorrowFactorCasted)
                         effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
-                            (depositAmountU - trueDebt) * depositPrice2 * depositCollateralFactor2
+                            (depositAmountCasted - trueDebt) * depositPriceCasted * depositCollateralFactorCasted
                     }
                 }
 
