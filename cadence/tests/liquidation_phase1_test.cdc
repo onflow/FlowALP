@@ -4,7 +4,7 @@ import "test_helpers.cdc"
 import "TidalProtocol"
 import "MOET"
 import "FlowToken"
-import "DeFiActionsMathUtils"
+import "TidalMath"
 
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) var snapshot: UInt64 = 0
@@ -58,13 +58,13 @@ fun test_liquidation_phase1_quote_and_execute() {
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
-    let hBeforeUF = DeFiActionsMathUtils.toUFix64Round(hBefore)
+    let hBeforeUF = TidalMath.toUFix64Round(hBefore)
     log("[LIQ] Health before price drop: raw=\(hBefore), approx=\(hBeforeUF)")
 
     // cause undercollateralization
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 0.7)
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
-    let hAfterPriceUF = DeFiActionsMathUtils.toUFix64Round(hAfterPrice)
+    let hAfterPriceUF = TidalMath.toUFix64Round(hAfterPrice)
     log("[LIQ] Health after price drop: raw=\(hAfterPrice), approx=\(hAfterPriceUF)")
 
     // quote liquidation
@@ -95,12 +95,12 @@ fun test_liquidation_phase1_quote_and_execute() {
 
     // health after liquidation
     let hAfterLiq = getPositionHealth(pid: pid, beFailed: false)
-    let hAfterLiqUF = DeFiActionsMathUtils.toUFix64Round(hAfterLiq)
+    let hAfterLiqUF = TidalMath.toUFix64Round(hAfterLiq)
     log("[LIQ] Health after liquidation: raw=\(hAfterLiq), approx=\(hAfterLiqUF)")
 
-    // Assert final health ≈ target (1.05e24, allow tolerance for rounding)
-    let targetHF = UInt128(1050000000000000000000000)  // 1.05e24
-    let tolerance = UInt128(10000000000000000000)  // 0.01e24
+    // Assert final health ≈ target
+    let targetHF = TidalMath.toUFix128(1.05)
+    let tolerance = TidalMath.toUFix128(0.00001)
     Test.assert(hAfterLiq >= targetHF - tolerance && hAfterLiq <= targetHF + tolerance, message: "Post-liquidation health \(hAfterLiqUF) not at target 1.05")
 
     // Assert quoted newHF matches actual
@@ -131,7 +131,7 @@ fun test_liquidation_insolvency() {
     // Severe undercollateralization (insolvent, but liquidation improves HF)
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 0.6)
     let hAfter = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(DeFiActionsMathUtils.toUFix64Round(hAfter) < 1.0)
+    Test.assert(TidalMath.toUFix64Round(hAfter) < 1.0)
 
     // Quote should suggest partial repay/seize that improves HF to max possible < target
     let quoteRes = _executeScript(
@@ -146,7 +146,7 @@ fun test_liquidation_insolvency() {
         return
     }
     Test.assert(quote.seizeAmount > 0.0, message: "Expected positive seizeAmount")
-    Test.assert(quote.newHF > hAfter && quote.newHF < DeFiActionsMathUtils.e24)
+    Test.assert(quote.newHF > hAfter && quote.newHF < TidalMath.one)
 
     // Execute and assert improvement, HF < target
     let keeper = Test.createAccount()
@@ -162,8 +162,8 @@ fun test_liquidation_insolvency() {
 
     // Health should be max (zero debt left after partial repay)
     let hFinal = getPositionHealth(pid: pid, beFailed: false)
-    let hFinalUF = DeFiActionsMathUtils.toUFix64Round(hFinal)
-    log("hFinal: \(DeFiActionsMathUtils.toUFix64Round(hFinal)), hAfter: \(DeFiActionsMathUtils.toUFix64Round(hAfter))")
+    let hFinalUF = TidalMath.toUFix64Round(hFinal)
+    log("hFinal: \(TidalMath.toUFix64Round(hFinal)), hAfter: \(TidalMath.toUFix64Round(hAfter))")
     Test.assert(hFinal > hAfter, message: "Health not improved")
     Test.assert(hFinalUF <= 1.05, message: "Insolvent HF exceeded target")
 }
@@ -186,7 +186,7 @@ fun test_multi_liquidation() {
     // Initial undercollateralization
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 0.7)
     let hInitial = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(DeFiActionsMathUtils.toUFix64Round(hInitial) < 1.0)
+    Test.assert(TidalMath.toUFix64Round(hInitial) < 1.0)
 
     // First liquidation
     let quote1Res = _executeScript(
@@ -206,16 +206,16 @@ fun test_multi_liquidation() {
     )
 
     let hAfter1 = getPositionHealth(pid: pid, beFailed: false)
-    let targetHF = UInt128(1050000000000000000000000)
+    let targetHF = TidalMath.toUFix128(1.05)
     // Slightly relax tolerance for second liquidation to account for rounding across sequential updates
-    let tolerance = UInt128(20000000000000000000)
+    let tolerance = TidalMath.toUFix128(0.00002)
     Test.assert(hAfter1 >= targetHF - tolerance, message: "First liquidation did not reach target")
 
     // Drop price further for second liquidation
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 0.6)
 
     let hAfterDrop = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(DeFiActionsMathUtils.toUFix64Round(hAfterDrop) < 1.0)
+    Test.assert(TidalMath.toUFix64Round(hAfterDrop) < 1.0)
 
     // Second liquidation
     let quote2Res = _executeScript(
@@ -235,7 +235,7 @@ fun test_multi_liquidation() {
     )
 
     let hFinal = getPositionHealth(pid: pid, beFailed: false)
-    log("[LIQ][TEST] Second liquidation hFinal UF=\(DeFiActionsMathUtils.toUFix64Round(hFinal)) raw=\(hFinal)")
+    log("[LIQ][TEST] Second liquidation hFinal UF=\(TidalMath.toUFix64Round(hFinal)) raw=\(hFinal)")
     Test.assert(hFinal >= targetHF - tolerance, message: "Second liquidation did not reach target")
 }
 
@@ -355,7 +355,7 @@ fun test_liquidation_healthy_zero_quote() {
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 1.2)
 
     let h = getPositionHealth(pid: pid, beFailed: false)
-    let hUF = DeFiActionsMathUtils.toUFix64Round(h)
+    let hUF = TidalMath.toUFix64Round(h)
     Test.assert(hUF > 1.0, message: "Position not healthy")
 
     let quoteRes = _executeScript(

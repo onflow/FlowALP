@@ -66,7 +66,7 @@ fun test_setGovernanceParams_and_exercise_paths() {
 
     // Use Position details to verify health is populated
     let posDetails = getPositionDetails(pid: 0, beFailed: false)
-    Test.assert(posDetails.health > 0)
+    Test.assert(posDetails.health > 0.0 as UFix128)
 }
 
 

@@ -4,7 +4,7 @@ import "test_helpers.cdc"
 import "TidalProtocol"
 import "MOET"
 import "FlowToken"
-import "DeFiActionsMathUtils"
+import "TidalMath"
 
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) var snapshot: UInt64 = 0
@@ -59,7 +59,7 @@ fun test_borrower_full_redemption_insolvency() {
     // Force insolvency (HF < 1.0)
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 0.6)
     let hAfter = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(DeFiActionsMathUtils.toUFix64Round(hAfter) < 1.0, message: "Expected HF < 1.0 after price drop")
+    Test.assert(TidalMath.toUFix64Round(hAfter) < 1.0, message: "Expected HF < 1.0 after price drop")
 
     // Inspect position to get MOET debt
     let details = getPositionDetails(pid: pid, beFailed: false)

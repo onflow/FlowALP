@@ -5,7 +5,7 @@ import "test_helpers.cdc"
 import "TidalProtocol"
 import "MOET"
 import "FlowToken"
-import "DeFiActionsMathUtils"
+import "TidalMath"
 import "MockDexSwapper"
 
 access(all)
@@ -45,7 +45,7 @@ fun test_liquidation_via_dex() {
     // make unhealthy
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: Type<@FlowToken.Vault>().identifier, price: 0.7)
     let h0 = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(DeFiActionsMathUtils.toUFix64Round(h0) < 1.0)
+    Test.assert(TidalMath.toUFix64Round(h0) < 1.0)
 
     // perform liquidation via mock dex using signer as protocol
     let protocol = Test.getAccount(0x0000000000000007)
@@ -71,7 +71,9 @@ fun test_liquidation_via_dex() {
 
     // HF should improve to at/near target
     let h1 = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(h1 >= UInt128(1050000000000000000000000 - 10000000000000000000))
+    let target = TidalMath.toUFix128(1.05)
+    let tol = TidalMath.toUFix128(0.00001)
+    Test.assert(h1 >= target - tol)
 }
 
 

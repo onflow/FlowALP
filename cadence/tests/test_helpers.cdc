@@ -5,16 +5,20 @@ import "TidalProtocol"
 
 access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let defaultUFixVariance = 0.00000001
+// Variance for UFix64 comparisons
 access(all) let defaultUIntVariance: UInt128 = 1_000_000_000_000_000
+// Variance for UFix128 comparisons
+access(all) let defaultUFix128Variance: UFix128 = 0.00000001 as UFix128
 
 // Health values
 access(all) let minHealth = 1.1
 access(all) let targetHealth = 1.3
 access(all) let maxHealth = 1.5
-access(all) var intMinHealth: UInt128 = 1_100_000_000_000_000_000_000_000
-access(all) var intTargetHealth: UInt128 = 1_300_000_000_000_000_000_000_000
-access(all) var intMaxHealth: UInt128 = 1_500_000_000_000_000_000_000_000
-access(all) let ceilingHealth = UInt128.max      // the maximum health value when health is virtually infinite AKA debt ~0.0
+// UFix128 equivalents (kept same variable names for minimal test churn)
+access(all) var intMinHealth: UFix128 = 1.1 as UFix128
+access(all) var intTargetHealth: UFix128 = 1.3 as UFix128
+access(all) var intMaxHealth: UFix128 = 1.5 as UFix128
+access(all) let ceilingHealth: UFix128 = UFix128.max      // infinite health when debt ~ 0.0
 
 /* --- Test execution helpers --- */
 
@@ -53,6 +57,13 @@ fun deployContracts() {
     var err = Test.deployContract(
         name: "DeFiActionsUtils",
         path: "../../DeFiActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+    // Deploy TidalMath before TidalProtocol
+    err = Test.deployContract(
+        name: "TidalMath",
+        path: "../lib/TidalMath.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -160,12 +171,12 @@ fun getAvailableBalance(pid: UInt64, vaultIdentifier: String, pullFromTopUpSourc
 }
 
 access(all)
-fun getPositionHealth(pid: UInt64, beFailed: Bool): UInt128 {
+fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix128 {
     let res = _executeScript("../scripts/tidal-protocol/position_health.cdc",
             [pid]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-    return res.status == Test.ResultStatus.failed ? 0 : res.returnValue as! UInt128
+    return res.status == Test.ResultStatus.failed ? 0.0 as UFix128 : res.returnValue as! UFix128
 }
 
 access(all)
@@ -188,7 +199,7 @@ access(all)
 fun fundsAvailableAboveTargetHealthAfterDepositing(
     pid: UInt64,
     withdrawType: String,
-    targetHealth: UInt128,
+    targetHealth: UFix128,
     depositType: String,
     depositAmount: UFix64,
     beFailed: Bool
@@ -204,7 +215,7 @@ access(all)
 fun fundsRequiredForTargetHealthAfterWithdrawing(
     pid: UInt64,
     depositType: String,
-    targetHealth: UInt128,
+    targetHealth: UFix128,
     withdrawType: String,
     withdrawAmount: UFix64,
     beFailed: Bool
@@ -365,8 +376,8 @@ access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct):
     let actualType = actual.getType()
     if expectedType == Type<UFix64>() && actualType == Type<UFix64>() {
         return ufixEqualWithinVariance(expected as! UFix64, actual as! UFix64)
-    } else if expectedType == Type<UInt128>() && actualType == Type<UInt128>() {
-        return uintEqualWithinVariance(expected as! UInt128, actual as! UInt128)
+    } else if expectedType == Type<UFix128>() && actualType == Type<UFix128>() {
+        return ufix128EqualWithinVariance(expected as! UFix128, actual as! UFix128)
     }
     panic("Expected and actual types do not match - expected: \(expectedType.identifier), actual: \(actualType.identifier)")
 }
@@ -379,8 +390,7 @@ access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64): B
     return absDiff <= defaultUFixVariance
 }
 
-access(all) fun uintEqualWithinVariance(_ expected: UInt128, _ actual: UInt128): Bool {
-    let diff = Int128(expected) - Int128(actual)
-    let absDiff: UInt128 = diff < 0 ? UInt128(Int128(-1) * diff) : UInt128(diff)
-    return absDiff <= defaultUIntVariance
+access(all) fun ufix128EqualWithinVariance(_ expected: UFix128, _ actual: UFix128): Bool {
+    let absDiff: UFix128 = expected >= actual ? expected - actual : actual - expected
+    return absDiff <= defaultUFix128Variance
 }
