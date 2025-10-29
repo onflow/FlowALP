@@ -14,6 +14,7 @@
 
 import "FungibleToken"
 import "FlowToken"
+import "DeFiActions"
 import "TidalProtocol"
 import "MockTidalProtocolConsumer"
 import "MOET"
@@ -22,6 +23,7 @@ transaction(positionWrapperPath: StoragePath) {
     
     let positionRef: auth(FungibleToken.Withdraw) &TidalProtocol.Position
     let receiverRef: &{FungibleToken.Receiver}
+    let moetWithdrawRef: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
     
     prepare(borrower: auth(BorrowValue) &Account) {
         // Get wrapper reference
@@ -36,17 +38,28 @@ transaction(positionWrapperPath: StoragePath) {
         self.receiverRef = borrower.capabilities.borrow<&{FungibleToken.Receiver}>(
             /public/flowTokenReceiver
         ) ?? panic("Could not borrow receiver reference to the recipient's Vault")
+
+        // Borrow withdraw reference to borrower's MOET vault to repay debt
+        self.moetWithdrawRef = borrower.storage.borrow<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(from: MOET.VaultStoragePath)
+            ?? panic("No MOET vault in storage")
     }
     
     execute {
-        // Withdraw all available collateral, automatically repaying debt via pullFromTopUpSource
+        // Repay all MOET debt without requiring EParticipant: use a Sink and depositCapacity
+        if self.moetWithdrawRef.balance > 0.0 {
+            let sink: {DeFiActions.Sink} = self.positionRef.createSink(type: Type<@MOET.Vault>())
+            sink.depositCapacity(from: self.moetWithdrawRef)
+        }
+
+        // Now withdraw all available Flow collateral without top-up assistance
+        let withdrawAmount = self.positionRef.availableBalance(
+            type: Type<@FlowToken.Vault>(),
+            pullFromTopUpSource: false
+        )
         let withdrawnVault <- self.positionRef.withdrawAndPull(
             type: Type<@FlowToken.Vault>(),
-            amount: self.positionRef.availableBalance(
-                type: Type<@FlowToken.Vault>(), 
-                pullFromTopUpSource: true
-            ),
-            pullFromTopUpSource: true
+            amount: withdrawAmount,
+            pullFromTopUpSource: false
         )
         
         // Deposit withdrawn collateral to user's vault

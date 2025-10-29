@@ -5,16 +5,20 @@ import "TidalProtocol"
 
 access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let defaultUFixVariance = 0.00000001
+// Variance for UFix64 comparisons
 access(all) let defaultUIntVariance: UInt128 = 1_000_000_000_000_000
+// Variance for UFix128 comparisons
+access(all) let defaultUFix128Variance: UFix128 = 0.00000001 as UFix128
 
 // Health values
 access(all) let minHealth = 1.1
 access(all) let targetHealth = 1.3
 access(all) let maxHealth = 1.5
-access(all) var intMinHealth: UInt128 = 1_100_000_000_000_000_000_000_000
-access(all) var intTargetHealth: UInt128 = 1_300_000_000_000_000_000_000_000
-access(all) var intMaxHealth: UInt128 = 1_500_000_000_000_000_000_000_000
-access(all) let ceilingHealth = UInt128.max      // the maximum health value when health is virtually infinite AKA debt ~0.0
+// UFix128 equivalents (kept same variable names for minimal test churn)
+access(all) var intMinHealth: UFix128 = 1.1 as UFix128
+access(all) var intTargetHealth: UFix128 = 1.3 as UFix128
+access(all) var intMaxHealth: UFix128 = 1.5 as UFix128
+access(all) let ceilingHealth: UFix128 = UFix128.max      // infinite health when debt ~ 0.0
 
 /* --- Test execution helpers --- */
 
@@ -56,6 +60,13 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
+    // Deploy TidalMath before TidalProtocol
+    err = Test.deployContract(
+        name: "TidalMath",
+        path: "../lib/TidalMath.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
     err = Test.deployContract(
         name: "DeFiActionsMathUtils",
         path: "../../DeFiActions/cadence/contracts/utils/DeFiActionsMathUtils.cdc",
@@ -83,6 +94,10 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
+
+    // NOTE: Do not publish beta capability here; some tests create the Pool later and
+    // publishing before pool creation will fail. Tests that need the cap should call
+    // grantPoolCapToConsumer() after creating the pool.
 
     // Deploy MockTidalProtocolConsumer
     err = Test.deployContract(
@@ -121,6 +136,13 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
+    // Deploy MockDexSwapper for DEX liquidation tests
+    err = Test.deployContract(
+        name: "MockDexSwapper",
+        path: "../contracts/mocks/MockDexSwapper.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 }
 
 /* --- Script Helpers --- */
@@ -149,12 +171,12 @@ fun getAvailableBalance(pid: UInt64, vaultIdentifier: String, pullFromTopUpSourc
 }
 
 access(all)
-fun getPositionHealth(pid: UInt64, beFailed: Bool): UInt128 {
+fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix128 {
     let res = _executeScript("../scripts/tidal-protocol/position_health.cdc",
             [pid]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-    return res.status == Test.ResultStatus.failed ? 0 : res.returnValue as! UInt128
+    return res.status == Test.ResultStatus.failed ? 0.0 as UFix128 : res.returnValue as! UFix128
 }
 
 access(all)
@@ -177,7 +199,7 @@ access(all)
 fun fundsAvailableAboveTargetHealthAfterDepositing(
     pid: UInt64,
     withdrawType: String,
-    targetHealth: UInt128,
+    targetHealth: UFix128,
     depositType: String,
     depositAmount: UFix64,
     beFailed: Bool
@@ -193,7 +215,7 @@ access(all)
 fun fundsRequiredForTargetHealthAfterWithdrawing(
     pid: UInt64,
     depositType: String,
-    targetHealth: UInt128,
+    targetHealth: UFix128,
     withdrawType: String,
     withdrawAmount: UFix64,
     beFailed: Bool
@@ -215,6 +237,14 @@ fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String,
         signer
     )
     Test.expect(createRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+
+    // Enable debug logs for tests to aid diagnostics
+    let debugRes = _executeTransaction(
+        "../transactions/tidal-protocol/pool-governance/set_debug_logging.cdc",
+        [true],
+        signer
+    )
+    Test.expect(debugRes, Test.beSucceeded())
 }
 
 access(all)
@@ -320,6 +350,25 @@ fun withdrawReserve(
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
+/* --- Capability Helpers --- */
+
+// Grants the Pool capability with EParticipant and EPosition entitlements to the MockTidalProtocolConsumer account (0x8)
+// Must be called AFTER the pool is created and stored, otherwise publishing will fail the capability check.
+access(all)
+fun grantPoolCapToConsumer() {
+    let protocolAccount = Test.getAccount(0x0000000000000007)
+    let consumerAccount = Test.getAccount(0x0000000000000008)
+    // Check pool exists (defensively handle CI ordering). If not, no-op.
+    let existsRes = _executeScript("../scripts/tidal-protocol/pool_exists.cdc", [protocolAccount.address])
+    Test.expect(existsRes, Test.beSucceeded())
+    if !(existsRes.returnValue as! Bool) {
+        return
+    }
+
+    // Use in-repo grant transaction that issues EParticipant+EPosition and saves to PoolCapStoragePath
+    let grantRes = grantBeta(protocolAccount, consumerAccount)
+    Test.expect(grantRes, Test.beSucceeded())
+}
 /* --- Assertion Helpers --- */
 
 access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct): Bool {
@@ -327,8 +376,8 @@ access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct):
     let actualType = actual.getType()
     if expectedType == Type<UFix64>() && actualType == Type<UFix64>() {
         return ufixEqualWithinVariance(expected as! UFix64, actual as! UFix64)
-    } else if expectedType == Type<UInt128>() && actualType == Type<UInt128>() {
-        return uintEqualWithinVariance(expected as! UInt128, actual as! UInt128)
+    } else if expectedType == Type<UFix128>() && actualType == Type<UFix128>() {
+        return ufix128EqualWithinVariance(expected as! UFix128, actual as! UFix128)
     }
     panic("Expected and actual types do not match - expected: \(expectedType.identifier), actual: \(actualType.identifier)")
 }
@@ -341,8 +390,7 @@ access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64): B
     return absDiff <= defaultUFixVariance
 }
 
-access(all) fun uintEqualWithinVariance(_ expected: UInt128, _ actual: UInt128): Bool {
-    let diff = Int128(expected) - Int128(actual)
-    let absDiff: UInt128 = diff < 0 ? UInt128(Int128(-1) * diff) : UInt128(diff)
-    return absDiff <= defaultUIntVariance
+access(all) fun ufix128EqualWithinVariance(_ expected: UFix128, _ actual: UFix128): Bool {
+    let absDiff: UFix128 = expected >= actual ? expected - actual : actual - expected
+    return absDiff <= defaultUFix128Variance
 }
