@@ -42,8 +42,8 @@
         "testing": "0000000000000007"
       }
     },
-    "MockTidalProtocolConsumer": {
-      "source": "./cadence/contracts/mocks/MockTidalProtocolConsumer.cdc",
+    "MockFlowALPConsumer": {
+      "source": "./cadence/contracts/mocks/MockFlowALPConsumer.cdc",
       "aliases": {
         "testing": "0000000000000008"
       }
@@ -60,14 +60,14 @@
         "testing": "0000000000000007"
       }
     },
-    "TidalProtocol": {
-      "source": "./cadence/contracts/TidalProtocol.cdc",
+    "FlowALP": {
+      "source": "./cadence/contracts/FlowALP.cdc",
       "aliases": {
         "testing": "0000000000000007"
       }
     },
-    "TidalMath": {
-      "source": "./cadence/lib/TidalMath.cdc",
+    "FlowALPMath": {
+      "source": "./cadence/lib/FlowALPMath.cdc",
       "aliases": {
         "testing": "0000000000000007"
       }
@@ -159,7 +159,7 @@
         "DeFiActionsMathUtils",
         "DeFiActionsUtils",
         "DeFiActions",
-          "TidalMath",
+          "FlowALPMath",
         {
           "name": "MOET",
           "args": [
@@ -169,7 +169,7 @@
             }
           ]
         },
-        "TidalProtocol"
+        "FlowALP"
       ]
     }
   }

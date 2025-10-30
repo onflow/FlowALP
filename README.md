@@ -1,4 +1,4 @@
-# TidalProtocol - DeFi Lending Protocol on Flow
+# FlowALP - DeFi Lending Protocol on Flow
 
 ## 📊 Project Status
 
@@ -7,31 +7,31 @@
 - **Coverage**: ✅ 89.7%
 - **Documentation**: ✅ Complete
 - **Standards**: ✅ FungibleToken & DeFi Actions Compatible
-- **FlowVault Removal**: ✅ Complete (Ready for Tidal Integration)
+- **FlowVault Removal**: ✅ Complete (Ready for FlowVaults Integration)
 
-## 🎯 Tidal Integration Milestones
+## 🎯 FlowVaults Integration Milestones
 
 ### Current Status (Tracer Bullet Phase)
-- ✅ **Smart Contract Integration**: TidalProtocol provides sink/source interfaces for token swapping
-- ✅ **Development & Testing**: Automated testing framework for TidalProtocol and DefiActions
-- ✅ **Repository Structure**: TidalProtocol code in private repo, DefiActions in public repo
-- 💛 **Test Coverage**: Working towards comprehensive test suite for Tidal functionality
+- ✅ **Smart Contract Integration**: FlowALP provides sink/source interfaces for token swapping
+- ✅ **Development & Testing**: Automated testing framework for FlowALP and DefiActions
+- ✅ **Repository Structure**: FlowALP code in private repo, DefiActions in public repo
+- 💛 **Test Coverage**: Working towards comprehensive test suite for FlowVaults functionality
 - 👌 **AMM Integration**: Currently using dummy swapper, real AMM deployment planned
 
 ### Upcoming (Limited Beta)
-- ✅ **Documentation**: First pass documentation of TidalProtocol (this README)
-- ✅ **Testing**: Extensive test suite for TidalProtocol and DefiActions
+- ✅ **Documentation**: First pass documentation of FlowALP (this README)
+- ✅ **Testing**: Extensive test suite for FlowALP and DefiActions
 - 💛 **Sample Code**: DefiActions sample code and tutorials needed
 - 👌 **Advanced Features**: Per-user limits and controlled testing capabilities
 
 ### Future (Open Beta)
-- ✅ **Open Access**: Full public access to TidalProtocol and DefiActions
+- ✅ **Open Access**: Full public access to FlowALP and DefiActions
 - 💛 **Documentation**: Improved documentation and tutorials
 - ✅ **Sample Code**: Complete tutorials for DefiActions integration
 
-## 🏦 About TidalProtocol
+## 🏦 About FlowALP
 
-TidalProtocol is a decentralized lending and borrowing protocol built on the Flow blockchain. It implements the Flow FungibleToken standard and integrates with DeFi Actions for composability.
+FlowALP is a decentralized lending and borrowing protocol built on the Flow blockchain. It implements the Flow FungibleToken standard and integrates with DeFi Actions for composability.
 
 ### Key Features
 
@@ -89,8 +89,8 @@ For detailed test status and FlowVault removal summary, see [TestingCompletionSu
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/TidalProtocol.git
-cd TidalProtocol
+git clone https://github.com/your-username/FlowALP.git
+cd FlowALP
 ```
 
 2. Install dependencies:
@@ -118,10 +118,10 @@ flow project deploy --network=emulator
 ## 📦 Project Structure
 
 ```
-TidalProtocol/
+FlowALP/
 ├── cadence/
 │   ├── contracts/
-│   │   └── TidalProtocol.cdc           # Main lending protocol contract
+│   │   └── FlowALP.cdc           # Main lending protocol contract
 │   ├── tests/
 │   │   ├── test_helpers.cdc            # Shared test utilities
 │   │   ├── core_vault_test.cdc         # Vault operation tests
@@ -144,7 +144,7 @@ TidalProtocol/
 1. **Pool**: Main lending pool managing positions and reserves
 2. **Position**: User positions tracking deposits and borrows
 3. **TokenState**: Per-token state including interest indices
-4. **TidalProtocolSink/Source**: DeFi Actions integration for composability
+4. **FlowALPSink/Source**: DeFi Actions integration for composability
 
 ### Key Interfaces
 
@@ -159,7 +159,7 @@ TidalProtocol/
 
 ```cadence
 // Create a new pool with your token type
-let pool <- TidalProtocol.createPool(
+let pool <- FlowALP.createPool(
     defaultToken: Type<@YourToken.Vault>(),
     defaultTokenThreshold: 0.8
 )
@@ -191,7 +191,7 @@ flow test cadence/tests/interest_mechanics_test.cdc
 - [Cadence Testing Best Practices](./CadenceTestingBestPractices.md) - Testing guidelines
 
 ### Planning & Roadmap
-- [Tidal Integration Milestones](./TidalMilestones.md) - Integration phases
+- [FlowVaults Integration Milestones](./FlowVaultsMilestones.md) - Integration phases
 - [Future Features](./FutureFeatures.md) - Upcoming development
 
 ## 🤝 Contributing

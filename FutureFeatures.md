@@ -1,6 +1,6 @@
-# TidalProtocol Future Features and Tests
+# FlowALP Future Features and Tests
 
-This document lists features that are not yet implemented in the TidalProtocol contract, organized by Tidal milestone phases with priority indicators:
+This document lists features that are not yet implemented in the FlowALP contract, organized by FlowVaults milestone phases with priority indicators:
 
 - ✅ **Must Have** - Critical features required for launch
 - 💛 **Should Have** - Important features that significantly enhance the product
@@ -9,7 +9,7 @@ This document lists features that are not yet implemented in the TidalProtocol c
 
 ## Tracer Bullet Phase Features
 
-### 1. ✅ Functional Sink/Source Hooks (Critical for Tidal Integration)
+### 1. ✅ Functional Sink/Source Hooks (Critical for FlowVaults Integration)
 
 **Features to Implement:**
 - Real Sink implementation for pushing tokens to yield strategies

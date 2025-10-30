@@ -1,4 +1,4 @@
-# TidalProtocol Refactoring Plan - Health/Withdraw/Liquidation Vertical Slice
+# FlowALP Refactoring Plan - Health/Withdraw/Liquidation Vertical Slice
 
 ## 1. Refactoring Plan ("vertical-slice" focus: health/withdraw/liquidation)
 
@@ -67,12 +67,12 @@ access(all) struct TokenSnapshot {
 
 /// Copy-only representation of a position used by pure math
 access(all) struct PositionView {
-    access(all) let balances: {Type: TidalProtocol.InternalBalance}     // copy
+    access(all) let balances: {Type: FlowALP.InternalBalance}     // copy
     access(all) let snapshots: {Type: TokenSnapshot}
     access(all) let defaultToken: Type
     access(all) let minHealth: UInt256
     access(all) let maxHealth: UInt256
-    init(balances: {Type: TidalProtocol.InternalBalance},
+    init(balances: {Type: FlowALP.InternalBalance},
          snapshots: {Type: TokenSnapshot},
          def: Type,
          min: UInt256,
@@ -88,14 +88,14 @@ access(all) struct PositionView {
 // PURE HELPERS ----------------------------------------------------------------
 
 access(all) fun effectiveCollateral(credit: UInt256, snap: TokenSnapshot): UInt256 {
-    return TidalProtocolUtils.mul(
-        TidalProtocolUtils.mul(credit, snap.price),
+    return FlowALPUtils.mul(
+        FlowALPUtils.mul(credit, snap.price),
         snap.risk.collateralFactor)
 }
 
 access(all) fun effectiveDebt(debit: UInt256, snap: TokenSnapshot): UInt256 {
-    return TidalProtocolUtils.div(
-        TidalProtocolUtils.mul(debit, snap.price),
+    return FlowALPUtils.div(
+        FlowALPUtils.mul(debit, snap.price),
         snap.risk.borrowFactor)
 }
 
@@ -106,17 +106,17 @@ access(all) fun healthFactor(view: PositionView): UInt256 {
     for t in view.balances.keys {
         let b = view.balances[t]!
         let snap = view.snapshots[t]!
-        if b.direction == TidalProtocol.BalanceDirection.Credit {
-            let trueBal = TidalProtocol.scaledBalanceToTrueBalance(b.scaledBalance,
+        if b.direction == FlowALP.BalanceDirection.Credit {
+            let trueBal = FlowALP.scaledBalanceToTrueBalance(b.scaledBalance,
                               interestIndex: snap.creditIndex)
             coll = coll + effectiveCollateral(trueBal, snap)
         } else {
-            let trueBal = TidalProtocol.scaledBalanceToTrueBalance(b.scaledBalance,
+            let trueBal = FlowALP.scaledBalanceToTrueBalance(b.scaledBalance,
                               interestIndex: snap.debitIndex)
             debt = debt + effectiveDebt(trueBal, snap)
         }
     }
-    return TidalProtocol.healthComputation(
+    return FlowALP.healthComputation(
         effectiveCollateral: coll,
         effectiveDebt: debt)
 }
@@ -125,7 +125,7 @@ access(all) fun healthFactor(view: PositionView): UInt256 {
 access(all) fun maxWithdraw(
     view: PositionView,
     withdrawSnap: TokenSnapshot,
-    withdrawBal: TidalProtocol.InternalBalance?,
+    withdrawBal: FlowALP.InternalBalance?,
     targetHealth: UInt256
 ): UInt256 {
     let preHealth = healthFactor(view: view)
@@ -140,11 +140,11 @@ access(all) fun maxWithdraw(
         let b = view.balances[t]!
         let snap = view.snapshots[t]!
         if b.direction == BalanceDirection.Credit {
-            let trueBal = TidalProtocol.scaledBalanceToTrueBalance(b.scaledBalance,
+            let trueBal = FlowALP.scaledBalanceToTrueBalance(b.scaledBalance,
                               interestIndex: snap.creditIndex)
             effColl = effColl + effectiveCollateral(trueBal, snap)
         } else {
-            let trueBal = TidalProtocol.scaledBalanceToTrueBalance(b.scaledBalance,
+            let trueBal = FlowALP.scaledBalanceToTrueBalance(b.scaledBalance,
                               interestIndex: snap.debitIndex)
             effDebt = effDebt + effectiveDebt(trueBal, snap)
         }
@@ -152,29 +152,29 @@ access(all) fun maxWithdraw(
 
     let cf = withdrawSnap.risk.collateralFactor
     let bf = withdrawSnap.risk.borrowFactor
-    if withdrawBal == nil || withdrawBal!.direction == TidalProtocol.BalanceDirection.Debit {
+    if withdrawBal == nil || withdrawBal!.direction == FlowALP.BalanceDirection.Debit {
         // withdrawing increases debt
         // solve: (effColl) / (effDebt + ΔDebt) = targetHealth
         let numerator = effColl
-        let denominatorTarget = TidalProtocolUtils.div(numerator, targetHealth)
+        let denominatorTarget = FlowALPUtils.div(numerator, targetHealth)
         let ΔDebt = denominatorTarget > effDebt ? denominatorTarget - effDebt : 0 as UInt256
-        let tokens = TidalProtocolUtils.div(
-            TidalProtocolUtils.mul(ΔDebt, bf),
+        let tokens = FlowALPUtils.div(
+            FlowALPUtils.mul(ΔDebt, bf),
             withdrawSnap.price)
         return tokens
     } else {
         // withdrawing reduces collateral
-        let trueBal = TidalProtocol.scaledBalanceToTrueBalance(withdrawBal!.scaledBalance,
+        let trueBal = FlowALP.scaledBalanceToTrueBalance(withdrawBal!.scaledBalance,
                       interestIndex: withdrawSnap.creditIndex)
         let maxPossible = trueBal
         // solve: (effColl - ΔColl) / effDebt = targetHealth
-        let requiredColl = TidalProtocolUtils.mul(effDebt, targetHealth)
+        let requiredColl = FlowALPUtils.mul(effDebt, targetHealth)
         if effColl <= requiredColl {
             return 0
         }
         let ΔCollEff = effColl - requiredColl
-        let ΔTokens = TidalProtocolUtils.div(
-            TidalProtocolUtils.div(ΔCollEff, cf),
+        let ΔTokens = FlowALPUtils.div(
+            FlowALPUtils.div(ΔCollEff, cf),
             withdrawSnap.price)
         return ΔTokens > maxPossible ? maxPossible : ΔTokens
     }
@@ -184,29 +184,29 @@ access(all) fun maxWithdraw(
 
 // READ-ONLY QUERY -----------------------------------------------------------
 
-access(all) fun buildPositionView(pid: UInt64): TidalProtocol.PositionView {
+access(all) fun buildPositionView(pid: UInt64): FlowALP.PositionView {
     let position = self._borrowPosition(pid: pid)
     let snaps: {Type: TokenSnapshot} = {}
-    let balancesCopy: {Type: TidalProtocol.InternalBalance} = {}
+    let balancesCopy: {Type: FlowALP.InternalBalance} = {}
     for t in position.balances.keys {
         let bal = position.balances[t]!
-        balancesCopy[t] = TidalProtocol.InternalBalance(
+        balancesCopy[t] = FlowALP.InternalBalance(
             direction: bal.direction,
             scaledBalance: bal.scaledBalance
         )
         let ts = self._borrowUpdatedTokenState(type: t)
         snaps[t] = TokenSnapshot(
-            price: TidalProtocolUtils.ufix64ToUInt256(self.priceOracle.price(ofToken: t)!, decimals: 18),
+            price: FlowALPUtils.ufix64ToUInt256(self.priceOracle.price(ofToken: t)!, decimals: 18),
             credit: ts.creditInterestIndex,
             debit: ts.debitInterestIndex,
             risk: RiskParams(
-                cf: TidalProtocolUtils.ufix64ToUInt256(self.collateralFactor[t]!, decimals: 18),
-                bf: TidalProtocolUtils.ufix64ToUInt256(self.borrowFactor[t]!, decimals: 18),
-                lb: TidalProtocolUtils.e18 + 50_000_000_000_000_000
+                cf: FlowALPUtils.ufix64ToUInt256(self.collateralFactor[t]!, decimals: 18),
+                bf: FlowALPUtils.ufix64ToUInt256(self.borrowFactor[t]!, decimals: 18),
+                lb: FlowALPUtils.e18 + 50_000_000_000_000_000
             )
         )
     }
-    return TidalProtocol.PositionView(
+    return FlowALP.PositionView(
         balances: balancesCopy,
         snapshots: snaps,
         def: self.defaultToken,
@@ -232,13 +232,13 @@ access(all) fun availableBalance(pid: UInt64, type: Type, pullFromTopUpSource: B
     let view = self.buildPositionView(pid: pid)
     let tokenState = self._borrowUpdatedTokenState(type: type)
     let snap = TokenSnapshot(
-        price: TidalProtocolUtils.ufix64ToUInt256(self.priceOracle.price(ofToken: type)!, decimals: 18),
+        price: FlowALPUtils.ufix64ToUInt256(self.priceOracle.price(ofToken: type)!, decimals: 18),
         credit: tokenState.creditInterestIndex,
         debit: tokenState.debitInterestIndex,
         risk: RiskParams(
-            cf: TidalProtocolUtils.ufix64ToUInt256(self.collateralFactor[type]!, decimals: 18),
-            bf: TidalProtocolUtils.ufix64ToUInt256(self.borrowFactor[type]!, decimals: 18),
-            lb: TidalProtocolUtils.e18 + 50_000_000_000_000_000
+            cf: FlowALPUtils.ufix64ToUInt256(self.collateralFactor[type]!, decimals: 18),
+            bf: FlowALPUtils.ufix64ToUInt256(self.borrowFactor[type]!, decimals: 18),
+            lb: FlowALPUtils.e18 + 50_000_000_000_000_000
         )
     )
     let withdrawBal = view.balances[type]
@@ -247,7 +247,7 @@ access(all) fun availableBalance(pid: UInt64, type: Type, pullFromTopUpSource: B
         withdrawSnap: snap,
         withdrawBal: withdrawBal,
         targetHealth: view.minHealth)
-    return TidalProtocolUtils.uint256ToUFix64(uintMax, decimals: 18)
+    return FlowALPUtils.uint256ToUFix64(uintMax, decimals: 18)
 }
 
 // MUTATING  COMMANDS  (imperative shell) -------------------------------------
@@ -261,7 +261,7 @@ access(EPosition) fun applyWithdraw(
     pre {
         amount >= 0.0: "amount negative"
     }
-    let uintAmount = TidalProtocolUtils.ufix64ToUInt256(amount, decimals: 18)
+    let uintAmount = FlowALPUtils.ufix64ToUInt256(amount, decimals: 18)
 
     // pure validation
     let view = self.buildPositionView(pid: pid)
@@ -375,14 +375,14 @@ The pattern above demonstrates Functional-Core / Imperative-Shell, command–que
 | --- | --- | --- | --- | --- |
 | P0 | Health / withdraw slice ✅ | Targets core, error-prone calcs like health (current: verbose loops in `positionHealth`). | Extract views and pure helpers; implement queries/commands for withdraw/health. | Replace `computeAvailableWithdrawal` and `positionHealth` with new funcs around line 800-1000. Add tests in `cadence/tests/position_health_test.cdc`. |
 | P1 | Finish deposit · accrual · liquidation commands + helpers | Covers mutations with side effects (e.g., accrual mixes time/compounding). | Add pure funcs like `requiredTopUp`; implement commands with pre/post. | Update `depositAndPush`, `updateInterestIndices`, `liquidatePosition` sections (lines 500-700); new helpers in utils section. |
-| P2 | Pure rate-limit & deposit-capacity maths | Simplifies rate updates (current: edges in `updateInterestRates`). | Pure funcs for rates/capacity; integrate into commands. | Refactor `updateInterestRates` (lines 300-350); add to `TidalMath.cdc` if separate. |
+| P2 | Pure rate-limit & deposit-capacity maths | Simplifies rate updates (current: edges in `updateInterestRates`). | Pure funcs for rates/capacity; integrate into commands. | Refactor `updateInterestRates` (lines 300-350); add to `FlowALPMath.cdc` if separate. |
 | P3 | Pure queue / async update processing | Addresses gas/scalability in queues (current: `positionsNeedingUpdates`). | Pure queue logic; batch processing in commands. | Update `processQueuedDeposits` and async funcs (lines 1200+); add batch limits. |
 | P4 | Governance resource + capability rotation | Mitigates risks like mid-block changes (current: basic `EGovernance`). | New resource with rotation; snapshot params. | Add `Governance` resource (new section ~line 200); update setters like `setCollateralFactor`. |
 | P5 | Fuzz harness, invariant dashboard, formal specs | Ensures robustness (current: no formal invariants). | Implement fuzz tests; document invariants. | New files in `cadence/tests/fuzz/`; add specs in comments or external docs. |
 
 ### 2 Design Highlights
 • **Value-only types**: `RiskParams`, `TokenSnapshot`, `PositionView`, `PoolSnapshot`, `DepositQueueEntry`  
-• **Pure helpers (TidalMath.cdc)**: `effectiveCollateral`, `effectiveDebt`, `healthFactor`, `maxBorrow`, `maxWithdraw`, `requiredTopUp`, `liquidationQuote`, `updateIndex`, `nextDepositCapacity`  
+• **Pure helpers (FlowALPMath.cdc)**: `effectiveCollateral`, `effectiveDebt`, `healthFactor`, `maxBorrow`, `maxWithdraw`, `requiredTopUp`, `liquidationQuote`, `updateIndex`, `nextDepositCapacity`  
 • **Queries**: build snapshots once, delegate to helpers  
 • **Commands**: `applyDeposit`, `applyWithdraw`, `applyBorrow`, `applyRepay`, `applyAccrual`, `applyLiquidation`, `processQueuedDeposits`, `asyncUpdate`  
 • **Governance**: new `Governance` resource + `RiskConfig`, `rotatePoolCap()`
@@ -420,16 +420,16 @@ _End of exhaustive plan.  Each phase will be implemented in dedicated PRs, accom
 
 ## Reasoning Behind the Refactor
 ### Why Refactor?
-The current `TidalProtocol.cdc` (over 2000 lines) has monolithic functions that mix pure math (e.g., health calculations) with side effects (e.g., vault mutations, events), leading to hard-to-test code, duplication, and risks like overflows or invalid states. This refactor applies functional-core/imperative-shell principles to separate concerns, improve testability, enforce invariants, and address pain points like complex accrual logic and governance risks. It will make the contract more maintainable, secure, and scalable for features like multi-token positions and async updates.
+The current `FlowALP.cdc` (over 2000 lines) has monolithic functions that mix pure math (e.g., health calculations) with side effects (e.g., vault mutations, events), leading to hard-to-test code, duplication, and risks like overflows or invalid states. This refactor applies functional-core/imperative-shell principles to separate concerns, improve testability, enforce invariants, and address pain points like complex accrual logic and governance risks. It will make the contract more maintainable, secure, and scalable for features like multi-token positions and async updates.
 
 ### How Will Changes Be Made?
-- **Core Pattern**: Extract immutable view structs (e.g., `PositionView`) and pure helpers (e.g., `healthFactor`) into a new `TidalMath.cdc` or inline utils. Commands (e.g., `applyWithdraw`) will build views, call pure funcs for validation, then perform mutations with pre/post conditions.
-- **Phased Implementation**: Each phase in dedicated PRs to `cadence/contracts/TidalProtocol.cdc`, with tests in `cadence/tests/`. Use entitlements (e.g., `EImplementation`) for safe mutations. Profile gas and add SafeUInt256 for safety.
+- **Core Pattern**: Extract immutable view structs (e.g., `PositionView`) and pure helpers (e.g., `healthFactor`) into a new `FlowALPMath.cdc` or inline utils. Commands (e.g., `applyWithdraw`) will build views, call pure funcs for validation, then perform mutations with pre/post conditions.
+- **Phased Implementation**: Each phase in dedicated PRs to `cadence/contracts/FlowALP.cdc`, with tests in `cadence/tests/`. Use entitlements (e.g., `EImplementation`) for safe mutations. Profile gas and add SafeUInt256 for safety.
 - **Testing**: Add unit tests for pure funcs, scenarios for commands, and fuzzing for invariants.
 - **Migration**: For live deployment, add upgrade scripts to rotate capabilities without disrupting positions.
 
 ### Where Will Changes Be Made?
-- **Pure Core**: New helpers in a dedicated section or file (e.g., lines 1000+ in TidalProtocol.cdc).
+- **Pure Core**: New helpers in a dedicated section or file (e.g., lines 1000+ in FlowALP.cdc).
 - **Commands/Queries**: Replace existing funcs (e.g., `availableBalance` becomes a query calling `buildPositionView` + `maxWithdraw`).
 - **Storage**: Keep mutable fields (e.g., `globalLedger`, `positions`) but access via views.
 - **Governance**: New `Governance` resource at top-level.

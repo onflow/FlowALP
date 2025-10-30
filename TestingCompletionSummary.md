@@ -1,12 +1,12 @@
-# TidalProtocol Testing Completion Summary
+# FlowALP Testing Completion Summary
 
 ## Overview
-Successfully restructured and fixed the TidalProtocol test suite to match the actual contract implementation and removed the FlowVault dependency.
+Successfully restructured and fixed the FlowALP test suite to match the actual contract implementation and removed the FlowVault dependency.
 
 ## Key Changes Made
 
 ### 1. FlowVault Removal
-- Removed the custom `FlowVault` resource from TidalProtocol contract
+- Removed the custom `FlowVault` resource from FlowALP contract
 - Contract is now token-agnostic and doesn't create any vault types
 - Updated all references from `FlowVault` to use generic `FungibleToken.Vault` interfaces
 - Created `MockVault` in test helpers for testing purposes
@@ -85,7 +85,7 @@ These intensive tests are excluded from regular test runs due to their complexit
 ## Next Steps
 
 ### For Immediate Use
-The contract is ready for integration with Tidal:
+The contract is ready for integration with FlowVaults:
 - FlowVault has been completely removed
 - Contract accepts any FungibleToken.Vault type
 - All 22 tests are passing
@@ -98,4 +98,4 @@ The contract is ready for integration with Tidal:
 4. Consider adding more edge case tests for multi-token scenarios
 
 ## Summary
-The TidalProtocol contract has been successfully updated to remove FlowVault and is now ready for integration with Tidal's infrastructure. The test suite has been restructured to use mock vaults for testing while keeping the contract itself token-agnostic. 
+The FlowALP contract has been successfully updated to remove FlowVault and is now ready for integration with FlowVaults's infrastructure. The test suite has been restructured to use mock vaults for testing while keeping the contract itself token-agnostic. 

@@ -1,4 +1,4 @@
-## Tidal Protocol — Production Liquidation Mechanism (DEX + Keeper + Auto)
+## FlowVaults Protocol — Production Liquidation Mechanism (DEX + Keeper + Auto)
 
 ### Objectives
 - **Safety**: Permissionless, incentive-aligned liquidations that reliably resolve undercollateralized positions.
@@ -143,8 +143,8 @@
 - Reserve/insurance module hookup for bad debt.
 
 ## References
-- High-level design (Notion): https://www.notion.so/Liquidation-Mechanism-in-Tidal-23a9c94cfb9c8087bee9d8e99045b3d9
-- Implementation doc (this branch): https://github.com/onflow/TidalProtocol/blob/feature/liquidation-mechanism/LIQUIDATION_MECHANISM_DESIGN.md
+- High-level design (Notion): https://www.notion.so/Liquidation-Mechanism-in-FlowVaults-23a9c94cfb9c8087bee9d8e99045b3d9
+- Implementation doc (this branch): https://github.com/onflow/FlowALP/blob/feature/liquidation-mechanism/LIQUIDATION_MECHANISM_DESIGN.md
 
 ## Liquidation policy (Phase 1)
 - **Target health factor (HF):** `liquidationTargetHF = 1.05e24`.

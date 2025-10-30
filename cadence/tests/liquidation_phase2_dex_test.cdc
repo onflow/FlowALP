@@ -2,10 +2,10 @@ import Test
 import BlockchainHelpers
 import "test_helpers.cdc"
 
-import "TidalProtocol"
+import "FlowALP"
 import "MOET"
 import "FlowToken"
-import "TidalMath"
+import "FlowALPMath"
 import "MockDexSwapper"
 
 access(all)
@@ -37,7 +37,7 @@ fun test_liquidation_via_dex() {
     transferFlowTokens(to: user, amount: 1000.0)
 
     _executeTransaction(
-        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [1000.0, /storage/flowTokenVault, true],
         user
     )
@@ -45,14 +45,14 @@ fun test_liquidation_via_dex() {
     // make unhealthy
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: Type<@FlowToken.Vault>().identifier, price: 0.7)
     let h0 = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(TidalMath.toUFix64Round(h0) < 1.0)
+    Test.assert(FlowALPMath.toUFix64Round(h0) < 1.0)
 
     // perform liquidation via mock dex using signer as protocol
     let protocol = Test.getAccount(0x0000000000000007)
     // allowlist MockDexSwapper
     let swapperTypeId = Type<MockDexSwapper.Swapper>().identifier
     let allowTx = Test.Transaction(
-        code: Test.readFile("../transactions/tidal-protocol/pool-governance/set_dex_liquidation_config.cdc"),
+        code: Test.readFile("../transactions/flow-alp/pool-governance/set_dex_liquidation_config.cdc"),
         authorizers: [protocol.address],
         signers: [protocol],
         arguments: [nil, [swapperTypeId], nil, nil, nil]
@@ -63,7 +63,7 @@ fun test_liquidation_via_dex() {
     setupMoetVault(protocol, beFailed: false)
     mintMoet(signer: protocol, to: protocol.address, amount: 1_000_000.0, beFailed: false)
     let txRes = _executeTransaction(
-        "../transactions/tidal-protocol/pool-management/liquidate_via_mock_dex.cdc",
+        "../transactions/flow-alp/pool-management/liquidate_via_mock_dex.cdc",
         [pid, Type<@MOET.Vault>(), Type<@FlowToken.Vault>(), 1000.0, 0.0, 1.42857143],
         protocol
     )
@@ -71,8 +71,8 @@ fun test_liquidation_via_dex() {
 
     // HF should improve to at/near target
     let h1 = getPositionHealth(pid: pid, beFailed: false)
-    let target = TidalMath.toUFix128(1.05)
-    let tol = TidalMath.toUFix128(0.00001)
+    let target = FlowALPMath.toUFix128(1.05)
+    let tol = FlowALPMath.toUFix128(0.00001)
     Test.assert(h1 >= target - tol)
 }
 

@@ -8,11 +8,11 @@ The following files contain LLM-generated documentation and context:
 - `PROMPT_FOR_TEST_RUNNING.md` - Test running prompts
 - `TEST_RUNNING_INSTRUCTIONS.md` - Detailed test execution guide
 - `FLOW_TEST_PERSISTENCE_SOLUTION.md` - Flow test persistence solutions
-- `TidalProtocol_TestPlan.md` - Overall test planning documentation
+- `FlowALP_TestPlan.md` - Overall test planning documentation
 - `TestSuiteComparison.md` - Test suite analysis
 - `CadenceTestingPatterns.md` - Cadence testing patterns and best practices
 - `TestsOverview.md` - High-level test overview
-- `TidalMilestones.md` - Project milestones
+- `FlowVaultsMilestones.md` - Project milestones
 - `PUSH_SUMMARY.md` - Push and PR summaries
 - `TestingCompletionSummary.md` - Test completion status
 - `IntensiveTestAnalysis.md` - Detailed test analysis

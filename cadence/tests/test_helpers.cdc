@@ -1,5 +1,5 @@
 import Test
-import "TidalProtocol"
+import "FlowALP"
 
 /* --- Global test constants --- */
 
@@ -42,7 +42,7 @@ access(all)
 fun grantBeta(_ admin: Test.TestAccount, _ grantee: Test.TestAccount): Test.TransactionResult {
     let signers = admin.address == grantee.address ? [admin] : [admin, grantee]
     let betaTxn = Test.Transaction(
-        code: Test.readFile("./transactions/tidal-protocol/pool-management/03_grant_beta.cdc"),
+        code: Test.readFile("./transactions/flow-alp/pool-management/03_grant_beta.cdc"),
         authorizers: [admin.address, grantee.address],
         signers: signers,
         arguments: []
@@ -60,10 +60,10 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
-    // Deploy TidalMath before TidalProtocol
+    // Deploy FlowALPMath before FlowALP
     err = Test.deployContract(
-        name: "TidalMath",
-        path: "../lib/TidalMath.cdc",
+        name: "FlowALPMath",
+        path: "../lib/FlowALPMath.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -89,8 +89,8 @@ fun deployContracts() {
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
-        name: "TidalProtocol",
-        path: "../contracts/TidalProtocol.cdc",
+        name: "FlowALP",
+        path: "../contracts/FlowALP.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -99,10 +99,10 @@ fun deployContracts() {
     // publishing before pool creation will fail. Tests that need the cap should call
     // grantPoolCapToConsumer() after creating the pool.
 
-    // Deploy MockTidalProtocolConsumer
+    // Deploy MockFlowALPConsumer
     err = Test.deployContract(
-        name: "MockTidalProtocolConsumer",
-        path: "../contracts/mocks/MockTidalProtocolConsumer.cdc",
+        name: "MockFlowALPConsumer",
+        path: "../contracts/mocks/MockFlowALPConsumer.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -156,14 +156,14 @@ fun getBalance(address: Address, vaultPublicPath: PublicPath): UFix64? {
 
 access(all)
 fun getReserveBalance(vaultIdentifier: String): UFix64 {
-    let res = _executeScript("../scripts/tidal-protocol/get_reserve_balance_for_type.cdc", [vaultIdentifier])
+    let res = _executeScript("../scripts/flow-alp/get_reserve_balance_for_type.cdc", [vaultIdentifier])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as! UFix64
 }
 
 access(all)
 fun getAvailableBalance(pid: UInt64, vaultIdentifier: String, pullFromTopUpSource: Bool, beFailed: Bool): UFix64 {
-    let res = _executeScript("../scripts/tidal-protocol/get_available_balance.cdc",
+    let res = _executeScript("../scripts/flow-alp/get_available_balance.cdc",
             [pid, vaultIdentifier, pullFromTopUpSource]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -172,7 +172,7 @@ fun getAvailableBalance(pid: UInt64, vaultIdentifier: String, pullFromTopUpSourc
 
 access(all)
 fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix128 {
-    let res = _executeScript("../scripts/tidal-protocol/position_health.cdc",
+    let res = _executeScript("../scripts/flow-alp/position_health.cdc",
             [pid]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -180,17 +180,17 @@ fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix128 {
 }
 
 access(all)
-fun getPositionDetails(pid: UInt64, beFailed: Bool): TidalProtocol.PositionDetails {
-    let res = _executeScript("../scripts/tidal-protocol/position_details.cdc",
+fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALP.PositionDetails {
+    let res = _executeScript("../scripts/flow-alp/position_details.cdc",
             [pid]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-    return res.returnValue as! TidalProtocol.PositionDetails
+    return res.returnValue as! FlowALP.PositionDetails
 }
 
 access(all)
 fun poolExists(address: Address): Bool {
-    let res = _executeScript("../scripts/tidal-protocol/pool_exists.cdc", [address])
+    let res = _executeScript("../scripts/flow-alp/pool_exists.cdc", [address])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as! Bool
 }
@@ -204,7 +204,7 @@ fun fundsAvailableAboveTargetHealthAfterDepositing(
     depositAmount: UFix64,
     beFailed: Bool
 ): UFix64 {
-    let res = _executeScript("../scripts/tidal-protocol/funds_avail_above_target_health_after_deposit.cdc",
+    let res = _executeScript("../scripts/flow-alp/funds_avail_above_target_health_after_deposit.cdc",
             [pid, withdrawType, targetHealth, depositType, depositAmount]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -220,7 +220,7 @@ fun fundsRequiredForTargetHealthAfterWithdrawing(
     withdrawAmount: UFix64,
     beFailed: Bool
 ): UFix64 {
-    let res = _executeScript("../scripts/tidal-protocol/funds_req_for_target_health_after_withdraw.cdc",
+    let res = _executeScript("../scripts/flow-alp/funds_req_for_target_health_after_withdraw.cdc",
             [pid, depositType, targetHealth, withdrawType, withdrawAmount]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -232,7 +232,7 @@ fun fundsRequiredForTargetHealthAfterWithdrawing(
 access(all)
 fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String, beFailed: Bool) {
     let createRes = _executeTransaction(
-        "../transactions/tidal-protocol/pool-factory/create_and_store_pool.cdc",
+        "../transactions/flow-alp/pool-factory/create_and_store_pool.cdc",
         [defaultTokenIdentifier],
         signer
     )
@@ -240,7 +240,7 @@ fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String,
 
     // Enable debug logs for tests to aid diagnostics
     let debugRes = _executeTransaction(
-        "../transactions/tidal-protocol/pool-governance/set_debug_logging.cdc",
+        "../transactions/flow-alp/pool-governance/set_debug_logging.cdc",
         [true],
         signer
     )
@@ -267,7 +267,7 @@ fun addSupportedTokenSimpleInterestCurve(
     depositCapacityCap: UFix64
 ) {
     let additionRes = _executeTransaction(
-        "../transactions/tidal-protocol/pool-governance/add_supported_token_simple_interest_curve.cdc",
+        "../transactions/flow-alp/pool-governance/add_supported_token_simple_interest_curve.cdc",
         [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
         signer
     )
@@ -284,7 +284,7 @@ fun addSupportedTokenSimpleInterestCurveWithResult(
     depositCapacityCap: UFix64
 ): Test.TransactionResult {
     return _executeTransaction(
-        "../transactions/tidal-protocol/pool-governance/add_supported_token_simple_interest_curve.cdc",
+        "../transactions/flow-alp/pool-governance/add_supported_token_simple_interest_curve.cdc",
         [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
         signer
     )
@@ -293,7 +293,7 @@ fun addSupportedTokenSimpleInterestCurveWithResult(
 access(all)
 fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFailed: Bool) {
     let rebalanceRes = _executeTransaction(
-        "../transactions/tidal-protocol/pool-management/rebalance_position.cdc",
+        "../transactions/flow-alp/pool-management/rebalance_position.cdc",
         [ pid, force ],
         signer
     )
@@ -343,7 +343,7 @@ fun withdrawReserve(
     beFailed: Bool
 ) {
     let txRes = _executeTransaction(
-        "../transactions/tidal-protocol/pool-governance/withdraw_reserve.cdc",
+        "../transactions/flow-alp/pool-governance/withdraw_reserve.cdc",
         [poolAddress, tokenTypeIdentifier, amount, recipient],
         signer
     )
@@ -352,14 +352,14 @@ fun withdrawReserve(
 
 /* --- Capability Helpers --- */
 
-// Grants the Pool capability with EParticipant and EPosition entitlements to the MockTidalProtocolConsumer account (0x8)
+// Grants the Pool capability with EParticipant and EPosition entitlements to the MockFlowALPConsumer account (0x8)
 // Must be called AFTER the pool is created and stored, otherwise publishing will fail the capability check.
 access(all)
 fun grantPoolCapToConsumer() {
     let protocolAccount = Test.getAccount(0x0000000000000007)
     let consumerAccount = Test.getAccount(0x0000000000000008)
     // Check pool exists (defensively handle CI ordering). If not, no-op.
-    let existsRes = _executeScript("../scripts/tidal-protocol/pool_exists.cdc", [protocolAccount.address])
+    let existsRes = _executeScript("../scripts/flow-alp/pool_exists.cdc", [protocolAccount.address])
     Test.expect(existsRes, Test.beSucceeded())
     if !(existsRes.returnValue as! Bool) {
         return

@@ -1,4 +1,4 @@
-### Triage: dete’s review of `cadence/contracts/TidalProtocol.cdc`
+### Triage: dete’s review of `cadence/contracts/FlowALP.cdc`
 
 This document summarizes each comment from dete, groups them, and proposes actions.
 

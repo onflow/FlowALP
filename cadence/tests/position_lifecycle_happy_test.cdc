@@ -2,9 +2,9 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-import "TidalProtocol"
+import "FlowALP"
 import "test_helpers.cdc"
-import "MockTidalProtocolConsumer"
+import "MockFlowALPConsumer"
 
 // -----------------------------------------------------------------------------
 // Position Lifecycle Happy Path Test
@@ -16,7 +16,7 @@ access(all) var snapshot: UInt64 = 0
 
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
-access(all) let wrapperStoragePath = /storage/tidalProtocolPositionWrapper
+access(all) let wrapperStoragePath = /storage/flowALPPositionWrapper
 
 access(all)
 fun setup() {
@@ -58,7 +58,7 @@ fun testPositionLifecycleHappyPath() {
 
     // open wrapped position (pushToDrawDownSink)
     let openRes = executeTransaction(
-        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [1_000.0, flowVaultStoragePath, true],
         user
     )
@@ -82,7 +82,7 @@ fun testPositionLifecycleHappyPath() {
 
     // repay MOET and close position
     let repayRes = executeTransaction(
-        "./transactions/tidal-protocol/pool-management/repay_and_close_position.cdc",
+        "./transactions/flow-alp/pool-management/repay_and_close_position.cdc",
         [wrapperStoragePath],
         user
     )

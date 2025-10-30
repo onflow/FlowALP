@@ -41,7 +41,7 @@ access(all)
 fun testPositionCreationFail() {
 
     let txResult = _executeTransaction(
-        "../tests/transactions/tidal-protocol/pool-management/01_negative_no_eparticipant_fail.cdc",
+        "../tests/transactions/flow-alp/pool-management/01_negative_no_eparticipant_fail.cdc",
         [],
         protocolAccount
     )
@@ -53,7 +53,7 @@ fun testPositionCreationSuccess() {
     Test.reset(to: snapshot)
 
     let txResult = _executeTransaction(
-        "../tests/transactions/tidal-protocol/pool-management/02_positive_with_eparticipant_pass.cdc",
+        "../tests/transactions/flow-alp/pool-management/02_positive_with_eparticipant_pass.cdc",
         [],
         protocolAccount
     )
@@ -65,7 +65,7 @@ access(all)
 fun testNegativeCap() {
     Test.reset(to: snapshot)
 
-    let negativeResult = _executeTransaction("../tests/transactions/tidal-protocol/pool-management/05_negative_cap.cdc", [], testerAccount)
+    let negativeResult = _executeTransaction("../tests/transactions/flow-alp/pool-management/05_negative_cap.cdc", [], testerAccount)
     Test.expect(negativeResult, Test.beFailed())
 }
 
@@ -73,11 +73,11 @@ access(all)
 fun testPublishClaimCap() {
     Test.reset(to: snapshot)
     
-    let publishCapResult = _executeTransaction("../transactions/tidal-protocol/beta/publish_beta_cap.cdc", [protocolAccount.address], protocolAccount)
+    let publishCapResult = _executeTransaction("../transactions/flow-alp/beta/publish_beta_cap.cdc", [protocolAccount.address], protocolAccount)
     Test.expect(publishCapResult, Test.beSucceeded())
 
-    let claimCapResult = _executeTransaction("../transactions/tidal-protocol/beta/claim_and_save_beta_cap.cdc", [protocolAccount.address], protocolAccount)
+    let claimCapResult = _executeTransaction("../transactions/flow-alp/beta/claim_and_save_beta_cap.cdc", [protocolAccount.address], protocolAccount)
     Test.expect(claimCapResult, Test.beSucceeded())
 
-    let createPositionResult = _executeTransaction("../tests/transactions/tidal-protocol/pool-management/04_create_position.cdc", [], protocolAccount)
+    let createPositionResult = _executeTransaction("../tests/transactions/flow-alp/pool-management/04_create_position.cdc", [], protocolAccount)
 }

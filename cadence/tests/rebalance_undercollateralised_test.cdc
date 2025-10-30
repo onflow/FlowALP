@@ -47,7 +47,7 @@ fun testRebalanceUndercollateralised() {
 
     // open position
     let openRes = executeTransaction(
-        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [1_000.0, flowVaultStoragePath, true],
         user
     )

@@ -72,7 +72,7 @@ The ideal solution would be to refactor the test suite to:
 3. Or separate tests that need different contract deployments into different test suites
 
 ## Implementation Notes
-- The TidalProtocol codebase already uses the snapshot pattern correctly in several test files:
+- The FlowALP codebase already uses the snapshot pattern correctly in several test files:
   - `platform_integration_test.cdc`
   - `position_lifecycle_happy_test.cdc`
   - `rebalance_overcollateralised_test.cdc`

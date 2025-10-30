@@ -1,10 +1,10 @@
 import Test
 import BlockchainHelpers
 import "test_helpers.cdc"
-import "TidalProtocol"
+import "FlowALP"
 import "MOET"
 import "FlowToken"
-import "TidalMath"
+import "FlowALPMath"
 
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) var snapshot: UInt64 = 0
@@ -50,7 +50,7 @@ fun test_borrower_full_redemption_insolvency() {
 
     // Open wrapped position and deposit Flow as collateral
     let openRes = _executeTransaction(
-        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [1000.0, /storage/flowTokenVault, true],
         borrower
     )
@@ -59,13 +59,13 @@ fun test_borrower_full_redemption_insolvency() {
     // Force insolvency (HF < 1.0)
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 0.6)
     let hAfter = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(TidalMath.toUFix64Round(hAfter) < 1.0, message: "Expected HF < 1.0 after price drop")
+    Test.assert(FlowALPMath.toUFix64Round(hAfter) < 1.0, message: "Expected HF < 1.0 after price drop")
 
     // Inspect position to get MOET debt
     let details = getPositionDetails(pid: pid, beFailed: false)
     var moetDebt: UFix64 = 0.0
     for b in details.balances {
-        if b.vaultType == Type<@MOET.Vault>() && b.direction == TidalProtocol.BalanceDirection.Debit {
+        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALP.BalanceDirection.Debit {
             moetDebt = b.balance
         }
     }
@@ -77,8 +77,8 @@ fun test_borrower_full_redemption_insolvency() {
     // Execute borrower redemption: repay MOET (pulled from topUpSource) and withdraw Flow up to availableBalance
     // Note: use the helper tx which withdraws availableBalance with pullFromTopUpSource=true
     let closeRes = _executeTransaction(
-        "./transactions/tidal-protocol/pool-management/repay_and_close_position.cdc",
-        [/storage/tidalProtocolPositionWrapper],
+        "./transactions/flow-alp/pool-management/repay_and_close_position.cdc",
+        [/storage/flowALPPositionWrapper],
         borrower
     )
     Test.expect(closeRes, Test.beSucceeded())
@@ -88,8 +88,8 @@ fun test_borrower_full_redemption_insolvency() {
     var postMoetDebt: UFix64 = 0.0
     var postFlowColl: UFix64 = 0.0
     for b in detailsAfter.balances {
-        if b.vaultType == Type<@MOET.Vault>() && b.direction == TidalProtocol.BalanceDirection.Debit { postMoetDebt = b.balance }
-        if b.vaultType == Type<@FlowToken.Vault>() && b.direction == TidalProtocol.BalanceDirection.Credit { postFlowColl = b.balance }
+        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALP.BalanceDirection.Debit { postMoetDebt = b.balance }
+        if b.vaultType == Type<@FlowToken.Vault>() && b.direction == FlowALP.BalanceDirection.Credit { postFlowColl = b.balance }
     }
     Test.assertEqual(0.0, postMoetDebt)
     Test.assertEqual(0.0, postFlowColl)

@@ -39,7 +39,7 @@ When creating a position with `pushToDrawDownSink=true`, the protocol automatica
 
 **I've added:**
 1. `auto_borrow_behavior_test.cdc` - Verifies this calculation is correct
-2. Detailed comments in `TidalProtocol.cdc` explaining the auto-borrowing
+2. Detailed comments in `FlowALP.cdc` explaining the auto-borrowing
 3. `AUTO_BORROWING_GUIDE.md` - User documentation
 4. `AUTO_BORROWING_PROPOSAL.md` - Proposal for API improvements
 

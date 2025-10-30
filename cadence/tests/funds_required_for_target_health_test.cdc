@@ -4,8 +4,8 @@ import BlockchainHelpers
 import "test_helpers.cdc"
 
 import "MOET"
-import "TidalProtocol"
-import "TidalMath"
+import "FlowALP"
+import "FlowALPMath"
 
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
@@ -14,7 +14,7 @@ access(all) let userAccount = Test.createAccount()
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) var moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
-access(all) let wrapperStoragePath = /storage/tidalProtocolPositionWrapper
+access(all) let wrapperStoragePath = /storage/flowALPPositionWrapper
 
 access(all) let flowCollateralFactor = 0.8
 access(all) let flowBorrowFactor = 1.0
@@ -86,7 +86,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [positionFundingAmount, flowVaultStoragePath, true],
         userAccount
     )
@@ -97,13 +97,13 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
     Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
-    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    var evts = Test.eventsOfType(Type<FlowALP.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALP.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! TidalProtocol.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALP.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALP.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
@@ -148,7 +148,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [positionFundingAmount, flowVaultStoragePath, false],
         userAccount
     )
@@ -159,12 +159,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy() {
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
-    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    var evts = Test.eventsOfType(Type<FlowALP.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALP.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALP.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let health = getPositionHealth(pid: positionID, beFailed: false)
@@ -207,7 +207,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollatera
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [positionFundingAmount, flowVaultStoragePath, false],
         userAccount
     )
@@ -218,12 +218,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollatera
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
-    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    var evts = Test.eventsOfType(Type<FlowALP.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALP.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALP.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let health = getPositionHealth(pid: positionID, beFailed: false)
@@ -282,7 +282,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [positionFundingAmount, flowVaultStoragePath, true],
         userAccount
     )
@@ -293,13 +293,13 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
-    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    var evts = Test.eventsOfType(Type<FlowALP.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALP.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! TidalProtocol.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALP.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALP.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
@@ -321,7 +321,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     )
     let actualHealthAfterPriceIncrease = getPositionHealth(pid: positionID, beFailed: false)
     // calculate new health based on updated collateral value - should increase proportionally to price increase
-    let expectedHealthAfterPriceIncrease = actualHealthBeforePriceIncrease * TidalMath.toUFix128(1.0 + priceIncrease)
+    let expectedHealthAfterPriceIncrease = actualHealthBeforePriceIncrease * FlowALPMath.toUFix128(1.0 + priceIncrease)
     Test.assertEqual(expectedHealthAfterPriceIncrease, actualHealthAfterPriceIncrease)
 
     log("[TEST] FLOW price set to \(newPrice) from \(flowStartPrice)")
@@ -362,7 +362,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromUndercollater
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [positionFundingAmount, flowVaultStoragePath, false],
         userAccount
     )
@@ -373,12 +373,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromUndercollater
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
-    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    var evts = Test.eventsOfType(Type<FlowALP.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALP.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALP.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let actualHealthBeforePriceDecrease = getPositionHealth(pid: positionID, beFailed: false)
@@ -437,7 +437,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-tidal-protocol-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [positionFundingAmount, flowVaultStoragePath, true],
         userAccount
     )
@@ -448,13 +448,13 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<TidalProtocol.Opened>())
-    let openedEvt = evts[evts.length - 1] as! TidalProtocol.Opened
+    var evts = Test.eventsOfType(Type<FlowALP.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALP.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<TidalProtocol.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! TidalProtocol.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALP.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALP.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
@@ -476,7 +476,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     )
     let actualHealthAfterPriceDecrease = getPositionHealth(pid: positionID, beFailed: false)
     // calculate new health based on updated collateral value - should increase proportionally to price increase
-    let expectedHealthAfterPriceDecrease = actualHealthBeforePriceIncrease * TidalMath.toUFix128(1.0 - priceDecrease)
+    let expectedHealthAfterPriceDecrease = actualHealthBeforePriceIncrease * FlowALPMath.toUFix128(1.0 - priceDecrease)
     Test.assertEqual(expectedHealthAfterPriceDecrease, actualHealthAfterPriceDecrease)
 
     log("[TEST] FLOW price set to \(newPrice) from \(flowStartPrice)")
@@ -525,26 +525,26 @@ fun runFundsRequiredForTargetHealthAfterWithdrawing(
 ) {
     log("..............................")
 
-    let intFLOWCollateralFactor = TidalMath.toUFix128(flowCollateralFactor)
-    let intFLOWBorrowFactor = TidalMath.toUFix128(flowBorrowFactor)
-    let intFLOWPrice = TidalMath.toUFix128(currentFLOWPrice)
-    let intFLOWCollateral = TidalMath.toUFix128(existingFLOWCollateral)
-    let intFLOWBorrowed = TidalMath.toUFix128(existingBorrowed)
-    let intWithdrawAmount = TidalMath.toUFix128(withdrawAmount)
+    let intFLOWCollateralFactor = FlowALPMath.toUFix128(flowCollateralFactor)
+    let intFLOWBorrowFactor = FlowALPMath.toUFix128(flowBorrowFactor)
+    let intFLOWPrice = FlowALPMath.toUFix128(currentFLOWPrice)
+    let intFLOWCollateral = FlowALPMath.toUFix128(existingFLOWCollateral)
+    let intFLOWBorrowed = FlowALPMath.toUFix128(existingBorrowed)
+    let intWithdrawAmount = FlowALPMath.toUFix128(withdrawAmount)
 
     // effectiveCollateralValue = collateralBalance * collateralPrice * collateralFactor
     let effectiveFLOWCollateralValue = (intFLOWCollateral * intFLOWPrice) * intFLOWCollateralFactor
     // borrowLimit = (effectiveCollateralValue / targetHealth) * borrowFactor
-    let expectedBorrowCapacity = TidalMath.div(effectiveFLOWCollateralValue, intTargetHealth) * intFLOWBorrowFactor
+    let expectedBorrowCapacity = FlowALPMath.div(effectiveFLOWCollateralValue, intTargetHealth) * intFLOWBorrowFactor
     let desiredFinalDebt = intFLOWBorrowed + intWithdrawAmount
 
     var expectedRequired: UFix128 = 0.0 as UFix128
     if desiredFinalDebt > expectedBorrowCapacity {
         let valueDiff = desiredFinalDebt - expectedBorrowCapacity
-        expectedRequired = TidalMath.div(valueDiff * intTargetHealth, intFLOWPrice)
-        expectedRequired = TidalMath.div(expectedRequired, intFLOWCollateralFactor)
+        expectedRequired = FlowALPMath.div(valueDiff * intTargetHealth, intFLOWPrice)
+        expectedRequired = FlowALPMath.div(expectedRequired, intFLOWCollateralFactor)
     }
-    let ufixExpectedRequired = TidalMath.toUFix64Round(expectedRequired)
+    let ufixExpectedRequired = FlowALPMath.toUFix64Round(expectedRequired)
 
     log("[TEST] existingFLOWCollateral: \(existingFLOWCollateral)")
     log("[TEST] existingBorrowed: \(existingBorrowed)")

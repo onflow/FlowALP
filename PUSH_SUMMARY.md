@@ -1,15 +1,15 @@
-# TidalProtocol Push Summary - FlowVault Removal Complete
+# FlowALP Push Summary - FlowVault Removal Complete
 
 ## 🎉 Successfully Pushed to GitHub
 
-**Commit**: `ffafc46` - "Complete FlowVault removal and fix all tests - Ready for Tidal integration"
+**Commit**: `ffafc46` - "Complete FlowVault removal and fix all tests - Ready for FlowVaults integration"
 **Branch**: `main`
-**Repository**: `https://github.com/onflow/TidalProtocol.git`
+**Repository**: `https://github.com/onflow/FlowALP.git`
 
 ## 📋 What Was Accomplished
 
 ### 1. FlowVault Removal ✅
-- Removed the custom `FlowVault` resource from TidalProtocol contract
+- Removed the custom `FlowVault` resource from FlowALP contract
 - Contract is now token-agnostic and works with any `FungibleToken.Vault`
 - Fixed all references to use generic vault interfaces
 - Created `MockVault` for testing purposes
@@ -163,20 +163,20 @@ Input Ranges Tested:
 - Operations: Up to 100 sequential operations
 ```
 
-## 🚀 Ready for Tidal Integration
+## 🚀 Ready for FlowVaults Integration
 
-The TidalProtocol contract is now:
+The FlowALP contract is now:
 - ✅ Free of FlowVault dependencies
 - ✅ Token-agnostic
 - ✅ Fully tested for normal operations
 - ✅ Well documented with known limitations
-- ✅ Ready for integration with Tidal's infrastructure
+- ✅ Ready for integration with FlowVaults's infrastructure
 
 **Important**: While intensive tests found edge cases, these are mostly theoretical scenarios with extreme inputs. The contract is safe for normal DeFi operations.
 
 ## 📝 Next Steps
 
-1. The Tidal team can now integrate TidalProtocol without FlowVault conflicts
+1. The FlowVaults team can now integrate FlowALP without FlowVault conflicts
 2. Future development can focus on the features outlined in FutureFeatures.md
 3. Intensive tests can be improved to handle edge cases better
 4. Consider implementing:
@@ -189,4 +189,4 @@ The TidalProtocol contract is now:
 - [Testing Completion Summary](./TestingCompletionSummary.md)
 - [Intensive Test Analysis](./IntensiveTestAnalysis.md) - Detailed analysis of all findings
 - [Future Features](./FutureFeatures.md)
-- [Tidal Milestones](./TidalMilestones.md) 
+- [FlowVaults Milestones](./FlowVaultsMilestones.md) 
