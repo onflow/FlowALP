@@ -5,22 +5,14 @@ fun test_mockdex_quote_math() {
     // Self-contained deploys: only what the mock quote test needs
     var err = Test.deployContract(
         name: "DeFiActionsUtils",
-        path: "../../DeFiActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    // Deploy MathUtils to satisfy DeFiActions import
-    err = Test.deployContract(
-        name: "DeFiActionsMathUtils",
-        path: "../../DeFiActions/cadence/contracts/utils/DeFiActionsMathUtils.cdc",
+        path: "../../FlowActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
         name: "DeFiActions",
-        path: "../../DeFiActions/cadence/contracts/interfaces/DeFiActions.cdc",
+        path: "../../FlowActions/cadence/contracts/interfaces/DeFiActions.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())

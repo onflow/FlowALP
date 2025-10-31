@@ -129,7 +129,7 @@ FlowALP/
 │   │   └── ...                         # Other test files
 │   ├── transactions/                   # Transaction templates (coming soon)
 │   └── scripts/                        # Query scripts (coming soon)
-├── DeFiActions/
+├── FlowActions/
 │   └── cadence/contracts/interfaces/
 │       └── DeFiActions.cdc             # DeFi Actions interface
 ├── imports/                            # Flow standard contracts
