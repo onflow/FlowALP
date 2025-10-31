@@ -108,8 +108,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
-    let moetBalance = positionDetails.balances[0]
-    let flowPositionBalance = positionDetails.balances[1]
+    let moetBalance = positionDetails.balances[1]
+    let flowPositionBalance = positionDetails.balances[0]
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
 
     Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance.balance),
