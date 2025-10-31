@@ -1,21 +1,15 @@
 {
   "contracts": {
     "DeFiActions": {
-      "source": "./DeFiActions/cadence/contracts/interfaces/DeFiActions.cdc",
+      "source": "./FlowActions/cadence/contracts/interfaces/DeFiActions.cdc",
       "aliases": {
         "mainnet": "6d888f175c158410",
         "testing": "0000000000000006",
         "testnet": "0b11b1848a8aa2c0"
       }
     },
-    "DeFiActionsMathUtils": {
-      "source": "./DeFiActions/cadence/contracts/utils/DeFiActionsMathUtils.cdc",
-      "aliases": {
-        "testing": "0000000000000006"
-      }
-    },
     "DeFiActionsUtils": {
-      "source": "./DeFiActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
+      "source": "./FlowActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
       "aliases": {
         "mainnet": "6d888f175c158410",
         "testing": "0000000000000006",
@@ -29,7 +23,7 @@
       }
     },
     "FungibleTokenConnectors": {
-      "source": "./DeFiActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
+      "source": "./FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
       "aliases": {
         "testing": "0000000000000006"
       }
@@ -176,7 +170,6 @@
   "deployments": {
     "emulator": {
       "emulator-account": [
-        "DeFiActionsMathUtils",
         "DeFiActionsUtils",
         "DeFiActions",
         "FlowALPMath",
