@@ -56,7 +56,7 @@ access(all)
 fun deployContracts() {
     var err = Test.deployContract(
         name: "DeFiActionsUtils",
-        path: "../../DeFiActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
+        path: "../../FlowActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -68,14 +68,8 @@ fun deployContracts() {
     )
     Test.expect(err, Test.beNil())
     err = Test.deployContract(
-        name: "DeFiActionsMathUtils",
-        path: "../../DeFiActions/cadence/contracts/utils/DeFiActionsMathUtils.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-    err = Test.deployContract(
         name: "DeFiActions",
-        path: "../../DeFiActions/cadence/contracts/interfaces/DeFiActions.cdc",
+        path: "../../FlowActions/cadence/contracts/interfaces/DeFiActions.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -132,7 +126,7 @@ fun deployContracts() {
     // Deploy FungibleTokenConnectors
     err = Test.deployContract(
         name: "FungibleTokenConnectors",
-        path: "../../DeFiActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
+        path: "../../FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())

@@ -1,21 +1,19 @@
 {
   "contracts": {
     "DeFiActions": {
-      "source": "./DeFiActions/cadence/contracts/interfaces/DeFiActions.cdc",
+      "source": "./FlowActions/cadence/contracts/interfaces/DeFiActions.cdc",
       "aliases": {
-        "testing": "0000000000000006"
-      }
-    },
-    "DeFiActionsMathUtils": {
-      "source": "./DeFiActions/cadence/contracts/utils/DeFiActionsMathUtils.cdc",
-      "aliases": {
-        "testing": "0000000000000006"
+        "mainnet": "6d888f175c158410",
+        "testing": "0000000000000006",
+        "testnet": "0b11b1848a8aa2c0"
       }
     },
     "DeFiActionsUtils": {
-      "source": "./DeFiActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
+      "source": "./FlowActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
       "aliases": {
-        "testing": "0000000000000006"
+        "mainnet": "6d888f175c158410",
+        "testing": "0000000000000006",
+        "testnet": "0b11b1848a8aa2c0"
       }
     },
     "DummyConnectors": {
@@ -25,7 +23,7 @@
       }
     },
     "FungibleTokenConnectors": {
-      "source": "./DeFiActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
+      "source": "./FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
       "aliases": {
         "testing": "0000000000000006"
       }
@@ -151,20 +149,65 @@
         "type": "file",
         "location": "emulator-account.pkey"
       }
+    },
+		"testnet-deployer": {
+			"address": "426f0458ced60037",
+			"key": {
+				"type": "google-kms",
+				"hashAlgorithm": "SHA2_256",
+				"resourceID": "projects/dl-flow-devex-staging/locations/us-central1/keyRings/tidal-keyring/cryptoKeys/tidal_admin_pk/cryptoKeyVersions/1"
+			}
+		},
+    "mainnet-deployer": {
+      "address": "6b00ff876c299c61",
+      "key": {
+				"type": "google-kms",
+				"hashAlgorithm": "SHA2_256",
+				"resourceID": "projects/dl-flow-devex-production/locations/us-central1/keyRings/tidal-keyring/cryptoKeys/tidal_admin_pk/cryptoKeyVersions/1"
+      }
     }
   },
   "deployments": {
     "emulator": {
       "emulator-account": [
-        "DeFiActionsMathUtils",
         "DeFiActionsUtils",
         "DeFiActions",
-          "FlowALPMath",
+        "FlowALPMath",
         {
           "name": "MOET",
           "args": [
             {
               "value": "1000000.00000000",
+              "type": "UFix64"
+            }
+          ]
+        },
+        "FlowALP"
+      ]
+    },
+    "testnet": {
+      "testnet-deployer": [
+        "FlowALPMath",
+        {
+          "name": "MOET",
+          "args": [
+            {
+              "value": "0.0",
+              "type": "UFix64"
+            }
+          ]
+        },
+        "FlowALP"
+      ]
+    },
+    "mainnet": {
+      "mainnet-deployer": [
+        "FlowALPMath",
+        {
+          "name": "MOET",
+          "args": [
+            {
+              "value": "0.0",
               "type": "UFix64"
             }
           ]
