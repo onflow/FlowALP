@@ -2528,7 +2528,6 @@ access(all) contract FlowALP {
             // Optional: if you want to force re-checks after an oracle change, you can
             // queue positions for async updates or otherwise touch state here.
             // self.positionsNeedingUpdates = self.positions.keys // (if desired)
-            // NOTE: Emitting an event is recommended; declare it at contract scope, e.g.:
             emit PriceOracleUpdated(poolUUID: self.uuid, newOracleType: newOracle.getType().identifier)
         }
         access(all) fun getDefaultToken(): Type {
