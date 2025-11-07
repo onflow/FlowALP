@@ -5,8 +5,6 @@ import "DeFiActions"
 import "FungibleTokenConnectors"
 import "FungibleToken"
 
-/// Adds a token type as supported to the stored pool, reverting if a Pool is not found
-///
 transaction() {
     let pool: auth(FlowALP.EGovernance) &FlowALP.Pool
     let oracle: {DeFiActions.PriceOracle}
