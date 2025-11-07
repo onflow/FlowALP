@@ -41,6 +41,7 @@ access(all) contract FlowALP {
     access(all) event LiquidationsUnpaused(poolUUID: UInt64, warmupEndsAt: UInt64)
     access(all) event LiquidationExecuted(pid: UInt64, poolUUID: UInt64, debtType: String, repayAmount: UFix64, seizeType: String, seizeAmount: UFix64, newHF: UFix128)
     access(all) event LiquidationExecutedViaDex(pid: UInt64, poolUUID: UInt64, seizeType: String, seized: UFix64, debtType: String, repaid: UFix64, slippageBps: UInt16, newHF: UFix128)
+    access(all) event PriceOracleUpdated(poolUUID: UInt64, newOracleType: String)
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
@@ -2516,6 +2517,22 @@ access(all) contract FlowALP {
                 min: position.minHealth,
                 max: position.maxHealth
             )
+        }
+        access(EGovernance) fun setPriceOracle(_ newOracle: {DeFiActions.PriceOracle}) {
+            pre {
+                newOracle.unitOfAccount() == self.defaultToken:
+                    "Price oracle must return prices in terms of the pool's default token"
+            }
+            self.priceOracle = newOracle
+
+            // Optional: if you want to force re-checks after an oracle change, you can
+            // queue positions for async updates or otherwise touch state here.
+            // self.positionsNeedingUpdates = self.positions.keys // (if desired)
+            // NOTE: Emitting an event is recommended; declare it at contract scope, e.g.:
+            emit PriceOracleUpdated(poolUUID: self.uuid, newOracleType: newOracle.getType().identifier)
+        }
+        access(all) fun getDefaultToken(): Type {
+            return self.defaultToken
         }
     }
 
