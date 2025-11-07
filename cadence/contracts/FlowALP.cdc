@@ -2524,10 +2524,8 @@ access(all) contract FlowALP {
                     "Price oracle must return prices in terms of the pool's default token"
             }
             self.priceOracle = newOracle
+            self.positionsNeedingUpdates = self.positions.keys
 
-            // Optional: if you want to force re-checks after an oracle change, you can
-            // queue positions for async updates or otherwise touch state here.
-            // self.positionsNeedingUpdates = self.positions.keys // (if desired)
             emit PriceOracleUpdated(poolUUID: self.uuid, newOracleType: newOracle.getType().identifier)
         }
         access(all) fun getDefaultToken(): Type {
