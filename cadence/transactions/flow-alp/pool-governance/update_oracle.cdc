@@ -1,5 +1,4 @@
 import "FlowALP"
-import "BandOracle"
 import "BandOracleConnectors"
 import "DeFiActions"
 import "FungibleTokenConnectors"
