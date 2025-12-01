@@ -4,7 +4,7 @@ import BlockchainHelpers
 import "test_helpers.cdc"
 
 import "MOET"
-import "FlowALP"
+import "FlowCreditMarket"
 
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
@@ -13,7 +13,7 @@ access(all) let userAccount = Test.createAccount()
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) var moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
-access(all) let wrapperStoragePath = /storage/flowALPPositionWrapper
+access(all) let wrapperStoragePath = /storage/flowCreditMarketPositionWrapper
 
 
 access(all) let flowCollateralFactor = 0.8
@@ -91,7 +91,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
         [positionFundingAmount, flowVaultStoragePath, true],
         userAccount
     )
@@ -102,8 +102,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     Test.assert(equalWithinVariance(expectedBorrowAmount, balanceAfterBorrow),
         message: "Expected MOET balance to be ~\(expectedBorrowAmount), but got \(balanceAfterBorrow)")
 
-    let evts = Test.eventsOfType(Type<FlowALP.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALP.Opened
+    let evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
@@ -114,8 +114,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
 
     Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance.balance),
         message: "Expected borrow amount to be \(expectedBorrowAmount), but got \(moetBalance.balance)")
-    Test.assertEqual(FlowALP.BalanceDirection.Credit, flowPositionBalance.direction)
-    Test.assertEqual(FlowALP.BalanceDirection.Debit, moetBalance.direction)
+    Test.assertEqual(FlowCreditMarket.BalanceDirection.Credit, flowPositionBalance.direction)
+    Test.assertEqual(FlowCreditMarket.BalanceDirection.Debit, moetBalance.direction)
 
     Test.assert(equalWithinVariance(intTargetHealth, health),
         message: "Expected health to be \(intTargetHealth), but got \(health)")
@@ -168,7 +168,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
         [positionFundingAmount, flowVaultStoragePath, false],
         userAccount
     )
@@ -179,15 +179,15 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     let expectedBorrowAmount = 0.0
     Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
-    let evts = Test.eventsOfType(Type<FlowALP.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALP.Opened
+    let evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
     let flowPositionBalance = positionDetails.balances[0]
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
-    Test.assertEqual(FlowALP.BalanceDirection.Credit, flowPositionBalance.direction)
+    Test.assertEqual(FlowCreditMarket.BalanceDirection.Credit, flowPositionBalance.direction)
 
     Test.assertEqual(ceilingHealth, health)
 
@@ -240,7 +240,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
         [positionFundingAmount, flowVaultStoragePath, false],
         userAccount
     )
@@ -250,15 +250,15 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     let expectedBorrowAmount = 0.0
     Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
-    let evts = Test.eventsOfType(Type<FlowALP.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALP.Opened
+    let evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
     let flowPositionBalance = positionDetails.balances[0]
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
-    Test.assertEqual(FlowALP.BalanceDirection.Credit, flowPositionBalance.direction)
+    Test.assertEqual(FlowCreditMarket.BalanceDirection.Credit, flowPositionBalance.direction)
 
     let priceIncrease = 0.25
     let newPrice = flowStartPrice * (1.0 + priceIncrease)

@@ -1,6 +1,6 @@
 import Test
 import BlockchainHelpers
-import "FlowALP"
+import "FlowCreditMarket"
 
 import "MOET"
 import "test_helpers.cdc"
@@ -47,7 +47,7 @@ fun testRebalanceOvercollateralised() {
     mintFlow(to: user, amount: 1_000.0)
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
         [1_000.0, flowVaultStoragePath, true],
         user
     )

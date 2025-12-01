@@ -5,7 +5,7 @@ import "MOET"
 import "test_helpers.cdc"
 
 /*
-    Platform integration tests covering the path used by platforms using FlowALP to create
+    Platform integration tests covering the path used by platforms using FlowCreditMarket to create
     and manage new positions. These tests currently only cover the happy path, ensuring that
     transactions creating & updating positions succeed.
  */
@@ -38,7 +38,7 @@ access(all)
 fun testCreatePoolSucceeds() {
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
 
-    let existsRes = _executeScript("../scripts/flow-alp/pool_exists.cdc", [protocolAccount.address])
+    let existsRes = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [protocolAccount.address])
     Test.expect(existsRes, Test.beSucceeded())
 
     let exists = existsRes.returnValue as! Bool
@@ -78,7 +78,7 @@ fun testCreateUserPositionSucceeds() {
     getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: false, beFailed: true)
     
     // open the position & push to drawDownSink - forces MOET to downstream test sink which is user's MOET Vault
-    let res = executeTransaction("./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
+    let res = executeTransaction("./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
             [collateralAmount, flowVaultStoragePath, true], // amount, vaultStoragePath, pushToDrawDownSink
             user
         )
@@ -122,7 +122,7 @@ fun testUndercollateralizedPositionRebalanceSucceeds() {
     mintFlow(to: user, amount: collateralAmount)
 
     // open the position & push to drawDownSink - forces MOET to downstream test sink which is user's MOET Vault
-    let res = executeTransaction("./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
+    let res = executeTransaction("./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
             [collateralAmount, flowVaultStoragePath, true], // amount, vaultStoragePath, pushToDrawDownSink
             user
         )
@@ -186,7 +186,7 @@ fun testOvercollateralizedPositionRebalanceSucceeds() {
     mintFlow(to: user, amount: collateralAmount)
 
     // open the position & push to drawDownSink - forces MOET to downstream test sink which is user's MOET Vault
-    let res = executeTransaction("./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
+    let res = executeTransaction("./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
             [collateralAmount, flowVaultStoragePath, true], // amount, vaultStoragePath, pushToDrawDownSink
             user
         )

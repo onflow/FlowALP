@@ -1,10 +1,10 @@
-# Prompt: Running FlowALP Tests with New Approach
+# Prompt: Running FlowCreditMarket Tests with New Approach
 
 ## Background
-The FlowALP Cadence tests were failing with "cannot overwrite existing contract" errors due to Flow test framework limitations. We've implemented a solution.
+The FlowCreditMarket Cadence tests were failing with "cannot overwrite existing contract" errors due to Flow test framework limitations. We've implemented a solution.
 
 ## Your Task
-When asked to run tests for FlowALP, follow this new approach:
+When asked to run tests for FlowCreditMarket, follow this new approach:
 
 ### Primary Method: Use Test Runner Script
 ```bash
@@ -41,7 +41,7 @@ flow test ./cadence/tests/reserve_withdrawal_test.cdc
 
 ## Expected Behavior
 - Individual tests should pass when run separately
-- Some tests have known issues (MockOracle, MockFlowALPConsumer conflicts)
+- Some tests have known issues (MockOracle, MockFlowCreditMarketConsumer conflicts)
 - The test runner script provides the most consistent results
 
 ## Example Output
@@ -54,7 +54,7 @@ When using the test runner script, you'll see:
 ✅ PASSED: cadence/tests/reserve_withdrawal_test.cdc
 ```
 
-Please use this approach when working with FlowALP tests to ensure consistent and reliable results.
+Please use this approach when working with FlowCreditMarket tests to ensure consistent and reliable results.
 
 ## Verified Status (as of latest changes)
 Tests confirmed to PASS individually:

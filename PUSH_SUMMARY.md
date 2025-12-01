@@ -1,15 +1,15 @@
-# FlowALP Push Summary - FlowVault Removal Complete
+# FlowCreditMarket Push Summary - FlowVault Removal Complete
 
 ## 🎉 Successfully Pushed to GitHub
 
 **Commit**: `ffafc46` - "Complete FlowVault removal and fix all tests - Ready for FlowVaults integration"
 **Branch**: `main`
-**Repository**: `https://github.com/onflow/FlowALP.git`
+**Repository**: `https://github.com/onflow/FlowCreditMarket.git`
 
 ## 📋 What Was Accomplished
 
 ### 1. FlowVault Removal ✅
-- Removed the custom `FlowVault` resource from FlowALP contract
+- Removed the custom `FlowVault` resource from FlowCreditMarket contract
 - Contract is now token-agnostic and works with any `FungibleToken.Vault`
 - Fixed all references to use generic vault interfaces
 - Created `MockVault` for testing purposes
@@ -165,7 +165,7 @@ Input Ranges Tested:
 
 ## 🚀 Ready for FlowVaults Integration
 
-The FlowALP contract is now:
+The FlowCreditMarket contract is now:
 - ✅ Free of FlowVault dependencies
 - ✅ Token-agnostic
 - ✅ Fully tested for normal operations
@@ -176,7 +176,7 @@ The FlowALP contract is now:
 
 ## 📝 Next Steps
 
-1. The FlowVaults team can now integrate FlowALP without FlowVault conflicts
+1. The FlowVaults team can now integrate FlowCreditMarket without FlowVault conflicts
 2. Future development can focus on the features outlined in FutureFeatures.md
 3. Intensive tests can be improved to handle edge cases better
 4. Consider implementing:
