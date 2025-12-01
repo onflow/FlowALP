@@ -386,6 +386,31 @@ access(all) contract FlowALP {
         access(EImplementation) fun setDepositLimitFraction(_ frac: UFix64) {
             self.depositLimitFraction = frac
         }
+        /// Sets the deposit rate for this token state
+        access(EImplementation) fun setDepositRate(_ rate: UFix64) {
+            self.depositRate = rate
+        }
+        /// Sets the deposit capacity cap for this token state
+        access(EImplementation) fun setDepositCapacityCap(_ cap: UFix64) {
+            self.depositCapacityCap = cap
+            // If current capacity exceeds the new cap, clamp it to the cap
+            if self.depositCapacity > cap {
+                self.depositCapacity = cap
+            }
+        }
+        /// Decreases deposit capacity by the specified amount (used when deposits are made)
+        access(EImplementation) fun consumeDepositCapacity(_ amount: UFix64) {
+            if amount > self.depositCapacity {
+                // Safety check: this shouldn't happen if depositLimit() is working correctly
+                self.depositCapacity = 0.0
+            } else {
+                self.depositCapacity = self.depositCapacity - amount
+            }
+        }
+        /// Sets deposit capacity (used for time-based regeneration)
+        access(EImplementation) fun setDepositCapacity(_ capacity: UFix64) {
+            self.depositCapacity = capacity
+        }
 
         // Explicit UFix128 balance update helpers used by core accounting
         access(all) fun increaseCreditBalance(by amount: UFix128) {
@@ -453,8 +478,20 @@ access(all) contract FlowALP {
 
             // Record the moment we accounted for
             self.lastUpdate = currentTime
+        }
 
-            // Deposit capacity is fixed at the cap; growth logic is disabled.
+        /// Regenerates deposit capacity over time based on depositRate
+        /// Note: dt should be calculated before updateInterestIndices() updates lastUpdate
+        access(all) fun updateDepositCapacity(dt: UFix64) {
+            if dt > 0.0 {
+                let newDepositCapacity = self.depositCapacity + (self.depositRate * dt)
+
+                if newDepositCapacity >= self.depositCapacityCap {
+                    self.setDepositCapacity(self.depositCapacityCap)
+                } else {
+                    self.setDepositCapacity(newDepositCapacity)
+                }
+            }
         }
 
         // Deposit limit function
@@ -468,7 +505,12 @@ access(all) contract FlowALP {
         }
 
         access(all) fun updateForTimeChange() {
+            // Calculate time delta before updateInterestIndices() updates lastUpdate
+            let currentTime: UFix64 = getCurrentBlock().timestamp
+            let dt: UFix64 = currentTime - self.lastUpdate
+            
             self.updateInterestIndices()
+            self.updateDepositCapacity(dt: dt)
         }
 
         access(all) fun updateInterestRates() {
@@ -1958,7 +2000,12 @@ access(all) contract FlowALP {
             // This only records the portion of the deposit that was accepted, not any queued portions,
             // as the queued deposits will be processed later (by this function being called again), and therefore
             // will be recorded at that time.
-            position.balances[type]!.recordDeposit(amount: FlowALPMath.toUFix128(from.balance), tokenState: tokenState)
+            let acceptedAmount = from.balance
+            position.balances[type]!.recordDeposit(amount: FlowALPMath.toUFix128(acceptedAmount), tokenState: tokenState)
+
+            // Consume deposit capacity for the accepted deposit amount
+            // Only the accepted amount consumes capacity; queued portions will consume capacity when processed later
+            tokenState.consumeDepositCapacity(acceptedAmount)
 
             // Add the money to the reserves
             reserveVault.deposit(from: <-from)
@@ -2278,6 +2325,28 @@ access(all) contract FlowALP {
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositLimitFraction(fraction)
+        }
+
+        /// Updates the deposit rate for a given token (rate per second)
+        access(EGovernance) fun setDepositRate(tokenType: Type, rate: UFix64) {
+            pre {
+                self.globalLedger[tokenType] != nil: "Unsupported token type"
+                rate > 0.0: "Deposit rate must be positive"
+            }
+            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+                ?? panic("Invariant: token state missing")
+            tsRef.setDepositRate(rate)
+        }
+
+        /// Updates the deposit capacity cap for a given token
+        access(EGovernance) fun setDepositCapacityCap(tokenType: Type, cap: UFix64) {
+            pre {
+                self.globalLedger[tokenType] != nil: "Unsupported token type"
+                cap > 0.0: "Deposit capacity cap must be positive"
+            }
+            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+                ?? panic("Invariant: token state missing")
+            tsRef.setDepositCapacityCap(cap)
         }
 
         /// Enables or disables verbose logging inside the Pool for testing and diagnostics
