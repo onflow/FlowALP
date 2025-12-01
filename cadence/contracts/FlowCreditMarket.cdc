@@ -481,7 +481,7 @@ access(all) contract FlowCreditMarket {
             }
 
             let debitRate = self.interestCurve.interestRate(creditBalance: self.totalCreditBalance, debitBalance: self.totalDebitBalance)
-            let debitIncome = self.totalDebitBalance + debitRate
+            let debitIncome = self.totalDebitBalance * debitRate
 
             // Calculate insurance amount (0.1% of credit balance)
             let insuranceRate: UFix128 = FlowCreditMarketMath.toUFix128(self.insuranceRate)
@@ -490,7 +490,7 @@ access(all) contract FlowCreditMarket {
             // Calculate credit rate, ensuring we don't have underflows
             var creditRate: UFix128 = 0.0 as UFix128
             if debitIncome >= insuranceAmount {
-                creditRate = ((debitIncome - insuranceAmount) / self.totalCreditBalance) - FlowCreditMarketMath.one
+                creditRate = ((debitIncome - insuranceAmount) / self.totalCreditBalance)
             } else {
                 // If debit income doesn't cover insurance, credit interest would be negative.
                 // Since negative rates aren't represented here, we pay 0% to depositors.
@@ -1177,11 +1177,6 @@ access(all) contract FlowCreditMarket {
             withdrawAmount: UFix64
         ): UFix64 {
             if self.debugLogging { log("    [CONTRACT] fundsRequiredForTargetHealthAfterWithdrawing(pid: \(pid), depositType: \(depositType.contractName!), targetHealth: \(targetHealth), withdrawType: \(withdrawType.contractName!), withdrawAmount: \(withdrawAmount))") }
-            if depositType == withdrawType && withdrawAmount > 0.0 {
-                // If the deposit and withdrawal types are the same, we compute the required deposit assuming
-                // no withdrawal (which is less work) and increase that by the withdraw amount at the end
-                return self.fundsRequiredForTargetHealth(pid: pid, type: depositType, targetHealth: targetHealth) + withdrawAmount
-            }
 
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
@@ -1805,6 +1800,7 @@ access(all) contract FlowCreditMarket {
                     effectiveDebtDecrease = FlowCreditMarketMath.div(amountU * price, borrowFactor)
                 } else {
                     // This deposit will wipe out all of the debt, and create new collateral.
+                    effectiveDebtDecrease = FlowCreditMarketMath.div(trueDebt * price, borrowFactor)
                     effectiveCollateralIncrease = ((amountU - trueDebt) * price) * collateralFactor
                 }
             }
@@ -1934,7 +1930,6 @@ access(all) contract FlowCreditMarket {
             // Deposit rate limiting: prevent a single large deposit from monopolizing capacity.
             // Excess is queued to be processed asynchronously (see asyncUpdatePosition).
             let depositAmount = from.balance
-            let uintDepositAmount = FlowCreditMarketMath.toUFix128(depositAmount)
             let depositLimit = tokenState.depositLimit()
 
             if depositAmount > depositLimit {
@@ -1960,7 +1955,10 @@ access(all) contract FlowCreditMarket {
             let reserveVault = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
 
             // Reflect the deposit in the position's balance
-            position.balances[type]!.recordDeposit(amount: uintDepositAmount, tokenState: tokenState)
+            // This only records the portion of the deposit that was accepted, not any queued portions,
+            // as the queued deposits will be processed later (by this function being called again), and therefore
+            // will be recorded at that time.
+            position.balances[type]!.recordDeposit(amount: FlowCreditMarketMath.toUFix128(from.balance), tokenState: tokenState)
 
             // Add the money to the reserves
             reserveVault.deposit(from: <-from)
