@@ -1481,10 +1481,10 @@ access(all) contract FlowCreditMarket {
                 // the entire debt.
                 let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
                 let debtBalance = maybeBalance!.scaledBalance
-                let trueDebt = FlowCreditMarket.scaledBalanceToTrueBalance(debtBalance,
+                let trueDebtTokenCount = FlowCreditMarket.scaledBalanceToTrueBalance(debtBalance,
                     interestIndex: depositTokenState.debitInterestIndex
                 )
-                let debtEffectiveValue = FlowCreditMarketMath.div(depositPrice * trueDebt, depositBorrowFactor)
+                let debtEffectiveValue = FlowCreditMarketMath.div(depositPrice * trueDebtTokenCount, depositBorrowFactor)
 
                 // Ensure we don't underflow - if debtEffectiveValue is greater than effectiveDebtAfterWithdrawal,
                 // it means we can pay off all debt
@@ -1521,12 +1521,12 @@ access(all) contract FlowCreditMarket {
                     // from this new health position. Rather than copy that logic here, we fall through into it. But first
                     // we have to record the amount of tokens that went towards debt payback and adjust the effective
                     // debt to reflect that it has been paid off.
-                    debtTokenCount = FlowCreditMarketMath.div(trueDebt, depositPrice)
+                    debtTokenCount = trueDebtTokenCount
                     // Ensure we don't underflow
                     if debtEffectiveValue <= effectiveDebtAfterWithdrawal {
                         effectiveDebtAfterWithdrawal = effectiveDebtAfterWithdrawal - debtEffectiveValue
                     } else {
-                        effectiveDebtAfterWithdrawal = 0.0 as UFix128
+                        effectiveDebtAfterWithdrawal = FlowCreditMarketMath.zero
                     }
                     healthAfterWithdrawal = potentialHealth
                 }
