@@ -2331,16 +2331,13 @@ access(all) contract FlowCreditMarket {
                     let sinkCapacity = drawDownSink.minimumCapacity()
                     let sinkAmount = (idealWithdrawal > sinkCapacity) ? sinkCapacity : idealWithdrawal
 
-                    if sinkAmount > 0.0 && sinkType == self.defaultToken { // second conditional included for sake of tracer bullet
-                        // BUG: Calling through to withdrawAndPull results in an insufficient funds from the position's
-                        //      topUpSource. These funds should come from the protocol or reserves, not from the user's
-                        //      funds. To unblock here, we just mint MOET when a position is overcollateralized
-                        // let sinkVault <- self.withdrawAndPull(
-                        //     pid: pid,
-                        //     type: sinkType,
-                        //     amount: sinkAmount,
-                        //     pullFromTopUpSource: false
-                        // )
+                    if sinkAmount > 0.0 && sinkType == self.defaultToken {
+                        let sinkVault <- self.withdrawAndPull(
+                            pid: pid,
+                            type: sinkType,
+                            amount: sinkAmount,
+                            pullFromTopUpSource: false
+                        )
 
                         let tokenState = self._borrowUpdatedTokenState(type: self.defaultToken)
                         if position.balances[self.defaultToken] == nil {
@@ -2349,7 +2346,6 @@ access(all) contract FlowCreditMarket {
                         // record the withdrawal and mint the tokens
                         let uintSinkAmount = FlowCreditMarketMath.toUFix128(sinkAmount)
                         position.balances[self.defaultToken]!.recordWithdrawal(amount: uintSinkAmount, tokenState: tokenState)
-                        let sinkVault <- FlowCreditMarket._borrowMOETMinter().mintTokens(amount: sinkAmount)
 
                         emit Rebalanced(pid: pid, poolUUID: self.uuid, atHealth: balanceSheet.health, amount: sinkVault.balance, fromUnder: false)
 
