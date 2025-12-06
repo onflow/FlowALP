@@ -2331,15 +2331,14 @@ access(all) contract FlowCreditMarket {
                     let sinkCapacity = drawDownSink.minimumCapacity()
                     let sinkAmount = (idealWithdrawal > sinkCapacity) ? sinkCapacity : idealWithdrawal
 
-                    if sinkAmount > 0.0 && sinkType == self.defaultToken { 
-
-                        let tokenState = self._borrowUpdatedTokenState(type: self.defaultToken)
-                        if position.balances[self.defaultToken] == nil {
-                            position.balances[self.defaultToken] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
+                    if sinkAmount > 0.0 && sinkType == Type<@MOET.Vault>() { 
+                        let tokenState = self._borrowUpdatedTokenState(type: Type<@MOET.Vault>())
+                        if position.balances[Type<@MOET.Vault>()] == nil {
+                            position.balances[Type<@MOET.Vault>()] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
                         }
                         // record the withdrawal and mint the tokens
                         let uintSinkAmount = FlowCreditMarketMath.toUFix128(sinkAmount)
-                        position.balances[self.defaultToken]!.recordWithdrawal(amount: uintSinkAmount, tokenState: tokenState)
+                        position.balances[Type<@MOET.Vault>()]!.recordWithdrawal(amount: uintSinkAmount, tokenState: tokenState)
                         let sinkVault <- FlowCreditMarket._borrowMOETMinter().mintTokens(amount: sinkAmount)
 
                         emit Rebalanced(pid: pid, poolUUID: self.uuid, atHealth: balanceSheet.health, amount: sinkVault.balance, fromUnder: false)
