@@ -8,7 +8,7 @@ The following files contain LLM-generated documentation and context:
 - `PROMPT_FOR_TEST_RUNNING.md` - Test running prompts
 - `TEST_RUNNING_INSTRUCTIONS.md` - Detailed test execution guide
 - `FLOW_TEST_PERSISTENCE_SOLUTION.md` - Flow test persistence solutions
-- `FlowALP_TestPlan.md` - Overall test planning documentation
+- `FlowCreditMarket_TestPlan.md` - Overall test planning documentation
 - `TestSuiteComparison.md` - Test suite analysis
 - `CadenceTestingPatterns.md` - Cadence testing patterns and best practices
 - `TestsOverview.md` - High-level test overview

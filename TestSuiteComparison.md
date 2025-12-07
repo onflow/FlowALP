@@ -31,7 +31,7 @@ Key Differences
 | Failure asserts | "`beFailed` flag" pattern allows a single helper to test success & expected-failure flows. | Success only (almost no negative-path coverage). |
 
 Why the complaints?  
-• MockVault & string-built oracle mean most calls never exercise FlowALP's real storage paths or external interfaces. They compile but do **not** detect regressions that would break production flows.  
+• MockVault & string-built oracle mean most calls never exercise FlowCreditMarket's real storage paths or external interfaces. They compile but do **not** detect regressions that would break production flows.  
 • Absence of resets makes the file order matter; flaky when run in parallel.
 
 ────────────────────────────────────────
@@ -44,7 +44,7 @@ Depth comparison (example):
 
 Legacy `position_health_test.cdc`  
 ```
-let health = FlowALP.calculateHealth(pid: 0)
+let health = FlowCreditMarket.calculateHealth(pid: 0)
 Test.assert(health >= 0.0)
 ```
 – merely checks non-crash; no collateral / price manipulation.

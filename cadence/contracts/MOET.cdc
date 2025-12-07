@@ -58,9 +58,9 @@ access(all) contract MOET : FungibleToken {
                 )
                 let medias = MetadataViews.Medias([media])
                 return FungibleTokenMetadataViews.FTDisplay(
-                    name: "FlowALP USD",
+                    name: "FlowCreditMarket USD",
                     symbol: "MOET",
-                    description: "A mocked version of FlowALP stablecoin",
+                    description: "A mocked version of FlowCreditMarket stablecoin",
                     externalURL: MetadataViews.ExternalURL("https://flow.com"),
                     logos: medias,
                     socials: {

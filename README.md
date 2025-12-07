@@ -1,4 +1,4 @@
-# FlowALP - DeFi Lending Protocol on Flow
+# FlowCreditMarket - DeFi Lending Protocol on Flow
 
 ## 📊 Project Status
 
@@ -12,26 +12,26 @@
 ## 🎯 FlowVaults Integration Milestones
 
 ### Current Status (Tracer Bullet Phase)
-- ✅ **Smart Contract Integration**: FlowALP provides sink/source interfaces for token swapping
-- ✅ **Development & Testing**: Automated testing framework for FlowALP and DefiActions
-- ✅ **Repository Structure**: FlowALP code in private repo, DefiActions in public repo
+- ✅ **Smart Contract Integration**: FlowCreditMarket provides sink/source interfaces for token swapping
+- ✅ **Development & Testing**: Automated testing framework for FlowCreditMarket and DefiActions
+- ✅ **Repository Structure**: FlowCreditMarket code in private repo, DefiActions in public repo
 - 💛 **Test Coverage**: Working towards comprehensive test suite for FlowVaults functionality
 - 👌 **AMM Integration**: Currently using dummy swapper, real AMM deployment planned
 
 ### Upcoming (Limited Beta)
-- ✅ **Documentation**: First pass documentation of FlowALP (this README)
-- ✅ **Testing**: Extensive test suite for FlowALP and DefiActions
+- ✅ **Documentation**: First pass documentation of FlowCreditMarket (this README)
+- ✅ **Testing**: Extensive test suite for FlowCreditMarket and DefiActions
 - 💛 **Sample Code**: DefiActions sample code and tutorials needed
 - 👌 **Advanced Features**: Per-user limits and controlled testing capabilities
 
 ### Future (Open Beta)
-- ✅ **Open Access**: Full public access to FlowALP and DefiActions
+- ✅ **Open Access**: Full public access to FlowCreditMarket and DefiActions
 - 💛 **Documentation**: Improved documentation and tutorials
 - ✅ **Sample Code**: Complete tutorials for DefiActions integration
 
-## 🏦 About FlowALP
+## 🏦 About FlowCreditMarket
 
-FlowALP is a decentralized lending and borrowing protocol built on the Flow blockchain. It implements the Flow FungibleToken standard and integrates with DeFi Actions for composability.
+FlowCreditMarket is a decentralized lending and borrowing protocol built on the Flow blockchain. It implements the Flow FungibleToken standard and integrates with DeFi Actions for composability.
 
 ### Key Features
 
@@ -89,8 +89,8 @@ For detailed test status and FlowVault removal summary, see [TestingCompletionSu
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/FlowALP.git
-cd FlowALP
+git clone https://github.com/your-username/FlowCreditMarket.git
+cd FlowCreditMarket
 ```
 
 2. Install dependencies:
@@ -118,10 +118,10 @@ flow project deploy --network=emulator
 ## 📦 Project Structure
 
 ```
-FlowALP/
+FlowCreditMarket/
 ├── cadence/
 │   ├── contracts/
-│   │   └── FlowALP.cdc           # Main lending protocol contract
+│   │   └── FlowCreditMarket.cdc           # Main lending protocol contract
 │   ├── tests/
 │   │   ├── test_helpers.cdc            # Shared test utilities
 │   │   ├── core_vault_test.cdc         # Vault operation tests
@@ -144,7 +144,7 @@ FlowALP/
 1. **Pool**: Main lending pool managing positions and reserves
 2. **Position**: User positions tracking deposits and borrows
 3. **TokenState**: Per-token state including interest indices
-4. **FlowALPSink/Source**: DeFi Actions integration for composability
+4. **FlowCreditMarketSink/Source**: DeFi Actions integration for composability
 
 ### Key Interfaces
 
@@ -159,7 +159,7 @@ FlowALP/
 
 ```cadence
 // Create a new pool with your token type
-let pool <- FlowALP.createPool(
+let pool <- FlowCreditMarket.createPool(
     defaultToken: Type<@YourToken.Vault>(),
     defaultTokenThreshold: 0.8
 )

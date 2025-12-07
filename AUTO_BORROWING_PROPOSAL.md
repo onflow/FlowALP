@@ -2,7 +2,7 @@
 
 ## Summary of Findings
 
-During testing, we discovered that FlowALP implements an **auto-borrowing** feature when positions are created with `pushToDrawDownSink=true`. This behavior is intentional and mathematically correct.
+During testing, we discovered that FlowCreditMarket implements an **auto-borrowing** feature when positions are created with `pushToDrawDownSink=true`. This behavior is intentional and mathematically correct.
 
 ### Example Calculation
 When depositing 1000 Flow tokens:

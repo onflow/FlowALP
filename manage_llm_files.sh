@@ -8,7 +8,7 @@ LLM_FILES=(
     "PROMPT_FOR_TEST_RUNNING.md"
     "TEST_RUNNING_INSTRUCTIONS.md"
     "FLOW_TEST_PERSISTENCE_SOLUTION.md"
-    "FlowALP_TestPlan.md"
+    "FlowCreditMarket_TestPlan.md"
     "TestSuiteComparison.md"
     "CadenceTestingPatterns.md"
     "TestsOverview.md"

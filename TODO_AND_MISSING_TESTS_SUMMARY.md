@@ -13,25 +13,25 @@
 
 ### Transaction Files
 1. **`repay_and_close_position.cdc`** (Line 13)
-   - TODO: Implement when FlowALP.Pool exposes position info and repayAndClosePosition
+   - TODO: Implement when FlowCreditMarket.Pool exposes position info and repayAndClosePosition
    - Currently just a placeholder that panics
 
 2. **`withdraw_reserve.cdc`** (Lines 16, 22)
    - TODO: Implement proper governance control
-   - TODO: Once FlowALP.Pool exposes a withdrawReserve function
+   - TODO: Once FlowCreditMarket.Pool exposes a withdrawReserve function
    - Currently using a workaround that creates empty vaults
 
 ### Contract Files
-1. **`FlowALP.cdc`** (Line 1389)
+1. **`FlowCreditMarket.cdc`** (Line 1389)
    - TODO: In production, asyncUpdate() should only process limited positions per callback
    - TODO: Schedule each update in its own callback for error isolation
 
-2. **`FlowALP.cdc`** (Line 1452)
+2. **`FlowCreditMarket.cdc`** (Line 1452)
    - TODO: Consider making Position a resource given its critical role
 
 ## Missing Tests (From Test Plan)
 
-Based on `FlowALP_TestPlan.md`, all planned tests have been implemented:
+Based on `FlowCreditMarket_TestPlan.md`, all planned tests have been implemented:
 - ✅ Pool Creation Workflow
 - ✅ Supported Token Governance Addition 
 - ✅ Position Lifecycle Happy Path (partial - missing close)
@@ -58,7 +58,7 @@ Based on `FlowALP_TestPlan.md`, all planned tests have been implemented:
    - Token-specific thresholds
 
 2. **Advanced Position Management**
-   - Tide resource creation/management
+   - YieldVault resource creation/management
    - Position tracking and metadata
    - IRR calculations
 
@@ -127,7 +127,7 @@ Missing test coverage for:
 ### 1. Position Close/Repay Functionality
 **Status**: Partially implemented - repayment works but collateral return blocked  
 **Issue**: No way to fully close a position and return collateral to user  
-**Location**: `FlowALP.cdc` - Pool contract missing helper method  
+**Location**: `FlowCreditMarket.cdc` - Pool contract missing helper method  
 
 **Current State (Demonstrated in Tests)**:
 - Created `repay_and_close_position.cdc` transaction that repays MOET debt successfully
