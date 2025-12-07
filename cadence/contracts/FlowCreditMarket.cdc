@@ -410,14 +410,22 @@ access(all) contract FlowCreditMarket {
         access(all) fun getUserDepositLimitCap(): UFix64 {
             return self.depositLimitFraction * self.depositCapacityCap
         }
-        /// Decreases deposit capacity by the specified amount (used when deposits are made)
-        access(EImplementation) fun consumeDepositCapacity(_ amount: UFix64) {
+        /// Decreases deposit capacity by the specified amount and tracks per-user deposit usage
+        /// (used when deposits are made)
+        access(EImplementation) fun consumeDepositCapacity(_ amount: UFix64, pid: UInt64) {
             if amount > self.depositCapacity {
                 // Safety check: this shouldn't happen if depositLimit() is working correctly
                 self.depositCapacity = 0.0
             } else {
                 self.depositCapacity = self.depositCapacity - amount
             }
+            
+            // Track per-user deposit usage for the accepted amount
+            var currentUserUsage: UFix64 = 0.0
+            if self.depositUsage[pid] != nil {
+                currentUserUsage = self.depositUsage[pid]!
+            }
+            self.depositUsage[pid] = currentUserUsage + amount
         }
         /// Sets deposit capacity (used for time-based regeneration)
         access(EImplementation) fun setDepositCapacity(_ capacity: UFix64) {
@@ -2040,16 +2048,9 @@ access(all) contract FlowCreditMarket {
             let acceptedAmount = from.balance
             position.balances[type]!.recordDeposit(amount: FlowCreditMarketMath.toUFix128(acceptedAmount), tokenState: tokenState)
 
-            // Track per-user deposit usage for the accepted amount
-            var currentUserUsage: UFix64 = 0.0
-            if tokenState.depositUsage[pid] != nil {
-                currentUserUsage = tokenState.depositUsage[pid]!
-            }
-            tokenState.depositUsage[pid] = currentUserUsage + acceptedAmount
-
-            // Consume deposit capacity for the accepted deposit amount
+            // Consume deposit capacity for the accepted deposit amount and track per-user usage
             // Only the accepted amount consumes capacity; queued portions will consume capacity when processed later
-            tokenState.consumeDepositCapacity(acceptedAmount)
+            tokenState.consumeDepositCapacity(acceptedAmount, pid: pid)
 
             // Add the money to the reserves
             reserveVault.deposit(from: <-from)
