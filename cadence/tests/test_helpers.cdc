@@ -252,7 +252,7 @@ fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, pri
 }
 
 access(all)
-fun addSupportedTokenSimpleInterestCurve(
+fun addSupportedTokenZeroRateCurve(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
     collateralFactor: UFix64,
@@ -261,7 +261,7 @@ fun addSupportedTokenSimpleInterestCurve(
     depositCapacityCap: UFix64
 ) {
     let additionRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/add_supported_token_simple_interest_curve.cdc",
+        "../transactions/flow-credit-market/pool-governance/add_supported_token_zero_rate_curve.cdc",
         [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
         signer
     )
@@ -269,7 +269,7 @@ fun addSupportedTokenSimpleInterestCurve(
 }
 
 access(all)
-fun addSupportedTokenSimpleInterestCurveWithResult(
+fun addSupportedTokenZeroRateCurveWithResult(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
     collateralFactor: UFix64,
@@ -278,10 +278,76 @@ fun addSupportedTokenSimpleInterestCurveWithResult(
     depositCapacityCap: UFix64
 ): Test.TransactionResult {
     return _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/add_supported_token_simple_interest_curve.cdc",
+        "../transactions/flow-credit-market/pool-governance/add_supported_token_zero_rate_curve.cdc",
         [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
         signer
     )
+}
+
+access(all)
+fun addSupportedTokenKinkCurve(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    collateralFactor: UFix64,
+    borrowFactor: UFix64,
+    optimalUtilization: UFix128,
+    baseRate: UFix128,
+    slope1: UFix128,
+    slope2: UFix128,
+    depositRate: UFix64,
+    depositCapacityCap: UFix64
+) {
+    let additionRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/add_supported_token_kink_curve.cdc",
+        [ tokenTypeIdentifier, collateralFactor, borrowFactor, optimalUtilization, baseRate, slope1, slope2, depositRate, depositCapacityCap ],
+        signer
+    )
+    Test.expect(additionRes, Test.beSucceeded())
+}
+
+access(all)
+fun setInterestCurveKink(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    optimalUtilization: UFix128,
+    baseRate: UFix128,
+    slope1: UFix128,
+    slope2: UFix128
+) {
+    let setRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_interest_curve_kink.cdc",
+        [ tokenTypeIdentifier, optimalUtilization, baseRate, slope1, slope2 ],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun setInterestCurveFixed(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    yearlyRate: UFix128
+) {
+    let setRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_interest_curve_fixed.cdc",
+        [ tokenTypeIdentifier, yearlyRate ],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun setInsuranceRate(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    insuranceRate: UFix64
+) {
+    let setRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
+        [ tokenTypeIdentifier, insuranceRate ],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
 }
 
 access(all)

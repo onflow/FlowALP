@@ -60,7 +60,7 @@ fun setup() {
 
     // create the Pool & add FLOW as suppoorted token
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
-    addSupportedTokenSimpleInterestCurve(
+    addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
         collateralFactor: flowCollateralFactor,
