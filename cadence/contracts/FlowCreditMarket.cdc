@@ -506,9 +506,11 @@ access(all) contract FlowCreditMarket {
         access(all) fun regenerateDepositCapacity() {
             let currentTime: UFix64 = getCurrentBlock().timestamp
             let dt: UFix64 = currentTime - self.lastDepositCapacityUpdate
-            if dt > 3600.0 { // 1 hour
+            let hourInSeconds: UFix64 = 3600.0
+            if dt > hourInSeconds { // 1 hour
+                let multiplier = dt / hourInSeconds
                 let oldCap = self.depositCapacityCap
-                let newDepositCapacity = self.depositCapacityCap + self.depositRate
+                let newDepositCapacity = self.depositRate * multiplier + self.depositCapacityCap
 
                 self.depositCapacityCap = newDepositCapacity
                 self.setDepositCapacity(newDepositCapacity)
@@ -2376,7 +2378,6 @@ access(all) contract FlowCreditMarket {
         access(EGovernance) fun setDepositRate(tokenType: Type, rate: UFix64) {
             pre {
                 self.globalLedger[tokenType] != nil: "Unsupported token type"
-                rate > 0.0: "Deposit rate must be positive"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
@@ -2387,7 +2388,6 @@ access(all) contract FlowCreditMarket {
         access(EGovernance) fun setDepositCapacityCap(tokenType: Type, cap: UFix64) {
             pre {
                 self.globalLedger[tokenType] != nil: "Unsupported token type"
-                cap > 0.0: "Deposit capacity cap must be positive"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
