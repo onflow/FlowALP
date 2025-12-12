@@ -1,0 +1,294 @@
+{
+  "repo_notes": [
+    {
+      "content": "Documentation for this repo should read like an engineering design review for a risk-sensitive DeFi lending protocol on Flow. Prioritize correctness, invariants, and failure modes over implementation walkthroughs.\n\nAudience: engineers familiar with DeFi lending (collateral, debt, liquidation), but not necessarily familiar with Flow/Cadence patterns.\n\nHard constraints:\n- Do NOT invent token lists, parameter values, deployed addresses, APYs, liquidation bonuses, interest curves, or oracle sources unless explicitly present in the repo.\n- If a value is configuration-dependent, state where it is configured and describe its role rather than guessing.\n- When behavior depends on off-chain automation or external DEX/liquidity, explicitly describe what happens on failure/downtime.\n\nStyle rules:\n- Prefer definitions + invariants + state transitions.\n- Use consistent terminology: Health Factor (HF), minHealth, targetHealth, maxHealth, effectiveCollateral, effectiveDebt.\n- Always use terminology and names directly from the codebase when possible.\n- Call out precision/rounding rules (UFix128) anywhere math is used.\n\nEach protocol page should include (when applicable):\n- Invariants (what must always be true)\n- Failure modes (what breaks, what the user/protocol experiences)\n- Edge cases & rounding\n- Trust boundaries (on-chain vs off-chain vs external protocols)\n- Provide concise and accurate code examples directly from the codebase where possible.\n- Implementation examples must be working and accurate.  Do not make things up or fill in the blanks.\n"
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "Introduce FlowCreditMarket, explaining its purpose as a DeFi lending protocol on Flow blockchain, high-level architecture, and key capabilities",
+      "page_notes": [
+        {
+          "content": "Purpose: establish a complete mental model of the protocol.\n\nMust cover:\n- What a position represents and how HF summarizes risk.\n- Major subsystems: accounting, interest, liquidation (Phase 1/2), rebalancing, oracles/pricing, configuration/governance, integrations.\n- Trust boundaries: what is on-chain vs keeper/automation vs DEX liquidity and price sources.\n\nAvoid:\n- Token-specific values, deployed addresses, or provider names unless present.\n\nCross-links:\n- Core Concepts\n- Liquidation System\n- Position Management\n- Oracles and Pricing Assumptions\n- Security and Assumptions\n"
+        }
+      ]
+    },
+    {
+      "title": "Core Concepts",
+      "purpose": "Explain fundamental concepts including positions, health factors, collateral, debt, and interest calculations",
+      "page_notes": [
+        {
+          "content": "Purpose: define the nouns, units, and core equations so later pages can stay precise.\n\nMust cover:\n- Definitions: collateral vs debt, effective collateral/debt, and why factors exist.\n- HF meaning and operational use.\n- Threshold meanings (min/target/max) and which systems react at each boundary.\n- Precision model: fixed-point expectations and why rounding matters.\n\nAvoid:\n- Liquidation path details.\n\nCross-links:\n- Positions and Health Factors\n- Collateral and Debt Management\n- Interest Calculation and Compounding\n- Oracles and Pricing Assumptions\n"
+        }
+      ]
+    },
+    {
+      "title": "Positions and Health Factors",
+      "purpose": "Deep dive into position resources, how health factors are calculated, and the critical thresholds (minHealth, targetHealth, maxHealth)",
+      "parent": "Core Concepts",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Position state model and what is authoritative for balances.\n- Threshold semantics and how they gate actions.\n- Rounding/precision implications near thresholds.\n\nCross-links:\n- Health Factor Calculations\n- Rebalancing pages\n- Liquidation System\n"
+        }
+      ]
+    },
+    {
+      "title": "Collateral and Debt Management",
+      "purpose": "Explain how collateral is deposited, how debt is borrowed, collateral factors, borrow factors, and effective values",
+      "parent": "Core Concepts",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Deposit/withdraw and borrow/repay conceptual flow.\n- Collateral factor vs borrow factor and how they affect effective values.\n- Safety invariants: when borrows/withdrawals must be blocked.\n\nCross-links:\n- Oracles and Pricing Assumptions\n- Health Factor Calculations\n- Position Lifecycle\n"
+        }
+      ]
+    },
+    {
+      "title": "Interest Calculation and Compounding",
+      "purpose": "Describe how interest accrues, the use of interest indices, scaled balances, and compound interest calculations",
+      "parent": "Core Concepts",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Interest index + scaled balances model.\n- What triggers index updates and how reads/writes apply indices.\n- Precision concerns: monotonicity and rounding.\n\nAvoid:\n- Guessing rate curves.\n\nCross-links:\n- TidalMath Library\n- Pure Math Helpers and Refactoring\n- Token Support and Parameters\n"
+        }
+      ]
+    },
+    {
+      "title": "Oracles and Pricing Assumptions",
+      "purpose": "Explain how the protocol obtains price data, what assumptions it makes, and how pricing impacts HF, liquidations, and rebalancing",
+      "parent": "Core Concepts",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Where prices enter (effective values, HF, liquidation quotes, rebalancing calculations).\n- Freshness/staleness handling: what happens if prices are stale/missing.\n- Failure modes: false safety vs false insolvency.\n\nAvoid:\n- Naming specific providers unless present.\n\nCross-links:\n- Health Factor Calculations\n- Liquidation Quotes and Safety Mechanisms\n- Rebalancing pages\n- Security and Assumptions\n"
+        }
+      ]
+    },
+    {
+      "title": "Liquidation System",
+      "purpose": "Comprehensive overview of the dual-path liquidation mechanism, its importance (highest priority component), and how it protects protocol solvency",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Dual-path overview and decision points.\n- Critical invariants: accounting reconciliation and bounded seizure.\n- Failure modes: no keepers, no DEX liquidity, oracle issues.\n\nCross-links:\n- Phase 1: Keeper Liquidations\n- Phase 2: DEX-Based Liquidations\n- Liquidation Quotes and Safety Mechanisms\n- Insolvency and Redemption\n"
+        }
+      ]
+    },
+    {
+      "title": "Phase 1: Keeper Liquidations (Repay-for-Seize)",
+      "purpose": "Detailed explanation of permissionless keeper liquidations where liquidators repay debt and receive collateral with a bonus",
+      "parent": "Liquidation System",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Preconditions/eligibility and transaction flow.\n- Safety checks and rounding.\n- Failure modes (reverts/partial attempts).\n\nAvoid:\n- Claiming specific bonuses unless present.\n\nCross-links:\n- Liquidation Quotes and Safety Mechanisms\n- Oracles and Pricing Assumptions\n"
+        }
+      ]
+    },
+    {
+      "title": "Phase 2: DEX-Based Liquidations",
+      "purpose": "Explain protocol-executed liquidations that seize collateral, swap via DEX, and repay debt automatically",
+      "parent": "Liquidation System",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Preconditions/triggers for Phase 2.\n- Swap execution model and how leftovers are handled.\n- Slippage protection and revert behavior.\n- Failure modes: insufficient liquidity, excessive slippage, oracle mismatch.\n\nCross-links:\n- DEX and Swapper Integration\n- Liquidation Quotes and Safety Mechanisms\n"
+        }
+      ]
+    },
+    {
+      "title": "Liquidation Quotes and Safety Mechanisms",
+      "purpose": "Detail the quote system for calculating requiredRepay and seizeAmount, slippage protection, overpayment handling, and insolvency edge cases",
+      "parent": "Liquidation System",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Quote inputs/outputs and interpretation.\n- Slippage protection model.\n- Overpayment handling.\n- Edge cases: rounding near thresholds.\n\nCross-links:\n- Health Factor Calculations\n- TidalMath Library\n- Oracles and Pricing Assumptions\n"
+        }
+      ]
+    },
+    {
+      "title": "Insolvency and Redemption",
+      "purpose": "Explain handling of deeply insolvent positions and borrower-initiated redemption mechanisms",
+      "parent": "Liquidation System",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- What insolvency means in-protocol and how it is detected.\n- Behavior when liquidation cannot restore solvency.\n- Borrower redemption: goals, constraints, and interactions with liquidation.\n\nAvoid:\n- Claims about insurance/backstops unless present.\n\nCross-links:\n- Governance Parameters\n- Position Lifecycle\n"
+        }
+      ]
+    },
+    {
+      "title": "Position Management",
+      "purpose": "Overview of position lifecycle, state transitions, and automated management features",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Lifecycle overview and where automation fits.\n- Relationship between rebalancing (preventive) and liquidation (corrective).\n- Failure modes: automation unavailable.\n\nCross-links:\n- Position Lifecycle\n- Rebalancing pages\n- Funds Calculations\n"
+        }
+      ]
+    },
+    {
+      "title": "Position Lifecycle",
+      "purpose": "Document the complete lifecycle from creation through closure, including auto-borrow behavior and position wrapping",
+      "parent": "Position Management",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Step-by-step state transitions for open/deposit/borrow/repay/withdraw/close.\n- Auto-borrow and wrapping: why they exist and how they affect access/ownership.\n- Distinguish user-initiated vs protocol-initiated vs keeper-initiated actions.\n\nCross-links:\n- Collateral and Debt Management\n- Interest Calculation and Compounding\n- Liquidation System\n"
+        }
+      ]
+    },
+    {
+      "title": "Rebalancing: Overcollateralized Positions",
+      "purpose": "Explain how positions are rebalanced when overcollateralized (HF > maxHealth), including draw-down mechanisms",
+      "parent": "Position Management",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Trigger (HF > maxHealth) and intended outcome (toward targetHealth).\n- Mechanism + bounds (do not cross below target band).\n- Failure modes: limits/config/external dependency failures.\n\nCross-links:\n- Funds Calculations\n- Sink and Source Pattern\n"
+        }
+      ]
+    },
+    {
+      "title": "Rebalancing: Undercollateralized Positions",
+      "purpose": "Explain how positions are rebalanced when undercollateralized (HF < targetHealth), including top-up mechanisms",
+      "parent": "Position Management",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Trigger (HF < targetHealth) and intended outcome.\n- Mechanism + bounds (cannot worsen insolvency).\n- Failure modes: no available sources, stale pricing.\n\nCross-links:\n- Funds Calculations\n- Sink and Source Pattern\n- Liquidation System\n"
+        }
+      ]
+    },
+    {
+      "title": "Funds Calculations",
+      "purpose": "Detail the fundsAvailableAboveTargetHealth and fundsRequiredForTargetHealth calculation systems",
+      "parent": "Position Management",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Definitions, inputs, and output interpretation.\n- Precision/rounding direction.\n\nCross-links:\n- Health Factor Calculations\n- TidalMath Library\n- Pure Math Helpers and Refactoring\n"
+        }
+      ]
+    },
+    {
+      "title": "Pool Creation and Configuration",
+      "purpose": "Explain how pools are created, stored, and configured with default tokens and oracle connections",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Pool lifecycle and where pool config/state is stored.\n- Oracle connection concepts (without naming providers unless present).\n- Misconfiguration failure modes.\n\nCross-links:\n- Token Support and Parameters\n- Oracles and Pricing Assumptions\n- Governance Parameters\n"
+        }
+      ]
+    },
+    {
+      "title": "Token Support and Parameters",
+      "purpose": "Document how tokens are added as supported collateral/debt assets, including interest curves, collateral factors, and capacity limits",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Collateral vs borrow enablement and the risk tradeoffs.\n- Factors/limits and how they affect HF and liquidation likelihood.\n- Where interest model configuration lives (no guessing curves).\n\nCross-links:\n- Interest Calculation and Compounding\n- Governance Parameters\n"
+        }
+      ]
+    },
+    {
+      "title": "Governance Parameters",
+      "purpose": "Detail adjustable governance parameters like insuranceRate, depositLimitFraction, and their impact on system behavior",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Safety-critical vs economic vs capacity parameters.\n- How changes affect existing positions (HF, liquidation eligibility, interest).\n- Any guardrails/delays if present.\n\nAvoid:\n- Governance-process claims unless present.\n\nCross-links:\n- Token Support and Parameters\n- Liquidation System\n- Insolvency and Redemption\n"
+        }
+      ]
+    },
+    {
+      "title": "DeFi Integration",
+      "purpose": "Overview of composability features, DeFi Actions framework integration, and external protocol connections",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Integration surfaces: Flow Actions, sinks/sources, DEX/swappers.\n- Trust boundaries and failure modes for external dependencies.\n\nCross-links:\n- DeFi Actions Framework\n- Sink and Source Pattern\n- DEX and Swapper Integration\n"
+        }
+      ]
+    },
+    {
+      "title": "DeFi Actions Framework",
+      "purpose": "Explain the FlowActions submodule integration and how it provides composability interfaces",
+      "parent": "DeFi Integration",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- What FlowActions provides conceptually and how actions are invoked.\n- Atomicity expectations: what happens when an action fails.\n\nCross-links:\n- Sink and Source Pattern\n"
+        }
+      ]
+    },
+    {
+      "title": "Sink and Source Pattern",
+      "purpose": "Detail the Sink/Source interfaces for automated position management, DrawDownSink, and TopUpSource mechanisms",
+      "parent": "DeFi Integration",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Definitions: Sink vs Source.\n- How DrawDownSink and TopUpSource are used by rebalancing.\n- Safety bounds and failure modes.\n\nCross-links:\n- Rebalancing pages\n- Funds Calculations\n"
+        }
+      ]
+    },
+    {
+      "title": "DEX and Swapper Integration",
+      "purpose": "Explain DEX connector interfaces, allowlisting, and how swappers are used in liquidations",
+      "parent": "DeFi Integration",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Swapper boundary responsibilities and expected guarantees.\n- Allowlisting/permissions if present and why.\n- Slippage and revert behavior.\n\nCross-links:\n- Phase 2: DEX-Based Liquidations\n- Liquidation Quotes and Safety Mechanisms\n"
+        }
+      ]
+    },
+    {
+      "title": "Health Factor Calculations",
+      "purpose": "Detailed mathematical explanation of health factor formula, effective collateral/debt calculations, and pure helper functions",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Precise HF formula and how effective values are computed.\n- Boundary behaviors: zero debt, tiny balances, rounding near thresholds.\n\nCross-links:\n- Oracles and Pricing Assumptions\n- TidalMath Library\n"
+        }
+      ]
+    },
+    {
+      "title": "TidalMath Library",
+      "purpose": "Document the TidalMath utility library, UFix128 operations, power/exponentiation functions, and precision handling",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Core numeric ops and rounding direction.\n- Known edge cases and expected invariants (non-negativity, monotonicity where relevant).\n\nCross-links:\n- Interest Calculation and Compounding\n- Liquidation Quotes and Safety Mechanisms\n"
+        }
+      ]
+    },
+    {
+      "title": "Pure Math Helpers and Refactoring",
+      "purpose": "Explain the functional-core/imperative-shell architecture, PositionView, and pure calculation functions",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Functional-core/imperative-shell philosophy and why it improves auditability.\n- PositionView (or equivalent) and how snapshots are used.\n\nCross-links:\n- Funds Calculations\n- Test Infrastructure\n"
+        }
+      ]
+    },
+    {
+      "title": "Security and Assumptions",
+      "purpose": "Define trust boundaries, attacker capabilities, and explicit protocol assumptions about prices, liquidity, automation, and governance",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Trust boundaries: core protocol vs keepers/automation vs DEX vs oracles vs admin/governance.\n- Attacker model: what adversaries can do (front-run/spam/manipulate within assumptions).\n- Assumptions and what breaks if each fails (oracle staleness, DEX illiquidity, keeper absence).\n- Safety invariants: accounting conservation, bounded seizure, index monotonicity (where applicable).\n\nAvoid:\n- Security claims not evidenced in repo.\n\nCross-links:\n- Oracles and Pricing Assumptions\n- Liquidation System\n- DEX and Swapper Integration\n- Governance Parameters\n"
+        }
+      ]
+    },
+    {
+      "title": "Events and Observability",
+      "purpose": "Explain how to monitor protocol health, positions, liquidations, rebalances, and configuration changes using events/logs and indexing patterns",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- What operators should monitor (HF thresholds, liquidations, rebalances, parameter changes).\n- How to reconstruct state conceptually from events + reads.\n- Failure interpretation: reverts, partial attempts, missing/stale data.\n\nAvoid:\n- Claiming specific event names/fields unless present.\n\nCross-links:\n- Position Management\n- Liquidation System\n- Governance Parameters\n"
+        }
+      ]
+    },
+    {
+      "title": "Test Infrastructure",
+      "purpose": "Detail the test_helpers.cdc system, deployment utilities, mock setup, assertion helpers, and variance handling",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- How test deployments/configuration are performed.\n- Mocking strategy for oracles/DEX/keepers (conceptually; do not invent names).\n- How assertions handle fixed-point variance/rounding.\n\nCross-links:\n- Testing Strategy and Coverage\n- Pure Math Helpers and Refactoring\n"
+        }
+      ]
+    },
+    {
+      "title": "Testing Strategy and Coverage",
+      "purpose": "Explain the comprehensive testing approach covering liquidation, rebalancing, lifecycle, math, and integration scenarios",
+      "page_notes": [
+        {
+          "content": "Must cover:\n- Scenario matrix: lifecycle, liquidation (Phase 1/2), insolvency, rebalancing (over/under), interest accrual.\n- Adversarial cases: stale pricing, low liquidity, keeper absence, slippage failure.\n- Core invariants under test.\n\nAvoid:\n- Stating coverage claims without evidence.\n\nCross-links:\n- Liquidation System\n- Position Lifecycle\n- Oracles and Pricing Assumptions\n"
+        }
+      ]
+    }
+  ]
+}
