@@ -431,8 +431,8 @@ access(all) contract FlowCreditMarket {
 
         // Enhanced updateInterestIndices with deposit capacity update
         access(all) fun updateInterestIndices() {
-            let currentTime: UFix64 = getCurrentBlock().timestamp
-            let dt: UFix64 = currentTime - self.lastUpdate
+            let currentTime = getCurrentBlock().timestamp
+            let dt = currentTime - self.lastUpdate
 
             // No time elapsed or already at cap → nothing to do
             if dt <= 0.0 {
@@ -989,7 +989,7 @@ access(all) contract FlowCreditMarket {
                 let b = view.balances[t]!
                 let st = self._borrowUpdatedTokenState(type: t)
                 // Resolve per-token liquidation bonus (default 5%) for token t
-            var lbTUFix: UFix64 = 0.05
+                var lbTUFix: UFix64 = 0.05
                 let lbTOpt = self.liquidationBonus[t]
                 if lbTOpt != nil {
                     lbTUFix = lbTOpt!
@@ -1325,9 +1325,9 @@ access(all) contract FlowCreditMarket {
             // Slippage vs expected from oracle prices
             let expectedOutFromOracle = requiredSeize * (Pd / Pc)
             if expectedOutFromOracle > 0.0 {
-                let diff: UFix64 = outDebt.balance > expectedOutFromOracle ? outDebt.balance - expectedOutFromOracle : expectedOutFromOracle - outDebt.balance
-                let frac: UFix64 = diff / expectedOutFromOracle
-                let bpsU: UFix64 = frac * 10000.0
+                let diff = outDebt.balance > expectedOutFromOracle ? outDebt.balance - expectedOutFromOracle : expectedOutFromOracle - outDebt.balance
+                let frac = diff / expectedOutFromOracle
+                let bpsU = frac * 10000.0
                 slipBps = UInt16(bpsU)
                 assert(UInt64(slipBps) <= self.dexMaxSlippageBps, message: "Swap slippage too high")
             }
@@ -2153,9 +2153,9 @@ access(all) contract FlowCreditMarket {
             warmupSec: UInt64?,
             protocolFeeBps: UInt16?
         ) {
-            var newTarget: UFix128 = self.liquidationTargetHF
-            var newWarmup: UInt64 = self.liquidationWarmupSec
-            var newProtocolFee: UInt16 = self.protocolLiquidationFeeBps
+            var newTarget = self.liquidationTargetHF
+            var newWarmup = self.liquidationWarmupSec
+            var newProtocolFee = self.protocolLiquidationFeeBps
             if targetHF != nil {
                 assert(targetHF! > 1.0, message: "targetHF must be > 1.0")
                 self.liquidationTargetHF = targetHF!
