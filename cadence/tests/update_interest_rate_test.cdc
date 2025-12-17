@@ -24,14 +24,14 @@ fun setup() {
 access(all)
 fun test_updateInterestRates_applies_income_minus_insurance_to_credit_rate() {
     // Configure a token state with known balances and a fixed debit rate.
-    let debitRate: UFix128 = 0.20 as UFix128
+    let debitRate: UFix128 = 0.20
     var tokenState = FlowCreditMarket.TokenState(
         interestCurve: FixedInterestCurve(debitRate),
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
     )
-    tokenState.increaseCreditBalance(by: 200.0 as UFix128)
-    tokenState.increaseDebitBalance(by: 50.0 as UFix128)
+    tokenState.increaseCreditBalance(by: 200.0)
+    tokenState.increaseDebitBalance(by: 50.0)
 
     tokenState.updateInterestRates()
 
@@ -40,8 +40,8 @@ fun test_updateInterestRates_applies_income_minus_insurance_to_credit_rate() {
     Test.assertEqual(expectedDebitRate, tokenState.currentDebitRate)
 
     // Credit rate should derive from net debit income after insurance.
-    let debitIncome: UFix128 = tokenState.totalDebitBalance * debitRate
-    let insurance: UFix128 = tokenState.totalCreditBalance * UFix128(tokenState.insuranceRate)
+    let debitIncome = tokenState.totalDebitBalance * debitRate
+    let insurance = tokenState.totalCreditBalance * UFix128(tokenState.insuranceRate)
     let expectedCreditYearly = (debitIncome - insurance) / tokenState.totalCreditBalance
     let expectedCreditRate = FlowCreditMarket.perSecondInterestRate(yearlyRate: expectedCreditYearly)
     Test.assertEqual(expectedCreditRate, tokenState.currentCreditRate)
@@ -50,14 +50,14 @@ fun test_updateInterestRates_applies_income_minus_insurance_to_credit_rate() {
 access(all)
 fun test_updateInterestRates_sets_zero_credit_rate_when_insufficient_income() {
     // Configure a token state where debit income cannot cover insurance.
-    let debitRate: UFix128 = 0.001 as UFix128
+    let debitRate: UFix128 = 0.001
     var tokenState = FlowCreditMarket.TokenState(
         interestCurve: FixedInterestCurve(debitRate),
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
     )
-    tokenState.increaseCreditBalance(by: 100.0 as UFix128)
-    tokenState.increaseDebitBalance(by: 1.0 as UFix128)
+    tokenState.increaseCreditBalance(by: 100.0)
+    tokenState.increaseDebitBalance(by: 1.0)
 
     tokenState.updateInterestRates()
 

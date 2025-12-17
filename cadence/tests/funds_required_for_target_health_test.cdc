@@ -538,7 +538,7 @@ fun runFundsRequiredForTargetHealthAfterWithdrawing(
     let expectedBorrowCapacity = FlowCreditMarketMath.div(effectiveFLOWCollateralValue, intTargetHealth) * intFLOWBorrowFactor
     let desiredFinalDebt = intFLOWBorrowed + intWithdrawAmount
 
-    var expectedRequired: UFix128 = 0.0 as UFix128
+    var expectedRequired: UFix128 = 0.0
     if desiredFinalDebt > expectedBorrowCapacity {
         let valueDiff = desiredFinalDebt - expectedBorrowCapacity
         expectedRequired = FlowCreditMarketMath.div(valueDiff * intTargetHealth, intFLOWPrice)
