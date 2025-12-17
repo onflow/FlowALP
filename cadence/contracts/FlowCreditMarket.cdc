@@ -1,6 +1,7 @@
 import "Burner"
 import "FungibleToken"
 import "ViewResolver"
+import "FlowTransactionScheduler"
 
 import "DeFiActionsUtils"
 import "DeFiActions"
@@ -502,7 +503,7 @@ access(all) contract FlowCreditMarket {
         }
     }
 
-    
+
 
     /// Risk parameters for a token used in effective collateral/debt computations.
     /// - collateralFactor: fraction applied to credit value to derive effective collateral
@@ -650,7 +651,55 @@ access(all) contract FlowCreditMarket {
         }
     }
 
-    
+    /// Internal Registry
+    ///
+    access(all) entitlement Register
+    access(all) entitlement Schedule
+
+    /// IRegistry
+    ///
+    /// An interface for a resource enabling arbitrary logic on Position creation & close. These are intended to allow
+    /// FCM to schedule transaction for new Positions on creation. Registries should maintain an implicit association
+    /// with Pool resources such that each Pool has an associated Registry for it. While there is only one Pool at the
+    /// moment, this structure allows for both upgradeability of the current contract as well as extensibility in the
+    /// event governance chooses to add multi-pool support in the future. Also note that this is codified as an
+    /// interface here to resolve potential circular dependencies compared to a canonical registry contract.
+    ///
+    access(all) resource interface IRegistry {
+        /// Registers a new position in the identified pool
+        access(Register) fun registerPosition(poolUUID: UInt64, pid: UInt64, rebalanceConfig: {String: AnyStruct}?)
+        /// Unregisters a position in the identified pool
+        access(Register) fun unregisterPosition(poolUUID: UInt64, pid: UInt64): Bool
+    }
+
+    /// Derives the storage path for the Registry implementation for the given pool
+    ///
+    /// @param forPool - the UUID of the pool to derive the storage path for
+    ///
+    /// @return the storage path for the Registry implementation for the given pool
+    access(all) view fun deriveRegistryStoragePath(forPool: UInt64): StoragePath {
+        return StoragePath(identifier: "flowCreditMarketRegistry_\(forPool)")!
+    }
+
+    /// Derives the storage path for the Registry implementation for the given pool
+    ///
+    /// @param forPool - the UUID of the pool to derive the storage path for
+    ///
+    /// @return the storage path for the Registry implementation for the given pool
+    access(all) view fun deriveRegistryPublicPath(forPool: UInt64): PublicPath {
+        return PublicPath(identifier: "flowCreditMarketRegistry_\(forPool)")!
+    }
+
+    /// Returns an authorized reference on the Registry implementation for the given pool
+    ///
+    /// @param forPool - the UUID of the pool to borrow the registry for
+    ///
+    /// @return an authorized reference on the Registry implementation for the given pool
+    access(self) view fun _borrowFCMRegistry(forPool: UInt64): auth(Register) &{IRegistry} {
+        let path = self.deriveRegistryStoragePath(forPool: forPool)
+        return self.account.storage.borrow<auth(Register) &{IRegistry}>(from: path)
+            ?? panic("Could not borrow FCMRegistry for pool \(forPool) from path \(path)")
+    }
 
     /// Pool
     ///
@@ -1676,7 +1725,7 @@ access(all) contract FlowCreditMarket {
             withdrawType: Type,
             effectiveCollateral: UFix128,
             effectiveDebt: UFix128,
-            targetHealth: UFix128 
+            targetHealth: UFix128
         ): UFix64 {
             var effectiveCollateralAfterDeposit = effectiveCollateral
             var effectiveDebtAfterDeposit = effectiveDebt
@@ -1894,6 +1943,12 @@ access(all) contract FlowCreditMarket {
                 from: <-funds,
                 pushToDrawDownSink: pushToDrawDownSink
             )
+
+            // register the new position with the Pool's associated registry
+            let registry = FlowCreditMarket._borrowFCMRegistry(forPool: self.uuid)
+            // NOTE: rebalanceConfig allows for more granular recurring rebalance configuration per position in the future
+            registry.registerPosition(poolUUID: self.uuid, pid: id, rebalanceConfig: nil)
+
             return id
         }
 
@@ -2331,7 +2386,7 @@ access(all) contract FlowCreditMarket {
                     let sinkCapacity = drawDownSink.minimumCapacity()
                     let sinkAmount = (idealWithdrawal > sinkCapacity) ? sinkCapacity : idealWithdrawal
 
-                    if sinkAmount > 0.0 && sinkType == Type<@MOET.Vault>() { 
+                    if sinkAmount > 0.0 && sinkType == Type<@MOET.Vault>() {
                         let tokenState = self._borrowUpdatedTokenState(type: Type<@MOET.Vault>())
                         if position.balances[Type<@MOET.Vault>()] == nil {
                             position.balances[Type<@MOET.Vault>()] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
