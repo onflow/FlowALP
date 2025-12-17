@@ -191,9 +191,12 @@ access(all) contract FlowCreditMarket {
     /// An struct containing a position's overview in terms of its effective collateral and debt as well as its
     /// current health
     access(all) struct BalanceSheet {
-        /// A position's withdrawable value based on collateral deposits against the Pool's collateral and borrow factors
+        /// A position's withdrawable value based on collateral deposits against the Pool's collateral and borrow factors.
+        /// TODO(jord): I think this is "withdrawable value" only if effectiveDebt==0
+        /// Denominated in MOET.
         access(all) let effectiveCollateral: UFix128
         /// A position's withdrawn value based on withdrawals against the Pool's collateral and borrow factors
+        /// Denominated in MOET.
         access(all) let effectiveDebt: UFix128
         /// The health of the related position
         access(all) let health: UFix128
@@ -207,6 +210,7 @@ access(all) contract FlowCreditMarket {
 
     /// Liquidation parameters view (global)
     access(all) struct LiquidationParamsView {
+        /// Target health factor 
         access(all) let targetHF: UFix128
         access(all) let paused: Bool
         access(all) let warmupSec: UInt64
@@ -223,11 +227,17 @@ access(all) contract FlowCreditMarket {
         }
     }
 
-    /// Liquidation quote output
+    /// A quote generated during the liquidation process.
+    /// It describes the terms of liquidation for a potential liquidator.
     access(all) struct LiquidationQuote {
+        /// Amount the liquidator must repay, denominated in MOET
+        // TODO(jord): I think it is MOET, not sure
         access(all) let requiredRepay: UFix64
+        /// The type of collateral the liquidator may seize in exchange for repayment.
         access(all) let seizeType: Type
+        /// The amount of collateral the liquidator may seize in exchange for repayment.
         access(all) let seizeAmount: UFix64
+        /// The new health factor after this liquidation occurs.
         access(all) let newHF: UFix128
         init(requiredRepay: UFix64, seizeType: Type, seizeAmount: UFix64, newHF: UFix128) {
             self.requiredRepay = requiredRepay
@@ -471,6 +481,7 @@ access(all) contract FlowCreditMarket {
             self.updateInterestIndices()
         }
 
+        /// TODO: documentation
         access(all) fun updateInterestRates() {
             // If there's no credit balance, we can't calculate a meaningful credit rate
             // so we'll just set both rates to one (no interest) and return early
@@ -694,6 +705,7 @@ access(all) contract FlowCreditMarket {
         access(self) var liquidationsPaused: Bool
         access(self) var liquidationWarmupSec: UInt64
         access(self) var lastUnpausedAt: UInt64?
+        // TODO(jord): remove this
         access(self) var protocolLiquidationFeeBps: UInt16
         /// Allowlist of permitted DeFiActions Swapper types for DEX liquidations
         access(self) var allowedSwapperTypes: {Type: Bool}
@@ -987,7 +999,7 @@ access(all) contract FlowCreditMarket {
                 let b = view.balances[t]!
                 let st = self._borrowUpdatedTokenState(type: t)
                 // Resolve per-token liquidation bonus (default 5%) for token t
-            var lbTUFix: UFix64 = 0.05
+                var lbTUFix: UFix64 = 0.05
                 let lbTOpt = self.liquidationBonus[t]
                 if lbTOpt != nil {
                     lbTUFix = lbTOpt!
@@ -1089,8 +1101,8 @@ access(all) contract FlowCreditMarket {
             if newHF < health {
                 // Compute the maximum repay allowed by available seize collateral (Rcap), preserving R<->S pricing relation.
                 // uAllowed = seizeTrue * Pc / (1 + LB)
-            let uAllowedMax = FlowCreditMarketMath.div(trueCollateralSeize * Pc, (FlowCreditMarketMath.one + LB))
-            var repayCapBySeize = FlowCreditMarketMath.div(uAllowedMax * BF, Pd)
+                let uAllowedMax = FlowCreditMarketMath.div(trueCollateralSeize * Pc, (FlowCreditMarketMath.one + LB))
+                var repayCapBySeize = FlowCreditMarketMath.div(uAllowedMax * BF, Pd)
                 if repayCapBySeize > trueDebt { repayCapBySeize = trueDebt }
 
                 var bestHF: UFix128 = health
@@ -1157,6 +1169,7 @@ access(all) contract FlowCreditMarket {
                     return FlowCreditMarket.LiquidationQuote(requiredRepay: repayExactBest, seizeType: seizeType, seizeAmount: seizeExactBest, newHF: bestHF)
                 }
 
+                // TODO(jord): This is where we may disallow liquidation if it does not improve health factor
                 // No improving pair found
                 return FlowCreditMarket.LiquidationQuote(requiredRepay: 0.0, seizeType: seizeType, seizeAmount: 0.0, newHF: health)
             }
