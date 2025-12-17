@@ -146,7 +146,7 @@ fun test_liquidation_insolvency() {
         return
     }
     Test.assert(quote.seizeAmount > 0.0, message: "Expected positive seizeAmount")
-    Test.assert(quote.newHF > hAfter && quote.newHF < FlowCreditMarketMath.one)
+    Test.assert(quote.newHF > hAfter && quote.newHF < 1.0)
 
     // Execute and assert improvement, HF < target
     let keeper = Test.createAccount()

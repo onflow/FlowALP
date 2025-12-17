@@ -313,7 +313,7 @@ access(all) contract FlowCreditMarket {
     access(all) struct interface InterestCurve {
         access(all) fun interestRate(creditBalance: UFix128, debitBalance: UFix128): UFix128 {
             post {
-                result <= FlowCreditMarketMath.one: "Interest rate can't exceed 100%"
+                result <= 1.0: "Interest rate can't exceed 100%"
             }
         }
     }
@@ -366,10 +366,10 @@ access(all) contract FlowCreditMarket {
             self.lastUpdate = getCurrentBlock().timestamp
             self.totalCreditBalance = 0.0 as UFix128
             self.totalDebitBalance = 0.0 as UFix128
-            self.creditInterestIndex = FlowCreditMarketMath.one
-            self.debitInterestIndex = FlowCreditMarketMath.one
-            self.currentCreditRate = FlowCreditMarketMath.one
-            self.currentDebitRate = FlowCreditMarketMath.one
+            self.creditInterestIndex = 1.0
+            self.debitInterestIndex = 1.0
+            self.currentCreditRate = 1.0
+            self.currentDebitRate = 1.0
             self.interestCurve = interestCurve
             self.insuranceRate = 0.001
             self.depositLimitFraction = 0.05
@@ -475,8 +475,8 @@ access(all) contract FlowCreditMarket {
             // If there's no credit balance, we can't calculate a meaningful credit rate
             // so we'll just set both rates to one (no interest) and return early
             if self.totalCreditBalance == 0.0 as UFix128 {
-                self.currentCreditRate = FlowCreditMarketMath.one  // 1.0 in fixed point (no interest)
-                self.currentDebitRate = FlowCreditMarketMath.one   // 1.0 in fixed point (no interest)
+                self.currentCreditRate = 1.0  // 1.0 in fixed point (no interest)
+                self.currentDebitRate = 1.0   // 1.0 in fixed point (no interest)
                 return
             }
 
@@ -502,7 +502,7 @@ access(all) contract FlowCreditMarket {
         }
     }
 
-    
+
 
     /// Risk parameters for a token used in effective collateral/debt computations.
     /// - collateralFactor: fraction applied to credit value to derive effective collateral
@@ -630,7 +630,9 @@ access(all) contract FlowCreditMarket {
             // withdrawing increases debt
             let numerator = effectiveCollateralTotal
             let denominatorTarget = numerator / targetHealth
-            let deltaDebt = denominatorTarget > effectiveDebtTotal ? denominatorTarget - effectiveDebtTotal : FlowCreditMarketMath.zero
+            let deltaDebt = denominatorTarget > effectiveDebtTotal
+                ? denominatorTarget - effectiveDebtTotal
+                : 0.0 as UFix128
             let tokens = (deltaDebt * borrowFactor) / withdrawSnap.price
             return tokens
         } else {
@@ -650,7 +652,7 @@ access(all) contract FlowCreditMarket {
         }
     }
 
-    
+
 
     /// Pool
     ///
@@ -768,7 +770,7 @@ access(all) contract FlowCreditMarket {
                 paused: self.liquidationsPaused,
                 warmupSec: self.liquidationWarmupSec,
                 lastUnpausedAt: self.lastUnpausedAt,
-                triggerHF: FlowCreditMarketMath.one, // 1.0e24
+                triggerHF: 1.0, // 1.0e24
                 protocolFeeBps: self.protocolLiquidationFeeBps
             )
         }
@@ -790,7 +792,7 @@ access(all) contract FlowCreditMarket {
         /// Returns true if the position is under the global liquidation trigger (health < 1.0)
         access(all) fun isLiquidatable(pid: UInt64): Bool {
             let health = self.positionHealth(pid: pid)
-            return health < FlowCreditMarketMath.one
+            return health < 1.0
         }
 
         /// Returns the current reserve balance for the specified token type.
@@ -939,7 +941,7 @@ access(all) contract FlowCreditMarket {
             }
             let view = self.buildPositionView(pid: pid)
             let health = FlowCreditMarket.healthFactor(view: view)
-            if health >= FlowCreditMarketMath.one {
+            if health >= 1.0 {
                 return FlowCreditMarket.LiquidationQuote(requiredRepay: 0.0, seizeType: seizeType, seizeAmount: 0.0, newHF: health)
             }
             // Build snapshots
@@ -1056,8 +1058,8 @@ access(all) contract FlowCreditMarket {
 
             // Derived formula with positive denominator: u = (t * effDebt - effColl) / (t - (1 + LB) * CF)
             let num = effDebt * target - effColl
-            let denomFactor = target - ((FlowCreditMarketMath.one + LB) * CF)
-            if denomFactor <= FlowCreditMarketMath.zero {
+            let denomFactor = target - ((1.0 + LB) * CF)
+            if denomFactor <= 0.0 {
                 // Impossible target, return 0
                 return FlowCreditMarket.LiquidationQuote(requiredRepay: 0.0, seizeType: seizeType, seizeAmount: 0.0, newHF: health)
             }
@@ -1066,10 +1068,10 @@ access(all) contract FlowCreditMarket {
                 repayTrueU128 = trueDebt
             }
             let u = FlowCreditMarketMath.div(repayTrueU128 * Pd, BF)
-            var seizeTrueU128 = FlowCreditMarketMath.div(u * (FlowCreditMarketMath.one + LB), Pc)
+            var seizeTrueU128 = FlowCreditMarketMath.div(u * (1.0 + LB), Pc)
             if seizeTrueU128 > trueCollateralSeize {
                 seizeTrueU128 = trueCollateralSeize
-                let uAllowed = FlowCreditMarketMath.div(seizeTrueU128 * Pc, (FlowCreditMarketMath.one + LB))
+                let uAllowed = FlowCreditMarketMath.div(seizeTrueU128 * Pc, (1.0 + LB))
                 repayTrueU128 = FlowCreditMarketMath.div(uAllowed * BF, Pd)
                 if repayTrueU128 > trueDebt {
                     repayTrueU128 = trueDebt
@@ -1079,9 +1081,9 @@ access(all) contract FlowCreditMarket {
             let seizeExact = FlowCreditMarketMath.toUFix64RoundUp(seizeTrueU128)
             let repayEff = FlowCreditMarketMath.div(repayTrueU128 * Pd, BF)
             let seizeEff = seizeTrueU128 * (Pc * CF)
-            let newEffColl = effColl > seizeEff ? effColl - seizeEff : FlowCreditMarketMath.zero
-            let newEffDebt = effDebt > repayEff ? effDebt - repayEff : FlowCreditMarketMath.zero
-            let newHF = newEffDebt == FlowCreditMarketMath.zero ? UFix128.max : FlowCreditMarketMath.div(newEffColl * FlowCreditMarketMath.one, newEffDebt)
+            let newEffColl = effColl > seizeEff ? effColl - seizeEff : 0.0 as UFix128
+            let newEffDebt = effDebt > repayEff ? effDebt - repayEff : 0.0 as UFix128
+            let newHF = newEffDebt == 0.0 ? UFix128.max : FlowCreditMarketMath.div(newEffColl * 1.0, newEffDebt)
 
             // Prevent liquidation if it would worsen HF (deep insolvency case).
             // Enhanced fallback: search for the repay/seize pair (under protocol pricing relation
@@ -1089,7 +1091,7 @@ access(all) contract FlowCreditMarket {
             if newHF < health {
                 // Compute the maximum repay allowed by available seize collateral (Rcap), preserving R<->S pricing relation.
                 // uAllowed = seizeTrue * Pc / (1 + LB)
-            let uAllowedMax = FlowCreditMarketMath.div(trueCollateralSeize * Pc, (FlowCreditMarketMath.one + LB))
+            let uAllowedMax = FlowCreditMarketMath.div(trueCollateralSeize * Pc, (1.0 + LB))
             var repayCapBySeize = FlowCreditMarketMath.div(uAllowedMax * BF, Pd)
                 if repayCapBySeize > trueDebt { repayCapBySeize = trueDebt }
 
@@ -1098,7 +1100,7 @@ access(all) contract FlowCreditMarket {
                 var bestSeizeTrue: UFix128 = 0.0 as UFix128
 
                 // If nothing can be repaid or seized, abort with no quote
-                if repayCapBySeize == FlowCreditMarketMath.zero || trueCollateralSeize == FlowCreditMarketMath.zero {
+                if repayCapBySeize == 0.0 || trueCollateralSeize == 0.0 {
                     return FlowCreditMarket.LiquidationQuote(requiredRepay: 0.0, seizeType: seizeType, seizeAmount: 0.0, newHF: health)
                 }
 
@@ -1106,21 +1108,21 @@ access(all) contract FlowCreditMarket {
                 // Use up to 16 steps to balance precision and cost
                 let stepsU: UFix128 = FlowCreditMarketMath.toUFix128(16.0)
                 var step: UFix128 = repayCapBySeize / stepsU
-                if step == FlowCreditMarketMath.zero { step = FlowCreditMarketMath.one }
+                if step == 0.0 { step = 1.0 }
 
                 var r: UFix128 = step
                 while r <= repayCapBySeize {
                     // Compute S for this R under pricing relation, capped by available collateral
                     let uForR = FlowCreditMarketMath.div(r * Pd, BF)
-                    var sForR = FlowCreditMarketMath.div(uForR * (FlowCreditMarketMath.one + LB), Pc)
+                    var sForR = FlowCreditMarketMath.div(uForR * (1.0 + LB), Pc)
                     if sForR > trueCollateralSeize { sForR = trueCollateralSeize }
 
                     // Compute resulting HF
                     let repayEffC = FlowCreditMarketMath.div(r * Pd, BF)
                     let seizeEffC = sForR * (Pc * CF)
-                    let newEffCollC = effColl > seizeEffC ? effColl - seizeEffC : FlowCreditMarketMath.zero
-                    let newEffDebtC = effDebt > repayEffC ? effDebt - repayEffC : FlowCreditMarketMath.zero
-                    let newHFC = newEffDebtC == FlowCreditMarketMath.zero ? UFix128.max : FlowCreditMarketMath.div(newEffCollC * FlowCreditMarketMath.one, newEffDebtC)
+                    let newEffCollC = effColl > seizeEffC ? effColl - seizeEffC : 0.0 as UFix128
+                    let newEffDebtC = effDebt > repayEffC ? effDebt - repayEffC : 0.0 as UFix128
+                    let newHFC = newEffDebtC == 0.0 ? UFix128.max : FlowCreditMarketMath.div(newEffCollC * 1.0, newEffDebtC)
 
                     if newHFC > bestHF {
                         bestHF = newHFC
@@ -1137,20 +1139,20 @@ access(all) contract FlowCreditMarket {
                 // Also evaluate at the cap explicitly (in case step didn't land exactly)
                 let rCap = repayCapBySeize
                 let uForR2 = FlowCreditMarketMath.div(rCap * Pd, BF)
-                var sForR2 = FlowCreditMarketMath.div(uForR2 * (FlowCreditMarketMath.one + LB), Pc)
+                var sForR2 = FlowCreditMarketMath.div(uForR2 * (1.0 + LB), Pc)
                 if sForR2 > trueCollateralSeize { sForR2 = trueCollateralSeize }
                 let repayEffC2 = FlowCreditMarketMath.div(rCap * Pd, BF)
                 let seizeEffC2 = sForR2 * (Pc * CF)
-                let newEffCollC2 = effColl > seizeEffC2 ? effColl - seizeEffC2 : FlowCreditMarketMath.zero
-                let newEffDebtC2 = effDebt > repayEffC2 ? effDebt - repayEffC2 : FlowCreditMarketMath.zero
-                let newHFC2 = newEffDebtC2 == FlowCreditMarketMath.zero ? UFix128.max : FlowCreditMarketMath.div(newEffCollC2 * FlowCreditMarketMath.one, newEffDebtC2)
+                let newEffCollC2 = effColl > seizeEffC2 ? effColl - seizeEffC2 : 0.0 as UFix128
+                let newEffDebtC2 = effDebt > repayEffC2 ? effDebt - repayEffC2 : 0.0 as UFix128
+                let newHFC2 = newEffDebtC2 == 0.0 ? UFix128.max : FlowCreditMarketMath.div(newEffCollC2 * 1.0, newEffDebtC2)
                 if newHFC2 > bestHF {
                     bestHF = newHFC2
                     bestRepayTrue = rCap
                     bestSeizeTrue = sForR2
                 }
 
-                if bestHF > health && bestRepayTrue > FlowCreditMarketMath.zero && bestSeizeTrue > FlowCreditMarketMath.zero {
+                if bestHF > health && bestRepayTrue > 0.0 && bestSeizeTrue > 0.0 {
                     let repayExactBest = FlowCreditMarketMath.toUFix64RoundUp(bestRepayTrue)
                     let seizeExactBest = FlowCreditMarketMath.toUFix64RoundUp(bestSeizeTrue)
                     log("[LIQ][QUOTE][FALLBACK][SEARCH] repayExact=\(repayExactBest) seizeExact=\(seizeExactBest)")
@@ -1288,7 +1290,7 @@ access(all) contract FlowCreditMarket {
 
             // Validate position is liquidatable
             let health = self.positionHealth(pid: pid)
-            assert(health < FlowCreditMarketMath.one, message: "Position not liquidatable")
+            assert(health < 1.0, message: "Position not liquidatable")
             assert(self.isLiquidatable(pid: pid), message: "Position \(pid) is not liquidatable")
 
             // Internal quote to determine required seize (capped by max)
@@ -1471,7 +1473,7 @@ access(all) contract FlowCreditMarket {
 
             // For situations where the required deposit will BOTH pay off debt and accumulate collateral, we keep
             // track of the number of tokens that went towards paying off debt.
-            var debtTokenCount: UFix128 = FlowCreditMarketMath.zero
+            var debtTokenCount: UFix128 = 0.0
             let depositPrice = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: depositType)!)
             let depositBorrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[depositType]!)
             let withdrawBorrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[withdrawType]!)
@@ -1488,7 +1490,7 @@ access(all) contract FlowCreditMarket {
 
                 // Ensure we don't underflow - if debtEffectiveValue is greater than effectiveDebtAfterWithdrawal,
                 // it means we can pay off all debt
-            var effectiveDebtAfterPayment: UFix128 = FlowCreditMarketMath.zero
+            var effectiveDebtAfterPayment: UFix128 = 0.0
                 if debtEffectiveValue <= effectiveDebtAfterWithdrawal {
                     effectiveDebtAfterPayment = effectiveDebtAfterWithdrawal - debtEffectiveValue
                 }
@@ -1526,7 +1528,7 @@ access(all) contract FlowCreditMarket {
                     if debtEffectiveValue <= effectiveDebtAfterWithdrawal {
                         effectiveDebtAfterWithdrawal = effectiveDebtAfterWithdrawal - debtEffectiveValue
                     } else {
-                        effectiveDebtAfterWithdrawal = FlowCreditMarketMath.zero
+                        effectiveDebtAfterWithdrawal = 0.0
                     }
                     healthAfterWithdrawal = potentialHealth
                 }
@@ -1676,7 +1678,7 @@ access(all) contract FlowCreditMarket {
             withdrawType: Type,
             effectiveCollateral: UFix128,
             effectiveDebt: UFix128,
-            targetHealth: UFix128 
+            targetHealth: UFix128
         ): UFix64 {
             var effectiveCollateralAfterDeposit = effectiveCollateral
             var effectiveDebtAfterDeposit = effectiveDebt
@@ -1694,7 +1696,7 @@ access(all) contract FlowCreditMarket {
 
             // For situations where the available withdrawal will BOTH draw down collateral and create debt, we keep
             // track of the number of tokens that are available from collateral
-            var collateralTokenCount: UFix128 = FlowCreditMarketMath.zero
+            var collateralTokenCount: UFix128 = 0.0
 
             let withdrawPrice = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: withdrawType)!)
             let withdrawCollateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[withdrawType]!)
@@ -1775,8 +1777,8 @@ access(all) contract FlowCreditMarket {
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: type)
 
-            var effectiveCollateralIncrease: UFix128 = FlowCreditMarketMath.zero
-            var effectiveDebtDecrease: UFix128 = FlowCreditMarketMath.zero
+            var effectiveCollateralIncrease: UFix128 = 0.0
+            var effectiveDebtDecrease: UFix128 = 0.0
 
             let amountU = FlowCreditMarketMath.toUFix128(amount)
             let price = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: type)!)
@@ -1820,8 +1822,8 @@ access(all) contract FlowCreditMarket {
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: type)
 
-            var effectiveCollateralDecrease: UFix128 = FlowCreditMarketMath.zero
-            var effectiveDebtIncrease: UFix128 = FlowCreditMarketMath.zero
+            var effectiveCollateralDecrease: UFix128 = 0.0
+            var effectiveDebtIncrease: UFix128 = 0.0
 
             let amountU = FlowCreditMarketMath.toUFix128(amount)
             let price = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: type)!)
@@ -2157,7 +2159,7 @@ access(all) contract FlowCreditMarket {
             var newWarmup: UInt64 = self.liquidationWarmupSec
             var newProtocolFee: UInt16 = self.protocolLiquidationFeeBps
             if targetHF != nil {
-                assert(targetHF! > FlowCreditMarketMath.one, message: "targetHF must be > 1.0")
+                assert(targetHF! > 1.0, message: "targetHF must be > 1.0")
                 self.liquidationTargetHF = targetHF!
                 newTarget = targetHF!
             }
@@ -2331,7 +2333,7 @@ access(all) contract FlowCreditMarket {
                     let sinkCapacity = drawDownSink.minimumCapacity()
                     let sinkAmount = (idealWithdrawal > sinkCapacity) ? sinkCapacity : idealWithdrawal
 
-                    if sinkAmount > 0.0 && sinkType == Type<@MOET.Vault>() { 
+                    if sinkAmount > 0.0 && sinkType == Type<@MOET.Vault>() {
                         let tokenState = self._borrowUpdatedTokenState(type: Type<@MOET.Vault>())
                         if position.balances[Type<@MOET.Vault>()] == nil {
                             position.balances[Type<@MOET.Vault>()] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
@@ -2901,7 +2903,7 @@ access(all) contract FlowCreditMarket {
         let secondsInYear: UFix128 = 31_536_000.0 as UFix128
         let perSecondScaledValue = FlowCreditMarketMath.div(yearlyRate, secondsInYear)
         assert(perSecondScaledValue < UFix128.max, message: "Per-second interest rate \(perSecondScaledValue) is too high")
-        return perSecondScaledValue + FlowCreditMarketMath.one
+        return perSecondScaledValue + 1.0
     }
 
     /// Returns the compounded interest index reflecting the passage of time
@@ -2919,7 +2921,7 @@ access(all) contract FlowCreditMarket {
         // The interest index is a fixed point number with 18 decimal places. To maintain precision,
         // we multiply the scaled balance by the interest index and then divide by 10^18 to get the
         // true balance with proper decimal alignment.
-        return FlowCreditMarketMath.div(scaled * interestIndex, FlowCreditMarketMath.one)
+        return FlowCreditMarketMath.div(scaled * interestIndex, 1.0)
     }
 
     /// Transforms the provided `trueBalance` to a scaled balance where the scaled balance is the amount a borrower has
@@ -2929,7 +2931,7 @@ access(all) contract FlowCreditMarket {
         // The interest index is a fixed point number with 18 decimal places. To maintain precision,
         // we multiply the true balance by 10^18 and then divide by the interest index to get the
         // scaled balance with proper decimal alignment.
-        return FlowCreditMarketMath.div(trueBalance * FlowCreditMarketMath.one, interestIndex)
+        return FlowCreditMarketMath.div(trueBalance * 1.0, interestIndex)
     }
 
     /* --- INTERNAL METHODS --- */

@@ -64,6 +64,6 @@ fun test_updateInterestRates_sets_zero_credit_rate_when_insufficient_income() {
     // Debit rate still follows the curve, but credit rate should fall back to 0% (per-second factor of 1).
     let expectedDebitRate = FlowCreditMarket.perSecondInterestRate(yearlyRate: debitRate)
     Test.assertEqual(expectedDebitRate, tokenState.currentDebitRate)
-    Test.assertEqual(FlowCreditMarketMath.one, tokenState.currentCreditRate)
+    Test.assertEqual(1.0 as UFix128, tokenState.currentCreditRate)
 }
 
