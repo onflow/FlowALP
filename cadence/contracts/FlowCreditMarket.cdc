@@ -268,9 +268,9 @@ access(all) contract FlowCreditMarket {
         init() {
             self.balances = {}
             self.queuedDeposits <- {}
-            self.targetHealth = FlowCreditMarketMath.toUFix128(1.3)
-            self.minHealth = FlowCreditMarketMath.toUFix128(1.1)
-            self.maxHealth = FlowCreditMarketMath.toUFix128(1.5)
+            self.targetHealth = 1.3
+            self.minHealth = 1.1
+            self.maxHealth = 1.5
             self.drawDownSink = nil
             self.topUpSource = nil
         }
@@ -484,7 +484,7 @@ access(all) contract FlowCreditMarket {
             let debitIncome = self.totalDebitBalance * debitRate
 
             // Calculate insurance amount (0.1% of credit balance)
-            let insuranceRate: UFix128 = FlowCreditMarketMath.toUFix128(self.insuranceRate)
+            let insuranceRate: UFix128 = UFix128(self.insuranceRate)
             let insuranceAmount: UFix128 = self.totalCreditBalance * insuranceRate
 
             // Calculate credit rate, ensuring we don't have underflows
@@ -728,7 +728,7 @@ access(all) contract FlowCreditMarket {
             self.nextPositionID = 0
             self.positionsNeedingUpdates = []
             self.positionsProcessedPerCallback = 100
-            self.liquidationTargetHF = FlowCreditMarketMath.toUFix128(1.05)
+            self.liquidationTargetHF = 1.05
             self.liquidationsPaused = false
             self.liquidationWarmupSec = 300
             self.lastUnpausedAt = nil
@@ -831,13 +831,13 @@ access(all) contract FlowCreditMarket {
             // Build a TokenSnapshot for the requested withdraw type (may not exist in view.snapshots)
             let tokenState = self._borrowUpdatedTokenState(type: type)
             let snap = FlowCreditMarket.TokenSnapshot(
-                price: FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: type)!),
+                price: UFix128(self.priceOracle.price(ofToken: type)!),
                 credit: tokenState.creditInterestIndex,
                 debit: tokenState.debitInterestIndex,
                 risk: FlowCreditMarket.RiskParams(
-                    cf: FlowCreditMarketMath.toUFix128(self.collateralFactor[type]!),
-                    bf: FlowCreditMarketMath.toUFix128(self.borrowFactor[type]!),
-                    lb: FlowCreditMarketMath.toUFix128(self.liquidationBonus[type]!)
+                    cf: UFix128(self.collateralFactor[type]!),
+                    bf: UFix128(self.borrowFactor[type]!),
+                    lb: UFix128(self.liquidationBonus[type]!)
                 )
             )
 
@@ -865,9 +865,9 @@ access(all) contract FlowCreditMarket {
                 let balance = position.balances[type]!
                 let tokenState = self._borrowUpdatedTokenState(type: type)
 
-                let collateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[type]!)
-                let borrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[type]!)
-                let price = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: type)!)
+                let collateralFactor = UFix128(self.collateralFactor[type]!)
+                let borrowFactor = UFix128(self.borrowFactor[type]!)
+                let price = UFix128(self.priceOracle.price(ofToken: type)!)
                 if balance.direction == BalanceDirection.Credit {
                     let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(balance.scaledBalance,
                         interestIndex: tokenState.creditInterestIndex)
@@ -954,13 +954,13 @@ access(all) contract FlowCreditMarket {
                 lbDebtUFix = lbDebtOpt!
             }
             let debtSnap = FlowCreditMarket.TokenSnapshot(
-                price: FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: debtType)!),
+                price: UFix128(self.priceOracle.price(ofToken: debtType)!),
                 credit: debtState.creditInterestIndex,
                 debit: debtState.debitInterestIndex,
                 risk: FlowCreditMarket.RiskParams(
-                    cf: FlowCreditMarketMath.toUFix128(self.collateralFactor[debtType]!),
-                    bf: FlowCreditMarketMath.toUFix128(self.borrowFactor[debtType]!),
-                    lb: FlowCreditMarketMath.toUFix128(lbDebtUFix)
+                    cf: UFix128(self.collateralFactor[debtType]!),
+                    bf: UFix128(self.borrowFactor[debtType]!),
+                    lb: UFix128(lbDebtUFix)
                 )
             )
             // Resolve per-token liquidation bonus (default 5%) for seizeType
@@ -970,13 +970,13 @@ access(all) contract FlowCreditMarket {
                 lbSeizeUFix = lbSeizeOpt!
             }
             let seizeSnap = FlowCreditMarket.TokenSnapshot(
-                price: FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: seizeType)!),
+                price: UFix128(self.priceOracle.price(ofToken: seizeType)!),
                 credit: seizeState.creditInterestIndex,
                 debit: seizeState.debitInterestIndex,
                 risk: FlowCreditMarket.RiskParams(
-                    cf: FlowCreditMarketMath.toUFix128(self.collateralFactor[seizeType]!),
-                    bf: FlowCreditMarketMath.toUFix128(self.borrowFactor[seizeType]!),
-                    lb: FlowCreditMarketMath.toUFix128(lbSeizeUFix)
+                    cf: UFix128(self.collateralFactor[seizeType]!),
+                    bf: UFix128(self.borrowFactor[seizeType]!),
+                    lb: UFix128(lbSeizeUFix)
                 )
             )
 
@@ -995,13 +995,13 @@ access(all) contract FlowCreditMarket {
                     lbTUFix = lbTOpt!
                 }
                 let snap = FlowCreditMarket.TokenSnapshot(
-                    price: FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: t)!),
+                    price: UFix128(self.priceOracle.price(ofToken: t)!),
                     credit: st.creditInterestIndex,
                     debit: st.debitInterestIndex,
                     risk: FlowCreditMarket.RiskParams(
-                        cf: FlowCreditMarketMath.toUFix128(self.collateralFactor[t]!),
-                        bf: FlowCreditMarketMath.toUFix128(self.borrowFactor[t]!),
-                        lb: FlowCreditMarketMath.toUFix128(lbTUFix)
+                        cf: UFix128(self.collateralFactor[t]!),
+                        bf: UFix128(self.borrowFactor[t]!),
+                        lb: UFix128(lbTUFix)
                     )
                 )
                 if b.direction == BalanceDirection.Credit {
@@ -1106,7 +1106,7 @@ access(all) contract FlowCreditMarket {
 
                 // Discrete bounded search over repay in [1..repayCapBySeize]
                 // Use up to 16 steps to balance precision and cost
-                let stepsU: UFix128 = FlowCreditMarketMath.toUFix128(16.0)
+                let stepsU: UFix128 = 16.0
                 var step: UFix128 = repayCapBySeize / stepsU
                 if step == 0.0 { step = 1.0 }
 
@@ -1240,7 +1240,7 @@ access(all) contract FlowCreditMarket {
             // Reduce borrower's debt position by repayAmount
             let position = self._borrowPosition(pid: pid)
             let debtState = self._borrowUpdatedTokenState(type: debtType)
-            let repayUint = FlowCreditMarketMath.toUFix128(quote.requiredRepay)
+            let repayUint = UFix128(quote.requiredRepay)
             if position.balances[debtType] == nil {
                 position.balances[debtType] = InternalBalance(direction: BalanceDirection.Debit, scaledBalance: 0.0 as UFix128)
             }
@@ -1248,7 +1248,7 @@ access(all) contract FlowCreditMarket {
 
             // Withdraw seized collateral from position and send to liquidator
             let seizeState = self._borrowUpdatedTokenState(type: seizeType)
-            let seizeUint = FlowCreditMarketMath.toUFix128(quote.seizeAmount)
+            let seizeUint = UFix128(quote.seizeAmount)
             if position.balances[seizeType] == nil {
                 position.balances[seizeType] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
             }
@@ -1259,7 +1259,7 @@ access(all) contract FlowCreditMarket {
             let actualNewHF = self.positionHealth(pid: pid)
             // Ensure realized HF is not materially below quoted HF (allow tiny rounding tolerance)
             let expectedHF = quote.newHF
-            let hfTolerance: UFix128 = FlowCreditMarketMath.toUFix128(0.00001)
+            let hfTolerance: UFix128 = 0.00001
             assert(actualNewHF + hfTolerance >= expectedHF, message: "Post-liquidation HF below expected")
 
             emit LiquidationExecuted(pid: pid, poolUUID: self.uuid, debtType: debtType.identifier, repayAmount: quote.requiredRepay, seizeType: seizeType.identifier, seizeAmount: quote.seizeAmount, newHF: actualNewHF)
@@ -1355,7 +1355,7 @@ access(all) contract FlowCreditMarket {
         access(self) fun internalSeize(pid: UInt64, tokenType: Type, amount: UFix64): @{FungibleToken.Vault} {
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: tokenType)
-            let seizeUint = FlowCreditMarketMath.toUFix128(amount)
+            let seizeUint = UFix128(amount)
             if position.balances[tokenType] == nil {
                 position.balances[tokenType] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
             }
@@ -1378,7 +1378,7 @@ access(all) contract FlowCreditMarket {
             reserveRef.deposit(from: <-toDeposit)
             let position = self._borrowPosition(pid: pid)
             let debtState = self._borrowUpdatedTokenState(type: debtType)
-            let repayUint = FlowCreditMarketMath.toUFix128(amount)
+            let repayUint = UFix128(amount)
             if position.balances[debtType] == nil {
                 position.balances[debtType] = InternalBalance(direction: BalanceDirection.Debit, scaledBalance: 0.0 as UFix128)
             }
@@ -1403,9 +1403,9 @@ access(all) contract FlowCreditMarket {
                 log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
             }
 
-            let withdrawAmountU = FlowCreditMarketMath.toUFix128(withdrawAmount)
-            let withdrawPrice2 = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: withdrawType)!)
-            let withdrawBorrowFactor2 = FlowCreditMarketMath.toUFix128(self.borrowFactor[withdrawType]!)
+            let withdrawAmountU = UFix128(withdrawAmount)
+            let withdrawPrice2 = UFix128(self.priceOracle.price(ofToken: withdrawType)!)
+            let withdrawBorrowFactor2 = UFix128(self.borrowFactor[withdrawType]!)
 
             let maybeBalance = position.balances[withdrawType]
                 if maybeBalance == nil || maybeBalance!.direction == BalanceDirection.Debit {
@@ -1422,7 +1422,7 @@ access(all) contract FlowCreditMarket {
                     let trueCollateral = FlowCreditMarket.scaledBalanceToTrueBalance(collateralBalance,
                         interestIndex: withdrawTokenState.creditInterestIndex
                     )
-                    let collateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[withdrawType]!)
+                    let collateralFactor = UFix128(self.collateralFactor[withdrawType]!)
                     if trueCollateral >= withdrawAmountU {
                         // This withdrawal will draw down collateral, but won't create debt, we just need to account
                         // for the collateral decrease.
@@ -1474,9 +1474,9 @@ access(all) contract FlowCreditMarket {
             // For situations where the required deposit will BOTH pay off debt and accumulate collateral, we keep
             // track of the number of tokens that went towards paying off debt.
             var debtTokenCount: UFix128 = 0.0
-            let depositPrice = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: depositType)!)
-            let depositBorrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[depositType]!)
-            let withdrawBorrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[withdrawType]!)
+            let depositPrice = UFix128(self.priceOracle.price(ofToken: depositType)!)
+            let depositBorrowFactor = UFix128(self.borrowFactor[depositType]!)
+            let withdrawBorrowFactor = UFix128(self.borrowFactor[withdrawType]!)
             let maybeBalance = position.balances[depositType]
             if maybeBalance?.direction == BalanceDirection.Debit {
                 // The user has a debt position in the given token, we start by looking at the health impact of paying off
@@ -1543,7 +1543,7 @@ access(all) contract FlowCreditMarket {
             // multiply the required health change by the effective debt, and turn that into a token amount.
             let healthChangeU = targetHealth - healthAfterWithdrawal
             // TODO: apply the same logic as below to the early return blocks above
-            let depositCollateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[depositType]!)
+            let depositCollateralFactor = UFix128(self.collateralFactor[depositType]!)
             var requiredEffectiveCollateral = healthChangeU * effectiveDebtAfterWithdrawal
             requiredEffectiveCollateral = FlowCreditMarketMath.div(requiredEffectiveCollateral, depositCollateralFactor)
 
@@ -1625,10 +1625,10 @@ access(all) contract FlowCreditMarket {
                 return BalanceSheet(effectiveCollateral: effectiveCollateralAfterDeposit, effectiveDebt: effectiveDebtAfterDeposit)
             }
 
-            let depositAmountCasted = FlowCreditMarketMath.toUFix128(depositAmount)
-            let depositPriceCasted = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: depositType)!)
-            let depositBorrowFactorCasted = FlowCreditMarketMath.toUFix128(self.borrowFactor[depositType]!)
-            let depositCollateralFactorCasted = FlowCreditMarketMath.toUFix128(self.collateralFactor[depositType]!)
+            let depositAmountCasted = UFix128(depositAmount)
+            let depositPriceCasted = UFix128(self.priceOracle.price(ofToken: depositType)!)
+            let depositBorrowFactorCasted = UFix128(self.borrowFactor[depositType]!)
+            let depositCollateralFactorCasted = UFix128(self.collateralFactor[depositType]!)
             let maybeBalance = position.balances[depositType]
                 if maybeBalance == nil || maybeBalance!.direction == BalanceDirection.Credit {
                     // If there's no debt for the deposit token, we can just compute how much additional effective collateral the deposit will create.
@@ -1698,9 +1698,9 @@ access(all) contract FlowCreditMarket {
             // track of the number of tokens that are available from collateral
             var collateralTokenCount: UFix128 = 0.0
 
-            let withdrawPrice = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: withdrawType)!)
-            let withdrawCollateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[withdrawType]!)
-            let withdrawBorrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[withdrawType]!)
+            let withdrawPrice = UFix128(self.priceOracle.price(ofToken: withdrawType)!)
+            let withdrawCollateralFactor = UFix128(self.collateralFactor[withdrawType]!)
+            let withdrawBorrowFactor = UFix128(self.borrowFactor[withdrawType]!)
 
             let maybeBalance = position.balances[withdrawType]
             if maybeBalance?.direction == BalanceDirection.Credit {
@@ -1780,10 +1780,10 @@ access(all) contract FlowCreditMarket {
             var effectiveCollateralIncrease: UFix128 = 0.0
             var effectiveDebtDecrease: UFix128 = 0.0
 
-            let amountU = FlowCreditMarketMath.toUFix128(amount)
-            let price = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: type)!)
-            let collateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[type]!)
-            let borrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[type]!)
+            let amountU = UFix128(amount)
+            let price = UFix128(self.priceOracle.price(ofToken: type)!)
+            let collateralFactor = UFix128(self.collateralFactor[type]!)
+            let borrowFactor = UFix128(self.borrowFactor[type]!)
             if position.balances[type] == nil || position.balances[type]!.direction == BalanceDirection.Credit {
                 // Since the user has no debt in the given token, we can just compute how much
                 // additional collateral this deposit will create.
@@ -1825,10 +1825,10 @@ access(all) contract FlowCreditMarket {
             var effectiveCollateralDecrease: UFix128 = 0.0
             var effectiveDebtIncrease: UFix128 = 0.0
 
-            let amountU = FlowCreditMarketMath.toUFix128(amount)
-            let price = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: type)!)
-            let collateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[type]!)
-            let borrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[type]!)
+            let amountU = UFix128(amount)
+            let price = UFix128(self.priceOracle.price(ofToken: type)!)
+            let collateralFactor = UFix128(self.collateralFactor[type]!)
+            let borrowFactor = UFix128(self.borrowFactor[type]!)
             if position.balances[type] == nil || position.balances[type]!.direction == BalanceDirection.Debit {
                 // The user has no credit position in the given token, we can just compute how much
                 // additional effective debt this withdrawal will create.
@@ -1960,7 +1960,7 @@ access(all) contract FlowCreditMarket {
             // This only records the portion of the deposit that was accepted, not any queued portions,
             // as the queued deposits will be processed later (by this function being called again), and therefore
             // will be recorded at that time.
-            position.balances[type]!.recordDeposit(amount: FlowCreditMarketMath.toUFix128(from.balance), tokenState: tokenState)
+            position.balances[type]!.recordDeposit(amount: UFix128(from.balance), tokenState: tokenState)
 
             // Add the money to the reserves
             reserveVault.deposit(from: <-from)
@@ -2080,7 +2080,7 @@ access(all) contract FlowCreditMarket {
             let reserveVault = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
 
             // Reflect the withdrawal in the position's balance
-            let uintAmount = FlowCreditMarketMath.toUFix128(amount)
+            let uintAmount = UFix128(amount)
             position.balances[type]!.recordWithdrawal(amount: uintAmount, tokenState: tokenState)
             // Ensure that this withdrawal doesn't cause the position to be overdrawn.
             // Skip the assertion only when a top-up was used in this call and the immediate
@@ -2339,7 +2339,7 @@ access(all) contract FlowCreditMarket {
                             position.balances[Type<@MOET.Vault>()] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
                         }
                         // record the withdrawal and mint the tokens
-                        let uintSinkAmount = FlowCreditMarketMath.toUFix128(sinkAmount)
+                        let uintSinkAmount = UFix128(sinkAmount)
                         position.balances[Type<@MOET.Vault>()]!.recordWithdrawal(amount: uintSinkAmount, tokenState: tokenState)
                         let sinkVault <- FlowCreditMarket._borrowMOETMinter().mintTokens(amount: sinkAmount)
 
@@ -2447,19 +2447,19 @@ access(all) contract FlowCreditMarket {
                     let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(balance.scaledBalance,
                         interestIndex: tokenState.creditInterestIndex)
 
-                    let convertedPrice = FlowCreditMarketMath.toUFix128(priceOracle.price(ofToken: type)!)
+                    let convertedPrice = UFix128(priceOracle.price(ofToken: type)!)
                     let value = convertedPrice * trueBalance
 
-                    let convertedCollateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[type]!)
+                    let convertedCollateralFactor = UFix128(self.collateralFactor[type]!)
                     effectiveCollateral = effectiveCollateral + (value * convertedCollateralFactor)
                 } else {
                     let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(balance.scaledBalance,
                         interestIndex: tokenState.debitInterestIndex)
 
-                    let convertedPrice = FlowCreditMarketMath.toUFix128(priceOracle.price(ofToken: type)!)
+                    let convertedPrice = UFix128(priceOracle.price(ofToken: type)!)
                     let value = convertedPrice * trueBalance
 
-                    let convertedBorrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[type]!)
+                    let convertedBorrowFactor = UFix128(self.borrowFactor[type]!)
                     effectiveDebt = effectiveDebt + FlowCreditMarketMath.div(value, convertedBorrowFactor)
                 }
             }
@@ -2490,13 +2490,13 @@ access(all) contract FlowCreditMarket {
             for t in position.balances.keys {
                 let tokenState = self._borrowUpdatedTokenState(type: t)
                 snaps[t] = FlowCreditMarket.TokenSnapshot(
-                    price: FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: t)!),
+                    price: UFix128(self.priceOracle.price(ofToken: t)!),
                     credit: tokenState.creditInterestIndex,
                     debit: tokenState.debitInterestIndex,
                     risk: FlowCreditMarket.RiskParams(
-                        cf: FlowCreditMarketMath.toUFix128(self.collateralFactor[t]!),
-                        bf: FlowCreditMarketMath.toUFix128(self.borrowFactor[t]!),
-                        lb: FlowCreditMarketMath.toUFix128(self.liquidationBonus[t]!)
+                        cf: UFix128(self.collateralFactor[t]!),
+                        bf: UFix128(self.borrowFactor[t]!),
+                        lb: UFix128(self.liquidationBonus[t]!)
                     )
                 )
             }
@@ -2593,7 +2593,7 @@ access(all) contract FlowCreditMarket {
         /// Sets the target health of the Position
         access(all) fun setTargetHealth(targetHealth: UFix64) {
             let pool = self.pool.borrow()!
-            let uint = FlowCreditMarketMath.toUFix128(targetHealth)
+            let uint = UFix128(targetHealth)
             pool.writeTargetHealth(pid: self.id, targetHealth: uint)
         }
         /// Returns the minimum health of the Position
@@ -2605,7 +2605,7 @@ access(all) contract FlowCreditMarket {
         /// Sets the minimum health of the Position
         access(all) fun setMinHealth(minHealth: UFix64) {
             let pool = self.pool.borrow()!
-            let uint = FlowCreditMarketMath.toUFix128(minHealth)
+            let uint = UFix128(minHealth)
             pool.writeMinHealth(pid: self.id, minHealth: uint)
         }
         /// Returns the maximum health of the Position
@@ -2617,7 +2617,7 @@ access(all) contract FlowCreditMarket {
         /// Sets the maximum health of the position
         access(all) fun setMaxHealth(maxHealth: UFix64) {
             let pool = self.pool.borrow()!
-            let uint = FlowCreditMarketMath.toUFix128(maxHealth)
+            let uint = UFix128(maxHealth)
             pool.writeMaxHealth(pid: self.id, maxHealth: uint)
         }
         /// Returns the maximum amount of the given token type that could be deposited into this position

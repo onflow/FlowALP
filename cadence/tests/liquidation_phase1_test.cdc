@@ -99,8 +99,8 @@ fun test_liquidation_phase1_quote_and_execute() {
     log("[LIQ] Health after liquidation: raw=\(hAfterLiq), approx=\(hAfterLiqUF)")
 
     // Assert final health ≈ target
-    let targetHF = FlowCreditMarketMath.toUFix128(1.05)
-    let tolerance = FlowCreditMarketMath.toUFix128(0.00001)
+    let targetHF: UFix128 = 1.05
+    let tolerance: UFix128 = 0.00001
     Test.assert(hAfterLiq >= targetHF - tolerance && hAfterLiq <= targetHF + tolerance, message: "Post-liquidation health \(hAfterLiqUF) not at target 1.05")
 
     // Assert quoted newHF matches actual
@@ -206,9 +206,9 @@ fun test_multi_liquidation() {
     )
 
     let hAfter1 = getPositionHealth(pid: pid, beFailed: false)
-    let targetHF = FlowCreditMarketMath.toUFix128(1.05)
+    let targetHF: UFix128 = 1.05
     // Slightly relax tolerance for second liquidation to account for rounding across sequential updates
-    let tolerance = FlowCreditMarketMath.toUFix128(0.00002)
+    let tolerance: UFix128 = 0.00002
     Test.assert(hAfter1 >= targetHF - tolerance, message: "First liquidation did not reach target")
 
     // Drop price further for second liquidation

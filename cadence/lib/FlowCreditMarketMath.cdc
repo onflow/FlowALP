@@ -45,10 +45,6 @@ access(all) contract FlowCreditMarketMath {
         return x / y
     }
 
-    access(all) view fun toUFix128(_ value: UFix64): UFix128 {
-        return UFix128(value)
-    }
-
     access(all) view fun toUFix64(_ value: UFix128, rounding: RoundingMode): UFix64 {
         let truncated = UFix64(value)
         let truncatedAs128 = UFix128(truncated)

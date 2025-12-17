@@ -71,8 +71,8 @@ fun test_liquidation_via_dex() {
 
     // HF should improve to at/near target
     let h1 = getPositionHealth(pid: pid, beFailed: false)
-    let target = FlowCreditMarketMath.toUFix128(1.05)
-    let tol = FlowCreditMarketMath.toUFix128(0.00001)
+    let target: UFix128 = 1.05
+    let tol: UFix128 = 0.00001
     Test.assert(h1 >= target - tol)
 }
 

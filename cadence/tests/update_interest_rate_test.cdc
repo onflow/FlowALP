@@ -41,7 +41,7 @@ fun test_updateInterestRates_applies_income_minus_insurance_to_credit_rate() {
 
     // Credit rate should derive from net debit income after insurance.
     let debitIncome: UFix128 = tokenState.totalDebitBalance * debitRate
-    let insurance: UFix128 = tokenState.totalCreditBalance * FlowCreditMarketMath.toUFix128(tokenState.insuranceRate)
+    let insurance: UFix128 = tokenState.totalCreditBalance * UFix128(tokenState.insuranceRate)
     let expectedCreditYearly = (debitIncome - insurance) / tokenState.totalCreditBalance
     let expectedCreditRate = FlowCreditMarket.perSecondInterestRate(yearlyRate: expectedCreditYearly)
     Test.assertEqual(expectedCreditRate, tokenState.currentCreditRate)
