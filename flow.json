@@ -34,6 +34,12 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"FlowCreditMarketRegistry": {
+			"source": "./cadence/contracts/FlowCreditMarketRegistry.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"FungibleTokenConnectors": {
 			"source": "./FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
 			"aliases": {
@@ -209,7 +215,8 @@
 						}
 					]
 				},
-				"FlowCreditMarket"
+				"FlowCreditMarket",
+				"FlowCreditMarketRegistry"
 			]
 		},
 		"mainnet": {
