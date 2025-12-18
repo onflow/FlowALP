@@ -19,9 +19,9 @@ fun snap(price: UFix128, creditIdx: UFix128, debitIdx: UFix128, cf: UFix128, bf:
         credit: creditIdx,
         debit: debitIdx,
         risk: FlowCreditMarket.RiskParams(
-            cf: cf,
-            bf: bf,
-            lb: 0.05
+            collateralFactor: cf,
+            borrowFactor: bf,
+            liquidationBonus: 0.05
         )
     )
 }
@@ -33,7 +33,7 @@ fun test_healthFactor_zeroBalances_returnsInfinite() {  // Renamed for clarity
     let view = FlowCreditMarket.PositionView(
         balances: balances,
         snapshots: snaps,
-        def: Type<@MOET.Vault>(),
+        defaultToken: Type<@MOET.Vault>(),
         min: 1.1,
         max: 1.5
     )
@@ -58,7 +58,7 @@ fun test_healthFactor_zeroCollateral_positiveDebt_returnsZero() {
     let view = FlowCreditMarket.PositionView(
         balances: balances,
         snapshots: snapshots,
-        def: tDebt,
+        defaultToken: tDebt,
         min: 1.1,
         max: 1.5
     )
@@ -92,7 +92,7 @@ fun test_healthFactor_simpleCollateralAndDebt() {
     let view = FlowCreditMarket.PositionView(
         balances: balances,
         snapshots: snapshots,
-        def: tColl,
+        defaultToken: tColl,
         min: 1.1,
         max: 1.5
     )
@@ -121,7 +121,7 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     let view = FlowCreditMarket.PositionView(
         balances: balances,
         snapshots: snapshots,
-        def: t,
+        defaultToken: t,
         min: 1.1,
         max: 1.5
     )
@@ -158,7 +158,7 @@ fun test_maxWithdraw_fromCollateralLimitedByHealth() {
     let view = FlowCreditMarket.PositionView(
         balances: balances,
         snapshots: snapshots,
-        def: t,
+        defaultToken: t,
         min: 1.1,
         max: 1.5
     )
