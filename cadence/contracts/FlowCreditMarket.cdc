@@ -714,7 +714,7 @@ access(all) contract FlowCreditMarket {
         /// The actual reserves of each token
         access(self) var reserves: @{Type: {FungibleToken.Vault}}
         /// Auto-incrementing position identifier counter
-        access(self) var nextPositionID: UInt64
+        access(all) var nextPositionID: UInt64
         /// The default token type used as the "unit of account" for the pool.
         access(self) let defaultToken: Type
         /// A price oracle that will return the price of each token in terms of the default token.
@@ -948,6 +948,23 @@ access(all) contract FlowCreditMarket {
             )
         }
 
+        /// Returns whether a given position exists in the pool
+        ///
+        /// @param pid: The Position ID
+        ///
+        /// @return Bool: True if the position exists, false otherwise
+        access(all) view fun positionExists(pid: UInt64): Bool {
+            return self.positions[pid] != nil
+        }
+
+        /// Returns the IDs of all positions in the pool
+        /// NOTE: This will likely need pagination to scale as the number of positions grows
+        ///
+        /// @return [UInt64]: The IDs of all positions in the pool
+        access(all) view fun getPositionIDs(): [UInt64] {
+            return self.positions.keys
+        }
+
         /// Returns the details of a given position as a PositionDetails external struct
         access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
             if self.debugLogging { log("    [CONTRACT] getPositionDetails(pid: \(pid))") }
@@ -968,7 +985,7 @@ access(all) contract FlowCreditMarket {
                 ))
             }
 
-            let health = self.positionHealth(pid: pid)
+            let health: UFix128 = self.positionHealth(pid: pid)
             let defaultTokenAvailable = self.availableBalance(pid: pid, type: self.defaultToken, pullFromTopUpSource: false)
 
             return PositionDetails(

@@ -5,15 +5,51 @@ import "FlowToken"
 import "FlowTransactionScheduler"
 import "FlowCreditMarket"
 
+/// FlowCreditMarketRegistry
+///
+/// This contract defines constructs for managing registration of Positions on a per-Pool basis. On registration, a
+/// rebalance handler is initialized and scheduled for the first rebalance. The rebalance handler is responsible for
+/// scheduling subsequent rebalance transactions for the position.
+///
+/// The registry also manages the default rebalance configuration for all registered positions and provides the ability
+/// to set a custom per-position rebalance configuration in the event such functionality is added in the future.
+///
+/// NOTE: Position rebalancing can fail for reasons outside of FCM's control. It's recommended that monitoring systems
+/// account for instances where rebalance and subsequent RebalanceHandler transaction scheduling fail and the FCM
+/// maintainers to start up the rebalancing process again. It may be desirable to add such functionality into the
+/// Position objects themselves so that end users or upstream protocols/platforms can start up the rebalancing process
+/// themselves.
+///
 access(all) contract FlowCreditMarketRegistry {
 
-    access(all) event Registered(poolUUID: UInt64, positionID: UInt64)
-    access(all) event Unregistered(poolUUID: UInt64, positionID: UInt64)
-    access(all) event RebalanceHandlerError(poolUUID: UInt64, positionID: UInt64, whileExecuting: UInt64?, errorMessage: String)
+    /// Emitted when a position is registered in the registry
+    access(all) event Registered(poolUUID: UInt64, positionID: UInt64, registryUUID: UInt64)
+    /// Emitted when a position is unregistered from the registry
+    access(all) event Unregistered(poolUUID: UInt64, positionID: UInt64, registryUUID: UInt64)
+    /// Emitted when an error occurs in the rebalance handler
+    access(all) event RebalanceHandlerError(poolUUID: UInt64, positionID: UInt64, registryUUID: UInt64, whileExecuting: UInt64?, errorMessage: String)
     
+    /// Registry
+    ///
+    /// A resource that manages the registration and unregistration of positions in the registry associated with the
+    /// identified pool. It also manages the scheduling of rebalance transactions for the registered positions.
+    ///
+    /// The registry is associated with a pool and each position in the pool has an associated rebalance handler.
+    /// The rebalance handler is responsible for scheduling rebalance transactions for the position.
+    ///
+    /// The registry is also responsible for managing the default rebalance configuration for all registered positions
+    /// and provides the ability to set a custom per-position rebalance configuration in the event such functionality is
+    /// added in the future.
     access(all) resource Registry : FlowCreditMarket.IRegistry {
+        /// A map of registered positions by their Position ID
         access(all) let registeredPositions: {UInt64: Bool}
+        /// The default rebalance configuration for all registered positions
+        /// See RebalanceHandler.scheduleNextRebalance for the expected configuration format
         access(all) var defaultRebalanceRecurringConfig: {String: AnyStruct}
+        /// A map of custom rebalance configurations by position ID. While not currently supported in FCM, adding this
+        /// allows for extensibility in the event governance chooses to add custom rebalance configurations for
+        /// registered positions in the future.
+        /// See RebalanceHandler.scheduleNextRebalance for the expected configuration format
         access(all) let rebalanceConfigs: {UInt64: {String: AnyStruct}}
 
         init(defaultRebalanceRecurringConfig: {String: AnyStruct}) {
@@ -22,14 +58,26 @@ access(all) contract FlowCreditMarketRegistry {
             self.rebalanceConfigs = {}
         }
 
-        access(all) view fun getRebalanceHandlerScheduledTxnData(pid: UInt64): {String: AnyStruct} {
+        /// Returns the rebalance configuration for the identified position
+        ///
+        /// @param pid: The ID of the position
+        ///
+        /// @return {String: AnyStruct}: The rebalance configuration for the position
+        access(all) view fun getRebalanceHandlerScheduledTxnConfig(pid: UInt64): {String: AnyStruct} {
             return self.rebalanceConfigs[pid] ?? self.defaultRebalanceRecurringConfig
         }
 
+        /// Registers a position in the registry associated with the identified pool and position ID
+        ///
+        /// @param poolUUID: The UUID of the pool
+        /// @param pid: The ID of the position
+        /// @param rebalanceConfig: The rebalance configuration for the position
         access(FlowCreditMarket.Register) fun registerPosition(poolUUID: UInt64, pid: UInt64, rebalanceConfig: {String: AnyStruct}?) {
             pre {
                 self.registeredPositions[pid] == nil:
                 "Position \(pid) is already registered"
+                FlowCreditMarketRegistry._borrowAuthPool(poolUUID)?.positionExists(pid: pid) == true:
+                "Position \(pid) does not exist in pool \(poolUUID) - cannot register non-existent position"
             }
             self.registeredPositions[pid] = true
             if rebalanceConfig != nil {
@@ -40,21 +88,30 @@ access(all) contract FlowCreditMarketRegistry {
             let rebalanceHandler = FlowCreditMarketRegistry._initRebalanceHandler(poolUUID: poolUUID, positionID: pid)
 
             // emit the registered event
-            emit Registered(poolUUID: poolUUID, positionID: pid)
+            emit Registered(poolUUID: poolUUID, positionID: pid, registryUUID: self.uuid)
 
             // schedule the first rebalance
             rebalanceHandler.scheduleNextRebalance(whileExecuting: nil, data: rebalanceConfig ?? self.defaultRebalanceRecurringConfig)
         }
 
+        /// Unregisters a position in the registry associated with the identified pool and position ID
+        ///
+        /// @param poolUUID: The UUID of the pool
+        /// @param pid: The ID of the position
+        ///
+        /// @return Bool: True if the position was unregistered, false otherwise
         access(FlowCreditMarket.Register) fun unregisterPosition(poolUUID: UInt64, pid: UInt64): Bool {
             let removed = self.registeredPositions.remove(key: pid)
             if removed == true {
-                emit Unregistered(poolUUID: poolUUID, positionID: pid)
+                emit Unregistered(poolUUID: poolUUID, positionID: pid, registryUUID: self.uuid)
                 FlowCreditMarketRegistry._cleanupRebalanceHandler(poolUUID: poolUUID, positionID: pid)
             }
             return removed == true
         }
 
+        /// Sets the default rebalance recurring configuration for the registry
+        ///
+        /// @param config: The default rebalance configuration for all registered positions
         access(FlowCreditMarket.EGovernance) fun setDefaultRebalanceRecurringConfig(config: {String: AnyStruct}) {
             pre {
                 config["interval"] as? UFix64 != nil:
@@ -70,10 +127,23 @@ access(all) contract FlowCreditMarketRegistry {
         }
     }
 
+    /// RebalanceHandler
+    ///
+    /// A resource that manages the scheduling of rebalance transactions for a position in a pool.
+    ///
+    /// The rebalance handler is associated with a pool and position and is responsible for scheduling rebalance
+    /// transactions for the position.
+    ///
+    /// The rebalance handler is also responsible for managing the scheduled transactions for the position.
+    ///
     access(all) resource RebalanceHandler : FlowTransactionScheduler.TransactionHandler {
+        /// The UUID of the pool associated with the rebalance handler
         access(all) let poolUUID: UInt64
+        /// The ID of the position associated with the rebalance handler
         access(all) let positionID: UInt64
+        /// A map of scheduled transactions by their ID
         access(all) let scheduledTxns: @{UInt64: FlowTransactionScheduler.ScheduledTransaction}
+        /// The self capability for the rebalance handler
         access(self) var selfCapability: Capability<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>?
 
         init(poolUUID: UInt64, positionID: UInt64) {
@@ -83,9 +153,17 @@ access(all) contract FlowCreditMarketRegistry {
             self.selfCapability = nil
         }
         
+        /* MetadataViews.Display conformance */
+        
+        /// Returns the views supported by the rebalance handler
         access(all) view fun getViews(): [Type] {
-            return [ Type<StoragePath>(), Type<PublicPath>() ]
+            return [ Type<StoragePath>(), Type<PublicPath>(), Type<MetadataViews.Display>() ]
         }
+        /// Resolves a view type to a view object
+        ///
+        /// @param viewType: The type of the view to resolve
+        ///
+        /// @return AnyStruct?: The view object, or nil if the view is not supported
         access(all) fun resolveView(_ viewType: Type): AnyStruct? {
             if viewType == Type<StoragePath>() {
                 return FlowCreditMarketRegistry.deriveRebalanceHandlerStoragePath(poolUUID: self.poolUUID, positionID: self.positionID)
@@ -104,7 +182,6 @@ access(all) contract FlowCreditMarketRegistry {
         /// NOTE: this does not include externally scheduled transactions
         ///
         /// @return [UInt64]: The IDs of the scheduled transactions
-        ///
         access(all) view fun getScheduledTransactionIDs(): [UInt64] {
             return self.scheduledTxns.keys
         }
@@ -115,15 +192,14 @@ access(all) contract FlowCreditMarketRegistry {
         ///
         /// @return &FlowTransactionScheduler.ScheduledTransaction?: The reference to the scheduled transaction, or nil 
         /// if the scheduled transaction is not found
-        ///
         access(all) view fun borrowScheduledTransaction(id: UInt64): &FlowTransactionScheduler.ScheduledTransaction? {
             return &self.scheduledTxns[id]
         }
-        /// Executes a scheduled rebalance on the underlying FCM Position
+        /// Executes a scheduled rebalance on the underlying FCM Position. If the scheduled transaction is internally-managed,
+        /// the next rebalance will be scheduled, otherwise the execution is treated as a "fire once" transaction.
         ///
         /// @param id: The ID of the scheduled transaction to execute
         /// @param data: The data for the scheduled transaction
-        ///
         access(FlowTransactionScheduler.Execute) fun executeTransaction(id: UInt64, data: AnyStruct?) {
             let _data = data as? {String: AnyStruct} ?? {"force": false}
             let force = _data["force"] as? Bool ?? false
@@ -131,7 +207,7 @@ access(all) contract FlowCreditMarketRegistry {
             // borrow the pool
             let pool = FlowCreditMarketRegistry._borrowAuthPool(self.poolUUID)
             if pool == nil {
-                emit RebalanceHandlerError(poolUUID: self.poolUUID, positionID: self.positionID, whileExecuting: id, errorMessage: "POOL_NOT_FOUND")
+                emit RebalanceHandlerError(poolUUID: self.poolUUID, positionID: self.positionID, registryUUID: self.uuid, whileExecuting: id, errorMessage: "POOL_NOT_FOUND")
                 return
             }
 
@@ -145,15 +221,18 @@ access(all) contract FlowCreditMarketRegistry {
             if isInternallyManaged {
                 let err = self.scheduleNextRebalance(whileExecuting: id, data: nil)
                 if err != nil {
-                    emit RebalanceHandlerError(poolUUID: self.poolUUID, positionID: self.positionID, whileExecuting: id, errorMessage: err!)
+                    emit RebalanceHandlerError(poolUUID: self.poolUUID, positionID: self.positionID, registryUUID: self.uuid, whileExecuting: id, errorMessage: err!)
                 }
             }
+            // clean up internally-managed historical scheduled transactions
+            self._cleanupScheduledTransactions()
         }
-        /// Schedules the next rebalance on the underlying FCM Position
+        /// Schedules the next rebalance on the underlying FCM Position. Defaults to the Registry's recurring config
+        /// for the handled position if `data` is not provided. Otherwise the next scheduled transaction is configured
+        /// with the provided data.
         ///
         /// @param whileExecuting: The ID of the scheduled transaction that is currently executing
-        /// @param data: The data for the scheduled transaction
-        ///
+        /// @param data: The optional recurring config for the scheduled transaction
         access(FlowCreditMarket.Schedule) fun scheduleNextRebalance(whileExecuting: UInt64?, data: {String: AnyStruct}?): String? {
             // check for a valid self capability before attempting to schedule the next rebalance
             if self.selfCapability?.check() != true { return "INVALID_SELF_CAPABILITY"; }
@@ -165,12 +244,12 @@ access(all) contract FlowCreditMarketRegistry {
                 return "REGISTRY_NOT_FOUND"
             }
             let unwrappedRegistry = registry!
-            let recurringConfig = data ?? unwrappedRegistry.getRebalanceHandlerScheduledTxnData(pid: self.positionID)
+            let recurringConfig = data ?? unwrappedRegistry.getRebalanceHandlerScheduledTxnConfig(pid: self.positionID)
             // get the recurring config values
             let interval = recurringConfig["interval"] as? UFix64
             let priorityRaw = recurringConfig["priority"] as? UInt8
             let executionEffort = recurringConfig["executionEffort"] as? UInt64
-            if interval == nil || priorityRaw == nil || executionEffort == nil || (priorityRaw! as? UInt8 ?? UInt8.max) > 2 {
+            if interval == nil || priorityRaw == nil || (priorityRaw as? UInt8 ?? UInt8.max) > 2 || executionEffort == nil {
                 return "INVALID_RECURRING_CONFIG"
             }
 
@@ -209,6 +288,9 @@ access(all) contract FlowCreditMarketRegistry {
                 return nil
             }   
         }
+        /// Sets the self capability for the rebalance handler so that it can schedule its own future transactions
+        ///
+        /// @param handlerCap: The capability to set for the rebalance handler
         access(contract) fun _setSelfCapability(_ handlerCap: Capability<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>) {
             pre {
                 self.selfCapability == nil:
@@ -220,23 +302,65 @@ access(all) contract FlowCreditMarketRegistry {
             }
             self.selfCapability = handlerCap
         }
+        /// Cleans up the internally-managed scheduled transactions
+        access(self) fun _cleanupScheduledTransactions() {
+            // if there are no scheduled transactions, return
+            if self.scheduledTxns.length == 0 {
+                return
+            }
+            // limit to prevent running into computation limits
+            let limit = 25
+            // iterate over the scheduled transactions and remove those that are not scheduled
+            for i, id in self.scheduledTxns.keys {
+                if i >= limit {
+                    break
+                }
+                let ref = self.borrowScheduledTransaction(id: id)
+                if ref != nil && ref!.status() != FlowTransactionScheduler.Status.Scheduled {
+                    destroy <- self.scheduledTxns.remove(key: id)
+                }
+            }
+        }
     }
 
     /* PUBLIC METHODS */
 
+    /// Derives the storage path for the rebalance handler associated with the identified pool and position
+    ///
+    /// @param poolUUID: The UUID of the pool
+    /// @param positionID: The ID of the position
+    ///
+    /// @return StoragePath: The storage path for the rebalance handler
     access(all) view fun deriveRebalanceHandlerStoragePath(poolUUID: UInt64, positionID: UInt64): StoragePath {
         return StoragePath(identifier: "flowCreditMarketRebalanceHandler_\(poolUUID)_\(positionID)")!
     }
 
+    /// Derives the public path for the rebalance handler associated with the identified pool and position
+    ///
+    /// @param poolUUID: The UUID of the pool
+    /// @param positionID: The ID of the position
+    ///
+    /// @return PublicPath: The public path for the rebalance handler
     access(all) view fun deriveRebalanceHandlerPublicPath(poolUUID: UInt64, positionID: UInt64): PublicPath {
         return PublicPath(identifier: "flowCreditMarketRebalanceHandler_\(poolUUID)_\(positionID)")!
     }
 
+    /// Borrows a reference to the registry associated with the identified pool
+    ///
+    /// @param poolUUID: The UUID of the pool
+    ///
+    /// @return &Registry?: The reference to the registry, or nil if the registry is not found
     access(all) view fun borrowRegistry(_ poolUUID: UInt64): &Registry? {
         let registryPath = FlowCreditMarket.deriveRegistryPublicPath(forPool: poolUUID)
         return self.account.capabilities.borrow<&Registry>(registryPath)
     }
 
+    /// Borrows a reference to the rebalance handler associated with the identified pool and position
+    ///
+    /// @param poolUUID: The UUID of the pool
+    /// @param positionID: The ID of the position
+    ///
+    /// @return &RebalanceHandler?: The reference to the rebalance handler, or nil if the rebalance handler is not found
     access(all)view fun borrowRebalanceHandler(poolUUID: UInt64, positionID: UInt64): &RebalanceHandler? {
         let handlerPath = self.deriveRebalanceHandlerPublicPath(poolUUID: poolUUID, positionID: positionID)
         return self.account.capabilities.borrow<&RebalanceHandler>(handlerPath)
@@ -244,6 +368,12 @@ access(all) contract FlowCreditMarketRegistry {
 
     /* INTERNAL METHODS */
     
+    /// Initializes a new rebalance handler associated with the identified pool and position
+    ///
+    /// @param poolUUID: The UUID of the pool
+    /// @param positionID: The ID of the position
+    ///
+    /// @return auth(FlowCreditMarket.Schedule) &RebalanceHandler: The initialized rebalance handler
     access(self) fun _initRebalanceHandler(poolUUID: UInt64, positionID: UInt64): auth(FlowCreditMarket.Schedule) &RebalanceHandler {
         let storagePath = self.deriveRebalanceHandlerStoragePath(poolUUID: poolUUID, positionID: positionID)
         let publicPath = self.deriveRebalanceHandlerPublicPath(poolUUID: poolUUID, positionID: positionID)
@@ -256,12 +386,17 @@ access(all) contract FlowCreditMarketRegistry {
             self.account.capabilities.publish(pubCap, at: publicPath)
         }
         // borrow the RebalanceHandler, set its internal capability & return
-        let rebalanceHandler = self.account.storage.borrow<auth(FlowCreditMarket.Schedule) &RebalanceHandler>(from: storagePath) ?? panic("Failed to initialize RebalanceHandler")
+        let rebalanceHandler = self.account.storage.borrow<auth(FlowCreditMarket.Schedule) &RebalanceHandler>(from: storagePath)
+            ?? panic("Failed to initialize RebalanceHandler")
         let handlerCap = self.account.capabilities.storage.issue<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>(storagePath)
         rebalanceHandler._setSelfCapability(handlerCap)
         return rebalanceHandler
     }
 
+    /// Cleans up the rebalance handler associated with the identified pool and position
+    ///
+    /// @param poolUUID: The UUID of the pool
+    /// @param positionID: The ID of the position
     access(self) fun _cleanupRebalanceHandler(poolUUID: UInt64, positionID: UInt64) {
         let storagePath = self.deriveRebalanceHandlerStoragePath(poolUUID: poolUUID, positionID: positionID)
         let publicPath = self.deriveRebalanceHandlerPublicPath(poolUUID: poolUUID, positionID: positionID)
@@ -277,11 +412,21 @@ access(all) contract FlowCreditMarketRegistry {
         Burner.burn(<-removed)
     }
 
+    /// Borrows a reference to the pool associated with the identified pool
+    ///
+    /// @param poolUUID: The UUID of the pool
+    ///
+    /// @return auth(FlowCreditMarket.EPosition) &FlowCreditMarket.Pool?: The reference to the pool, or nil if the pool is not found
     access(self) view fun _borrowAuthPool(_ poolUUID: UInt64): auth(FlowCreditMarket.EPosition) &FlowCreditMarket.Pool? {
         let poolPath = FlowCreditMarket.PoolStoragePath
         return self.account.storage.borrow<auth(FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>(from: poolPath)
     }
 
+    /// Withdraws the identified amount of Flow tokens from the FlowToken vault or `nil` if the funds are unavailable
+    ///
+    /// @param amount: The amount of Flow tokens to withdraw
+    ///
+    /// @return @FlowToken.Vault?: The vault with the withdrawn amount, or nil if the withdrawal failed
     access(self) fun _withdrawFees(amount: UFix64): @FlowToken.Vault? {
         let vaultPath = /storage/flowTokenVault
         let vault = self.account.storage.borrow<auth(FungibleToken.Withdraw) &FlowToken.Vault>(from: vaultPath)
@@ -294,10 +439,17 @@ access(all) contract FlowCreditMarketRegistry {
     init() {
         let poolUUID = self.account.storage.borrow<&FlowCreditMarket.Pool>(from: FlowCreditMarket.PoolStoragePath)?.uuid
             ?? panic("Cannot initialize FlowCreditMarketScheduler without an initialized FlowCreditMarket Pool in storage")
-        let path = FlowCreditMarket.deriveRegistryStoragePath(forPool: poolUUID)
+        let storagePath = FlowCreditMarket.deriveRegistryStoragePath(forPool: poolUUID)
+        let publicPath = FlowCreditMarket.deriveRegistryPublicPath(forPool: poolUUID)
 
-        // TODO: update config schema for scheduled txn data formats
-        let defaultRebalanceRecurringConfig = {"force": false}
-        self.account.storage.save(<-create Registry(defaultRebalanceRecurringConfig: defaultRebalanceRecurringConfig), to: path)
+        let defaultRebalanceRecurringConfig = {
+                "interval": 60.0 * 10.0, // 10 minutes in seconds
+                "priority": 2,           // Low priority
+                "executionEffort": 999,  // 999 gas units
+                "force": false           // Do not force rebalance
+            }
+        self.account.storage.save(<-create Registry(defaultRebalanceRecurringConfig: defaultRebalanceRecurringConfig), to: storagePath)
+        let pubCap = self.account.capabilities.storage.issue<&Registry>(storagePath)
+        self.account.capabilities.publish(pubCap, at: publicPath)
     }
 }
