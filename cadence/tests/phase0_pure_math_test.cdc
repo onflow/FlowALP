@@ -28,11 +28,14 @@ fun snap(price: UFix64, creditIdx: UFix128, debitIdx: UFix128, cf: UFix64, bf: U
 access(all) let ONE: UFix128 = 1.0 as UFix128
 
 access(all)
-fun test_healthFactor_zeroBalances_returnsInfinite() {  // Renamed for clarity
-    let balances: {Type: FlowCreditMarket.InternalBalance} = {}
+fun test_healthFactor_zeroBalances_returnsInfinite() {
+    // Empty dictionaries for credit and debit balances
+    let creditBalances: {Type: UFix128} = {}
+    let debitBalances: {Type: UFix128} = {}
     let snaps: {Type: FlowCreditMarket.TokenSnapshot} = {}
     let view = FlowCreditMarket.PositionView(
-        balances: balances,
+        creditBalances: creditBalances,
+        debitBalances: debitBalances,
         snapshots: snaps,
         def: Type<@MOET.Vault>(),
         min: 1.1 as UFix128,
@@ -50,12 +53,14 @@ fun test_healthFactor_zeroCollateral_positiveDebt_returnsZero() {
     let snapshots: {Type: FlowCreditMarket.TokenSnapshot} = {}
     snapshots[tDebt] = snap(price: 1.0, creditIdx: ONE, debitIdx: ONE, cf: 0.5, bf: 1.0)
     
-    let balances: {Type: FlowCreditMarket.InternalBalance} = {}
-    balances[tDebt] = FlowCreditMarket.InternalBalance(direction: FlowCreditMarket.BalanceDirection.Debit,
-        scaledBalance: 50.0 as UFix128)
+    // No credit balances, only debit
+    let creditBalances: {Type: UFix128} = {}
+    let debitBalances: {Type: UFix128} = {}
+    debitBalances[tDebt] = 50.0 as UFix128
     
     let view = FlowCreditMarket.PositionView(
-        balances: balances,
+        creditBalances: creditBalances,
+        debitBalances: debitBalances,
         snapshots: snapshots,
         def: tDebt,
         min: 1.1 as UFix128,
@@ -77,15 +82,16 @@ fun test_healthFactor_simpleCollateralAndDebt() {
     snapshots[tColl] = snap(price: 2.0, creditIdx: ONE, debitIdx: ONE, cf: 0.5, bf: 1.0)
     snapshots[tDebt] = snap(price: 1.0, creditIdx: ONE, debitIdx: ONE, cf: 0.5, bf: 1.0)
 
-    // Balances: +100 collateral units, -50 debt units
-    let balances: {Type: FlowCreditMarket.InternalBalance} = {}
-    balances[tColl] = FlowCreditMarket.InternalBalance(direction: FlowCreditMarket.BalanceDirection.Credit,
-        scaledBalance: 100.0 as UFix128)
-    balances[tDebt] = FlowCreditMarket.InternalBalance(direction: FlowCreditMarket.BalanceDirection.Debit,
-        scaledBalance: 50.0 as UFix128)
+    // Balances: +100 collateral units (credit), -50 debt units (debit)
+    let creditBalances: {Type: UFix128} = {}
+    creditBalances[tColl] = 100.0 as UFix128
+    
+    let debitBalances: {Type: UFix128} = {}
+    debitBalances[tDebt] = 50.0 as UFix128
 
     let view = FlowCreditMarket.PositionView(
-        balances: balances,
+        creditBalances: creditBalances,
+        debitBalances: debitBalances,
         snapshots: snapshots,
         def: tColl,
         min: 1.1 as UFix128,
@@ -107,13 +113,15 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     snapshots[t] = snap(price: 1.0, creditIdx: ONE, debitIdx: ONE, cf: 0.8, bf: 1.0)
     snapshots[tColl] = snap(price: 1.0, creditIdx: ONE, debitIdx: ONE, cf: 0.8, bf: 1.0)
 
-    // Balances: +100 collateral units on tColl, no entry for t (debt token)
-    let balances: {Type: FlowCreditMarket.InternalBalance} = {}
-    balances[tColl] = FlowCreditMarket.InternalBalance(direction: FlowCreditMarket.BalanceDirection.Credit,
-        scaledBalance: 100.0 as UFix128)
+    // Balances: +100 collateral units on tColl, no credit entry for t (will become debt)
+    let creditBalances: {Type: UFix128} = {}
+    creditBalances[tColl] = 100.0 as UFix128
+    
+    let debitBalances: {Type: UFix128} = {}
 
     let view = FlowCreditMarket.PositionView(
-        balances: balances,
+        creditBalances: creditBalances,
+        debitBalances: debitBalances,
         snapshots: snapshots,
         def: t,
         min: 1.1 as UFix128,
@@ -123,7 +131,7 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     let max = FlowCreditMarket.maxWithdraw(
         view: view,
         withdrawSnap: snapshots[t]!,
-        withdrawBal: view.balances[t],
+        withdrawType: t,
         targetHealth: 1.3 as UFix128
     )
     // Expected tokens = effColl / targetHealth (bf=1, price=1)
@@ -140,12 +148,14 @@ fun test_maxWithdraw_fromCollateralLimitedByHealth() {
     let snapshots: {Type: FlowCreditMarket.TokenSnapshot} = {}
     snapshots[t] = snap(price: 1.0, creditIdx: ONE, debitIdx: ONE, cf: 0.5, bf: 1.0)
 
-    let balances: {Type: FlowCreditMarket.InternalBalance} = {}
-    balances[t] = FlowCreditMarket.InternalBalance(direction: FlowCreditMarket.BalanceDirection.Credit,
-        scaledBalance: 100.0 as UFix128)
+    let creditBalances: {Type: UFix128} = {}
+    creditBalances[t] = 100.0 as UFix128
+    
+    let debitBalances: {Type: UFix128} = {}
 
     let view = FlowCreditMarket.PositionView(
-        balances: balances,
+        creditBalances: creditBalances,
+        debitBalances: debitBalances,
         snapshots: snapshots,
         def: t,
         min: 1.1 as UFix128,
@@ -155,7 +165,7 @@ fun test_maxWithdraw_fromCollateralLimitedByHealth() {
     let max = FlowCreditMarket.maxWithdraw(
         view: view,
         withdrawSnap: snapshots[t]!,
-        withdrawBal: view.balances[t],
+        withdrawType: t,
         targetHealth: 1.3 as UFix128
     )
     // With no debt, health is infinite; withdrawal limited by credit balance (100)

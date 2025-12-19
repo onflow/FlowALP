@@ -61,129 +61,71 @@ access(all) contract FlowCreditMarket {
           health/price computations.
         - We convert at boundaries via FlowCreditMarketMath.toUFix128/toUFix64.
     */
-    /// InternalBalance
+
+    /* --- RECEIPT-BASED ACCOUNTING (Cadence Resource Pattern) ---
+        This implementation uses receipt resources instead of mutable balance structs to prevent
+        double-counting bugs. Key principles:
+        1. DepositReceipt/BorrowReceipt resources represent positions - they cannot be copied
+        2. Receipts are created atomically with token deposits
+        3. Receipts must be destroyed to withdraw tokens
+        4. The existence of a receipt IS the record of deposit - no separate ledger to sync
+    */
+
+    /// DepositReceipt
     ///
-    /// A structure used internally to track a position's balance for a particular token
-    access(all) struct InternalBalance {
-        /// The current direction of the balance - Credit (owed to borrower) or Debit (owed to protocol)
-        access(all) var direction: BalanceDirection
-        /// Internally, position balances are tracked using a "scaled balance". The "scaled balance" is the
-        /// actual balance divided by the current interest index for the associated token. This means we don't
-        /// need to update the balance of a position as time passes, even as interest rates change. We only need
-        /// to update the scaled balance when the user deposits or withdraws funds. The interest index
-        /// is a number relatively close to 1.0, so the scaled balance will be roughly of the same order of
-        /// magnitude as the actual balance. We store the scaled balance as UFix128 to align with UFix128
-        /// interest indices and to reduce rounding during true↔scaled conversions.
-        access(all) var scaledBalance: UFix128
+    /// A resource representing a deposit position. The receipt holds the scaled shares (for interest
+    /// accrual) and can only be created when tokens are actually deposited. It must be destroyed
+    /// to withdraw the underlying tokens. This prevents double-counting as the receipt cannot be
+    /// copied and its creation/destruction is atomic with token movement.
+    access(all) resource DepositReceipt {
+        /// The UUID of the pool this receipt belongs to
+        access(all) let poolUUID: UInt64
+        /// The token type this receipt represents
+        access(all) let tokenType: Type
+        /// Scaled balance (shares) for interest accrual - immutable once created
+        /// The actual balance = scaledShares * currentCreditIndex
+        access(all) let scaledShares: UFix128
+        /// Timestamp when the receipt was created (for audit/debugging)
+        access(all) let createdAt: UFix64
 
-        // Single initializer that can handle both cases
-        init(direction: BalanceDirection, scaledBalance: UFix128) {
-            self.direction = direction
-            self.scaledBalance = scaledBalance
+        init(poolUUID: UInt64, tokenType: Type, scaledShares: UFix128) {
+            self.poolUUID = poolUUID
+            self.tokenType = tokenType
+            self.scaledShares = scaledShares
+            self.createdAt = getCurrentBlock().timestamp
         }
 
-        /// Records a deposit of the defined amount, updating the inner scaledBalance as well as relevant values in the
-        /// provided TokenState. It's assumed the TokenState and InternalBalance relate to the same token Type, but
-        /// since neither struct have values defining the associated token, callers should be sure to make the arguments
-        /// do in fact relate to the same token Type.
-        /// amount is expressed in UFix128 (true token units) to operate in the internal UFix128 domain; public
-        /// deposit APIs accept UFix64 and are converted at the boundary.
-        access(contract) fun recordDeposit(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
-            if self.direction == BalanceDirection.Credit {
-                // Depositing into a credit position just increases the balance.
+        /// Returns the current true balance (with accrued interest) given the current credit index
+        access(all) view fun trueBalance(creditIndex: UFix128): UFix128 {
+            return FlowCreditMarket.scaledBalanceToTrueBalance(self.scaledShares, interestIndex: creditIndex)
+        }
+    }
 
-                // To maximize precision, we could convert the scaled balance to a true balance, add the
-                // deposit amount, and then convert the result back to a scaled balance. However, this will
-                // only cause problems for very small deposits (fractions of a cent), so we save computational
-                // cycles by just scaling the deposit amount and adding it directly to the scaled balance.
-                let scaledDeposit = FlowCreditMarket.trueBalanceToScaledBalance(amount,
-                    interestIndex: tokenState.creditInterestIndex)
+    /// BorrowReceipt
+    ///
+    /// A resource representing an outstanding debt position. Similar to DepositReceipt but for
+    /// borrowed amounts. Must be consumed (debt repaid) to be destroyed.
+    access(all) resource BorrowReceipt {
+        /// The UUID of the pool this receipt belongs to
+        access(all) let poolUUID: UInt64
+        /// The token type this receipt represents
+        access(all) let tokenType: Type
+        /// Scaled balance (shares) for interest accrual
+        /// The actual debt = scaledShares * currentDebitIndex
+        access(all) let scaledShares: UFix128
+        /// Timestamp when the receipt was created
+        access(all) let createdAt: UFix64
 
-                self.scaledBalance = self.scaledBalance + scaledDeposit
-
-                // Increase the total credit balance for the token
-                tokenState.increaseCreditBalance(by: amount)
-            } else {
-                // When depositing into a debit position, we first need to compute the true balance to see
-                // if this deposit will flip the position from debit to credit.
-                let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(self.scaledBalance,
-                    interestIndex: tokenState.debitInterestIndex)
-
-                // Harmonize comparison with withdrawal: treat an exact match as "does not flip to credit"
-                if trueBalance >= amount {
-                    // The deposit isn't big enough to clear the debt, so we just decrement the debt.
-                    let updatedBalance = trueBalance - amount
-
-                    self.scaledBalance = FlowCreditMarket.trueBalanceToScaledBalance(updatedBalance,
-                        interestIndex: tokenState.debitInterestIndex)
-
-                    // Decrease the total debit balance for the token
-                    tokenState.decreaseDebitBalance(by: amount)
-                } else {
-                    // The deposit is enough to clear the debt, so we switch to a credit position.
-                    let updatedBalance = amount - trueBalance
-
-                    self.direction = BalanceDirection.Credit
-                    self.scaledBalance = FlowCreditMarket.trueBalanceToScaledBalance(updatedBalance,
-                        interestIndex: tokenState.creditInterestIndex)
-
-                    // Increase the credit balance AND decrease the debit balance
-                    tokenState.increaseCreditBalance(by: updatedBalance)
-                    tokenState.decreaseDebitBalance(by: trueBalance)
-                }
-            }
+        init(poolUUID: UInt64, tokenType: Type, scaledShares: UFix128) {
+            self.poolUUID = poolUUID
+            self.tokenType = tokenType
+            self.scaledShares = scaledShares
+            self.createdAt = getCurrentBlock().timestamp
         }
 
-        /// Records a withdrawal of the defined amount, updating the inner scaledBalance as well as relevant values in
-        /// the provided TokenState. It's assumed the TokenState and InternalBalance relate to the same token Type, but
-        /// since neither struct have values defining the associated token, callers should be sure to make the arguments
-        /// do in fact relate to the same token Type.
-        /// amount is expressed in UFix128 for the same rationale as deposits; public withdraw APIs are UFix64 and are
-        /// converted at the boundary.
-        access(all) fun recordWithdrawal(amount: UFix128, tokenState: &TokenState) {
-            if self.direction == BalanceDirection.Debit {
-                // Withdrawing from a debit position just increases the debt amount.
-
-                // To maximize precision, we could convert the scaled balance to a true balance, subtract the
-                // withdrawal amount, and then convert the result back to a scaled balance. However, this will
-                // only cause problems for very small withdrawals (fractions of a cent), so we save computational
-                // cycles by just scaling the withdrawal amount and subtracting it directly from the scaled balance.
-                let scaledWithdrawal = FlowCreditMarket.trueBalanceToScaledBalance(amount,
-                    interestIndex: tokenState.debitInterestIndex)
-
-                self.scaledBalance = self.scaledBalance + scaledWithdrawal
-
-                // Increase the total debit balance for the token
-                tokenState.increaseDebitBalance(by: amount)
-            } else {
-                // When withdrawing from a credit position, we first need to compute the true balance to see
-                // if this withdrawal will flip the position from credit to debit.
-                let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(self.scaledBalance,
-                    interestIndex: tokenState.creditInterestIndex)
-
-                if trueBalance >= amount {
-                    // The withdrawal isn't big enough to push the position into debt, so we just decrement the
-                    // credit balance.
-                    let updatedBalance = trueBalance - amount
-
-                    self.scaledBalance = FlowCreditMarket.trueBalanceToScaledBalance(updatedBalance,
-                        interestIndex: tokenState.creditInterestIndex)
-
-                    // Decrease the total credit balance for the token
-                    tokenState.decreaseCreditBalance(by: amount)
-                } else {
-                    // The withdrawal is enough to push the position into debt, so we switch to a debit position.
-                    let updatedBalance = amount - trueBalance
-
-                    self.direction = BalanceDirection.Debit
-                    self.scaledBalance = FlowCreditMarket.trueBalanceToScaledBalance(updatedBalance,
-                        interestIndex: tokenState.debitInterestIndex)
-
-                    // Decrease the credit balance AND increase the debit balance
-                    tokenState.decreaseCreditBalance(by: trueBalance)
-                    tokenState.increaseDebitBalance(by: updatedBalance)
-                }
-            }
+        /// Returns the current true debt (with accrued interest) given the current debit index
+        access(all) view fun trueDebt(debitIndex: UFix128): UFix128 {
+            return FlowCreditMarket.scaledBalanceToTrueBalance(self.scaledShares, interestIndex: debitIndex)
         }
     }
 
@@ -246,7 +188,15 @@ access(all) contract FlowCreditMarket {
 
     /// InternalPosition
     ///
-    /// An internal resource used to track deposits, withdrawals, balances, and queued deposits to an open position.
+    /// An internal resource used to track deposits, withdrawals, and queued deposits to an open position.
+    /// 
+    /// RECEIPT-BASED ACCOUNTING (Cadence resource pattern - NO LEGACY BALANCES):
+    /// This resource uses DepositReceipt and BorrowReceipt resources as the ONLY source of truth.
+    /// The receipt-based approach prevents double-counting by ensuring:
+    /// 1. Receipts can only be created when tokens are actually deposited
+    /// 2. Receipts cannot be copied (they are resources)
+    /// 3. Receipts must be destroyed to withdraw tokens
+    /// 4. There is NO separate ledger that can get out of sync
     access(all) resource InternalPosition {
         /// The target health of the position
         access(EImplementation) var targetHealth: UFix128
@@ -254,9 +204,14 @@ access(all) contract FlowCreditMarket {
         access(EImplementation) var minHealth: UFix128
         /// The maximum health of the position, above which a position is considered overcollateralized
         access(EImplementation) var maxHealth: UFix128
-        /// The balances of deposited and withdrawn token types
-        access(mapping ImplementationUpdates) var balances: {Type: InternalBalance}
+        /// Deposit receipts - the ONLY record of deposits (Cadence resource accounting)
+        /// Each receipt represents shares in the pool that earn interest over time
+        access(mapping ImplementationUpdates) var depositReceipts: @{Type: DepositReceipt}
+        /// Borrow receipts - the ONLY record of outstanding debts (Cadence resource accounting)
+        /// Each receipt represents debt shares that accrue interest over time
+        access(mapping ImplementationUpdates) var borrowReceipts: @{Type: BorrowReceipt}
         /// Funds that have been deposited but must be asynchronously added to the Pool's reserves and recorded
+        /// Note: Queued deposits are stored as actual vault resources, not balance entries
         access(mapping ImplementationUpdates) var queuedDeposits: @{Type: {FungibleToken.Vault}}
         /// A DeFiActions Sink that if non-nil will enable the Pool to push overflown value automatically when the
         /// position exceeds its maximum health based on the value of deposited collateral versus withdrawals
@@ -267,7 +222,8 @@ access(all) contract FlowCreditMarket {
         access(mapping ImplementationUpdates) var topUpSource: {DeFiActions.Source}?
 
         init() {
-            self.balances = {}
+            self.depositReceipts <- {}
+            self.borrowReceipts <- {}
             self.queuedDeposits <- {}
             self.targetHealth = FlowCreditMarketMath.toUFix128(1.3)
             self.minHealth = FlowCreditMarketMath.toUFix128(1.1)
@@ -287,10 +243,49 @@ access(all) contract FlowCreditMarket {
         access(EImplementation) fun setMaxHealth(_ value: UFix128) {
             self.maxHealth = value
         }
-        /// Returns a value-copy of `balances` suitable for constructing a `PositionView`.
-        access(all) fun copyBalances(): {Type: InternalBalance} {
-            return self.balances
+        
+        /// Computes the total deposit shares for a given token type from receipts
+        access(all) view fun getDepositShares(type: Type): UFix128 {
+            if self.depositReceipts.containsKey(type) {
+                let receiptRef = &self.depositReceipts[type] as &DepositReceipt?
+                return receiptRef!.scaledShares
+            }
+            return 0.0 as UFix128
         }
+        
+        /// Computes the total borrow shares for a given token type from receipts  
+        access(all) view fun getBorrowShares(type: Type): UFix128 {
+            if self.borrowReceipts.containsKey(type) {
+                let receiptRef = &self.borrowReceipts[type] as &BorrowReceipt?
+                return receiptRef!.scaledShares
+            }
+            return 0.0 as UFix128
+        }
+        
+        /// Returns all token types that have deposit receipts
+        access(all) view fun getDepositTypes(): [Type] {
+            return self.depositReceipts.keys
+        }
+        
+        /// Returns all token types that have borrow receipts
+        access(all) view fun getBorrowTypes(): [Type] {
+            return self.borrowReceipts.keys
+        }
+        
+        /// Returns all token types that have either deposits or borrows
+        access(all) fun getAllTokenTypes(): [Type] {
+            var types: [Type] = []
+            for t in self.depositReceipts.keys {
+                types.append(t)
+            }
+            for t in self.borrowReceipts.keys {
+                if !types.contains(t) {
+                    types.append(t)
+                }
+            }
+            return types
+        }
+        
         /// Sets the InternalPosition's drawDownSink. If `nil`, the Pool will not be able to push overflown value when
         /// the position exceeds its maximum health. Note, if a non-nil value is provided, the Sink MUST accept MOET
         /// deposits or the operation will revert.
@@ -655,18 +650,29 @@ access(all) contract FlowCreditMarket {
     }
 
     /// Copy-only representation of a position used by pure math (no storage refs)
+    /// Aligned with receipt-based accounting: separate credit (deposit) and debit (borrow) balances
     access(all) struct PositionView {
-        access(all) let balances: {Type: InternalBalance}
+        /// Scaled shares for deposit positions (credit balances) - derived from DepositReceipts
+        access(all) let creditBalances: {Type: UFix128}
+        /// Scaled shares for borrow positions (debit balances) - derived from BorrowReceipts
+        access(all) let debitBalances: {Type: UFix128}
+        /// Token snapshots for price and risk parameters
         access(all) let snapshots: {Type: TokenSnapshot}
+        /// The default token type for the pool
         access(all) let defaultToken: Type
+        /// Minimum health threshold
         access(all) let minHealth: UFix128
+        /// Maximum health threshold
         access(all) let maxHealth: UFix128
-        init(balances: {Type: InternalBalance},
+        
+        init(creditBalances: {Type: UFix128},
+             debitBalances: {Type: UFix128},
              snapshots: {Type: TokenSnapshot},
              def: Type,
              min: UFix128,
              max: UFix128) {
-            self.balances = balances
+            self.creditBalances = creditBalances
+            self.debitBalances = debitBalances
             self.snapshots = snapshots
             self.defaultToken = def
             self.minHealth = min
@@ -685,37 +691,46 @@ access(all) contract FlowCreditMarket {
     }
 
     /// Computes health = totalEffectiveCollateral / totalEffectiveDebt (∞ when debt == 0)
+    /// Uses receipt-aligned PositionView with separate credit/debit balance dictionaries
     access(all) view fun healthFactor(view: PositionView): UFix128 {
         var effectiveCollateralTotal: UFix128 = 0.0 as UFix128
         var effectiveDebtTotal: UFix128 = 0.0 as UFix128
-        for tokenType in view.balances.keys {
-            let balance = view.balances[tokenType]!
+        
+        // Process credit balances (deposits/collateral)
+        for tokenType in view.creditBalances.keys {
+            let scaledBalance = view.creditBalances[tokenType]!
             let snap = view.snapshots[tokenType]!
-            if balance.direction == BalanceDirection.Credit {
-                let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
-                    balance.scaledBalance,
-                    interestIndex: snap.creditIndex
-                )
-                effectiveCollateralTotal = effectiveCollateralTotal + FlowCreditMarket.effectiveCollateral(credit: trueBalance, snap: snap)
-            } else {
-                let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
-                    balance.scaledBalance,
-                    interestIndex: snap.debitIndex
-                )
-                effectiveDebtTotal = effectiveDebtTotal + FlowCreditMarket.effectiveDebt(debit: trueBalance, snap: snap)
-            }
+            let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
+                scaledBalance,
+                interestIndex: snap.creditIndex
+            )
+            effectiveCollateralTotal = effectiveCollateralTotal + FlowCreditMarket.effectiveCollateral(credit: trueBalance, snap: snap)
         }
+        
+        // Process debit balances (borrows/debt)
+        for tokenType in view.debitBalances.keys {
+            let scaledBalance = view.debitBalances[tokenType]!
+            let snap = view.snapshots[tokenType]!
+            let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
+                scaledBalance,
+                interestIndex: snap.debitIndex
+            )
+            effectiveDebtTotal = effectiveDebtTotal + FlowCreditMarket.effectiveDebt(debit: trueBalance, snap: snap)
+        }
+        
         return FlowCreditMarket.healthComputation(
             effectiveCollateral: effectiveCollateralTotal,
             effectiveDebt: effectiveDebtTotal
         )
     }
 
-    /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth
+    /// Amount of `withdrawSnap` token that can be withdrawn while staying >= targetHealth
+    /// Uses receipt-aligned PositionView with separate credit/debit balance dictionaries
+    /// withdrawType: the token type being withdrawn
     access(all) view fun maxWithdraw(
         view: PositionView,
         withdrawSnap: TokenSnapshot,
-        withdrawBal: InternalBalance?,
+        withdrawType: Type,
         targetHealth: UFix128
     ): UFix128 {
         let preHealth = FlowCreditMarket.healthFactor(view: view)
@@ -725,38 +740,46 @@ access(all) contract FlowCreditMarket {
 
         var effectiveCollateralTotal: UFix128 = 0.0 as UFix128
         var effectiveDebtTotal: UFix128 = 0.0 as UFix128
-        for tokenType in view.balances.keys {
-            let balance = view.balances[tokenType]!
+        
+        // Process credit balances (deposits/collateral)
+        for tokenType in view.creditBalances.keys {
+            let scaledBalance = view.creditBalances[tokenType]!
             let snap = view.snapshots[tokenType]!
-            if balance.direction == BalanceDirection.Credit {
-                let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
-                    balance.scaledBalance,
-                    interestIndex: snap.creditIndex
-                )
-                effectiveCollateralTotal = effectiveCollateralTotal + FlowCreditMarket.effectiveCollateral(credit: trueBalance, snap: snap)
-            } else {
-                let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
-                    balance.scaledBalance,
-                    interestIndex: snap.debitIndex
-                )
-                effectiveDebtTotal = effectiveDebtTotal + FlowCreditMarket.effectiveDebt(debit: trueBalance, snap: snap)
-            }
+            let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
+                scaledBalance,
+                interestIndex: snap.creditIndex
+            )
+            effectiveCollateralTotal = effectiveCollateralTotal + FlowCreditMarket.effectiveCollateral(credit: trueBalance, snap: snap)
+        }
+        
+        // Process debit balances (borrows/debt)
+        for tokenType in view.debitBalances.keys {
+            let scaledBalance = view.debitBalances[tokenType]!
+            let snap = view.snapshots[tokenType]!
+            let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
+                scaledBalance,
+                interestIndex: snap.debitIndex
+            )
+            effectiveDebtTotal = effectiveDebtTotal + FlowCreditMarket.effectiveDebt(debit: trueBalance, snap: snap)
         }
 
         let collateralFactor = withdrawSnap.risk.collateralFactor
         let borrowFactor = withdrawSnap.risk.borrowFactor
 
-        if withdrawBal == nil || withdrawBal!.direction == BalanceDirection.Debit {
-            // withdrawing increases debt
+        // Check if withdrawType has a credit balance (deposit) - if not, withdrawal creates new debt
+        let hasCreditBalance = view.creditBalances[withdrawType] != nil && view.creditBalances[withdrawType]! > 0.0 as UFix128
+        
+        if !hasCreditBalance {
+            // withdrawing increases debt (no existing deposit to withdraw from)
             let numerator = effectiveCollateralTotal
             let denominatorTarget = numerator / targetHealth
             let deltaDebt = denominatorTarget > effectiveDebtTotal ? denominatorTarget - effectiveDebtTotal : FlowCreditMarketMath.zero
             let tokens = (deltaDebt * borrowFactor) / withdrawSnap.price
             return tokens
         } else {
-            // withdrawing reduces collateral
+            // withdrawing reduces collateral (withdrawing from existing deposit)
             let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
-                withdrawBal!.scaledBalance,
+                view.creditBalances[withdrawType]!,
                 interestIndex: withdrawSnap.creditIndex
             )
             let maxPossible = trueBalance
@@ -959,11 +982,10 @@ access(all) contract FlowCreditMarket {
                 )
             )
 
-            let withdrawBal = view.balances[type]
             let uintMax = FlowCreditMarket.maxWithdraw(
                 view: view,
                 withdrawSnap: snap,
-                withdrawBal: withdrawBal,
+                withdrawType: type,
                 targetHealth: view.minHealth
             )
             return FlowCreditMarketMath.toUFix64Round(uintMax)
@@ -972,6 +994,8 @@ access(all) contract FlowCreditMarket {
         /// Returns the health of the given position, which is the ratio of the position's effective collateral to its
         /// debt as denominated in the Pool's default token. "Effective collateral" means the value of each credit balance
         /// times the liquidation threshold for that token. i.e. the maximum borrowable amount
+        /// 
+        /// RECEIPT-BASED: Computes health directly from deposit and borrow receipts
         access(all) fun positionHealth(pid: UInt64): UFix128 {
             let position = self._borrowPosition(pid: pid)
 
@@ -979,24 +1003,32 @@ access(all) contract FlowCreditMarket {
             var effectiveCollateral: UFix128 = 0.0 as UFix128
             var effectiveDebt: UFix128 = 0.0 as UFix128
 
-            for type in position.balances.keys {
-                let balance = position.balances[type]!
-                let tokenState = self._borrowUpdatedTokenState(type: type)
-
-                let collateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[type]!)
-                let borrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[type]!)
-                let price = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: type)!)
-                if balance.direction == BalanceDirection.Credit {
-                    let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(balance.scaledBalance,
+            // Process deposit receipts (collateral)
+            for type in position.getDepositTypes() {
+                let depositShares = position.getDepositShares(type: type)
+                if depositShares > 0.0 as UFix128 {
+                    let tokenState = self._borrowUpdatedTokenState(type: type)
+                    let collateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[type]!)
+                    let price = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: type)!)
+                    
+                    let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(depositShares,
                         interestIndex: tokenState.creditInterestIndex)
-
-                let value = price * trueBalance
-                let effectiveCollateralValue = value * collateralFactor
+                    let value = price * trueBalance
+                    let effectiveCollateralValue = value * collateralFactor
                     effectiveCollateral = effectiveCollateral + effectiveCollateralValue
-                } else {
-                    let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(balance.scaledBalance,
+                }
+            }
+            
+            // Process borrow receipts (debt)
+            for type in position.getBorrowTypes() {
+                let borrowShares = position.getBorrowShares(type: type)
+                if borrowShares > 0.0 as UFix128 {
+                    let tokenState = self._borrowUpdatedTokenState(type: type)
+                    let borrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[type]!)
+                    let price = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: type)!)
+                    
+                    let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(borrowShares,
                         interestIndex: tokenState.debitInterestIndex)
-
                     let value = price * trueBalance
                     let effectiveDebtValue = value / borrowFactor
                     effectiveDebt = effectiveDebt + effectiveDebtValue
@@ -1021,23 +1053,40 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Returns the details of a given position as a PositionDetails external struct
+        /// RECEIPT-BASED: Derives balance information from deposit and borrow receipts
         access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
             if self.debugLogging { log("    [CONTRACT] getPositionDetails(pid: \(pid))") }
             let position = self._borrowPosition(pid: pid)
             var balances: [PositionBalance] = []
 
-            for type in position.balances.keys {
-                let balance = position.balances[type]!
-                let tokenState = self._borrowUpdatedTokenState(type: type)
-                let trueBalance = balance.direction == BalanceDirection.Credit
-                    ? FlowCreditMarket.scaledBalanceToTrueBalance(balance.scaledBalance, interestIndex: tokenState.creditInterestIndex)
-                    : FlowCreditMarket.scaledBalanceToTrueBalance(balance.scaledBalance, interestIndex: tokenState.debitInterestIndex)
-
-                balances.append(PositionBalance(
-                    vaultType: type,
-                    direction: balance.direction,
-                    balance: FlowCreditMarketMath.toUFix64Round(trueBalance)
-                ))
+            // Process deposit receipts (credit balances)
+            for type in position.getDepositTypes() {
+                let depositShares = position.getDepositShares(type: type)
+                if depositShares > 0.0 as UFix128 {
+                    let tokenState = self._borrowUpdatedTokenState(type: type)
+                    let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(depositShares, interestIndex: tokenState.creditInterestIndex)
+                    
+                    balances.append(PositionBalance(
+                        vaultType: type,
+                        direction: BalanceDirection.Credit,
+                        balance: FlowCreditMarketMath.toUFix64Round(trueBalance)
+                    ))
+                }
+            }
+            
+            // Process borrow receipts (debit balances)
+            for type in position.getBorrowTypes() {
+                let borrowShares = position.getBorrowShares(type: type)
+                if borrowShares > 0.0 as UFix128 {
+                    let tokenState = self._borrowUpdatedTokenState(type: type)
+                    let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(borrowShares, interestIndex: tokenState.debitInterestIndex)
+                    
+                    balances.append(PositionBalance(
+                        vaultType: type,
+                        direction: BalanceDirection.Debit,
+                        balance: FlowCreditMarketMath.toUFix64Round(trueBalance)
+                    ))
+                }
             }
 
             let health = self.positionHealth(pid: pid)
@@ -1099,15 +1148,18 @@ access(all) contract FlowCreditMarket {
             )
 
             // Recompute effective totals and capture available true collateral for seizeType
+            // Using receipt-aligned PositionView with separate credit/debit balances
             var effColl: UFix128 = 0.0 as UFix128
             var effDebt: UFix128 = 0.0 as UFix128
             var trueCollateralSeize: UFix128 = 0.0 as UFix128
             var trueDebt: UFix128 = 0.0 as UFix128
-            for t in view.balances.keys {
-                let b = view.balances[t]!
+            
+            // Process credit balances (collateral)
+            for t in view.creditBalances.keys {
+                let scaledBalance = view.creditBalances[t]!
                 let st = self._borrowUpdatedTokenState(type: t)
                 // Resolve per-token liquidation bonus (default 5%) for token t
-            var lbTUFix: UFix64 = 0.05
+                var lbTUFix: UFix64 = 0.05
                 let lbTOpt = self.liquidationBonus[t]
                 if lbTOpt != nil {
                     lbTUFix = lbTOpt!
@@ -1122,19 +1174,38 @@ access(all) contract FlowCreditMarket {
                         lb: FlowCreditMarketMath.toUFix128(lbTUFix)
                     )
                 )
-                if b.direction == BalanceDirection.Credit {
-                    let trueBal = FlowCreditMarket.scaledBalanceToTrueBalance(b.scaledBalance, interestIndex: snap.creditIndex)
-                    if t == seizeType {
-                        trueCollateralSeize = trueBal
-                    }
-                    effColl = effColl + FlowCreditMarket.effectiveCollateral(credit: trueBal, snap: snap)
-                } else {
-                    let trueBal = FlowCreditMarket.scaledBalanceToTrueBalance(b.scaledBalance, interestIndex: snap.debitIndex)
-                    if t == debtType {
-                        trueDebt = trueBal
-                    }
-                    effDebt = effDebt + FlowCreditMarket.effectiveDebt(debit: trueBal, snap: snap)
+                let trueBal = FlowCreditMarket.scaledBalanceToTrueBalance(scaledBalance, interestIndex: snap.creditIndex)
+                if t == seizeType {
+                    trueCollateralSeize = trueBal
                 }
+                effColl = effColl + FlowCreditMarket.effectiveCollateral(credit: trueBal, snap: snap)
+            }
+            
+            // Process debit balances (debt)
+            for t in view.debitBalances.keys {
+                let scaledBalance = view.debitBalances[t]!
+                let st = self._borrowUpdatedTokenState(type: t)
+                // Resolve per-token liquidation bonus (default 5%) for token t
+                var lbTUFix: UFix64 = 0.05
+                let lbTOpt = self.liquidationBonus[t]
+                if lbTOpt != nil {
+                    lbTUFix = lbTOpt!
+                }
+                let snap = FlowCreditMarket.TokenSnapshot(
+                    price: FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: t)!),
+                    credit: st.creditInterestIndex,
+                    debit: st.debitInterestIndex,
+                    risk: FlowCreditMarket.RiskParams(
+                        cf: FlowCreditMarketMath.toUFix128(self.collateralFactor[t]!),
+                        bf: FlowCreditMarketMath.toUFix128(self.borrowFactor[t]!),
+                        lb: FlowCreditMarketMath.toUFix128(lbTUFix)
+                    )
+                )
+                let trueBal = FlowCreditMarket.scaledBalanceToTrueBalance(scaledBalance, interestIndex: snap.debitIndex)
+                if t == debtType {
+                    trueDebt = trueBal
+                }
+                effDebt = effDebt + FlowCreditMarket.effectiveDebt(debit: trueBal, snap: snap)
             }
 
             // Compute required effective collateral increase to reach targetHF
@@ -1297,6 +1368,11 @@ access(all) contract FlowCreditMarket {
             withdrawAmount: UFix64
         ): UFix64 {
             if self.debugLogging { log("    [CONTRACT] fundsRequiredForTargetHealthAfterWithdrawing(pid: \(pid), depositType: \(depositType.contractName!), targetHealth: \(targetHealth), withdrawType: \(withdrawType.contractName!), withdrawAmount: \(withdrawAmount))") }
+            if depositType == withdrawType && withdrawAmount > 0.0 {
+                // If the deposit and withdrawal types are the same, we compute the required deposit assuming
+                // no withdrawal (which is less work) and increase that by the withdraw amount at the end
+                return self.fundsRequiredForTargetHealth(pid: pid, type: depositType, targetHealth: targetHealth) + withdrawAmount
+            }
 
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
@@ -1355,22 +1431,44 @@ access(all) contract FlowCreditMarket {
             let debtReserveRef = (&self.reserves[debtType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
             debtReserveRef.deposit(from: <-toUse)
 
-            // Reduce borrower's debt position by repayAmount
+            // RECEIPT-BASED: Reduce borrower's debt position by repayAmount using receipts
             let position = self._borrowPosition(pid: pid)
             let debtState = self._borrowUpdatedTokenState(type: debtType)
             let repayUint = FlowCreditMarketMath.toUFix128(quote.requiredRepay)
-            if position.balances[debtType] == nil {
-                position.balances[debtType] = InternalBalance(direction: BalanceDirection.Debit, scaledBalance: 0.0 as UFix128)
+            
+            // Repay debt via borrow receipt
+            if position.borrowReceipts[debtType] != nil {
+                let existingBorrow <- position.borrowReceipts.remove(key: debtType)!
+                let existingDebt = existingBorrow.trueDebt(debitIndex: debtState.debitInterestIndex)
+                if existingDebt > repayUint {
+                    let remainingDebt = existingDebt - repayUint
+                    let newBorrowShares = FlowCreditMarket.trueBalanceToScaledBalance(remainingDebt, interestIndex: debtState.debitInterestIndex)
+                    if newBorrowShares > 0.0 as UFix128 {
+                        position.borrowReceipts[debtType] <-! create BorrowReceipt(poolUUID: self.uuid, tokenType: debtType, scaledShares: newBorrowShares)
+                    }
+                }
+                debtState.decreaseDebitBalance(by: repayUint)
+                destroy existingBorrow
             }
-            position.balances[debtType]!.recordDeposit(amount: repayUint, tokenState: debtState)
 
-            // Withdraw seized collateral from position and send to liquidator
+            // RECEIPT-BASED: Withdraw seized collateral from position using receipts
             let seizeState = self._borrowUpdatedTokenState(type: seizeType)
             let seizeUint = FlowCreditMarketMath.toUFix128(quote.seizeAmount)
-            if position.balances[seizeType] == nil {
-                position.balances[seizeType] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
+            
+            // Seize collateral via deposit receipt
+            if position.depositReceipts[seizeType] != nil {
+                let existingDeposit <- position.depositReceipts.remove(key: seizeType)!
+                let existingCredit = existingDeposit.trueBalance(creditIndex: seizeState.creditInterestIndex)
+                if existingCredit > seizeUint {
+                    let remainingCredit = existingCredit - seizeUint
+                    let newCreditShares = FlowCreditMarket.trueBalanceToScaledBalance(remainingCredit, interestIndex: seizeState.creditInterestIndex)
+                    if newCreditShares > 0.0 as UFix128 {
+                        position.depositReceipts[seizeType] <-! create DepositReceipt(poolUUID: self.uuid, tokenType: seizeType, scaledShares: newCreditShares)
+                    }
+                }
+                seizeState.decreaseCreditBalance(by: seizeUint)
+                destroy existingDeposit
             }
-            position.balances[seizeType]!.recordWithdrawal(amount: seizeUint, tokenState: seizeState)
             let seizeReserveRef = (&self.reserves[seizeType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
             let payout <- seizeReserveRef.withdraw(amount: quote.seizeAmount)
 
@@ -1469,15 +1567,27 @@ access(all) contract FlowCreditMarket {
             )
         }
 
-        // Internal helpers for DEX liquidation path (resource-scoped)
+        // Internal helpers for DEX liquidation path (resource-scoped) - RECEIPT-BASED
         access(self) fun internalSeize(pid: UInt64, tokenType: Type, amount: UFix64): @{FungibleToken.Vault} {
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: tokenType)
             let seizeUint = FlowCreditMarketMath.toUFix128(amount)
-            if position.balances[tokenType] == nil {
-                position.balances[tokenType] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
+            
+            // RECEIPT-BASED: Seize from deposit receipt
+            if position.depositReceipts[tokenType] != nil {
+                let existingDeposit <- position.depositReceipts.remove(key: tokenType)!
+                let existingCredit = existingDeposit.trueBalance(creditIndex: tokenState.creditInterestIndex)
+                if existingCredit > seizeUint {
+                    let remainingCredit = existingCredit - seizeUint
+                    let newCreditShares = FlowCreditMarket.trueBalanceToScaledBalance(remainingCredit, interestIndex: tokenState.creditInterestIndex)
+                    if newCreditShares > 0.0 as UFix128 {
+                        position.depositReceipts[tokenType] <-! create DepositReceipt(poolUUID: self.uuid, tokenType: tokenType, scaledShares: newCreditShares)
+                    }
+                }
+                tokenState.decreaseCreditBalance(by: seizeUint)
+                destroy existingDeposit
             }
-            position.balances[tokenType]!.recordWithdrawal(amount: seizeUint, tokenState: tokenState)
+            
             if self.reserves[tokenType] == nil {
                 self.reserves[tokenType] <-! DeFiActionsUtils.getEmptyVault(tokenType)
             }
@@ -1497,10 +1607,21 @@ access(all) contract FlowCreditMarket {
             let position = self._borrowPosition(pid: pid)
             let debtState = self._borrowUpdatedTokenState(type: debtType)
             let repayUint = FlowCreditMarketMath.toUFix128(amount)
-            if position.balances[debtType] == nil {
-                position.balances[debtType] = InternalBalance(direction: BalanceDirection.Debit, scaledBalance: 0.0 as UFix128)
+            
+            // RECEIPT-BASED: Repay via borrow receipt
+            if position.borrowReceipts[debtType] != nil {
+                let existingBorrow <- position.borrowReceipts.remove(key: debtType)!
+                let existingDebt = existingBorrow.trueDebt(debitIndex: debtState.debitInterestIndex)
+                if existingDebt > repayUint {
+                    let remainingDebt = existingDebt - repayUint
+                    let newBorrowShares = FlowCreditMarket.trueBalanceToScaledBalance(remainingDebt, interestIndex: debtState.debitInterestIndex)
+                    if newBorrowShares > 0.0 as UFix128 {
+                        position.borrowReceipts[debtType] <-! create BorrowReceipt(poolUUID: self.uuid, tokenType: debtType, scaledShares: newBorrowShares)
+                    }
+                }
+                debtState.decreaseDebitBalance(by: repayUint)
+                destroy existingBorrow
             }
-            position.balances[debtType]!.recordDeposit(amount: repayUint, tokenState: debtState)
             return amount
         }
 
@@ -1525,35 +1646,35 @@ access(all) contract FlowCreditMarket {
             let withdrawPrice2 = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: withdrawType)!)
             let withdrawBorrowFactor2 = FlowCreditMarketMath.toUFix128(self.borrowFactor[withdrawType]!)
 
-            let maybeBalance = position.balances[withdrawType]
-                if maybeBalance == nil || maybeBalance!.direction == BalanceDirection.Debit {
-                    // If the position doesn't have any collateral for the withdrawn token, we can just compute how much
-                    // additional effective debt the withdrawal will create.
-                    effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt +
-                        FlowCreditMarketMath.div(withdrawAmountU * withdrawPrice2, withdrawBorrowFactor2)
-                } else {
-                    let withdrawTokenState = self._borrowUpdatedTokenState(type: withdrawType)
+            // RECEIPT-BASED: Check deposit receipts for collateral
+            let depositShares = position.getDepositShares(type: withdrawType)
+            if depositShares == 0.0 as UFix128 {
+                // If the position doesn't have any collateral for the withdrawn token, we can just compute how much
+                // additional effective debt the withdrawal will create.
+                effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt +
+                    FlowCreditMarketMath.div(withdrawAmountU * withdrawPrice2, withdrawBorrowFactor2)
+            } else {
+                let withdrawTokenState = self._borrowUpdatedTokenState(type: withdrawType)
 
-                    // The user has a collateral position in the given token, we need to figure out if this withdrawal
-                    // will flip over into debt, or just draw down the collateral.
-                    let collateralBalance = maybeBalance!.scaledBalance
-                    let trueCollateral = FlowCreditMarket.scaledBalanceToTrueBalance(collateralBalance,
-                        interestIndex: withdrawTokenState.creditInterestIndex
-                    )
-                    let collateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[withdrawType]!)
-                    if trueCollateral >= withdrawAmountU {
-                        // This withdrawal will draw down collateral, but won't create debt, we just need to account
-                        // for the collateral decrease.
-                        effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral -
-                            (withdrawAmountU * withdrawPrice2) * collateralFactor
-                    } else {
-                        // The withdrawal will wipe out all of the collateral, and create some debt.
-                        effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt +
-                            FlowCreditMarketMath.div((withdrawAmountU - trueCollateral) * withdrawPrice2, withdrawBorrowFactor2)
-                        effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral -
-                            (trueCollateral * withdrawPrice2) * collateralFactor
-                    }
+                // The user has a collateral position in the given token, we need to figure out if this withdrawal
+                // will flip over into debt, or just draw down the collateral.
+                let trueCollateral = FlowCreditMarket.scaledBalanceToTrueBalance(depositShares,
+                    interestIndex: withdrawTokenState.creditInterestIndex
+                )
+                let collateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[withdrawType]!)
+                if trueCollateral >= withdrawAmountU {
+                    // This withdrawal will draw down collateral, but won't create debt, we just need to account
+                    // for the collateral decrease.
+                    effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral -
+                        (withdrawAmountU * withdrawPrice2) * collateralFactor
+                } else {
+                    // The withdrawal will wipe out all of the collateral, and create some debt.
+                    effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt +
+                        FlowCreditMarketMath.div((withdrawAmountU - trueCollateral) * withdrawPrice2, withdrawBorrowFactor2)
+                    effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral -
+                        (trueCollateral * withdrawPrice2) * collateralFactor
                 }
+            }
 
             return BalanceSheet(effectiveCollateral: effectiveCollateralAfterWithdrawal, effectiveDebt: effectiveDebtAfterWithdrawal)
         }
@@ -1595,16 +1716,16 @@ access(all) contract FlowCreditMarket {
             let depositPrice = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: depositType)!)
             let depositBorrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[depositType]!)
             let withdrawBorrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[withdrawType]!)
-            let maybeBalance = position.balances[depositType]
-            if maybeBalance?.direction == BalanceDirection.Debit {
+            // RECEIPT-BASED: Check borrow receipts for debt position
+            let borrowShares = position.getBorrowShares(type: depositType)
+            if borrowShares > 0.0 as UFix128 {
                 // The user has a debt position in the given token, we start by looking at the health impact of paying off
                 // the entire debt.
                 let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
-                let debtBalance = maybeBalance!.scaledBalance
-                let trueDebtTokenCount = FlowCreditMarket.scaledBalanceToTrueBalance(debtBalance,
+                let trueDebt = FlowCreditMarket.scaledBalanceToTrueBalance(borrowShares,
                     interestIndex: depositTokenState.debitInterestIndex
                 )
-                let debtEffectiveValue = FlowCreditMarketMath.div(depositPrice * trueDebtTokenCount, depositBorrowFactor)
+                let debtEffectiveValue = FlowCreditMarketMath.div(depositPrice * trueDebt, depositBorrowFactor)
 
                 // Ensure we don't underflow - if debtEffectiveValue is greater than effectiveDebtAfterWithdrawal,
                 // it means we can pay off all debt
@@ -1641,12 +1762,12 @@ access(all) contract FlowCreditMarket {
                     // from this new health position. Rather than copy that logic here, we fall through into it. But first
                     // we have to record the amount of tokens that went towards debt payback and adjust the effective
                     // debt to reflect that it has been paid off.
-                    debtTokenCount = trueDebtTokenCount
+                    debtTokenCount = FlowCreditMarketMath.div(trueDebt, depositPrice)
                     // Ensure we don't underflow
                     if debtEffectiveValue <= effectiveDebtAfterWithdrawal {
                         effectiveDebtAfterWithdrawal = effectiveDebtAfterWithdrawal - debtEffectiveValue
                     } else {
-                        effectiveDebtAfterWithdrawal = FlowCreditMarketMath.zero
+                        effectiveDebtAfterWithdrawal = 0.0 as UFix128
                     }
                     healthAfterWithdrawal = potentialHealth
                 }
@@ -1747,37 +1868,35 @@ access(all) contract FlowCreditMarket {
             let depositPriceCasted = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: depositType)!)
             let depositBorrowFactorCasted = FlowCreditMarketMath.toUFix128(self.borrowFactor[depositType]!)
             let depositCollateralFactorCasted = FlowCreditMarketMath.toUFix128(self.collateralFactor[depositType]!)
-            let maybeBalance = position.balances[depositType]
-                if maybeBalance == nil || maybeBalance!.direction == BalanceDirection.Credit {
-                    // If there's no debt for the deposit token, we can just compute how much additional effective collateral the deposit will create.
-                    effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
-                        (depositAmountCasted * depositPriceCasted) * depositCollateralFactorCasted
+            // RECEIPT-BASED: Check borrow receipts for debt position
+            let borrowShares = position.getBorrowShares(type: depositType)
+            if borrowShares == 0.0 as UFix128 {
+                // If there's no debt for the deposit token, we can just compute how much additional effective collateral the deposit will create.
+                effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
+                    (depositAmountCasted * depositPriceCasted) * depositCollateralFactorCasted
+            } else {
+                let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
+
+                // The user has a debt position in the given token, we need to figure out if this deposit
+                // will result in net collateral, or just bring down the debt.
+                let trueDebt = FlowCreditMarket.scaledBalanceToTrueBalance(borrowShares,
+                    interestIndex: depositTokenState.debitInterestIndex
+                )
+                if self.debugLogging { log("    [CONTRACT] trueDebt: \(trueDebt)") }
+
+                if trueDebt >= depositAmountCasted {
+                    // This deposit will pay down some debt, but won't result in net collateral, we
+                    // just need to account for the debt decrease.
+                    effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
+                        FlowCreditMarketMath.div(depositAmountCasted * depositPriceCasted, depositBorrowFactorCasted)
                 } else {
-                    let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
-
-                    // The user has a debt position in the given token, we need to figure out if this deposit
-                    // will result in net collateral, or just bring down the debt.
-                    let debtBalance = maybeBalance!.scaledBalance
-                    let trueDebt = FlowCreditMarket.scaledBalanceToTrueBalance(debtBalance,
-                        interestIndex: depositTokenState.debitInterestIndex
-                    )
-                    if self.debugLogging { log("    [CONTRACT] trueDebt: \(trueDebt)") }
-
-                    if trueDebt >= depositAmountCasted {
-                        // This deposit will pay down some debt, but won't result in net collateral, we
-                        // just need to account for the debt decrease.
-                        // TODO - validate if this should deal with withdrawType or depositType
-                        effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
-                            FlowCreditMarketMath.div(depositAmountCasted * depositPriceCasted, depositBorrowFactorCasted)
-                    } else {
-                        // The deposit will wipe out all of the debt, and create some collateral.
-                        // TODO - validate if this should deal with withdrawType or depositType
-                        effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
-                            FlowCreditMarketMath.div(trueDebt * depositPriceCasted, depositBorrowFactorCasted)
-                        effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
-                            (depositAmountCasted - trueDebt) * depositPriceCasted * depositCollateralFactorCasted
-                    }
+                    // The deposit will wipe out all of the debt, and create some collateral.
+                    effectiveDebtAfterDeposit = balanceSheet.effectiveDebt -
+                        FlowCreditMarketMath.div(trueDebt * depositPriceCasted, depositBorrowFactorCasted)
+                    effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
+                        (depositAmountCasted - trueDebt) * depositPriceCasted * depositCollateralFactorCasted
                 }
+            }
 
             if self.debugLogging {
                 log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
@@ -1820,13 +1939,13 @@ access(all) contract FlowCreditMarket {
             let withdrawCollateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[withdrawType]!)
             let withdrawBorrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[withdrawType]!)
 
-            let maybeBalance = position.balances[withdrawType]
-            if maybeBalance?.direction == BalanceDirection.Credit {
+            // RECEIPT-BASED: Check deposit receipts for credit position
+            let depositShares = position.getDepositShares(type: withdrawType)
+            if depositShares > 0.0 as UFix128 {
                 // The user has a credit position in the withdraw token, we start by looking at the health impact of pulling out all
                 // of that collateral
                 let withdrawTokenState = self._borrowUpdatedTokenState(type: withdrawType)
-                let creditBalance = maybeBalance!.scaledBalance
-                let trueCredit = FlowCreditMarket.scaledBalanceToTrueBalance(creditBalance,
+                let trueCredit = FlowCreditMarket.scaledBalanceToTrueBalance(depositShares,
                     interestIndex: withdrawTokenState.creditInterestIndex
                 )
                 let collateralEffectiveValue = (withdrawPrice * trueCredit) * withdrawCollateralFactor
@@ -1890,6 +2009,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Returns the position's health if the given amount of the specified token were deposited
+        /// RECEIPT-BASED: Uses borrow receipts to check for debt positions
         access(all) fun healthAfterDeposit(pid: UInt64, type: Type, amount: UFix64): UFix128 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
@@ -1902,15 +2022,17 @@ access(all) contract FlowCreditMarket {
             let price = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: type)!)
             let collateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[type]!)
             let borrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[type]!)
-            if position.balances[type] == nil || position.balances[type]!.direction == BalanceDirection.Credit {
+            
+            // RECEIPT-BASED: Check borrow receipts for debt position
+            let borrowShares = position.getBorrowShares(type: type)
+            if borrowShares == 0.0 as UFix128 {
                 // Since the user has no debt in the given token, we can just compute how much
                 // additional collateral this deposit will create.
                 effectiveCollateralIncrease = (amountU * price) * collateralFactor
             } else {
                 // The user has a debit position in the given token, we need to figure out if this deposit
                 // will only pay off some of the debt, or if it will also create new collateral.
-                let debtBalance = position.balances[type]!.scaledBalance
-                let trueDebt = FlowCreditMarket.scaledBalanceToTrueBalance(debtBalance,
+                let trueDebt = FlowCreditMarket.scaledBalanceToTrueBalance(borrowShares,
                     interestIndex: tokenState.debitInterestIndex
                 )
 
@@ -1920,7 +2042,6 @@ access(all) contract FlowCreditMarket {
                     effectiveDebtDecrease = FlowCreditMarketMath.div(amountU * price, borrowFactor)
                 } else {
                     // This deposit will wipe out all of the debt, and create new collateral.
-                    effectiveDebtDecrease = FlowCreditMarketMath.div(trueDebt * price, borrowFactor)
                     effectiveCollateralIncrease = ((amountU - trueDebt) * price) * collateralFactor
                 }
             }
@@ -1935,6 +2056,7 @@ access(all) contract FlowCreditMarket {
         // using the top up source.
         // NOTE: This method can return health values below 1.0, which aren't actually allowed. This indicates
         // that the proposed withdrawal would fail (unless a top up source is available and used).
+        // RECEIPT-BASED: Uses deposit receipts to check for credit positions
         access(all) fun healthAfterWithdrawal(pid: UInt64, type: Type, amount: UFix64): UFix128 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
@@ -1947,22 +2069,23 @@ access(all) contract FlowCreditMarket {
             let price = FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: type)!)
             let collateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[type]!)
             let borrowFactor = FlowCreditMarketMath.toUFix128(self.borrowFactor[type]!)
-            if position.balances[type] == nil || position.balances[type]!.direction == BalanceDirection.Debit {
+            
+            // RECEIPT-BASED: Check deposit receipts for credit position
+            let depositShares = position.getDepositShares(type: type)
+            if depositShares == 0.0 as UFix128 {
                 // The user has no credit position in the given token, we can just compute how much
                 // additional effective debt this withdrawal will create.
                 effectiveDebtIncrease = FlowCreditMarketMath.div(amountU * price, borrowFactor)
             } else {
                 // The user has a credit position in the given token, we need to figure out if this withdrawal
                 // will only draw down some of the collateral, or if it will also create new debt.
-                let creditBalance = position.balances[type]!.scaledBalance
-                let trueCredit = FlowCreditMarket.scaledBalanceToTrueBalance(creditBalance,
+                let trueCredit = FlowCreditMarket.scaledBalanceToTrueBalance(depositShares,
                     interestIndex: tokenState.creditInterestIndex
                 )
 
                 if trueCredit >= amountU {
                     // This withdrawal will draw down some collateral, but won't create new debt, we
                     // just need to account for the collateral decrease.
-                    // effectiveCollateralDecrease = amount * self.priceOracle.price(ofToken: type)! * self.collateralFactor[type]!
                     effectiveCollateralDecrease = (amountU * price) * collateralFactor
                 } else {
                     // The withdrawal will wipe out all of the collateral, and create new debt.
@@ -2026,6 +2149,16 @@ access(all) contract FlowCreditMarket {
         /// Deposits the provided funds to the specified position with the configurable `pushToDrawDownSink` option. If
         /// `pushToDrawDownSink` is true, excess value putting the position above its max health is pushed to the
         /// position's configured `drawDownSink`.
+        ///
+        /// RECEIPT-BASED ACCOUNTING:
+        /// This function now uses the Cadence receipt pattern to prevent double-counting:
+        /// 1. First, split the vault if it exceeds the deposit limit (queue the excess as actual vault resources)
+        /// 2. Calculate shares ONLY for the amount being deposited NOW (after splitting)
+        /// 3. Create a receipt for exactly those shares
+        /// 4. Move the tokens to reserves atomically with receipt creation
+        /// 
+        /// The key fix: we now calculate `actualDepositAmount` AFTER splitting the vault, not before.
+        /// This ensures the recorded deposit matches the actual tokens being deposited.
         access(EPosition) fun depositAndPush(pid: UInt64, from: @{FungibleToken.Vault}, pushToDrawDownSink: Bool) {
             pre {
                 self.positions[pid] != nil: "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
@@ -2042,31 +2175,52 @@ access(all) contract FlowCreditMarket {
             let type = from.getType()
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: type)
-            let amount = from.balance
+            
+            // Store the original amount for the event (before any splitting)
+            let originalAmount = from.balance
             let depositedUUID = from.uuid
 
             // Time-based state is handled by the tokenState() helper function
 
-            // Deposit rate limiting: prevent a single large deposit from monopolizing capacity.
-            // Excess is queued to be processed asynchronously (see asyncUpdatePosition).
-            let depositAmount = from.balance
+            // STEP 1: Handle deposit rate limiting FIRST, before recording anything
+            // Split the vault if it exceeds the limit - queue the excess as an actual vault resource
             let depositLimit = tokenState.depositLimit()
 
-            if depositAmount > depositLimit {
+            if originalAmount > depositLimit {
                 // The deposit is too big, so we need to queue the excess
-                let queuedDeposit <- from.withdraw(amount: depositAmount - depositLimit)
+                // CRITICAL: We split the vault BEFORE recording any deposit
+                let excessAmount = originalAmount - depositLimit
+                let queuedDeposit <- from.withdraw(amount: excessAmount)
 
                 if position.queuedDeposits[type] == nil {
                     position.queuedDeposits[type] <-! queuedDeposit
                 } else {
                     position.queuedDeposits[type]!.deposit(from: <-queuedDeposit)
                 }
+                
+                if self.debugLogging { 
+                    log("    [CONTRACT] Deposit exceeds limit. Original: \(originalAmount), Limit: \(depositLimit), Queued: \(excessAmount)") 
+                }
             }
 
-            // If this position doesn't currently have an entry for this token, create one.
-            if position.balances[type] == nil {
-                position.balances[type] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
+            // STEP 2: Calculate the ACTUAL amount being deposited NOW (after splitting)
+            // This is the key fix - we use from.balance AFTER the split, not before
+            let actualDepositAmount = from.balance
+            let uintActualDepositAmount = FlowCreditMarketMath.toUFix128(actualDepositAmount)
+            
+            if actualDepositAmount == 0.0 {
+                // Edge case: if the entire deposit was queued, nothing to do now
+                Burner.burn(<-from)
+                self._queuePositionForUpdateIfNecessary(pid: pid)
+                return
             }
+
+            // STEP 3: Create receipt and update state atomically
+            // Calculate scaled shares for the actual deposit amount
+            let scaledShares = FlowCreditMarket.trueBalanceToScaledBalance(
+                uintActualDepositAmount,
+                interestIndex: tokenState.creditInterestIndex
+            )
 
             // Create vault if it doesn't exist yet
             if self.reserves[type] == nil {
@@ -2074,13 +2228,88 @@ access(all) contract FlowCreditMarket {
             }
             let reserveVault = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
 
-            // Reflect the deposit in the position's balance
-            // This only records the portion of the deposit that was accepted, not any queued portions,
-            // as the queued deposits will be processed later (by this function being called again), and therefore
-            // will be recorded at that time.
-            position.balances[type]!.recordDeposit(amount: FlowCreditMarketMath.toUFix128(from.balance), tokenState: tokenState)
+            // STEP 4: Handle existing position state via receipts ONLY (no legacy balances)
+            // Check if position has existing debt (borrow receipt) for this token
+            if position.borrowReceipts[type] != nil {
+                // Position has debt - deposit reduces debt first
+                let existingBorrowReceipt <- position.borrowReceipts.remove(key: type)!
+                let existingDebt = existingBorrowReceipt.trueDebt(debitIndex: tokenState.debitInterestIndex)
+                
+                if existingDebt >= uintActualDepositAmount {
+                    // Deposit doesn't fully repay debt - create new smaller borrow receipt
+                    let remainingDebt = existingDebt - uintActualDepositAmount
+                    let newBorrowShares = FlowCreditMarket.trueBalanceToScaledBalance(
+                        remainingDebt,
+                        interestIndex: tokenState.debitInterestIndex
+                    )
+                    
+                    if newBorrowShares > 0.0 as UFix128 {
+                        let newBorrowReceipt <- create BorrowReceipt(
+                            poolUUID: self.uuid,
+                            tokenType: type,
+                            scaledShares: newBorrowShares
+                        )
+                        position.borrowReceipts[type] <-! newBorrowReceipt
+                    }
+                    
+                    // Update pool totals
+                    tokenState.decreaseDebitBalance(by: uintActualDepositAmount)
+                    
+                    destroy existingBorrowReceipt
+                } else {
+                    // Deposit exceeds debt - clear debt and create deposit receipt for remainder
+                    let remainingCredit = uintActualDepositAmount - existingDebt
+                    let creditShares = FlowCreditMarket.trueBalanceToScaledBalance(
+                        remainingCredit,
+                        interestIndex: tokenState.creditInterestIndex
+                    )
+                    
+                    // Create deposit receipt for the excess
+                    if creditShares > 0.0 as UFix128 {
+                        let newDepositReceipt <- create DepositReceipt(
+                            poolUUID: self.uuid,
+                            tokenType: type,
+                            scaledShares: creditShares
+                        )
+                        position.depositReceipts[type] <-! newDepositReceipt
+                    }
+                    
+                    // Update pool totals
+                    tokenState.decreaseDebitBalance(by: existingDebt)
+                    tokenState.increaseCreditBalance(by: remainingCredit)
+                    
+                    destroy existingBorrowReceipt
+                }
+            } else {
+                // No existing debt - this is a pure deposit (credit)
+                // Handle existing deposit receipt if any
+                if position.depositReceipts[type] != nil {
+                    let existingReceipt <- position.depositReceipts.remove(key: type)!
+                    let combinedShares = existingReceipt.scaledShares + scaledShares
+                    
+                    // Create new receipt with combined shares
+                    let newReceipt <- create DepositReceipt(
+                        poolUUID: self.uuid,
+                        tokenType: type,
+                        scaledShares: combinedShares
+                    )
+                    position.depositReceipts[type] <-! newReceipt
+                    destroy existingReceipt
+                } else {
+                    // First deposit of this token type
+                    let newReceipt <- create DepositReceipt(
+                        poolUUID: self.uuid,
+                        tokenType: type,
+                        scaledShares: scaledShares
+                    )
+                    position.depositReceipts[type] <-! newReceipt
+                }
+                
+                // Update pool totals
+                tokenState.increaseCreditBalance(by: uintActualDepositAmount)
+            }
 
-            // Add the money to the reserves
+            // STEP 5: Move the actual tokens to reserves (atomic with receipt creation)
             reserveVault.deposit(from: <-from)
 
             // Rebalancing and queue management
@@ -2089,7 +2318,9 @@ access(all) contract FlowCreditMarket {
             }
 
             self._queuePositionForUpdateIfNecessary(pid: pid)
-            emit Deposited(pid: pid, poolUUID: self.uuid, vaultType: type, amount: amount, depositedUUID: depositedUUID)
+            
+            // Event shows original amount for UX, but actual deposit is tracked correctly
+            emit Deposited(pid: pid, poolUUID: self.uuid, vaultType: type, amount: actualDepositAmount, depositedUUID: depositedUUID)
         }
 
         /// Withdraws the requested funds from the specified position. Callers should be careful that the withdrawal
@@ -2103,6 +2334,12 @@ access(all) contract FlowCreditMarket {
         /// Withdraws the requested funds from the specified position with the configurable `pullFromTopUpSource`
         /// option. If `pullFromTopUpSource` is true, deficient value putting the position below its min health is
         /// pulled from the position's configured `topUpSource`.
+        ///
+        /// RECEIPT-BASED ACCOUNTING:
+        /// This function now consumes/modifies receipt resources to record withdrawals:
+        /// 1. If position has deposit receipt for this token, reduce or destroy it
+        /// 2. If withdrawal exceeds deposit, create a borrow receipt for the difference
+        /// 3. Token release from reserves is atomic with receipt modification
         access(EPosition) fun withdrawAndPull(
             pid: UInt64,
             type: Type,
@@ -2190,16 +2427,104 @@ access(all) contract FlowCreditMarket {
                 panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
             }
 
-            // If this position doesn't currently have an entry for this token, create one.
-            if position.balances[type] == nil {
-                position.balances[type] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
-            }
-
+            let uintAmount = FlowCreditMarketMath.toUFix128(amount)
             let reserveVault = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
 
-            // Reflect the withdrawal in the position's balance
-            let uintAmount = FlowCreditMarketMath.toUFix128(amount)
-            position.balances[type]!.recordWithdrawal(amount: uintAmount, tokenState: tokenState)
+            // RECEIPT-BASED ACCOUNTING ONLY: Handle withdrawal via receipts (no legacy balances)
+            // Check if position has a deposit receipt for this token
+            if position.depositReceipts[type] != nil {
+                let existingReceipt <- position.depositReceipts.remove(key: type)!
+                let existingCredit = existingReceipt.trueBalance(creditIndex: tokenState.creditInterestIndex)
+                
+                if existingCredit >= uintAmount {
+                    // Withdrawal doesn't exceed deposit - create new smaller deposit receipt
+                    let remainingCredit = existingCredit - uintAmount
+                    let newCreditShares = FlowCreditMarket.trueBalanceToScaledBalance(
+                        remainingCredit,
+                        interestIndex: tokenState.creditInterestIndex
+                    )
+                    
+                    if newCreditShares > 0.0 as UFix128 {
+                        let newDepositReceipt <- create DepositReceipt(
+                            poolUUID: self.uuid,
+                            tokenType: type,
+                            scaledShares: newCreditShares
+                        )
+                        position.depositReceipts[type] <-! newDepositReceipt
+                    }
+                    
+                    // Update pool totals
+                    tokenState.decreaseCreditBalance(by: uintAmount)
+                    
+                    destroy existingReceipt
+                } else {
+                    // Withdrawal exceeds deposit - clear deposit and create borrow receipt for excess
+                    let newDebt = uintAmount - existingCredit
+                    let debtShares = FlowCreditMarket.trueBalanceToScaledBalance(
+                        newDebt,
+                        interestIndex: tokenState.debitInterestIndex
+                    )
+                    
+                    // Create borrow receipt for the excess
+                    if debtShares > 0.0 as UFix128 {
+                        // Check if there's already a borrow receipt
+                        if position.borrowReceipts[type] != nil {
+                            let existingBorrow <- position.borrowReceipts.remove(key: type)!
+                            let combinedShares = existingBorrow.scaledShares + debtShares
+                            let newBorrowReceipt <- create BorrowReceipt(
+                                poolUUID: self.uuid,
+                                tokenType: type,
+                                scaledShares: combinedShares
+                            )
+                            position.borrowReceipts[type] <-! newBorrowReceipt
+                            destroy existingBorrow
+                        } else {
+                            let newBorrowReceipt <- create BorrowReceipt(
+                                poolUUID: self.uuid,
+                                tokenType: type,
+                                scaledShares: debtShares
+                            )
+                            position.borrowReceipts[type] <-! newBorrowReceipt
+                        }
+                    }
+                    
+                    // Update pool totals
+                    tokenState.decreaseCreditBalance(by: existingCredit)
+                    tokenState.increaseDebitBalance(by: newDebt)
+                    
+                    destroy existingReceipt
+                }
+            } else {
+                // No deposit receipt - this is pure borrowing (increases debt)
+                let debtShares = FlowCreditMarket.trueBalanceToScaledBalance(
+                    uintAmount,
+                    interestIndex: tokenState.debitInterestIndex
+                )
+                
+                // Handle existing borrow receipt if any
+                if position.borrowReceipts[type] != nil {
+                    let existingBorrow <- position.borrowReceipts.remove(key: type)!
+                    let combinedShares = existingBorrow.scaledShares + debtShares
+                    let newBorrowReceipt <- create BorrowReceipt(
+                        poolUUID: self.uuid,
+                        tokenType: type,
+                        scaledShares: combinedShares
+                    )
+                    position.borrowReceipts[type] <-! newBorrowReceipt
+                    destroy existingBorrow
+                } else {
+                    let newBorrowReceipt <- create BorrowReceipt(
+                        poolUUID: self.uuid,
+                        tokenType: type,
+                        scaledShares: debtShares
+                    )
+                    position.borrowReceipts[type] <-! newBorrowReceipt
+                }
+                
+                // Update pool totals
+                tokenState.increaseDebitBalance(by: uintAmount)
+            }
+
             // Ensure that this withdrawal doesn't cause the position to be overdrawn.
             // Skip the assertion only when a top-up was used in this call and the immediate
             // post-withdrawal health is 0 (transitional state before top-up effects fully reflect).
@@ -2211,6 +2536,7 @@ access(all) contract FlowCreditMarket {
             // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
 
+            // ATOMIC: Release tokens from reserves simultaneously with receipt modification
             let withdrawn <- reserveVault.withdraw(amount: amount)
 
             emit Withdrawn(pid: pid, poolUUID: self.uuid, vaultType: type, amount: withdrawn.balance, withdrawnUUID: withdrawn.uuid)
@@ -2429,6 +2755,93 @@ access(all) contract FlowCreditMarket {
             self.debugLogging = enabled
         }
 
+        /// RECEIPT-BASED ACCOUNTING: Pool Invariant Verification
+        /// Verifies that the pool's accounting is consistent. This function can be called
+        /// to audit the pool state and detect any accounting discrepancies.
+        /// Returns a dictionary with verification results for each token type.
+        access(all) fun verifyPoolInvariants(): {String: Bool} {
+            let results: {String: Bool} = {}
+            
+            for tokenType in self.globalLedger.keys {
+                let tokenState = self._borrowUpdatedTokenState(type: tokenType)
+                
+                // Calculate total shares from all position receipts
+                var totalDepositShares: UFix128 = 0.0 as UFix128
+                var totalBorrowShares: UFix128 = 0.0 as UFix128
+                
+                for pid in self.positions.keys {
+                    let position = self._borrowPosition(pid: pid)
+                    
+                    // Sum deposit receipt shares
+                    if position.depositReceipts.containsKey(tokenType) {
+                        totalDepositShares = totalDepositShares + position.getDepositShares(type: tokenType)
+                    }
+                    
+                    // Sum borrow receipt shares
+                    if position.borrowReceipts.containsKey(tokenType) {
+                        totalBorrowShares = totalBorrowShares + position.getBorrowShares(type: tokenType)
+                    }
+                }
+                
+                // Convert shares to true balances
+                let totalDepositValue = FlowCreditMarket.scaledBalanceToTrueBalance(
+                    totalDepositShares,
+                    interestIndex: tokenState.creditInterestIndex
+                )
+                let totalBorrowValue = FlowCreditMarket.scaledBalanceToTrueBalance(
+                    totalBorrowShares,
+                    interestIndex: tokenState.debitInterestIndex
+                )
+                
+                // Check 1: Total deposit value should match totalCreditBalance (within rounding tolerance)
+                let creditDiff = totalDepositValue > tokenState.totalCreditBalance 
+                    ? totalDepositValue - tokenState.totalCreditBalance 
+                    : tokenState.totalCreditBalance - totalDepositValue
+                let creditValid = creditDiff < FlowCreditMarketMath.toUFix128(0.000001) // 1e-6 tolerance
+                
+                // Check 2: Total borrow value should match totalDebitBalance (within rounding tolerance)
+                let debitDiff = totalBorrowValue > tokenState.totalDebitBalance
+                    ? totalBorrowValue - tokenState.totalDebitBalance
+                    : tokenState.totalDebitBalance - totalBorrowValue
+                let debitValid = debitDiff < FlowCreditMarketMath.toUFix128(0.000001) // 1e-6 tolerance
+                
+                // Check 3: Reserves should be >= net deposits (deposits - borrows)
+                // This allows for some buffer from fees/interest
+                let reserveBalance = self.reserveBalance(type: tokenType)
+                let netDeposits = totalDepositValue > totalBorrowValue 
+                    ? totalDepositValue - totalBorrowValue 
+                    : 0.0 as UFix128
+                let reserveValid = FlowCreditMarketMath.toUFix128(reserveBalance) >= netDeposits * FlowCreditMarketMath.toUFix128(0.99) // Allow 1% tolerance
+                
+                // Overall validity for this token
+                let tokenValid = creditValid && debitValid && reserveValid
+                results[tokenType.identifier] = tokenValid
+                
+                if self.debugLogging && !tokenValid {
+                    log("    [INVARIANT CHECK] Token \(tokenType.identifier) FAILED:")
+                    log("    [INVARIANT CHECK]   Receipt deposit value: \(totalDepositValue)")
+                    log("    [INVARIANT CHECK]   TokenState credit balance: \(tokenState.totalCreditBalance)")
+                    log("    [INVARIANT CHECK]   Receipt borrow value: \(totalBorrowValue)")
+                    log("    [INVARIANT CHECK]   TokenState debit balance: \(tokenState.totalDebitBalance)")
+                    log("    [INVARIANT CHECK]   Reserve balance: \(reserveBalance)")
+                    log("    [INVARIANT CHECK]   Net deposits: \(netDeposits)")
+                }
+            }
+            
+            return results
+        }
+        
+        /// Quick check if all pool invariants are satisfied
+        access(all) fun areInvariantsSatisfied(): Bool {
+            let results = self.verifyPoolInvariants()
+            for tokenId in results.keys {
+                if !results[tokenId]! {
+                    return false
+                }
+            }
+            return true
+        }
+
         /// Rebalances the position to the target health value. If `force` is `true`, the position will be rebalanced
         /// even if it is currently healthy. Otherwise, this function will do nothing if the position is within the
         /// min/max health bounds.
@@ -2475,14 +2888,40 @@ access(all) contract FlowCreditMarket {
                     let sinkCapacity = drawDownSink.minimumCapacity()
                     let sinkAmount = (idealWithdrawal > sinkCapacity) ? sinkCapacity : idealWithdrawal
 
-                    if sinkAmount > 0.0 && sinkType == Type<@MOET.Vault>() { 
-                        let tokenState = self._borrowUpdatedTokenState(type: Type<@MOET.Vault>())
-                        if position.balances[Type<@MOET.Vault>()] == nil {
-                            position.balances[Type<@MOET.Vault>()] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0 as UFix128)
-                        }
-                        // record the withdrawal and mint the tokens
+                    if sinkAmount > 0.0 && sinkType == self.defaultToken { // second conditional included for sake of tracer bullet
+                        // BUG: Calling through to withdrawAndPull results in an insufficient funds from the position's
+                        //      topUpSource. These funds should come from the protocol or reserves, not from the user's
+                        //      funds. To unblock here, we just mint MOET when a position is overcollateralized
+                        // let sinkVault <- self.withdrawAndPull(
+                        //     pid: pid,
+                        //     type: sinkType,
+                        //     amount: sinkAmount,
+                        //     pullFromTopUpSource: false
+                        // )
+
+                        let tokenState = self._borrowUpdatedTokenState(type: self.defaultToken)
+                        // RECEIPT-BASED: Record withdrawal via borrow receipt
                         let uintSinkAmount = FlowCreditMarketMath.toUFix128(sinkAmount)
-                        position.balances[Type<@MOET.Vault>()]!.recordWithdrawal(amount: uintSinkAmount, tokenState: tokenState)
+                        let borrowShares = FlowCreditMarket.trueBalanceToScaledBalance(uintSinkAmount, interestIndex: tokenState.debitInterestIndex)
+                        
+                        // Create or update borrow receipt for the withdrawal
+                        if position.borrowReceipts[self.defaultToken] != nil {
+                            let existingBorrow <- position.borrowReceipts.remove(key: self.defaultToken)!
+                            let combinedShares = existingBorrow.scaledShares + borrowShares
+                            position.borrowReceipts[self.defaultToken] <-! create BorrowReceipt(
+                                poolUUID: self.uuid,
+                                tokenType: self.defaultToken,
+                                scaledShares: combinedShares
+                            )
+                            destroy existingBorrow
+                        } else {
+                            position.borrowReceipts[self.defaultToken] <-! create BorrowReceipt(
+                                poolUUID: self.uuid,
+                                tokenType: self.defaultToken,
+                                scaledShares: borrowShares
+                            )
+                        }
+                        tokenState.increaseDebitBalance(by: uintSinkAmount)
                         let sinkVault <- FlowCreditMarket._borrowMOETMinter().mintTokens(amount: sinkAmount)
 
                         emit Rebalanced(pid: pid, poolUUID: self.uuid, atHealth: balanceSheet.health, amount: sinkVault.balance, fromUnder: false)
@@ -2574,6 +3013,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Returns a position's BalanceSheet containing its effective collateral and debt as well as its current health
+        /// RECEIPT-BASED: Derives balance sheet from deposit and borrow receipts
         access(self) fun _getUpdatedBalanceSheet(pid: UInt64): BalanceSheet {
             let position = self._borrowPosition(pid: pid)
             let priceOracle = &self.priceOracle as &{DeFiActions.PriceOracle}
@@ -2582,11 +3022,12 @@ access(all) contract FlowCreditMarket {
             var effectiveCollateral: UFix128 = 0.0 as UFix128
             var effectiveDebt: UFix128 = 0.0 as UFix128
 
-            for type in position.balances.keys {
-                let balance = position.balances[type]!
-                let tokenState = self._borrowUpdatedTokenState(type: type)
-                if balance.direction == BalanceDirection.Credit {
-                    let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(balance.scaledBalance,
+            // Process deposit receipts (collateral)
+            for type in position.getDepositTypes() {
+                let depositShares = position.getDepositShares(type: type)
+                if depositShares > 0.0 as UFix128 {
+                    let tokenState = self._borrowUpdatedTokenState(type: type)
+                    let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(depositShares,
                         interestIndex: tokenState.creditInterestIndex)
 
                     let convertedPrice = FlowCreditMarketMath.toUFix128(priceOracle.price(ofToken: type)!)
@@ -2594,8 +3035,15 @@ access(all) contract FlowCreditMarket {
 
                     let convertedCollateralFactor = FlowCreditMarketMath.toUFix128(self.collateralFactor[type]!)
                     effectiveCollateral = effectiveCollateral + (value * convertedCollateralFactor)
-                } else {
-                    let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(balance.scaledBalance,
+                }
+            }
+            
+            // Process borrow receipts (debt)
+            for type in position.getBorrowTypes() {
+                let borrowShares = position.getBorrowShares(type: type)
+                if borrowShares > 0.0 as UFix128 {
+                    let tokenState = self._borrowUpdatedTokenState(type: type)
+                    let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(borrowShares,
                         interestIndex: tokenState.debitInterestIndex)
 
                     let convertedPrice = FlowCreditMarketMath.toUFix128(priceOracle.price(ofToken: type)!)
@@ -2625,25 +3073,56 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Build a PositionView for the given position ID
+        /// RECEIPT-BASED: Derives credit/debit balances directly from receipts
         access(all) fun buildPositionView(pid: UInt64): FlowCreditMarket.PositionView {
             let position = self._borrowPosition(pid: pid)
             let snaps: {Type: FlowCreditMarket.TokenSnapshot} = {}
-            let balancesCopy: {Type: FlowCreditMarket.InternalBalance} = position.copyBalances()
-            for t in position.balances.keys {
-                let tokenState = self._borrowUpdatedTokenState(type: t)
-                snaps[t] = FlowCreditMarket.TokenSnapshot(
-                    price: FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: t)!),
-                    credit: tokenState.creditInterestIndex,
-                    debit: tokenState.debitInterestIndex,
-                    risk: FlowCreditMarket.RiskParams(
-                        cf: FlowCreditMarketMath.toUFix128(self.collateralFactor[t]!),
-                        bf: FlowCreditMarketMath.toUFix128(self.borrowFactor[t]!),
-                        lb: FlowCreditMarketMath.toUFix128(self.liquidationBonus[t]!)
+            var creditBalances: {Type: UFix128} = {}
+            var debitBalances: {Type: UFix128} = {}
+            
+            // Build credit balances from deposit receipts
+            for t in position.getDepositTypes() {
+                let depositShares = position.getDepositShares(type: t)
+                if depositShares > 0.0 as UFix128 {
+                    creditBalances[t] = depositShares
+                    let tokenState = self._borrowUpdatedTokenState(type: t)
+                    snaps[t] = FlowCreditMarket.TokenSnapshot(
+                        price: FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: t)!),
+                        credit: tokenState.creditInterestIndex,
+                        debit: tokenState.debitInterestIndex,
+                        risk: FlowCreditMarket.RiskParams(
+                            cf: FlowCreditMarketMath.toUFix128(self.collateralFactor[t]!),
+                            bf: FlowCreditMarketMath.toUFix128(self.borrowFactor[t]!),
+                            lb: FlowCreditMarketMath.toUFix128(self.liquidationBonus[t]!)
+                        )
                     )
-                )
+                }
             }
+            
+            // Build debit balances from borrow receipts
+            for t in position.getBorrowTypes() {
+                let borrowShares = position.getBorrowShares(type: t)
+                if borrowShares > 0.0 as UFix128 {
+                    debitBalances[t] = borrowShares
+                    if snaps[t] == nil {
+                        let tokenState = self._borrowUpdatedTokenState(type: t)
+                        snaps[t] = FlowCreditMarket.TokenSnapshot(
+                            price: FlowCreditMarketMath.toUFix128(self.priceOracle.price(ofToken: t)!),
+                            credit: tokenState.creditInterestIndex,
+                            debit: tokenState.debitInterestIndex,
+                            risk: FlowCreditMarket.RiskParams(
+                                cf: FlowCreditMarketMath.toUFix128(self.collateralFactor[t]!),
+                                bf: FlowCreditMarketMath.toUFix128(self.borrowFactor[t]!),
+                                lb: FlowCreditMarketMath.toUFix128(self.liquidationBonus[t]!)
+                            )
+                        )
+                    }
+                }
+            }
+            
             return FlowCreditMarket.PositionView(
-                balances: balancesCopy,
+                creditBalances: creditBalances,
+                debitBalances: debitBalances,
                 snapshots: snaps,
                 def: self.defaultToken,
                 min: position.minHealth,
@@ -3085,10 +3564,10 @@ access(all) contract FlowCreditMarket {
     }
 
     init() {
-        self.PoolStoragePath = StoragePath(identifier: "flowCreditMarketPool_\(self.account.address)")!
-        self.PoolFactoryPath = StoragePath(identifier: "flowCreditMarketPoolFactory_\(self.account.address)")!
-        self.PoolPublicPath = PublicPath(identifier: "flowCreditMarketPool_\(self.account.address)")!
-        self.PoolCapStoragePath = StoragePath(identifier: "flowCreditMarketPoolCap_\(self.account.address)")!
+        self.PoolStoragePath = StoragePath(identifier: "flowALPPool_\(self.account.address)")!
+        self.PoolFactoryPath = StoragePath(identifier: "flowALPPoolFactory_\(self.account.address)")!
+        self.PoolPublicPath = PublicPath(identifier: "flowALPPool_\(self.account.address)")!
+        self.PoolCapStoragePath = StoragePath(identifier: "flowALPPoolCap_\(self.account.address)")!
 
         // save PoolFactory in storage
         self.account.storage.save(
