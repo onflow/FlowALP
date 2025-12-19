@@ -42,6 +42,7 @@ access(all) contract FlowCreditMarket {
     access(all) event LiquidationExecuted(pid: UInt64, poolUUID: UInt64, debtType: String, repayAmount: UFix64, seizeType: String, seizeAmount: UFix64, newHF: UFix128)
     access(all) event LiquidationExecutedViaDex(pid: UInt64, poolUUID: UInt64, seizeType: String, seized: UFix64, debtType: String, repaid: UFix64, slippageBps: UInt16, newHF: UFix128)
     access(all) event PriceOracleUpdated(poolUUID: UInt64, newOracleType: String)
+    access(all) event InterestCurveUpdated(poolUUID: UInt64, tokenType: String, curveType: String)
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
@@ -313,17 +314,107 @@ access(all) contract FlowCreditMarket {
     access(all) struct interface InterestCurve {
         access(all) fun interestRate(creditBalance: UFix128, debitBalance: UFix128): UFix128 {
             post {
-                result <= FlowCreditMarketMath.one: "Interest rate can't exceed 100%"
+                // Max rate is 400% (4.0) to accommodate high-utilization scenarios
+                // with kink-based curves like Aave v3's interest rate strategy
+                result <= 4.0: "Interest rate can't exceed 400%"
             }
         }
     }
 
-    /// SimpleInterestCurve
+    /// FixedRateInterestCurve
     ///
-    /// A simple implementation of the InterestCurve interface.
-    access(all) struct SimpleInterestCurve: InterestCurve {
+    /// A fixed-rate interest curve implementation that returns a constant yearly interest rate
+    /// regardless of utilization. This is suitable for stable assets like MOET where predictable
+    /// rates are desired.
+    /// @param yearlyRate The fixed yearly interest rate as a UFix128 (e.g., 0.05 for 5% APY)
+    access(all) struct FixedRateInterestCurve: InterestCurve {
+
+        access(all) let yearlyRate: UFix128
+
+        init(yearlyRate: UFix128) {
+            pre {
+                yearlyRate <= 1.0: "Yearly rate cannot exceed 100%, got \(yearlyRate)"
+            }
+            self.yearlyRate = yearlyRate
+        }
+
         access(all) fun interestRate(creditBalance: UFix128, debitBalance: UFix128): UFix128 {
-            return 0.0 as UFix128 // TODO: replace with proper curve
+            return self.yearlyRate
+        }
+    }
+
+    /// KinkInterestCurve
+    ///
+    /// A kink-based interest rate curve implementation. The curve has two linear segments:
+    /// - Before the optimal utilization ratio (the "kink"): a gentle slope
+    /// - After the optimal utilization ratio: a steep slope to discourage over-utilization
+    ///
+    /// This creates a "kinked" curve that incentivizes maintaining utilization near the
+    /// optimal point while heavily penalizing over-utilization to protect protocol liquidity.
+    ///
+    /// Formula:
+    /// - utilization = debitBalance / (creditBalance + debitBalance)
+    /// - Before kink (utilization <= optimalUtilization):
+    ///   rate = baseRate + (slope1 × utilization / optimalUtilization)
+    /// - After kink (utilization > optimalUtilization):
+    ///   rate = baseRate + slope1 + (slope2 × excessUtilization)
+    ///   where excessUtilization = (utilization - optimalUtilization) / (1 - optimalUtilization)
+    ///
+    /// @param optimalUtilization The target utilization ratio (e.g., 0.80 for 80%)
+    /// @param baseRate The minimum yearly interest rate (e.g., 0.01 for 1% APY)
+    /// @param slope1 The total rate increase from 0% to optimal utilization (e.g., 0.04 for 4%)
+    /// @param slope2 The total rate increase from optimal to 100% utilization (e.g., 0.60 for 60%)
+    access(all) struct KinkInterestCurve: InterestCurve {
+        /// The optimal utilization ratio (the "kink" point), e.g., 0.80 = 80%
+        access(all) let optimalUtilization: UFix128
+        /// The base yearly interest rate applied at 0% utilization
+        access(all) let baseRate: UFix128
+        /// The slope of the interest curve before the optimal point (gentle slope)
+        access(all) let slope1: UFix128
+        /// The slope of the interest curve after the optimal point (steep slope)
+        access(all) let slope2: UFix128
+
+        init(optimalUtilization: UFix128, baseRate: UFix128, slope1: UFix128, slope2: UFix128) {
+            pre {
+                optimalUtilization >= 0.01: "Optimal utilization must be at least 1%, got \(optimalUtilization)"
+                optimalUtilization <= 0.99: "Optimal utilization must be at most 99%, got \(optimalUtilization)"
+                slope2 >= slope1: "Slope2 (\(slope2)) must be >= slope1 (\(slope1))"
+                baseRate + slope1 + slope2 <= 4.0: "Maximum rate cannot exceed 400%, got \(baseRate + slope1 + slope2)"
+            }
+            self.optimalUtilization = optimalUtilization
+            self.baseRate = baseRate
+            self.slope1 = slope1
+            self.slope2 = slope2
+        }
+
+        access(all) fun interestRate(creditBalance: UFix128, debitBalance: UFix128): UFix128 {
+            // If no debt, return base rate
+            if debitBalance == 0.0 {
+                return self.baseRate
+            }
+
+            // Calculate utilization ratio: debitBalance / (creditBalance + debitBalance)
+            // Note: totalBalance > 0 is guaranteed since debitBalance > 0 and creditBalance >= 0
+            let totalBalance = creditBalance + debitBalance
+            let utilization = debitBalance / totalBalance
+
+            // If utilization is below or at the optimal point, use slope1
+            if utilization <= self.optimalUtilization {
+                // rate = baseRate + (slope1 × utilization / optimalUtilization)
+                let utilizationFactor = utilization / self.optimalUtilization
+                let slope1Component = self.slope1 * utilizationFactor
+                return self.baseRate + slope1Component
+            } else {
+                // If utilization is above the optimal point, use slope2 for excess
+                // excessUtilization = (utilization - optimalUtilization) / (1 - optimalUtilization)
+                let excessUtilization = utilization - self.optimalUtilization
+                let maxExcess = FlowCreditMarketMath.one - self.optimalUtilization
+                let excessFactor = excessUtilization / maxExcess
+
+                // rate = baseRate + slope1 + (slope2 × excessFactor)
+                let slope2Component = self.slope2 * excessFactor
+                return self.baseRate + self.slope1 + slope2Component
+            }
         }
     }
 
@@ -386,10 +477,21 @@ access(all) contract FlowCreditMarket {
         access(EImplementation) fun setDepositLimitFraction(_ frac: UFix64) {
             self.depositLimitFraction = frac
         }
+        /// Sets the interest curve for this token state
+        /// After updating the curve, also update the interest rates to reflect the new curve
+        access(EImplementation) fun setInterestCurve(_ curve: {InterestCurve}) {
+            self.interestCurve = curve
+            // Update rates immediately to reflect the new curve
+            self.updateInterestRates()
+        }
 
-        // Explicit UFix128 balance update helpers used by core accounting
+        /// Balance update helpers used by core accounting.
+        /// All balance changes automatically trigger updateForUtilizationChange() which recalculates
+        /// interest rates based on the new utilization ratio. This ensures rates always reflect
+        /// the current state of the pool without requiring manual rate update calls.
         access(all) fun increaseCreditBalance(by amount: UFix128) {
             self.totalCreditBalance = self.totalCreditBalance + amount
+            self.updateForUtilizationChange()
         }
 
         access(all) fun decreaseCreditBalance(by amount: UFix128) {
@@ -398,10 +500,12 @@ access(all) contract FlowCreditMarket {
             } else {
                 self.totalCreditBalance = self.totalCreditBalance - amount
             }
+            self.updateForUtilizationChange()
         }
 
         access(all) fun increaseDebitBalance(by amount: UFix128) {
             self.totalDebitBalance = self.totalDebitBalance + amount
+            self.updateForUtilizationChange()
         }
 
         access(all) fun decreaseDebitBalance(by amount: UFix128) {
@@ -410,6 +514,7 @@ access(all) contract FlowCreditMarket {
             } else {
                 self.totalDebitBalance = self.totalDebitBalance - amount
             }
+            self.updateForUtilizationChange()
         }
 
         /// Updates the totalCreditBalance by the provided amount
@@ -419,6 +524,7 @@ access(all) contract FlowCreditMarket {
             // Do not silently clamp: underflow indicates a serious accounting error
             assert(adjustedBalance >= 0, message: "totalCreditBalance underflow")
             self.totalCreditBalance = UFix128(adjustedBalance)
+            self.updateForUtilizationChange()
         }
 
         access(all) fun updateDebitBalance(amount: Int256) {
@@ -427,6 +533,7 @@ access(all) contract FlowCreditMarket {
             // Do not silently clamp: underflow indicates a serious accounting error
             assert(adjustedBalance >= 0, message: "totalDebitBalance underflow")
             self.totalDebitBalance = UFix128(adjustedBalance)
+            self.updateForUtilizationChange()
         }
 
         // Enhanced updateInterestIndices with deposit capacity update
@@ -471,30 +578,43 @@ access(all) contract FlowCreditMarket {
             self.updateInterestIndices()
         }
 
+        /// Called after any action that changes utilization (deposits, withdrawals, borrows, repays).
+        /// Recalculates interest rates based on the new credit/debit balance ratio.
+        access(all) fun updateForUtilizationChange() {
+            self.updateInterestRates()
+        }
+
         access(all) fun updateInterestRates() {
-            // If there's no credit balance, we can't calculate a meaningful credit rate
-            // so we'll just set both rates to one (no interest) and return early
-            if self.totalCreditBalance == 0.0 as UFix128 {
-                self.currentCreditRate = FlowCreditMarketMath.one  // 1.0 in fixed point (no interest)
-                self.currentDebitRate = FlowCreditMarketMath.one   // 1.0 in fixed point (no interest)
-                return
-            }
-
-            let debitRate = self.interestCurve.interestRate(creditBalance: self.totalCreditBalance, debitBalance: self.totalDebitBalance)
-            let debitIncome = self.totalDebitBalance * debitRate
-
-            // Calculate insurance amount (0.1% of credit balance)
+            let debitRate = self.interestCurve.interestRate(
+                creditBalance: self.totalCreditBalance,
+                debitBalance: self.totalDebitBalance
+            )
             let insuranceRate: UFix128 = FlowCreditMarketMath.toUFix128(self.insuranceRate)
-            let insuranceAmount: UFix128 = self.totalCreditBalance * insuranceRate
 
-            // Calculate credit rate, ensuring we don't have underflows
-            var creditRate: UFix128 = 0.0 as UFix128
-            if debitIncome >= insuranceAmount {
-                creditRate = ((debitIncome - insuranceAmount) / self.totalCreditBalance)
+            var creditRate: UFix128 = 0.0
+
+            // Two calculation paths based on curve type:
+            // 1. FixedRateInterestCurve: simple spread model (creditRate = debitRate - insuranceRate)
+            //    Used for stable assets like MOET where rates are governance-controlled
+            // 2. KinkInterestCurve (and others): reserve factor model
+            //    Insurance is a percentage of interest income, not a fixed spread
+            if self.interestCurve.getType() == Type<FlowCreditMarket.FixedRateInterestCurve>() {
+                // FixedRate path: creditRate = debitRate - insuranceRate
+                // This provides a fixed, predictable spread between borrower and lender rates
+                if debitRate > insuranceRate {
+                    creditRate = debitRate - insuranceRate
+                }
+                // else creditRate remains 0.0 (insurance exceeds debit rate)
             } else {
-                // If debit income doesn't cover insurance, credit interest would be negative.
-                // Since negative rates aren't represented here, we pay 0% to depositors.
-                creditRate = 0.0 as UFix128
+                // KinkCurve path (and any other curves): reserve factor model
+                // insuranceAmount = debitIncome * insuranceRate (percentage of income)
+                // creditRate = (debitIncome - insuranceAmount) / totalCreditBalance
+                let debitIncome = self.totalDebitBalance * debitRate
+                let insuranceAmount = debitIncome * insuranceRate
+
+                if self.totalCreditBalance > 0.0 {
+                    creditRate = (debitIncome - insuranceAmount) / self.totalCreditBalance
+                }
             }
 
             self.currentCreditRate = FlowCreditMarket.perSecondInterestRate(yearlyRate: creditRate)
@@ -712,7 +832,7 @@ access(all) contract FlowCreditMarket {
             self.version = 0
             self.debugLogging = false
             self.globalLedger = {defaultToken: TokenState(
-                interestCurve: SimpleInterestCurve(),
+                interestCurve: FixedRateInterestCurve(yearlyRate: 0.0),
                 depositRate: 1_000_000.0,        // Default: no rate limiting for default token
                 depositCapacityCap: 1_000_000.0  // Default: high capacity cap
             )}
@@ -2278,6 +2398,30 @@ access(all) contract FlowCreditMarket {
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositLimitFraction(fraction)
+        }
+
+        /// Updates the interest curve for a given token
+        /// This allows governance to change the interest rate model for a token after it has been added
+        /// to the pool. For example, switching from a fixed rate to a kink-based model, or updating
+        /// the parameters of an existing kink model.
+        ///
+        /// Important: Before changing the curve, we must first compound any accrued interest at the
+        /// OLD rate. Otherwise, interest that accrued since lastUpdate would be calculated using the
+        /// new rate, which would be incorrect.
+        access(EGovernance) fun setInterestCurve(tokenType: Type, interestCurve: {InterestCurve}) {
+            pre {
+                self.globalLedger[tokenType] != nil: "Unsupported token type"
+            }
+            // First, update interest indices to compound any accrued interest at the OLD rate
+            // This "finalizes" all interest accrued up to this moment before switching curves
+            let tsRef = self._borrowUpdatedTokenState(type: tokenType)
+            // Now safe to set the new curve - subsequent interest will accrue at the new rate
+            tsRef.setInterestCurve(interestCurve)
+            emit InterestCurveUpdated(
+                poolUUID: self.uuid,
+                tokenType: tokenType.identifier,
+                curveType: interestCurve.getType().identifier
+            )
         }
 
         /// Enables or disables verbose logging inside the Pool for testing and diagnostics
