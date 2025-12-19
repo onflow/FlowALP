@@ -87,6 +87,36 @@ Before contributing, make sure to examine the project to get familiar with the p
 - Limit the first line to 72 characters or less
 - Reference issues and pull requests liberally after the first line
 
+### Cadence
+
+- Naming Conventions
+  - Use clear, descriptive names that convey intent
+  - Don't use abbreviations
+  - For example, prefer `tokenAddress` over `tkAddr`, `maximumAmount` over `maxAmt`, etc.
+
+- Whitespace & Formatting
+  - Add blank lines between declarations (types, functions, fields)
+  - Keep block contents on separate line (e.g. no single-line `if` statements)
+  - Chop long parameter/argument lists onto separate lines when they exceed reasonable length
+
+- Comment Alignment
+  - Use [semantic line breaks](https://sembr.org) in documentation:
+    Break lines at natural language boundaries (after periods, clauses)
+    rather than at arbitrary character limits
+  - Distinguish between documentation comments (`///`) for public API
+     vs regular comments (`//`) for implementation notes
+
+- Control Flow
+  - Replace `if` chains on enum cases with `switch` statements to leverage exhaustiveness checking.
+    The compiler will catch missing cases when new enum variants are added
+  - Avoid force unwrapping (`!`), use safe alternatives.
+    For example, replace `if value != nil { value! }` patterns with:
+      - `if let` bindings: `if let unwrapped = value { unwrapped }`
+      - Nil coalescing (`??`) for default values: `value ?? defaultValue`
+
+- Type Inference
+  - Remove redundant type annotations when the type can be inferred from context
+  - Keep annotations when they improve clarity or are required by the compiler
 
 ### Additional Notes
 
