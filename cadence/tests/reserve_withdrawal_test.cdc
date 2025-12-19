@@ -21,6 +21,13 @@ access(all)
 fun testReserveWithdrawalGovernanceControlled() {
     // create pool
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    // Must be deployed after the Pool is created
+    var err = Test.deployContract(
+        name: "FlowCreditMarketRegistry",
+        path: "../contracts/FlowCreditMarketRegistry.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
     
     // Setup MOET vault for treasury account
     setupMoetVault(treasury, beFailed: false)

@@ -88,12 +88,6 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
-    err = Test.deployContract(
-        name: "FlowCreditMarketRegistry",
-        path: "../contracts/FlowCreditMarketRegistry.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
 
     // NOTE: Do not publish beta capability here; some tests create the Pool later and
     // publishing before pool creation will fail. Tests that need the cap should call

@@ -31,6 +31,14 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: moetTokenIdentifier, price: initialPrice)
 
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+
+    // Must be deployed after the Pool is created
+    var err = Test.deployContract(
+        name: "FlowCreditMarketRegistry",
+        path: "../contracts/FlowCreditMarketRegistry.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
     
     // Add Flow token support with collateralFactor=0.8
     addSupportedTokenSimpleInterestCurve(

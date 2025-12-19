@@ -37,6 +37,13 @@ fun testDeploymentSucceeds() {
 access(all)
 fun testCreatePoolSucceeds() {
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    // Must be deployed after the Pool is created
+    var err = Test.deployContract(
+        name: "FlowCreditMarketRegistry",
+        path: "../contracts/FlowCreditMarketRegistry.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 
     let existsRes = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [protocolAccount.address])
     Test.expect(existsRes, Test.beSucceeded())
@@ -54,6 +61,13 @@ fun testCreateUserPositionSucceeds() {
 
     // create pool & add FLOW as supported token in globalLedger
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    // Must be deployed after the Pool is created
+    var err = Test.deployContract(
+        name: "FlowCreditMarketRegistry",
+        path: "../contracts/FlowCreditMarketRegistry.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
     addSupportedTokenSimpleInterestCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
@@ -105,6 +119,13 @@ fun testUndercollateralizedPositionRebalanceSucceeds() {
 
     // create pool & add FLOW as supported token in globalLedger
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    // Must be deployed after the Pool is created
+    var err = Test.deployContract(
+        name: "FlowCreditMarketRegistry",
+        path: "../contracts/FlowCreditMarketRegistry.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
     addSupportedTokenSimpleInterestCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
@@ -169,6 +190,13 @@ fun testOvercollateralizedPositionRebalanceSucceeds() {
 
     // create pool & add FLOW as supported token in globalLedger
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    // Must be deployed after the Pool is created
+    var err = Test.deployContract(
+        name: "FlowCreditMarketRegistry",
+        path: "../contracts/FlowCreditMarketRegistry.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
     addSupportedTokenSimpleInterestCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,

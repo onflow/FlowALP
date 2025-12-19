@@ -31,6 +31,13 @@ fun testRebalanceUndercollateralised() {
 
     // pool + token support
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    // Must be deployed after the Pool is created
+    var err = Test.deployContract(
+        name: "FlowCreditMarketRegistry",
+        path: "../contracts/FlowCreditMarketRegistry.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
     addSupportedTokenSimpleInterestCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,

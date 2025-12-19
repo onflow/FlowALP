@@ -25,6 +25,13 @@ fun setup() {
 
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    // Must be deployed after the Pool is created
+    var err = Test.deployContract(
+        name: "FlowCreditMarketRegistry",
+        path: "../contracts/FlowCreditMarketRegistry.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
     grantPoolCapToConsumer()
     addSupportedTokenSimpleInterestCurve(
         signer: protocolAccount,

@@ -15,6 +15,13 @@ access(all)
 fun test_setGovernanceParams_and_exercise_paths() {
     // Create pool
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    // Must be deployed after the Pool is created
+    var err = Test.deployContract(
+        name: "FlowCreditMarketRegistry",
+        path: "../contracts/FlowCreditMarketRegistry.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 
     // 1) Exercise setInsuranceRate and negative-credit-rate branch
     // Set a relatively high insurance rate and construct a state with tiny debit income

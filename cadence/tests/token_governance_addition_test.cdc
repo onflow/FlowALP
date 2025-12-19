@@ -26,6 +26,13 @@ fun testAddSupportedTokenSucceedsAndDuplicateFails() {
 
     // create pool first
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    // Must be deployed after the Pool is created
+    var err = Test.deployContract(
+        name: "FlowCreditMarketRegistry",
+        path: "../contracts/FlowCreditMarketRegistry.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 
     // add FLOW token support
     addSupportedTokenSimpleInterestCurve(
