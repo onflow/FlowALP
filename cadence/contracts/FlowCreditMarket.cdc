@@ -1,7 +1,6 @@
 import "Burner"
 import "FungibleToken"
 import "ViewResolver"
-import "FlowTransactionScheduler"
 
 import "DeFiActionsUtils"
 import "DeFiActions"
