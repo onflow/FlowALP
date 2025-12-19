@@ -1039,21 +1039,22 @@ access(all) contract FlowCreditMarket {
             }
             let position = self._borrowPosition(pid: pid)
 
-            if pullFromTopUpSource && position.topUpSource != nil {
-                let topUpSource = position.topUpSource!
-                let sourceType = topUpSource.getSourceType()
-                let sourceAmount = topUpSource.minimumAvailable()
-                if self.debugLogging {
-                    log("    [CONTRACT] Calling to fundsAvailableAboveTargetHealthAfterDepositing with sourceAmount \(sourceAmount) and targetHealth \(position.minHealth)")
-                }
+            if pullFromTopUpSource {
+                if let topUpSource = position.topUpSource {
+                    let sourceType = topUpSource.getSourceType()
+                    let sourceAmount = topUpSource.minimumAvailable()
+                    if self.debugLogging {
+                        log("    [CONTRACT] Calling to fundsAvailableAboveTargetHealthAfterDepositing with sourceAmount \(sourceAmount) and targetHealth \(position.minHealth)")
+                    }
 
-                return self.fundsAvailableAboveTargetHealthAfterDepositing(
-                    pid: pid,
-                    withdrawType: type,
-                    targetHealth: position.minHealth,
-                    depositType: sourceType,
-                    depositAmount: sourceAmount
-                )
+                    return self.fundsAvailableAboveTargetHealthAfterDepositing(
+                        pid: pid,
+                        withdrawType: type,
+                        targetHealth: position.minHealth,
+                        depositType: sourceType,
+                        depositAmount: sourceAmount
+                    )
+                }
             }
 
             let view = self.buildPositionView(pid: pid)
