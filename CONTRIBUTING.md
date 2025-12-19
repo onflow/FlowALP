@@ -118,6 +118,11 @@ Before contributing, make sure to examine the project to get familiar with the p
   - Remove redundant type annotations when the type can be inferred from context
   - Keep annotations when they improve clarity or are required by the compiler
 
+- Best practices
+  - Follow design patterns: https://cadence-lang.org/docs/design-patterns
+  - Avoid anti-patterns: https://cadence-lang.org/docs/anti-patterns
+  - Follow security best practices: https://cadence-lang.org/docs/security-best-practices
+
 ### Additional Notes
 
 Thank you for your interest in contributing to Flow Credit Market!
