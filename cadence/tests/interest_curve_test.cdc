@@ -169,7 +169,7 @@ fun test_TokenState_with_FixedRateInterestCurve() {
     // For FixedRateInterestCurve, credit rate uses the SPREAD MODEL:
     // creditRate = debitRate - insuranceRate (independent of utilization)
     let debitRate: UFix128 = 0.10
-    let insuranceRate: UFix128 = FlowCreditMarketMath.toUFix128(tokenState.insuranceRate)
+    let insuranceRate = UFix128(tokenState.insuranceRate)
     let expectedCreditYearly = debitRate - insuranceRate  // 0.10 - 0.001 = 0.099
     let expectedCreditRate = FlowCreditMarket.perSecondInterestRate(yearlyRate: expectedCreditYearly)
     Test.assertEqual(expectedCreditRate, tokenState.currentCreditRate)

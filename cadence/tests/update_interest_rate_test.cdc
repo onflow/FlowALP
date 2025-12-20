@@ -45,7 +45,7 @@ fun test_FixedRateInterestCurve_uses_spread_model() {
     Test.assertEqual(expectedDebitRate, tokenState.currentDebitRate)
 
     // Credit rate = debitRate - insuranceRate (spread model, independent of utilization)
-    let expectedCreditYearly = debitRate - tokenState.insuranceRate  // 0.10 - 0.001 = 0.099
+    let expectedCreditYearly = debitRate - UFix128(tokenState.insuranceRate)  // 0.10 - 0.001 = 0.099
     let expectedCreditRate = FlowCreditMarket.perSecondInterestRate(yearlyRate: expectedCreditYearly)
     Test.assertEqual(expectedCreditRate, tokenState.currentCreditRate)
 }
@@ -93,9 +93,9 @@ fun test_KinkCurve_uses_reserve_factor_model() {
     Test.assertEqual(expectedDebitRate, tokenState.currentDebitRate)
 
     // Credit rate = (debitIncome - debitIncome * insuranceRate) / creditBalance
-    let debitIncome: UFix128 = tokenState.totalDebitBalance * debitRate  // 50 * 0.20 = 10
-    let reserveFactor: UFix128 = FlowCreditMarketMath.toUFix128(tokenState.insuranceRate)
-    let insurance: UFix128 = debitIncome * reserveFactor  // 10 * 0.001 = 0.01
+    let debitIncome = UFix128(tokenState.totalDebitBalance) * debitRate  // 50 * 0.20 = 10
+    let reserveFactor = UFix128(tokenState.insuranceRate)
+    let insurance = debitIncome * reserveFactor  // 10 * 0.001 = 0.01
     let expectedCreditYearly = (debitIncome - insurance) / tokenState.totalCreditBalance  // (10 - 0.01) / 200
     let expectedCreditRate = FlowCreditMarket.perSecondInterestRate(yearlyRate: expectedCreditYearly)
     Test.assertEqual(expectedCreditRate, tokenState.currentCreditRate)

@@ -59,7 +59,7 @@ access(all) contract FlowCreditMarket {
         - Interest indices and rates are modeled as 18-decimal fixed-point in FlowCreditMarketMath and stored as UFix128.
         - Operating in the UFix128 domain minimizes rounding error in true↔scaled conversions and
           health/price computations.
-        - We convert at boundaries via FlowCreditMarketMath.toUFix128/toUFix64.
+        - We convert at boundaries via type casting to UFix128 or FlowCreditMarketMath.toUFix64.
     */
     /// InternalBalance
     ///
@@ -589,7 +589,7 @@ access(all) contract FlowCreditMarket {
                 creditBalance: self.totalCreditBalance,
                 debitBalance: self.totalDebitBalance
             )
-            let insuranceRate: UFix128 = FlowCreditMarketMath.toUFix128(self.insuranceRate)
+            let insuranceRate = UFix128(self.insuranceRate)
 
             var creditRate: UFix128 = 0.0
 
