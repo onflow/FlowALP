@@ -60,7 +60,7 @@ fun setup() {
 
     // create the Pool & add FLOW as suppoorted token
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
-    addSupportedTokenSimpleInterestCurve(
+    addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
         collateralFactor: flowCollateralFactor,
@@ -321,7 +321,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     )
     let actualHealthAfterPriceIncrease = getPositionHealth(pid: positionID, beFailed: false)
     // calculate new health based on updated collateral value - should increase proportionally to price increase
-    let expectedHealthAfterPriceIncrease = actualHealthBeforePriceIncrease * FlowCreditMarketMath.toUFix128(1.0 + priceIncrease)
+    let expectedHealthAfterPriceIncrease = actualHealthBeforePriceIncrease * UFix128(1.0 + priceIncrease)
     Test.assertEqual(expectedHealthAfterPriceIncrease, actualHealthAfterPriceIncrease)
 
     log("[TEST] FLOW price set to \(newPrice) from \(flowStartPrice)")
@@ -476,7 +476,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     )
     let actualHealthAfterPriceDecrease = getPositionHealth(pid: positionID, beFailed: false)
     // calculate new health based on updated collateral value - should increase proportionally to price increase
-    let expectedHealthAfterPriceDecrease = actualHealthBeforePriceIncrease * FlowCreditMarketMath.toUFix128(1.0 - priceDecrease)
+    let expectedHealthAfterPriceDecrease = actualHealthBeforePriceIncrease * UFix128(1.0 - priceDecrease)
     Test.assertEqual(expectedHealthAfterPriceDecrease, actualHealthAfterPriceDecrease)
 
     log("[TEST] FLOW price set to \(newPrice) from \(flowStartPrice)")
@@ -525,24 +525,24 @@ fun runFundsRequiredForTargetHealthAfterWithdrawing(
 ) {
     log("..............................")
 
-    let intFLOWCollateralFactor = FlowCreditMarketMath.toUFix128(flowCollateralFactor)
-    let intFLOWBorrowFactor = FlowCreditMarketMath.toUFix128(flowBorrowFactor)
-    let intFLOWPrice = FlowCreditMarketMath.toUFix128(currentFLOWPrice)
-    let intFLOWCollateral = FlowCreditMarketMath.toUFix128(existingFLOWCollateral)
-    let intFLOWBorrowed = FlowCreditMarketMath.toUFix128(existingBorrowed)
-    let intWithdrawAmount = FlowCreditMarketMath.toUFix128(withdrawAmount)
+    let intFLOWCollateralFactor = UFix128(flowCollateralFactor)
+    let intFLOWBorrowFactor = UFix128(flowBorrowFactor)
+    let intFLOWPrice = UFix128(currentFLOWPrice)
+    let intFLOWCollateral = UFix128(existingFLOWCollateral)
+    let intFLOWBorrowed = UFix128(existingBorrowed)
+    let intWithdrawAmount = UFix128(withdrawAmount)
 
     // effectiveCollateralValue = collateralBalance * collateralPrice * collateralFactor
     let effectiveFLOWCollateralValue = (intFLOWCollateral * intFLOWPrice) * intFLOWCollateralFactor
     // borrowLimit = (effectiveCollateralValue / targetHealth) * borrowFactor
-    let expectedBorrowCapacity = FlowCreditMarketMath.div(effectiveFLOWCollateralValue, intTargetHealth) * intFLOWBorrowFactor
+    let expectedBorrowCapacity = (effectiveFLOWCollateralValue / intTargetHealth) * intFLOWBorrowFactor
     let desiredFinalDebt = intFLOWBorrowed + intWithdrawAmount
 
-    var expectedRequired: UFix128 = 0.0 as UFix128
+    var expectedRequired: UFix128 = 0.0
     if desiredFinalDebt > expectedBorrowCapacity {
         let valueDiff = desiredFinalDebt - expectedBorrowCapacity
-        expectedRequired = FlowCreditMarketMath.div(valueDiff * intTargetHealth, intFLOWPrice)
-        expectedRequired = FlowCreditMarketMath.div(expectedRequired, intFLOWCollateralFactor)
+        expectedRequired = (valueDiff * intTargetHealth) / intFLOWPrice
+        expectedRequired = expectedRequired / intFLOWCollateralFactor
     }
     let ufixExpectedRequired = FlowCreditMarketMath.toUFix64Round(expectedRequired)
 
