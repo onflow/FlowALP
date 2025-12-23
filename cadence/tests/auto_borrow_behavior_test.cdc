@@ -33,7 +33,7 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
     
     // Add Flow token support with collateralFactor=0.8
-    addSupportedTokenSimpleInterestCurve(
+    addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
         collateralFactor: 0.8,  // This means only 80% of Flow value can be used as collateral

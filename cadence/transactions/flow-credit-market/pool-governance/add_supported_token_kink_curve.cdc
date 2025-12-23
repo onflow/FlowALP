@@ -1,11 +1,17 @@
 import "FlowCreditMarket"
 
-/// Adds a token type as supported to the stored pool, reverting if a Pool is not found
+/// Adds a token type as supported to the stored pool with a kink interest curve.
+/// This uses KinkInterestCurve for utilization-based variable interest rates,
+/// modeled after Aave v3's DefaultReserveInterestRateStrategyV2.
 ///
 transaction(
     tokenTypeIdentifier: String,
     collateralFactor: UFix64,
     borrowFactor: UFix64,
+    optimalUtilization: UFix128,
+    baseRate: UFix128,
+    slope1: UFix128,
+    slope2: UFix128,
     depositRate: UFix64,
     depositCapacityCap: UFix64
 ) {
@@ -24,7 +30,12 @@ transaction(
             tokenType: self.tokenType,
             collateralFactor: collateralFactor,
             borrowFactor: borrowFactor,
-            interestCurve: FlowCreditMarket.SimpleInterestCurve(),
+            interestCurve: FlowCreditMarket.KinkInterestCurve(
+                optimalUtilization: optimalUtilization,
+                baseRate: baseRate,
+                slope1: slope1,
+                slope2: slope2
+            ),
             depositRate: depositRate,
             depositCapacityCap: depositCapacityCap
         )
