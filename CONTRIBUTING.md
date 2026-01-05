@@ -1,6 +1,8 @@
-# Contributing to the Flow: Automated Lending Protocol Smart Contracts
+# Contributing to the Flow Credit Market Smart Contracts
 
-The following is a set of guidelines for contributing to the Flow:ALP. These are mostly guidelines, not rules. Use your best judgment, and feel free to propose changes to this document in a pull request.
+The following is a set of guidelines for contributing to Flow Credit Market.
+These are mostly guidelines, not rules.
+Use your best judgment, and feel free to propose changes to this document in a pull request.
 
 #### Table Of Contents
 
@@ -62,7 +64,7 @@ Enhancement suggestions are tracked as [GitHub issues](https://guides.github.com
 - **Provide specific examples to demonstrate the steps**. Include copy/pasteable snippets which you use in those examples, as [Markdown code blocks](https://help.github.com/articles/markdown-basics/#multiple-lines).
 - **Describe the current behavior** and **explain which behavior you expected to see instead** and why.
 - **Include screenshots and animated GIFs**. You can use [this tool](https://www.cockos.com/licecap/) to record GIFs on macOS and Windows, and [this tool](https://github.com/colinkeenan/silentcast) or [this tool](https://github.com/GNOME/byzanz) on Linux.
-- **Explain why this enhancement would be useful** to be included in the standard.
+- **Explain why this enhancement would be useful** to be included.
 
 ### Pull Requests
 
@@ -85,7 +87,42 @@ Before contributing, make sure to examine the project to get familiar with the p
 - Limit the first line to 72 characters or less
 - Reference issues and pull requests liberally after the first line
 
+### Cadence
+
+- Naming Conventions
+  - Use clear, descriptive names that convey intent
+  - Don't use abbreviations
+  - For example, prefer `tokenAddress` over `tkAddr`, `maximumAmount` over `maxAmt`, etc.
+
+- Whitespace & Formatting
+  - Add blank lines between declarations (types, functions, fields)
+  - Keep block contents on separate line (e.g. no single-line `if` statements)
+  - Chop long parameter/argument lists onto separate lines when they exceed reasonable length
+
+- Comment Alignment
+  - Use [semantic line breaks](https://sembr.org) in documentation:
+    Break lines at natural language boundaries (after periods, clauses)
+    rather than at arbitrary character limits
+  - Distinguish between documentation comments (`///`) for public API
+     vs regular comments (`//`) for implementation notes
+
+- Control Flow
+  - Replace `if` chains on enum cases with `switch` statements to leverage exhaustiveness checking.
+    The compiler will catch missing cases when new enum variants are added
+  - Avoid force unwrapping (`!`), use safe alternatives.
+    For example, replace `if value != nil { value! }` patterns with:
+      - `if let` bindings: `if let unwrapped = value { unwrapped }`
+      - Nil coalescing (`??`) for default values: `value ?? defaultValue`
+
+- Type Inference
+  - Remove redundant type annotations when the type can be inferred from context
+  - Keep annotations when they improve clarity or are required by the compiler
+
+- Best practices
+  - Follow design patterns: https://cadence-lang.org/docs/design-patterns
+  - Avoid anti-patterns: https://cadence-lang.org/docs/anti-patterns
+  - Follow security best practices: https://cadence-lang.org/docs/security-best-practices
 
 ### Additional Notes
 
-Thank you for your interest in contributing to the Flow Token Standards!
+Thank you for your interest in contributing to Flow Credit Market!

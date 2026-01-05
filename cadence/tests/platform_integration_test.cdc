@@ -54,7 +54,7 @@ fun testCreateUserPositionSucceeds() {
 
     // create pool & add FLOW as supported token in globalLedger
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
-    addSupportedTokenSimpleInterestCurve(
+    addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
         collateralFactor: 0.8,
@@ -105,7 +105,7 @@ fun testUndercollateralizedPositionRebalanceSucceeds() {
 
     // create pool & add FLOW as supported token in globalLedger
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
-    addSupportedTokenSimpleInterestCurve(
+    addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
         collateralFactor: 0.8,
@@ -169,7 +169,7 @@ fun testOvercollateralizedPositionRebalanceSucceeds() {
 
     // create pool & add FLOW as supported token in globalLedger
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
-    addSupportedTokenSimpleInterestCurve(
+    addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
         collateralFactor: 0.8,
