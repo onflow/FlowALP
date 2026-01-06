@@ -164,7 +164,7 @@ access(all) contract FlowCreditMarket {
         /// amount is expressed in UFix128 (true token units) to operate in the internal UFix128 domain;
         /// public deposit APIs accept UFix64 and are converted at the boundary.
         ///
-        access(contract) fun recordDeposit(amount: UFix128, tokenState: &TokenState) {
+        access(contract) fun recordDeposit(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
             switch self.direction {
                 case BalanceDirection.Credit:
                     // Depositing into a credit position just increases the balance.
