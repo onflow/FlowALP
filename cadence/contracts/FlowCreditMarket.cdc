@@ -1422,7 +1422,9 @@ access(all) contract FlowCreditMarket {
             // Oracle prices
             let Pd_oracle = self.priceOracle.price(ofToken: debtType)!  // debt price given by oracle ($/D)
             let Pc_oracle = self.priceOracle.price(ofToken: seizeType)! // collateral price given by oracle ($/C)
-            let Pcd_oracle = Pd_oracle / Pc_oracle // price of collateral, denominated in debt token, implied by oracle (C/D)
+            // Price of collateral, denominated in debt token, implied by oracle (D/C)
+            // Oracle says: "1 unit of collateral is worth `Pcd_oracle` units of debt"
+            let Pcd_oracle = Pc_oracle / Pd_oracle 
 
             // Compute the health factor which would result if we were to accept this liquidation
             let Ce_pre = balanceSheet.effectiveCollateral // effective collateral pre-liquidation
@@ -1432,19 +1434,22 @@ access(all) contract FlowCreditMarket {
 
             let Ce_seize = UFix128(seizeAmount) * UFix128(Pc_oracle) * Fc // effective value of seized collateral ($)
             let De_seize = UFix128(repayAmount) * UFix128(Pd_oracle) * Fd // effective value of repaid debt ($)
-            let Ce_post = Ce_pre - Ce_seize                               // total effective collateral after liquidation ($)
-            let De_post = De_pre - De_seize                               // total effective debt after liquidation ($)
+            let Ce_post = Ce_pre - Ce_seize                               // position's total effective collateral after liquidation ($)
+            let De_post = De_pre - De_seize                               // position's total effective debt after liquidation ($)
             let postHealth = FlowCreditMarket.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
             assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: \(postHealth)>\(self.liquidationTargetHF)")
 
+            // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
             let swapper = self.dex.getSwapper(inType: seizeType, outType: debtType)! // TODO: will revert if pair unsupported
             // Get a quote: "how much collateral do I need to give you to get `repayAmount` debt tokens"
             let quote = swapper.quoteIn(forDesired: repayAmount, reverse: false)
-            // If the DEX would provide more debt tokens for the same amount of collateral, then reject the liquidation offer.
-            assert(quote.inAmount < seizeAmount, message: "Liquidation offer must be better than that offered by DEX")
+            assert(seizeAmount < quote.inAmount, message: "Liquidation offer must be better than that offered by DEX")
             
             // Compare the DEX price to the oracle price and revert if they diverge beyond configured threshold.
-            let Pcd_dex = quote.inAmount / quote.outAmount // price of collateral, denominated in debt token, implied by dex quote (C/D)
+            // Suppose our collateral is X and our debt is Y
+            // We get a quote for 10X for 100Y -> X=10Y, so Pxy = 
+            // Then the price of collateral denominated in debt is 10$/100FLOW = 0.1$/FLOW = 0.1C/D
+            let Pcd_dex = quote.outAmount / quote.inAmount // price of collateral, denominated in debt token, implied by dex quote (D/C)
             // Compute the absolute value of the difference between the oracle price and dex price
             let Pcd_dex_oracle_diff: UFix64 = Pcd_dex < Pcd_oracle ? Pcd_oracle - Pcd_dex : Pcd_dex - Pcd_oracle
             // Compute the percent difference (eg. 0.05 for 5%). Always use the smaller price as the denominator.
