@@ -1382,28 +1382,30 @@ access(all) contract FlowCreditMarket {
         /// Any external party can perform a manual liquidation on a position under the following circumstances:
         /// - the position has health < 1
         /// - the liquidation price offered is better than what is available on a DEX
-        //  - the liquidation results in a health <= liquidationTargetHF
-        //
-        // Terminology:
-        // - N means number of some token: Nc means number of collateral tokens, Nd means number of debt tokens
-        // - P means price of some token: Pc, Pd mean price of collateral, 
-        // - C means collateral: Ce is effective collateral, Ct is true collateral, measured in $
-        // - D means debt: De is effective debt, Dt is true debt, measured in $
-        // - Fc, Fd are collateral and debt factors
-        //
-        // Test cases:
-        //  - proposal brings health above target (not allowed)
-        //  - proposal reduces health (allowed)
-        //  - proposal pays more debt than position has
-        //  - proposal seizes more collateral than position has
+        /// - the liquidation results in a health <= liquidationTargetHF
+        ///
+        /// If a liquidation attempt is successful, the balance of the input `repayment` vault is deposited to the pool
+        /// and a vault containing a balance of `seizeAmount` collateral tokens are returned to the caller.
+        ///
+        /// Terminology:
+        /// - N means number of some token: Nc means number of collateral tokens, Nd means number of debt tokens
+        /// - P means price of some token: Pc, Pd mean price of collateral, 
+        /// - C means collateral: Ce is effective collateral, Ct is true collateral, measured in $
+        /// - D means debt: De is effective debt, Dt is true debt, measured in $
+        /// - Fc, Fd are collateral and debt factors
+        ///
+        /// TODO: Test cases:
+        ///  - proposal brings health above target (not allowed)
+        ///  - proposal reduces health (allowed)
+        ///  - proposal pays more debt than position has
+        ///  - proposal seizes more collateral than position has
         access(all) fun manualLiquidation(
             pid: UInt64,
             debtType: Type,
-            repayAmount: UFix64, // TODO does it need to be ufix64 on public api boundary?
             seizeType: Type,
             seizeAmount: UFix64,
-            repaymentSource: @{FungibleToken.Vault}
-        ): @FlowCreditMarket.LiquidationResult {
+            repayment: @{FungibleToken.Vault}
+        ): @{FungibleToken.Vault} {
             pre {
                 // debt, collateral are both supported tokens
                 // repaymentSource has sufficient balance
@@ -1418,6 +1420,7 @@ access(all) contract FlowCreditMarket {
             assert(initialHealth >= 1.0, message: "Cannot liquidate healthy position: \(initialHealth)>1")
 
             // Ensure liquidation amounts don't exceed position amounts
+            let repayAmount = repayment.balance
             let Nc = positionView.trueBalance(ofToken: seizeType) // number of collateral tokens (true balance)
             let Nd = positionView.trueBalance(ofToken: debtType)  // number of debt tokens (true balance)
             assert(UFix128(seizeAmount) <= Nc, message: "Cannot seize more collateral than is in position: \(Nc)<\(seizeAmount))")
@@ -1460,19 +1463,19 @@ access(all) contract FlowCreditMarket {
             assert(Pcd_dex_oracle_diffBps <= self.dexOracleDeviationBps, message: "Too large difference between dex/oracle prices diff=\(Pcd_dex_oracle_diffBps)bps")
 
             // Execute the liquidation
-            return <- self._doLiquidation(pid: pid, from: <-repaymentSource, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
+            return <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
         }
 
-        // Internal liquidation function which performs a liquidation 
-        // Callers are responsible for checking preconditions.
-        access(self) fun _doLiquidation(pid: UInt64, from: @{FungibleToken.Vault}, debtType: Type, seizeType: Type, seizeAmount: UFix64): @LiquidationResult {
+        /// Internal liquidation function which performs a liquidation.
+        /// The balance of `repayment` is deposited to the debt token reserve, and `seizeAmount` units of collateral are returned.
+        /// Callers are responsible for checking preconditions.
+        access(self) fun _doLiquidation(pid: UInt64, repayment: @{FungibleToken.Vault}, debtType: Type, seizeType: Type, seizeAmount: UFix64): @{FungibleToken.Vault} {
             pre {
                 // position must have debt and collateral balance 
             }
 
-            let repayAmount = from.balance
-            let repayment <- from.withdraw(amount: repayAmount)
-            assert(from.getType() == debtType, message: "Vault type mismatch for repay")
+            let repayAmount = repayment.balance
+            assert(repayment.getType() == debtType, message: "Vault type mismatch for repay")
             let debtReserveRef = (&self.reserves[debtType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
             debtReserveRef.deposit(from: <-repayment)
 
@@ -1492,14 +1495,14 @@ access(all) contract FlowCreditMarket {
             }
             position.balances[seizeType]!.recordWithdrawal(amount: UFix128(seizeAmount), tokenState: seizeState)
             let seizeReserveRef = (&self.reserves[seizeType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
-            let payout <- seizeReserveRef.withdraw(amount: seizeAmount)
+            let seizedCollateral <- seizeReserveRef.withdraw(amount: seizeAmount)
 
             let newHealth = self.positionHealth(pid: pid)
             // TODO: sanity check health here? for auto-liquidating, we may need to perform a bounded search which could result in unbounded error in the final health
 
             emit LiquidationExecuted(pid: pid, poolUUID: self.uuid, debtType: debtType.identifier, repayAmount: repayAmount, seizeType: seizeType.identifier, seizeAmount: seizeAmount, newHF: newHealth)
 
-            return <- create LiquidationResult(seized: <-payout, remainder: <-from)
+            return <-seizedCollateral
         }
 
         /// Quote liquidation required repay and seize amounts to bring HF to liquidationTargetHF
@@ -4139,45 +4142,4 @@ access(all) contract FlowCreditMarket {
         )
         let factory = self.account.storage.borrow<&PoolFactory>(from: self.PoolFactoryPath)!
     }
-
-    /// TODO(jord): document or remove + move to where other resources are defined
-    access(all) resource LiquidationResult: Burner.Burnable {
-        access(all) var seized: @{FungibleToken.Vault}?
-        access(all) var remainder: @{FungibleToken.Vault}?
-
-        init(
-            seized: @{FungibleToken.Vault},
-            remainder: @{FungibleToken.Vault}
-        ) {
-            self.seized <- seized
-            self.remainder <- remainder
-        }
-
-        access(all) fun takeSeized(): @{FungibleToken.Vault} {
-            let s <- self.seized <- nil
-            return <- s!
-        }
-
-        access(all) fun takeRemainder(): @{FungibleToken.Vault} {
-            let r <- self.remainder <- nil
-            return <- r!
-        }
-
-        access(contract) fun burnCallback() {
-            let s <- self.seized <- nil
-            let r <- self.remainder <- nil
-            if s != nil {
-                Burner.burn(<-s)
-            } else {
-                destroy s
-            }
-            if r != nil {
-                Burner.burn(<-r)
-            } else {
-                destroy r
-            }
-        }
-    }
-
-    // (contract-level helpers removed; resource-scoped versions live in Pool)
 }
