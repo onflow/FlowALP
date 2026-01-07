@@ -64,7 +64,6 @@ access(all) contract FlowCreditMarket {
         poolUUID: UInt64,
         targetHF: UFix128,
         warmupSec: UInt64,
-        protocolFeeBps: UInt16
     )
 
     access(all) event LiquidationsPaused(
@@ -339,7 +338,6 @@ access(all) contract FlowCreditMarket {
         access(all) let warmupSec: UInt64
         access(all) let lastUnpausedAt: UInt64?
         access(all) let triggerHF: UFix128
-        access(all) let protocolFeeBps: UInt16
 
         init(
             targetHF: UFix128,
@@ -347,14 +345,12 @@ access(all) contract FlowCreditMarket {
             warmupSec: UInt64,
             lastUnpausedAt: UInt64?,
             triggerHF: UFix128,
-            protocolFeeBps: UInt16
         ) {
             self.targetHF = targetHF
             self.paused = paused
             self.warmupSec = warmupSec
             self.lastUnpausedAt = lastUnpausedAt
             self.triggerHF = triggerHF
-            self.protocolFeeBps = protocolFeeBps
         }
     }
 
@@ -1093,14 +1089,16 @@ access(all) contract FlowCreditMarket {
         access(EImplementation) var version: UInt64
 
         /// Liquidation target health and controls (global)
-        /// TODO(jord): This is the desired health factor following liquidation?
-        access(self) var liquidationTargetHF: UFix128   // e24 fixed-point, e.g., 1.05e24
 
+        /// The target health factor when liquidating a position, which limits how much collateral can be liquidated.
+        /// After a liquidation, the position's health factor must be less than or equal to this target value.
+        access(self) var liquidationTargetHF: UFix128
+        /// Whether liquidations are currently paused
         access(self) var liquidationsPaused: Bool
+        /// Period (s) following liquidation unpause in which liquidations are still not allowed
         access(self) var liquidationWarmupSec: UInt64
+        /// Time this pool most recently had liquidations paused
         access(self) var lastUnpausedAt: UInt64?
-        // TODO(jord): remove this
-        access(self) var protocolLiquidationFeeBps: UInt16
 
         /// Allowlist of permitted DeFiActions Swapper types for DEX liquidations
         // TODO(jord): currently we store an allow-list of swapper types, but 
@@ -1147,7 +1145,6 @@ access(all) contract FlowCreditMarket {
             self.liquidationsPaused = false
             self.liquidationWarmupSec = 300
             self.lastUnpausedAt = nil
-            self.protocolLiquidationFeeBps = 0
             self.allowedSwapperTypes = {}
             self.dex = nil
             self.dexOracleDeviationBps = UInt16(300) // 3% default
@@ -1194,7 +1191,6 @@ access(all) contract FlowCreditMarket {
                 warmupSec: self.liquidationWarmupSec,
                 lastUnpausedAt: self.lastUnpausedAt,
                 triggerHF: 1.0,
-                protocolFeeBps: self.protocolLiquidationFeeBps
             )
         }
 
@@ -1409,6 +1405,8 @@ access(all) contract FlowCreditMarket {
             pre {
                 // debt, collateral are both supported tokens
                 // repaymentSource has sufficient balance
+                // liquidationsPaused is false
+                // liquidation warmup?
             }
             post {
                 // health factor should be <= target
@@ -1504,7 +1502,7 @@ access(all) contract FlowCreditMarket {
 
             return <-seizedCollateral
         }
-        
+
         /// Returns the quantity of funds of a specified token which would need to be deposited
         /// in order to bring the position to the target health
         /// assuming we also withdraw a specified amount of another token.
@@ -2443,11 +2441,9 @@ access(all) contract FlowCreditMarket {
         access(EGovernance) fun setLiquidationParams(
             targetHF: UFix128?,
             warmupSec: UInt64?,
-            protocolFeeBps: UInt16?
         ) {
             var newTarget = self.liquidationTargetHF
             var newWarmup = self.liquidationWarmupSec
-            var newProtocolFee = self.protocolLiquidationFeeBps
             if let targetHF = targetHF {
                 assert(
                     targetHF > 1.0,
@@ -2460,15 +2456,11 @@ access(all) contract FlowCreditMarket {
                 self.liquidationWarmupSec = warmupSec
                 newWarmup = warmupSec
             }
-            if let protocolFeeBps = protocolFeeBps {
-                self.protocolLiquidationFeeBps = protocolFeeBps
-                newProtocolFee = protocolFeeBps
-            }
+
             emit LiquidationParamsUpdated(
                 poolUUID: self.uuid,
                 targetHF: newTarget,
                 warmupSec: newWarmup,
-                protocolFeeBps: newProtocolFee
             )
         }
 
