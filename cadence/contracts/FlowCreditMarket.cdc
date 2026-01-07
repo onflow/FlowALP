@@ -852,8 +852,8 @@ access(all) contract FlowCreditMarket {
             liquidationBonus: UFix128
         ) {
             pre {
-                cf <= 1.0: "collateral factor must be <=1"
-                bf <= 1.0: "borrow factor must be <=1"
+                collateralFactor <= 1.0: "collateral factor must be <=1"
+                borrowFactor <= 1.0: "borrow factor must be <=1"
             }
             self.collateralFactor = collateralFactor
             self.borrowFactor = borrowFactor
@@ -1105,7 +1105,7 @@ access(all) contract FlowCreditMarket {
         /// Allowlist of permitted DeFiActions Swapper types for DEX liquidations
         // TODO(jord): currently we store an allow-list of swapper types, but 
         access(self) var allowedSwapperTypes: {Type: Bool}
-        access(self) var dex: {SwapperProvider}
+        access(self) var dex: {SwapperProvider}?
 
         /// Max allowed deviation in basis points between DEX-implied price and oracle price
         access(self) var dexOracleDeviationBps: UInt16
@@ -1118,7 +1118,7 @@ access(all) contract FlowCreditMarket {
         // TODO(jord): unused
         access(self) var dexMaxRouteHops: UInt64
 
-        init(defaultToken: Type, priceOracle: {DeFiActions.PriceOracle}, dex: {SwapperProvider}) {
+        init(defaultToken: Type, priceOracle: {DeFiActions.PriceOracle}) {
             pre {
                 priceOracle.unitOfAccount() == defaultToken:
                     "Price oracle must return prices in terms of the default token"
@@ -1149,7 +1149,7 @@ access(all) contract FlowCreditMarket {
             self.lastUnpausedAt = nil
             self.protocolLiquidationFeeBps = 0
             self.allowedSwapperTypes = {}
-            self.dex = dex
+            self.dex = nil
             self.dexOracleDeviationBps = UInt16(300) // 3% default
             self.dexMaxSlippageBps = 100
             self.dexMaxRouteHops = 3
@@ -1444,7 +1444,7 @@ access(all) contract FlowCreditMarket {
             assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: \(postHealth)>\(self.liquidationTargetHF)")
 
             // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
-            let swapper = self.dex.getSwapper(inType: seizeType, outType: debtType)! // TODO: will revert if pair unsupported
+            let swapper = self.dex!.getSwapper(inType: seizeType, outType: debtType)! // TODO: will revert if pair unsupported
             // Get a quote: "how much collateral do I need to give you to get `repayAmount` debt tokens"
             let quote = swapper.quoteIn(forDesired: repayAmount, reverse: false)
             assert(seizeAmount < quote.inAmount, message: "Liquidation offer must be better than that offered by DEX")
