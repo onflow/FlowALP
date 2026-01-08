@@ -28,7 +28,7 @@ fun testAddSupportedTokenSucceedsAndDuplicateFails() {
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
 
     // add FLOW token support
-    addSupportedTokenSimpleInterestCurve(
+    addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
         collateralFactor: 0.8,
@@ -38,7 +38,7 @@ fun testAddSupportedTokenSucceedsAndDuplicateFails() {
     )
 
     // attempt duplicate addition – should fail
-    let res = addSupportedTokenSimpleInterestCurveWithResult(
+    let res = addSupportedTokenZeroRateCurveWithResult(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
         collateralFactor: 0.8,

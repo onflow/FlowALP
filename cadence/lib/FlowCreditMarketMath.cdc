@@ -1,12 +1,15 @@
 access(all) contract FlowCreditMarketMath {
 
-    access(all) let one: UFix128
-    access(all) let zero: UFix128
     access(self) let ufix64Step: UFix128
     access(self) let ufix64HalfStep: UFix128
 
     access(all) let decimals: UInt8
     access(all) let ufix64Decimals: UInt8
+
+    /// Deprecated: Use 1.0 directly
+    access(all) let one: UFix128
+    /// Deprecated: Use 0.0 directly
+    access(all) let zero: UFix128
 
     access(all) enum RoundingMode: UInt8 {
         access(all) case RoundDown
@@ -15,44 +18,32 @@ access(all) contract FlowCreditMarketMath {
         access(all) case RoundEven
     }
 
-    /// Fast exponentiation for UFix128 with a non-negative integer exponent (seconds)
+    /// Fast exponentiation for UFix128 with a non-negative integer exponent (seconds).
     /// Uses exponentiation-by-squaring with truncation at each multiply (fixed-point semantics)
     access(all) view fun powUFix128(_ base: UFix128, _ expSeconds: UFix64): UFix128 {
-        if expSeconds == 0.0 { return self.one }
-        if base == self.one { return self.one }
-        var result: UFix128 = self.one
-        var b: UFix128 = base
-        var e: UFix64 = expSeconds
+        if expSeconds == 0.0 { return 1.0 }
+        if base == 1.0 { return 1.0 }
+        var result: UFix128 = 1.0
+        var b = base
+        var e = expSeconds
         // Floor the seconds to an integer count
-        var remaining: UInt64 = UInt64(e)
+        var remaining = UInt64(e)
         while remaining > 0 {
-            if remaining % UInt64(2) == UInt64(1) {
+            if remaining % 2 == 1 {
                 result = result * b
             }
             b = b * b
-            remaining = remaining / UInt64(2)
+            remaining = remaining / 2
         }
         return result
     }
 
-
-    access(all) view fun div(_ x: UFix128, _ y: UFix128): UFix128 {
-        pre {
-            y > 0.0 as UFix128: "Division by zero"
-        }
-        return x / y
-    }
-
-    access(all) view fun toUFix128(_ value: UFix64): UFix128 {
-        return UFix128(value)
-    }
-
     access(all) view fun toUFix64(_ value: UFix128, rounding: RoundingMode): UFix64 {
-        let truncated: UFix64 = UFix64(value)
-        let truncatedAs128: UFix128 = UFix128(truncated)
-        let remainder: UFix128 = value - truncatedAs128
+        let truncated = UFix64(value)
+        let truncatedAs128 = UFix128(truncated)
+        let remainder = value - truncatedAs128
 
-        if remainder == 0.0 as UFix128 {
+        if remainder == 0.0 {
             return truncated
         }
 
@@ -65,8 +56,9 @@ access(all) contract FlowCreditMarketMath {
             return remainder >= self.ufix64HalfStep ? self.roundUp(truncated) : truncated
         case self.RoundingMode.RoundEven:
             return self.roundHalfToEven(truncated, remainder)
+        default:
+            panic("Unsupported rounding mode")
         }
-        return truncated
     }
 
     access(all) view fun toUFix64Round(_ value: UFix128): UFix64 {
@@ -93,17 +85,18 @@ access(all) contract FlowCreditMarketMath {
         if remainder > self.ufix64HalfStep {
             return self.roundUp(base)
         }
-        let scaled: UFix64 = base * 100_000_000.0
-        let scaledInt: UInt64 = UInt64(scaled)
-        return scaledInt % UInt64(2) == UInt64(1) ? self.roundUp(base) : base
+        let scaled = base * 100_000_000.0
+        let scaledInt = UInt64(scaled)
+        return scaledInt % 2 == 1 ? self.roundUp(base) : base
     }
 
     init() {
-        self.one = 1.0 as UFix128
-        self.zero = 0.0 as UFix128
-        self.ufix64Step = 0.00000001 as UFix128
-        self.ufix64HalfStep = self.ufix64Step / 2.0 as UFix128
+        self.ufix64Step = 0.00000001
+        self.ufix64HalfStep = self.ufix64Step / 2.0
         self.decimals = 24
         self.ufix64Decimals = 8
+
+        self.one = 1.0
+        self.zero = 0.0
     }
 }

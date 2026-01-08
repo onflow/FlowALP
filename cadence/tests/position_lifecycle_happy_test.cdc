@@ -39,7 +39,7 @@ fun testPositionLifecycleHappyPath() {
 
     // create pool & enable token
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
-    addSupportedTokenSimpleInterestCurve(
+    addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
         collateralFactor: 0.8,

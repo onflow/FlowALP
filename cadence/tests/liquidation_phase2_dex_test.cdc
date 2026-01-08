@@ -17,7 +17,7 @@ fun setup() {
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: Type<@FlowToken.Vault>().identifier, price: 1.0)
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: Type<@MOET.Vault>().identifier, beFailed: false)
     grantPoolCapToConsumer()
-    addSupportedTokenSimpleInterestCurve(
+    addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: Type<@FlowToken.Vault>().identifier,
         collateralFactor: 0.8,
@@ -71,8 +71,8 @@ fun test_liquidation_via_dex() {
 
     // HF should improve to at/near target
     let h1 = getPositionHealth(pid: pid, beFailed: false)
-    let target = FlowCreditMarketMath.toUFix128(1.05)
-    let tol = FlowCreditMarketMath.toUFix128(0.00001)
+    let target: UFix128 = 1.05
+    let tol: UFix128 = 0.00001
     Test.assert(h1 >= target - tol)
 }
 

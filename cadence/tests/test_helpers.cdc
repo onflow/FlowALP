@@ -8,16 +8,16 @@ access(all) let defaultUFixVariance = 0.00000001
 // Variance for UFix64 comparisons
 access(all) let defaultUIntVariance: UInt128 = 1_000_000_000_000_000
 // Variance for UFix128 comparisons
-access(all) let defaultUFix128Variance: UFix128 = 0.00000001 as UFix128
+access(all) let defaultUFix128Variance: UFix128 = 0.00000001
 
 // Health values
 access(all) let minHealth = 1.1
 access(all) let targetHealth = 1.3
 access(all) let maxHealth = 1.5
 // UFix128 equivalents (kept same variable names for minimal test churn)
-access(all) var intMinHealth: UFix128 = 1.1 as UFix128
-access(all) var intTargetHealth: UFix128 = 1.3 as UFix128
-access(all) var intMaxHealth: UFix128 = 1.5 as UFix128
+access(all) var intMinHealth: UFix128 = 1.1
+access(all) var intTargetHealth: UFix128 = 1.3
+access(all) var intMaxHealth: UFix128 = 1.5
 access(all) let ceilingHealth: UFix128 = UFix128.max      // infinite health when debt ~ 0.0
 
 /* --- Test execution helpers --- */
@@ -34,7 +34,7 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
         authorizers: [signer.address],
         signers: [signer],
         arguments: args
-    )    
+    )
     return Test.executeTransaction(txn)
 }
 
@@ -170,7 +170,7 @@ fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix128 {
             [pid]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-    return res.status == Test.ResultStatus.failed ? 0.0 as UFix128 : res.returnValue as! UFix128
+    return res.status == Test.ResultStatus.failed ? 0.0 : res.returnValue as! UFix128
 }
 
 access(all)
@@ -252,7 +252,7 @@ fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, pri
 }
 
 access(all)
-fun addSupportedTokenSimpleInterestCurve(
+fun addSupportedTokenZeroRateCurve(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
     collateralFactor: UFix64,
@@ -261,7 +261,7 @@ fun addSupportedTokenSimpleInterestCurve(
     depositCapacityCap: UFix64
 ) {
     let additionRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/add_supported_token_simple_interest_curve.cdc",
+        "../transactions/flow-credit-market/pool-governance/add_supported_token_zero_rate_curve.cdc",
         [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
         signer
     )
@@ -269,7 +269,7 @@ fun addSupportedTokenSimpleInterestCurve(
 }
 
 access(all)
-fun addSupportedTokenSimpleInterestCurveWithResult(
+fun addSupportedTokenZeroRateCurveWithResult(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
     collateralFactor: UFix64,
@@ -278,10 +278,76 @@ fun addSupportedTokenSimpleInterestCurveWithResult(
     depositCapacityCap: UFix64
 ): Test.TransactionResult {
     return _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/add_supported_token_simple_interest_curve.cdc",
+        "../transactions/flow-credit-market/pool-governance/add_supported_token_zero_rate_curve.cdc",
         [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
         signer
     )
+}
+
+access(all)
+fun addSupportedTokenKinkCurve(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    collateralFactor: UFix64,
+    borrowFactor: UFix64,
+    optimalUtilization: UFix128,
+    baseRate: UFix128,
+    slope1: UFix128,
+    slope2: UFix128,
+    depositRate: UFix64,
+    depositCapacityCap: UFix64
+) {
+    let additionRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/add_supported_token_kink_curve.cdc",
+        [ tokenTypeIdentifier, collateralFactor, borrowFactor, optimalUtilization, baseRate, slope1, slope2, depositRate, depositCapacityCap ],
+        signer
+    )
+    Test.expect(additionRes, Test.beSucceeded())
+}
+
+access(all)
+fun setInterestCurveKink(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    optimalUtilization: UFix128,
+    baseRate: UFix128,
+    slope1: UFix128,
+    slope2: UFix128
+) {
+    let setRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_interest_curve_kink.cdc",
+        [ tokenTypeIdentifier, optimalUtilization, baseRate, slope1, slope2 ],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun setInterestCurveFixed(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    yearlyRate: UFix128
+) {
+    let setRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_interest_curve_fixed.cdc",
+        [ tokenTypeIdentifier, yearlyRate ],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun setInsuranceRate(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    insuranceRate: UFix64
+) {
+    let setRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
+        [ tokenTypeIdentifier, insuranceRate ],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
 }
 
 access(all)
@@ -387,4 +453,33 @@ access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64): B
 access(all) fun ufix128EqualWithinVariance(_ expected: UFix128, _ actual: UFix128): Bool {
     let absDiff: UFix128 = expected >= actual ? expected - actual : actual - expected
     return absDiff <= defaultUFix128Variance
+}
+
+/* --- Balance & Timestamp Helpers --- */
+
+access(all)
+fun getBlockTimestamp(): UFix64 {
+    let res = _executeScript("../scripts/flow-credit-market/get_block_timestamp.cdc", [])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun getDebitBalanceForType(details: FlowCreditMarket.PositionDetails, vaultType: Type): UFix64 {
+    for balance in details.balances {
+        if balance.vaultType == vaultType && balance.direction == FlowCreditMarket.BalanceDirection.Debit {
+            return balance.balance
+        }
+    }
+    return 0.0
+}
+
+access(all)
+fun getCreditBalanceForType(details: FlowCreditMarket.PositionDetails, vaultType: Type): UFix64 {
+    for balance in details.balances {
+        if balance.vaultType == vaultType && balance.direction == FlowCreditMarket.BalanceDirection.Credit {
+            return balance.balance
+        }
+    }
+    return 0.0
 }
