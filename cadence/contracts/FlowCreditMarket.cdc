@@ -1384,7 +1384,7 @@ access(all) contract FlowCreditMarket {
             let positionView = self.buildPositionView(pid: pid)
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let initialHealth = balanceSheet.health
-            assert(initialHealth >= 1.0, message: "Cannot liquidate healthy position: \(initialHealth)>1")
+            assert(initialHealth < 1.0, message: "Cannot liquidate healthy position: \(initialHealth)>1")
 
             // Ensure liquidation amounts don't exceed position amounts
             let repayAmount = repayment.balance
