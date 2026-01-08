@@ -96,8 +96,10 @@ git submodule update --init --recursive
 
 2. Install dependencies:
 ```bash
-flow dependencies install
-cd FlowActions && flow dependencies install && cd ..
+flow deps install
+cd FlowActions && flow deps install && cd ..
+# Installed separately as workaround to limitations for cross-project dependencies in flow-cli https://flow-foundation.slack.com/archives/C08QF29F7TK/p1765918094418619?thread_ts=1765904362.928639&cid=C08QF29F7TK
+flow deps install FlowTransactionScheduler
 ```
 
 3. Run tests:
