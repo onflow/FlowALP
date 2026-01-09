@@ -884,13 +884,6 @@ access(all) contract FlowCreditMarket {
         }
     }
 
-    /// A wrapper around one or more DEXes.
-    access(all) struct interface SwapperProvider {
-        /// Returns a Swapper for the given trade pair, if the pair is supported.
-        /// Otherwise returns nil.
-        access(all) fun getSwapper(inType: Type, outType: Type): {DeFiActions.Swapper}?
-    }
-
     // PURE HELPERS -------------------------------------------------------------
 
     access(all) view fun effectiveCollateral(credit: UFix128, snap: TokenSnapshot): UFix128 {
@@ -1080,7 +1073,6 @@ access(all) contract FlowCreditMarket {
 
         /// Allowlist of permitted DeFiActions Swapper types for DEX liquidations
         access(self) var allowedSwapperTypes: {Type: Bool}
-        access(self) var dex: {SwapperProvider}?
 
         /// Max allowed deviation in basis points between DEX-implied price and oracle price
         access(self) var dexOracleDeviationBps: UInt16
@@ -1124,7 +1116,6 @@ access(all) contract FlowCreditMarket {
             self.lastUnpausedAt = nil
             self.protocolLiquidationFeeBps = 0
             self.allowedSwapperTypes = {}
-            self.dex = nil
             self.dexOracleDeviationBps = UInt16(300) // 3% default
             self.dexMaxSlippageBps = 100
             self.dexMaxRouteHops = 3

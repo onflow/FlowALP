@@ -3,14 +3,10 @@ import "FungibleToken"
 
 import "DeFiActions"
 import "DeFiActionsUtils"
-import "FlowCreditMarket"
 
 /// TEST-ONLY mock swapper that withdraws output from a user-provided Vault capability.
 /// Do NOT use in production.
 access(all) contract MockDexSwapper {
-
-    /// inType -> outType -> Swapper
-    access(contract) let swappers: {Type: {Type: Swapper}}
 
     access(all) struct BasicQuote : DeFiActions.Quote {
         access(all) let inType: Type
@@ -90,33 +86,4 @@ access(all) contract MockDexSwapper {
         access(contract) view fun copyID(): DeFiActions.UniqueIdentifier? { return self.uniqueID }
         access(contract) fun setID(_ id: DeFiActions.UniqueIdentifier?) { self.uniqueID = id }
     }
-
-    /// Adds the given swapper to the contract, overwriting any previously added swapper with the same in/out type.
-    /// After addition, will be returned by SwapperProvider.getSwapper.
-    access(all) fun addSwapper(swapper: Swapper) {
-        if let swappersByInType = self.swappers[swapper.inType()] {
-            swappersByInType[swapper.outType()] = swapper
-            self.swappers[swapper.inType()] = swappersByInType
-        } else {
-            self.swappers[swapper.inType()] = {swapper.outType(): swapper}
-        }
-    }
-
-    /// Provides access to the set of swappers stored in this mock contract.
-    /// Tests can instantiate a pool with an instance of SwapperProvider,
-    /// then control the DEX behaviour with addSwapper.
-    access(all) struct SwapperProvider : FlowCreditMarket.SwapperProvider {
-        access(all) fun getSwapper(inType: Type, outType: Type): {DeFiActions.Swapper}? {
-            if let swappersForInType = MockDexSwapper.swappers[inType] {  
-                return swappersForInType[outType]
-            }
-            return nil
-        }
-    }
-
-    init() {
-        self.swappers = {}
-    }
 }
-
-
