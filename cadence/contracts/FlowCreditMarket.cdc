@@ -1375,12 +1375,6 @@ access(all) contract FlowCreditMarket {
         /// - C means collateral: Ce is effective collateral, Ct is true collateral, measured in $
         /// - D means debt: De is effective debt, Dt is true debt, measured in $
         /// - Fc, Fd are collateral and debt factors
-        ///
-        /// TODO: Test cases:
-        ///  - proposal brings health above target (not allowed)
-        ///  - proposal reduces health (allowed)
-        ///  - proposal pays more debt than position has
-        ///  - proposal seizes more collateral than position has
         access(all) fun manualLiquidation(
             pid: UInt64,
             debtType: Type,
@@ -1390,7 +1384,6 @@ access(all) contract FlowCreditMarket {
         ): @{FungibleToken.Vault} {
             pre {
                 // debt, collateral are both supported tokens
-                // repaymentSource has sufficient balance
                 // liquidationsPaused is false
                 // liquidation warmup?
             }

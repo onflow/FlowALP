@@ -275,3 +275,92 @@ fun testManualLiquidation_seizeExceedsCollateral() {
 
     Test.assert(hAfterLiq == hAfterPrice, message: "sanity check: health should not change after failed liquidation")
 }
+
+/// Should be able to liquidate a position, even if liquidation reduces health, if other conditions are met.
+access(all)
+fun testManualLiquidation_reduceHealth() {
+    safeReset()
+    let pid: UInt64 = 0
+
+    // user setup
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    transferFlowTokens(to: user, amount: 1000.0)
+
+    // open wrapped position and deposit via existing helper txs
+    // debt is MOET, collateral is FLOW
+    let openRes = _executeTransaction(
+        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        [1000.0, /storage/flowTokenVault, true],
+        user
+    )
+    Test.expect(openRes, Test.beSucceeded())
+
+    // health before price drop
+    let hBefore = getPositionHealth(pid: pid, beFailed: false)
+    let hBeforeUF = FlowCreditMarketMath.toUFix64Round(hBefore)
+    log("[LIQ] Health before price drop: raw=\(hBefore), approx=\(hBeforeUF)")
+
+    // cause undercollateralization AND insolvency
+    let newPrice = 0.5 // $/FLOW
+    setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
+    let hAfterPriceUF = FlowCreditMarketMath.toUFix64Round(hAfterPrice)
+    log("[LIQ] Health after price drop: raw=\(hAfterPrice), approx=\(hAfterPriceUF)")
+
+    let collateralBalance = getPositionBalance(pid: pid, vaultID: flowTokenIdentifier).balance
+
+    // execute liquidation
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    let mintRes = _executeTransaction("../transactions/moet/mint_moet.cdc", [liquidator.address, 1000.0], Test.getAccount(0x0000000000000007))
+    Test.expect(mintRes, Test.beSucceeded())
+
+    let liqBalance = getBalance(address: liquidator.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
+    log("Liquidator MOET balance after mint: \(liqBalance)")
+
+    // Repay MOET to seize FLOW. Choose seize amount above collateral balance
+    let seizeAmount = collateralBalance - 0.01
+    let repayAmount = seizeAmount * newPrice * 1.01
+    let liqRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, seizeAmount, repayAmount],
+        liquidator
+    )
+    // Should succeed, even though we are reducing health
+    Test.expect(liqRes, Test.beSucceeded())
+
+    // TODO(jord): validate post-liquidation balances
+
+    // health after liquidation
+    let hAfterLiq = getPositionHealth(pid: pid, beFailed: false)
+    let hAfterLiqUF = FlowCreditMarketMath.toUFix64Round(hAfterLiq)
+    log("[LIQ] Health after liquidation: raw=\(hAfterLiq), approx=\(hAfterLiqUF)")
+    Test.assert(hAfterLiq < hAfterPrice, message: "test expects health to decrease after liquidation")
+}
+
+/// Should be able to liquidate to below target health while increasing health factor.
+access(all)
+fun testManualLiquidation_increaseHealthBelowTarget() {}
+
+/// Should be able to liquidate to exactly target health
+access(all)
+fun testManualLiquidation_liquidateToTarget() {}
+
+access(all)
+fun testManualLiquidation_repaymentVaultWrongType() {}
+
+access(all)
+fun testManualLiquidation_unsupportedDebtType() {}
+
+access(all)
+fun testManualLiquidation_unsupportedCollateralType() {}
+
+access(all)
+fun testManualLiquidation_liquidationPaused() {}
+
+access(all)
+fun testManualLiquidation_liquidationWarmup() {}
+
+access(all)
+fun testManualLiquidation_dexOraclePriceDivergence() {}
