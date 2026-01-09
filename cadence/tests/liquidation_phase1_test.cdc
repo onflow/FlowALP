@@ -83,6 +83,7 @@ fun testManualLiquidation_healthyPosition() {
         liquidator
     )
     Test.expect(liqRes, Test.beFailed())
+    Test.assertError(liqRes, errorMessage: "Cannot liquidate healthy position")
 }
 
 /// Should be unable to liquidate a position to above target health.
@@ -137,6 +138,7 @@ fun testManualLiquidation_liquidationExceedsTargetHealth() {
     )
     // Should fail because we are repaying/seizing too much
     Test.expect(liqRes, Test.beFailed())
+    Test.assertError(liqRes, errorMessage: "Liquidation must not exceed target health")
 
     // health after liquidation
     let hAfterLiq = getPositionHealth(pid: pid, beFailed: false)
