@@ -49,6 +49,7 @@ fun test_liquidation_phase1_quote_and_execute() {
     transferFlowTokens(to: user, amount: 1000.0)
 
     // open wrapped position and deposit via existing helper txs
+    // debt is MOET, collateral is FLOW
     let openRes = _executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
         [1000.0, /storage/flowTokenVault, true],
@@ -70,14 +71,18 @@ fun test_liquidation_phase1_quote_and_execute() {
     // execute liquidation
     let liquidator = Test.createAccount()
     setupMoetVault(liquidator, beFailed: false)
-    _executeTransaction("../transactions/moet/mint_moet.cdc", [liquidator.address, 1000.0], Test.getAccount(0x0000000000000007))
+    let mintRes = _executeTransaction("../transactions/moet/mint_moet.cdc", [liquidator.address, 1000.0], Test.getAccount(0x0000000000000007))
+    Test.expect(mintRes, Test.beSucceeded())
 
-    let liqBalance = getBalance(address: liquidator.address, vaultPublicPath: /public/moetBalance) ?? 0.0
+    let liqBalance = getBalance(address: liquidator.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
     log("Liquidator MOET balance after mint: \(liqBalance)")
 
+    // Repay MOET to seize FLOW
+    let repayAmount = 2.0
+    let seizeAmount = 1.0
     let liqRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
-        [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, 1.0, 10.0],
+        [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, seizeAmount, repayAmount],
         liquidator
     )
     Test.expect(liqRes, Test.beSucceeded())

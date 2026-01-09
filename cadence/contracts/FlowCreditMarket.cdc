@@ -1069,8 +1069,12 @@ access(all) contract FlowCreditMarket {
         /// Time this pool most recently had liquidations paused
         access(self) var lastUnpausedAt: UInt64?
 
+        // TODO(jord): figure out how to reference dex https://github.com/onflow/FlowCreditMarket/issues/94
+        //  - either need to redeploy contract to create new dex field
+        //  - or need to revert to allowlist pattern and pass in swapper instances (I worry about security of this option)
+        //  - also to make allowlist pattern work with automated liquidation, initiator of this automation will need actual handle on a dex in order to pass it to FCM 
+
         /// Allowlist of permitted DeFiActions Swapper types for DEX liquidations
-        // TODO(jord): currently we store an allow-list of swapper types, but 
         access(self) var allowedSwapperTypes: {Type: Bool}
         access(self) var dex: {SwapperProvider}?
 
@@ -1187,6 +1191,19 @@ access(all) contract FlowCreditMarket {
         access(all) view fun reserveBalance(type: Type): UFix64 {
             let vaultRef = &self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
             return vaultRef?.balance ?? 0.0
+        }
+
+        /// Returns a reference to the reserve vault for the given type, if the token type is supported.
+        /// If no reserve vault exists yet, and the token type is supported, the reserve vault is created.
+        access(self) fun _borrowOrCreateReserveVault(type: Type): &{FungibleToken.Vault} {
+            pre {
+                self.isTokenSupported(tokenType: type)
+            }
+            if self.reserves[type] == nil {
+                self.reserves[type] <-! DeFiActionsUtils.getEmptyVault(type)
+            }
+            let vaultRef = &self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
+            return vaultRef!
         }
 
         /// Returns a position's balance available for withdrawal of a given Vault type.
@@ -1413,6 +1430,8 @@ access(all) contract FlowCreditMarket {
             let postHealth = FlowCreditMarket.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
             assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: \(postHealth)>\(self.liquidationTargetHF)")
 
+            // TODO(jord): uncomment following when implementing SwapperProvider
+/* 
             // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
             let swapper = self.dex!.getSwapper(inType: seizeType, outType: debtType)! // TODO: will revert if pair unsupported
             // Get a quote: "how much collateral do I need to give you to get `repayAmount` debt tokens"
@@ -1428,6 +1447,7 @@ access(all) contract FlowCreditMarket {
             let Pcd_dex_oracle_diffBps = UInt16(Pcd_dex_oracle_diffPct * 10_000.0) // cannot overflow because Pcd_dex_oracle_diffPct<=1
 
             assert(Pcd_dex_oracle_diffBps <= self.dexOracleDeviationBps, message: "Too large difference between dex/oracle prices diff=\(Pcd_dex_oracle_diffBps)bps")
+*/
 
             // Execute the liquidation
             return <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
@@ -1443,7 +1463,7 @@ access(all) contract FlowCreditMarket {
 
             let repayAmount = repayment.balance
             assert(repayment.getType() == debtType, message: "Vault type mismatch for repay")
-            let debtReserveRef = (&self.reserves[debtType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let debtReserveRef = self._borrowOrCreateReserveVault(type: debtType)
             debtReserveRef.deposit(from: <-repayment)
 
             // Reduce borrower's debt position by repayAmount

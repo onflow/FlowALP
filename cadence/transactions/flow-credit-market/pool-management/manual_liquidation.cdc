@@ -42,7 +42,7 @@ transaction(pid: UInt64, debtVaultIdentifier: String, seizeVaultIdentifier: Stri
         // Check if the service account has a vault for this token type at the correct storage path
         let debtVaultRef = signer.storage.borrow<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(from: debtVaultData.storagePath)
             ?? panic("no debt vault in storage at path \(debtVaultData.storagePath)")
-        assert(debtVaultRef.balance >= repayAmount, message: "Insufficient MOET balance")
+        assert(debtVaultRef.balance >= repayAmount, message: "Insufficient debt token \(debtVaultRef.getType().identifier) balance \(debtVaultRef.balance)<\(repayAmount)")
         self.repay <- debtVaultRef.withdraw(amount: repayAmount)
 
         let seizeVaultRef = signer.capabilities.borrow<&{FungibleToken.Receiver}>(seizeVaultData.receiverPath)
