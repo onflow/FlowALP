@@ -850,7 +850,7 @@ access(all) contract FlowCreditMarket {
         /// @param reserveVault: The reserve vault for this token type to withdraw insurance from
         /// @return: A MOET vault containing the collected insurance funds, or nil if no collection occurred
         access(all) fun collectInsurance(
-            reserveVault: &{FungibleToken.Vault}?
+            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
         ): @MOET.Vault? {
             // If no swapper configured, skip collection
             if self.insuranceSwapper == nil {
@@ -882,7 +882,7 @@ access(all) contract FlowCreditMarket {
             let yearsElapsed = timeElapsed / secondsPerYear
             let insuranceRate = UFix128(self.insuranceRate)
             // Insurance amount is a percentage of total credit balance per year
-            let insuranceAmount = self.totalCreditBalance * insuranceRate * FlowCreditMarketMath.toUFix128(yearsElapsed)
+            let insuranceAmount = self.totalCreditBalance * insuranceRate * UFix128(yearsElapsed)
             let insuranceAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(insuranceAmount)
 
             // If calculated amount is zero or negative, skip collection but update timestamp
@@ -891,7 +891,7 @@ access(all) contract FlowCreditMarket {
                 return nil
             }
 
-            let reserveRef = reserveVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+            let reserveRef = reserveVault!
             
             // Check if we have enough balance in reserves
             if reserveRef.balance <= 0.0 {
@@ -910,7 +910,7 @@ access(all) contract FlowCreditMarket {
 
             // Get quote and perform swap
             let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
-            var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault)
+            var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
             assert(moetVault.getType() == Type<@MOET.Vault>(), message: "Insurance swapper returned wrong out type")
 
             // Update last collection time
@@ -1192,7 +1192,7 @@ access(all) contract FlowCreditMarket {
             }
             self.positions <- {}
             self.reserves <- {}
-            self.insuranceFund <-! MOET.createEmptyVault(vaultType: Type<@MOET.Vault>()) as! @MOET.Vault
+            self.insuranceFund <- MOET.createEmptyVault(vaultType: Type<@MOET.Vault>())
             self.defaultToken = defaultToken
             self.priceOracle = priceOracle
             self.collateralFactor = {defaultToken: 1.0}
@@ -1279,11 +1279,6 @@ access(all) contract FlowCreditMarket {
         access(all) view fun reserveBalance(type: Type): UFix64 {
             let vaultRef = &self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
             return vaultRef?.balance ?? 0.0
-        }
-
-        /// Returns the balance of the MOET insurance fund
-        access(all) view fun insuranceFundBalance(): UFix64 {
-            return self.insuranceFund.balance
         }
 
         /// Returns the balance of the MOET insurance fund
@@ -3446,7 +3441,7 @@ access(all) contract FlowCreditMarket {
             }
 
             // Get reference to reserves
-            let reserveRef = (&self.reserves[tokenType] as &{FungibleToken.Vault}?)
+            let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)
 
             // Collect insurance and get MOET vault
             if let collectedMOET <- tokenState.collectInsurance(reserveVault: reserveRef) {
