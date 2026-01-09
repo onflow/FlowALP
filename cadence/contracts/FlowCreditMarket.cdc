@@ -624,6 +624,7 @@ access(all) contract FlowCreditMarket {
 
         /// The insurance rate applied to total credit when computing credit interest (default 0.1%)
         access(all) var insuranceRate: UFix64
+
         /// Timestamp of the last insurance collection for this token
         access(all) var lastInsuranceCollection: UFix64
 
@@ -677,11 +678,11 @@ access(all) contract FlowCreditMarket {
 
         /// Sets the swapper used for insurance collection (must swap from this token type to MOET)
         access(EImplementation) fun setInsuranceSwapper(_ swapper: {DeFiActions.Swapper}?) {
-            if swapper != nil {
+            if let swapper = swapper {
                 // Validate that swapper can handle this token type and outputs MOET
                 // Note: We can't validate the input type here without knowing the token type,
                 // but we'll validate it when collectInsurance is called
-                assert(swapper!.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
+                assert(swapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
             }
             self.insuranceSwapper = swapper
         }
@@ -1282,14 +1283,12 @@ access(all) contract FlowCreditMarket {
 
         /// Returns the balance of the MOET insurance fund
         access(all) view fun insuranceFundBalance(): UFix64 {
-            let fundRef = &self.insuranceFund as &MOET.Vault
-            return fundRef.balance
+            return self.insuranceFund.balance
         }
 
         /// Returns the balance of the MOET insurance fund
         access(all) view fun insuranceFundBalance(): UFix64 {
-            let fundRef = &self.insuranceFund as &MOET.Vault
-            return fundRef.balance
+            return self.insuranceFund.balance
         }
 
         /// Returns a position's balance available for withdrawal of a given Vault type.
@@ -3452,8 +3451,7 @@ access(all) contract FlowCreditMarket {
             // Collect insurance and get MOET vault
             if let collectedMOET <- tokenState.collectInsurance(reserveVault: reserveRef) {
                 // Deposit collected MOET into insurance fund
-                let insuranceFundRef = (&self.insuranceFund as auth(FungibleToken.Deposit) &MOET.Vault)
-                insuranceFundRef.deposit(from: <-collectedMOET)
+                self.insuranceFund.deposit(from: <-collectedMOET)
             }
         }
 
