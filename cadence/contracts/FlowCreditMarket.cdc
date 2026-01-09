@@ -585,16 +585,16 @@ access(all) contract FlowCreditMarket {
         /// to maintain precision when converting between scaled and true balances and when compounding.
         access(all) var debitInterestIndex: UFix128
 
-        /// The interest rate for credit of the associated token.
+        /// The per-second interest rate for credit of the associated token.
         ///
+        /// For example, if the per-second rate is 1%, this value is 0.01.
         /// Stored as UFix128 to match index precision and avoid cumulative rounding during compounding.
-        // TODO: format: APR? In call to compoundInterestIndex, assumes this is per-second rate?
         access(all) var currentCreditRate: UFix128
 
-        /// The interest rate for debit of the associated token.
+        /// The per-second interest rate for debit of the associated token.
         ///
+        /// For example, if the per-second rate is 1%, this value is 0.01.
         /// Stored as UFix128 for consistency with indices/rates math.
-        // TODO: format: APR? 
         access(all) var currentDebitRate: UFix128
 
         /// The interest curve implementation used to calculate interest rate
