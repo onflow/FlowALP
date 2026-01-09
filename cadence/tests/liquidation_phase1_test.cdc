@@ -7,6 +7,7 @@ import "FlowToken"
 import "FlowCreditMarketMath"
 
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
+access(all) let moetIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) var snapshot: UInt64 = 0
 
 access(all)
@@ -38,8 +39,54 @@ fun setup() {
     snapshot = getCurrentBlockHeight()
 }
 
+/// Should be unable to liquidate healthy position.
 access(all)
-fun test_liquidation_phase1_quote_and_execute() {
+fun testManualLiquidation_healthyPosition() {
+    safeReset()
+    let pid: UInt64 = 0
+
+    // user setup
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    transferFlowTokens(to: user, amount: 1000.0)
+
+    // open wrapped position and deposit via existing helper txs
+    // debt is MOET, collateral is FLOW
+    let openRes = _executeTransaction(
+        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        [1000.0, /storage/flowTokenVault, true],
+        user
+    )
+    Test.expect(openRes, Test.beSucceeded())
+
+    // Log initial health
+    let hBefore = getPositionHealth(pid: pid, beFailed: false)
+    let hBeforeUF = FlowCreditMarketMath.toUFix64Round(hBefore)
+    log("[LIQ] Health before price drop: raw=\(hBefore), approx=\(hBeforeUF)")
+
+    // execute liquidation
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    let mintRes = _executeTransaction("../transactions/moet/mint_moet.cdc", [liquidator.address, 1000.0], Test.getAccount(0x0000000000000007))
+    Test.expect(mintRes, Test.beSucceeded())
+
+    let liqBalance = getBalance(address: liquidator.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
+    log("Liquidator MOET balance after mint: \(liqBalance)")
+
+    // Repay MOET to seize FLOW
+    let repayAmount = 2.0
+    let seizeAmount = 1.0
+    let liqRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, seizeAmount, repayAmount],
+        liquidator
+    )
+    Test.expect(liqRes, Test.beFailed())
+}
+
+/// Should be unable to liquidate a position to above target health.
+access(all)
+fun testManualLiquidation_liquidationExceedsTargetHealth() {
     safeReset()
     let pid: UInt64 = 0
 
@@ -78,31 +125,93 @@ fun test_liquidation_phase1_quote_and_execute() {
     log("Liquidator MOET balance after mint: \(liqBalance)")
 
     // Repay MOET to seize FLOW
-    let repayAmount = 2.0
-    let seizeAmount = 1.0
+    let repayAmount = 200.0
+    let seizeAmount = 200.0
     let liqRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, seizeAmount, repayAmount],
         liquidator
     )
-    Test.expect(liqRes, Test.beSucceeded())
+    // Should fail because we are repaying/seizing too much
+    Test.expect(liqRes, Test.beFailed())
 
     // health after liquidation
     let hAfterLiq = getPositionHealth(pid: pid, beFailed: false)
     let hAfterLiqUF = FlowCreditMarketMath.toUFix64Round(hAfterLiq)
     log("[LIQ] Health after liquidation: raw=\(hAfterLiq), approx=\(hAfterLiqUF)")
 
-    // TODO: re-add these
-    // Assert final health ≈ target
-    // let targetHF: UFix128 = 1.05
-    // let tolerance: UFix128 = 0.00001
-    // Test.assert(hAfterLiq >= targetHF - tolerance && hAfterLiq <= targetHF + tolerance, message: "Post-liquidation health \(hAfterLiqUF) not at target 1.05")
+    Test.assert(hAfterLiq == hAfterPrice, message: "sanity check: health should not change after failed liquidation")
+}
 
-    // Assert quoted newHF matches actual
-    // Test.assert(quote.newHF >= targetHF - tolerance && quote.newHF <= targetHF + tolerance, message: "Quoted newHF not at target")
+/// Should be unable to liquidate a position by repaying more debt than is in the position.
+access(all)
+fun testManualLiquidation_repayExceedsDebt() {
+    safeReset()
+    let pid: UInt64 = 0
 
-    // let detailsAfter = getPositionDetails(pid: pid, beFailed: false)
-    // Test.assert(detailsAfter.health >= targetHF - tolerance, message: "Health not restored")
+    // user setup
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    transferFlowTokens(to: user, amount: 1000.0)
+
+    // open wrapped position and deposit via existing helper txs
+    // debt is MOET, collateral is FLOW
+    let openRes = _executeTransaction(
+        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        [1000.0, /storage/flowTokenVault, true],
+        user
+    )
+    Test.expect(openRes, Test.beSucceeded())
+
+    // health before price drop
+    let hBefore = getPositionHealth(pid: pid, beFailed: false)
+    let hBeforeUF = FlowCreditMarketMath.toUFix64Round(hBefore)
+    log("[LIQ] Health before price drop: raw=\(hBefore), approx=\(hBeforeUF)")
+
+    // cause undercollateralization
+    let newPrice = 0.7 // $/FLOW
+    setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
+    let hAfterPriceUF = FlowCreditMarketMath.toUFix64Round(hAfterPrice)
+    log("[LIQ] Health after price drop: raw=\(hAfterPrice), approx=\(hAfterPriceUF)")
+
+    // TODO: make helper for this
+    let positionDetails = getPositionDetails(pid: pid, beFailed: false)
+    var debtBalance = 0.0
+    for bal in positionDetails.balances {
+        if bal.vaultType == CompositeType(moetIdentifier) {
+            debtBalance = bal.balance
+            break
+        }
+    }
+
+    // execute liquidation
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    let mintRes = _executeTransaction("../transactions/moet/mint_moet.cdc", [liquidator.address, 1000.0], Test.getAccount(0x0000000000000007))
+    Test.expect(mintRes, Test.beSucceeded())
+
+    let liqBalance = getBalance(address: liquidator.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
+    log("Liquidator MOET balance after mint: \(liqBalance)")
+
+    // Repay MOET to seize FLOW. Choose repay amount above debt balance
+    let repayAmount = debtBalance + 0.001
+    let seizeAmount = (repayAmount / newPrice) * 0.99
+    let liqRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, seizeAmount, repayAmount],
+        liquidator
+    )
+    // Should fail because we are repaying too much
+    Test.expect(liqRes, Test.beFailed())
+    Test.assertError(liqRes, errorMessage: "Cannot repay more debt than is in position")
+
+    // health after liquidation
+    let hAfterLiq = getPositionHealth(pid: pid, beFailed: false)
+    let hAfterLiqUF = FlowCreditMarketMath.toUFix64Round(hAfterLiq)
+    log("[LIQ] Health after liquidation: raw=\(hAfterLiq), approx=\(hAfterLiqUF)")
+
+    Test.assert(hAfterLiq == hAfterPrice, message: "sanity check: health should not change after failed liquidation")
 }
 
 // DEX liquidation tests moved to liquidation_phase2_dex_test.cdc
