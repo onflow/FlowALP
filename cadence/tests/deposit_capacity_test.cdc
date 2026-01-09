@@ -38,7 +38,7 @@ fun test_deposit_capacity_consumption() {
     let initialCap = 10000.0
     
     // Set deposit rate and capacity cap using governance functions
-    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, rate: depositRate)
+    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, hourlyRate: depositRate)
     setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, cap: initialCap)
     
     // Set a higher deposit limit fraction to allow larger deposits (default is 5%)
@@ -105,7 +105,7 @@ fun test_per_user_deposit_limits() {
     let depositLimitFraction = 0.05 // 5%
     
     // Set deposit rate and capacity cap
-    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, rate: depositRate)
+    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, hourlyRate: depositRate)
     setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, cap: initialCap)
     
     // Set deposit limit fraction
@@ -179,7 +179,7 @@ fun test_capacity_regeneration() {
     let depositLimitFraction = 0.5
 
     // Set deposit rate and capacity cap
-    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, rate: depositRate)
+    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, hourlyRate: depositRate)
     setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, cap: initialCap)
     
     // Set a higher deposit limit fraction to allow larger deposits
@@ -267,7 +267,7 @@ fun test_user_usage_reset_on_regeneration() {
     let depositLimitFraction = 0.05 // 5%
     
     // Set deposit rate and capacity cap
-    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, rate: depositRate)
+    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, hourlyRate: depositRate)
     setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, cap: initialCap)
     
     // Set deposit limit fraction
@@ -337,7 +337,7 @@ fun test_multiple_hours_regeneration() {
     let initialCap = 10000.0
     
     // Set deposit rate and capacity cap
-    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, rate: depositRate)
+    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, hourlyRate: depositRate)
     setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, cap: initialCap)
     // After setDepositCapacityCap, lastDepositCapacityUpdate is reset to current time
     

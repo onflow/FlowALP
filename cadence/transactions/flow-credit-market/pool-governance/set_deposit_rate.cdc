@@ -1,8 +1,8 @@
 import "FlowCreditMarket"
 
-/// Sets the deposit rate for a token type
+/// Sets the deposit flat hourlyRate for a token type
 ///
-transaction(tokenTypeIdentifier: String, rate: UFix64) {
+transaction(tokenTypeIdentifier: String, hourlyRate: UFix64) {
     let tokenType: Type
     let pool: auth(FlowCreditMarket.EGovernance) &FlowCreditMarket.Pool
 
@@ -14,7 +14,7 @@ transaction(tokenTypeIdentifier: String, rate: UFix64) {
     }
 
     execute {
-        self.pool.setDepositRate(tokenType: self.tokenType, rate: rate)
+        self.pool.setDepositRate(tokenType: self.tokenType, hourlyRate: hourlyRate)
     }
 }
 

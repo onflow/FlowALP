@@ -643,7 +643,8 @@ access(all) contract FlowCreditMarket {
         /// Per-position limit fraction of capacity (default 0.05 i.e., 5%)
         access(EImplementation) var depositLimitFraction: UFix64
 
-        /// The rate at which depositCapacity can increase over time. This is per hour. and should be applied to the depositCapacityCap once an hour.
+        /// The rate at which depositCapacity can increase over time. This is a tokens per hour rate,
+        /// and should be applied to the depositCapacityCap once an hour.
         access(EImplementation) var depositRate: UFix64
 
         /// The timestamp of the last deposit capacity update
@@ -695,10 +696,11 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Sets the deposit rate for this token state after settling the old rate
-        access(EImplementation) fun setDepositRate(_ rate: UFix64) {
+        /// Argument expressed astokens per hour
+        access(EImplementation) fun setDepositRate(_ hourlyRate: UFix64) {
             // settle using old rate if for some reason too much time has passed without regeneration
             self.regenerateDepositCapacity() 
-            self.depositRate = rate
+            self.depositRate = hourlyRate
         }
 
         /// Sets the deposit capacity cap for this token state
@@ -852,11 +854,9 @@ access(all) contract FlowCreditMarket {
                 // Set the deposit capacity to the new deposit capacity cap, i.e. regenerate the capacity
                 self.setDepositCapacity(newDepositCapacityCap)
                 
-                // If capacity cap increased (regenerated), reset all user usage for this token type
-                if newDepositCapacityCap > oldCap {
-                    self.depositUsage = {}
-                }
-                
+                // Regenerate user usage for this token type as well
+                self.depositUsage = {}
+
                 self.lastDepositCapacityUpdate = currentTime
 
                 emit DepositCapacityRegenerated(
@@ -3160,14 +3160,14 @@ access(all) contract FlowCreditMarket {
             tsRef.setDepositLimitFraction(fraction)
         }
 
-        /// Updates the deposit rate for a given token (rate per second)
-        access(EGovernance) fun setDepositRate(tokenType: Type, rate: UFix64) {
+        /// Updates the deposit rate for a given token (tokens per hour)
+        access(EGovernance) fun setDepositRate(tokenType: Type, hourlyRate: UFix64) {
             pre {
                 self.globalLedger[tokenType] != nil: "Unsupported token type"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
-            tsRef.setDepositRate(rate)
+            tsRef.setDepositRate(hourlyRate)
         }
 
         /// Updates the deposit capacity cap for a given token

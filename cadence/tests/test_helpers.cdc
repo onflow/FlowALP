@@ -292,10 +292,10 @@ fun addSupportedTokenZeroRateCurveWithResult(
 }
 
 access(all)
-fun setDepositRate(signer: Test.TestAccount, tokenTypeIdentifier: String, rate: UFix64) {
+fun setDepositRate(signer: Test.TestAccount, tokenTypeIdentifier: String, hourlyRate: UFix64) {
     let setRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_deposit_rate.cdc",
-        [tokenTypeIdentifier, rate],
+        [tokenTypeIdentifier, hourlyRate],
         signer
     )
     Test.expect(setRes, Test.beSucceeded())
