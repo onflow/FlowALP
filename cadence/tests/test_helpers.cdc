@@ -221,6 +221,20 @@ fun fundsRequiredForTargetHealthAfterWithdrawing(
     return res.returnValue as! UFix64
 }
 
+access(all)
+fun getInsuranceFundBalance(): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_insurance_fund_balance.cdc", [])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64?
+}
+
+access(all)
+fun getInsuranceRate(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_insurance_rate.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64?
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
