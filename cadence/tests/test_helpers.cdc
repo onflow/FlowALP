@@ -422,6 +422,35 @@ fun setInsuranceRate(
 }
 
 access(all)
+fun setInsuranceSwapper(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    priceRatio: UFix64,
+    beFailed: Bool
+) {
+    let setRes = _executeTransaction(
+        "./transactions/flow-credit-market/pool-governance/set_insurance_swapper_mock.cdc",
+        [ tokenTypeIdentifier, priceRatio ],
+        signer
+    )
+    Test.expect(setRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun collectInsurance(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    beFailed: Bool
+) {
+    let collectRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/collect_insurance.cdc",
+        [ tokenTypeIdentifier ],
+        signer
+    )
+    Test.expect(collectRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
 fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFailed: Bool) {
     let rebalanceRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-management/rebalance_position.cdc",
