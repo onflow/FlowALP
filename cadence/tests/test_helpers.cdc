@@ -420,12 +420,12 @@ fun setInsuranceRate(
     tokenTypeIdentifier: String,
     insuranceRate: UFix64,
 ): Test.TransactionResult {
-    var setRes = _executeTransaction(
+    var res = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
         [ tokenTypeIdentifier, insuranceRate ],
         signer
     )
-    return setRes
+    return res
 }
 
 access(all)
@@ -433,14 +433,26 @@ fun setInsuranceSwapper(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
     priceRatio: UFix64,
-    beFailed: Bool
-) {
-    let setRes = _executeTransaction(
+): Test.TransactionResult {
+    let res = _executeTransaction(
         "./transactions/flow-credit-market/pool-governance/set_insurance_swapper_mock.cdc",
         [ tokenTypeIdentifier, priceRatio ],
         signer
     )
-    Test.expect(setRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res
+}
+
+access(all)
+fun removeInsuranceSwapper(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "./transactions/flow-credit-market/pool-governance/remove_insurance_swapper.cdc",
+        [ tokenTypeIdentifier],
+        signer
+    )
+    return res
 }
 
 access(all)

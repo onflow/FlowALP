@@ -2,7 +2,6 @@ import "FlowCreditMarket"
 
 /// Sets the insurance swapper for a given token type to nil (removes it)
 transaction(tokenTypeIdentifier: String) {
-    
     let pool: auth(FlowCreditMarket.EGovernance) &FlowCreditMarket.Pool
     let tokenType: Type
     
