@@ -20,14 +20,14 @@ fun setup() {
 access(all) fun testSetInsuranceRate_WithoutEGovernanceEntitlement() {
     let newRate = 0.01
     
-    let txResult = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
-        [defaultTokenIdentifier, newRate],
-        alice
+    let setRes= setInsuranceRate(
+        signer: alice,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: newRate,
     )
-    
+
     // should fail due to missing EGovernance entitlement
-    Test.expect(txResult, Test.beFailed())
+    Test.expect(setRes, Test.beFailed())
 }
 
 // testSetInsuranceRate_RequiresEGovernanceEntitlement verifies the function requires proper EGovernance entitlement.
@@ -35,13 +35,13 @@ access(all) fun testSetInsuranceRate_WithEGovernanceEntitlement() {
     let newRate = 0.01
     
     // use protocol account with proper entitlement
-    let txResult = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
-        [defaultTokenIdentifier, newRate],
-        protocolAccount
+    let setRes = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: newRate,
     )
 
-    Test.expect(txResult, Test.beSucceeded())
+    Test.expect(setRes, Test.beSucceeded())
 }
 
 // ============================================================
@@ -51,17 +51,17 @@ access(all) fun testSetInsuranceRate_WithEGovernanceEntitlement() {
 access(all) fun testSetInsuranceRate_RateGreaterThanOne_Fails() {
     // rate > 1.0 violates precondition
     let invalidRate = 1.01
-    
-    let txResult = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
-        [defaultTokenIdentifier, invalidRate],
-        protocolAccount
+
+    let setRes = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: invalidRate,
     )
     
     // should fail with "insuranceRate must be between 0 and 1"
-    Test.expect(txResult, Test.beFailed())
+    Test.expect(setRes, Test.beFailed())
 
-    let errorMessage = txResult.error!.message
+    let errorMessage = setRes.error!.message
     let containsExpectedError = errorMessage.contains("insuranceRate must be between 0 and 1")
     Test.assert(containsExpectedError, message: "expected error about insurance rate bounds, got: \(errorMessage)")
 }
@@ -93,16 +93,16 @@ access(all) fun testSetInsuranceRate_InvalidTokenType_Fails() {
     let invalidTokenIdentifier = "InvalidTokenType"
     let newRate = 0.05
     
-    let txResult = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
-        [invalidTokenIdentifier, newRate],
-        protocolAccount
+    let setRes = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: invalidTokenIdentifier,
+        insuranceRate: newRate,
     )
     
     // should fail with "Invalid tokenTypeIdentifier"
-    Test.expect(txResult, Test.beFailed())
+    Test.expect(setRes, Test.beFailed())
 
-    let errorMessage = txResult.error!.message
+    let errorMessage = setRes.error!.message
     let containsExpectedError = errorMessage.contains("Invalid tokenTypeIdentifier")
     Test.assert(containsExpectedError, message: "expected error about insurance rate bounds, got: \(errorMessage)")
 }

@@ -18,10 +18,10 @@ fun test_setGovernanceParams_and_exercise_paths() {
 
     // 1) Exercise setInsuranceRate and negative-credit-rate branch
     // Set a relatively high insurance rate and construct a state with tiny debit income
-    let setInsRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
-        [ defaultTokenIdentifier, 0.50 ],
-        protocolAccount
+    let setInsRes= setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.50,
     )
     Test.expect(setInsRes, Test.beSucceeded())
 

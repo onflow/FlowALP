@@ -930,11 +930,12 @@ fun test_insurance_deduction_verification() {
     // Insurance Rate: 1% (vs default 0.1%)
     // Debit Rate: 10% (vs default 4%)
     // Expected Credit Rate: 10% - 1% = 9%
-    setInsuranceRate(
+    let setRes = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: 0.01  // 1% insurance rate
     )
+    Test.expect(setRes, Test.beSucceeded())
 
     let highDebitRate: UFix128 = 0.10
     setInterestCurveFixed(

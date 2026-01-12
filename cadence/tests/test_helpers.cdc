@@ -419,14 +419,13 @@ fun setInsuranceRate(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
     insuranceRate: UFix64,
-    beFailed: Bool
-) {
-    let setRes = _executeTransaction(
+): Test.TransactionResult {
+    var setRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
         [ tokenTypeIdentifier, insuranceRate ],
         signer
     )
-    Test.expect(setRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return setRes
 }
 
 access(all)
