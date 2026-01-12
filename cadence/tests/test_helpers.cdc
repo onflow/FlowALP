@@ -242,6 +242,13 @@ fun getInsuranceRate(tokenTypeIdentifier: String): UFix64? {
     return res.returnValue as! UFix64?
 }
 
+access(all)
+fun insuranceSwapperExists(tokenTypeIdentifier: String): Bool {
+    let res = _executeScript("../scripts/flow-credit-market/insurance_token_swapper_exists.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! Bool
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
@@ -411,14 +418,15 @@ access(all)
 fun setInsuranceRate(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
-    insuranceRate: UFix64
+    insuranceRate: UFix64,
+    beFailed: Bool
 ) {
     let setRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
         [ tokenTypeIdentifier, insuranceRate ],
         signer
     )
-    Test.expect(setRes, Test.beSucceeded())
+    Test.expect(setRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
 access(all)

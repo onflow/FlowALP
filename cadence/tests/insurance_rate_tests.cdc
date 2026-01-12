@@ -63,7 +63,7 @@ access(all) fun testSetInsuranceRate_RateGreaterThanOne_Fails() {
 
     let errorMessage = txResult.error!.message
     let containsExpectedError = errorMessage.contains("insuranceRate must be between 0 and 1")
-    Test.assert(containsExpectedError, message: "expected error about insurance rate bounds,got: \(errorMessage)")
+    Test.assert(containsExpectedError, message: "expected error about insurance rate bounds, got: \(errorMessage)")
 }
 
 
@@ -82,7 +82,7 @@ access(all) fun testSetInsuranceRate_RateLessThanZero_Fails() {
 
     let errorMessage = txResult.error!.message
     let containsExpectedError = errorMessage.contains("invalid argument at index 1: expected value of type `UFix64`")
-    Test.assert(containsExpectedError, message: "expected error about insurance rate bounds,got: \(errorMessage)")
+    Test.assert(containsExpectedError, message: "expected error about insurance rate bounds, got: \(errorMessage)")
 }
 
 // ============================================================
@@ -104,5 +104,5 @@ access(all) fun testSetInsuranceRate_InvalidTokenType_Fails() {
 
     let errorMessage = txResult.error!.message
     let containsExpectedError = errorMessage.contains("Invalid tokenTypeIdentifier")
-    Test.assert(containsExpectedError, message: "expected error about insurance rate bounds,got: \(errorMessage)")
+    Test.assert(containsExpectedError, message: "expected error about insurance rate bounds, got: \(errorMessage)")
 }
