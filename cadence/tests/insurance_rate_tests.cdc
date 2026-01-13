@@ -29,14 +29,18 @@ access(all) fun testSetInsuranceRate_WithoutEGovernanceEntitlement() {
 
 // testSetInsuranceRate_RequiresEGovernanceEntitlement verifies the function requires proper EGovernance entitlement.
 access(all) fun testSetInsuranceRate_WithEGovernanceEntitlement() {
+    let insuranceRate = 0.01
     // use protocol account with proper entitlement
     let res = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
-        insuranceRate: 0.01,
+        insuranceRate: insuranceRate,
     )
 
     Test.expect(res, Test.beSucceeded())
+
+    let actual = getInsuranceRate(tokenTypeIdentifier: defaultTokenIdentifier)
+    Test.assertEqual(insuranceRate, actual)
 }
 
 /* --- Boundary Tests: insuranceRate must be between 0 and 1 --- */
