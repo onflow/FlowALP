@@ -977,18 +977,23 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Returns the true balance of the given token in this position, accounting for interest.
+        /// Returns balance 0.0 if the position has no balance stored for the given token.
         access(all) fun trueBalance(ofToken: Type): UFix128 {
-            let balance = self.balances[ofToken]!
-            let tokenSnapshot = self.snapshots[ofToken]!
-            switch balance.direction {
-            case BalanceDirection.Debit:
-                return FlowCreditMarket.scaledBalanceToTrueBalance(
-                    balance.scaledBalance, interestIndex: tokenSnapshot.debitIndex)
-            case BalanceDirection.Credit:
-                return FlowCreditMarket.scaledBalanceToTrueBalance(
-                    balance.scaledBalance, interestIndex: tokenSnapshot.creditIndex)
-            }
-            panic("unreachable code")
+            if let balance = self.balances[ofToken] {
+                if let tokenSnapshot = self.snapshots[ofToken] {
+                    switch balance.direction {
+                    case BalanceDirection.Debit:
+                        return FlowCreditMarket.scaledBalanceToTrueBalance(
+                            balance.scaledBalance, interestIndex: tokenSnapshot.debitIndex)
+                    case BalanceDirection.Credit:
+                        return FlowCreditMarket.scaledBalanceToTrueBalance(
+                            balance.scaledBalance, interestIndex: tokenSnapshot.creditIndex)
+                    }
+                    panic("unreachable")
+                }
+            } 
+            // If the token doesn't exist in the position, the balance is 0
+            return 0.0
         }
     }
 

@@ -54,12 +54,7 @@ fun testManualLiquidation_healthyPosition() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1000.0, /storage/flowTokenVault, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // Log initial health
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -101,12 +96,7 @@ fun testManualLiquidation_liquidationExceedsTargetHealth() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1000.0, /storage/flowTokenVault, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -163,12 +153,7 @@ fun testManualLiquidation_repayExceedsDebt() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1000.0, /storage/flowTokenVault, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -228,12 +213,7 @@ fun testManualLiquidation_seizeExceedsCollateral() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1000.0, /storage/flowTokenVault, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -291,12 +271,7 @@ fun testManualLiquidation_reduceHealth() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1000.0, /storage/flowTokenVault, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -362,12 +337,7 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1000.0, /storage/flowTokenVault, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -416,12 +386,7 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1000.0, /storage/flowTokenVault, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -473,12 +438,7 @@ fun testManualLiquidation_unsupportedDebtType() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1000.0, /storage/flowTokenVault, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -530,20 +490,15 @@ fun testManualLiquidation_unsupportedCollateralType() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1000.0, /storage/flowTokenVault, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
     let hBeforeUF = FlowCreditMarketMath.toUFix64Round(hBefore)
     log("[LIQ] Health before price drop: raw=\(hBefore), approx=\(hBeforeUF)")
 
-    // cause undercollateralization AND insolvency
-    let newPrice = 0.5 // $/FLOW
+    // cause undercollateralization
+    let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
     let hAfterPriceUF = FlowCreditMarketMath.toUFix64Round(hAfterPrice)
@@ -575,15 +530,150 @@ fun testManualLiquidation_unsupportedCollateralType() {
     Test.assertError(liqRes, errorMessage: "Collateral token type unsupported")
 }
 
-/// A liquidator specifies a supported debt type to repay, for an unhealthy position, but the position
-/// does not have a debt balance of the specified type.
-access(all)
-fun testManualLiquidation_supportedDebtTypeNotInPosition() {}
-
 /// A liquidator specifies a supported collateral type to seize, for an unhealthy position, but the position
 /// does not have a collateral balance of the specified type.
 access(all)
-fun testManualLiquidation_supportedCollateralTypeNotInPosition() {}
+fun testManualLiquidation_supportedDebtTypeNotInPosition() {
+    safeReset()
+    let protocolAccount = Test.getAccount(0x0000000000000007)
+
+    // Add MockYieldToken as a supported token type
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: mockYieldTokenIdentifier, price: 1.0)
+    addSupportedTokenZeroRateCurve(
+        signer: protocolAccount,
+        tokenTypeIdentifier: mockYieldTokenIdentifier,
+        collateralFactor: 0.8,
+        borrowFactor: 1.0,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
+
+    // user1 setup - deposits FLOW
+    let user1 = Test.createAccount()
+    setupMoetVault(user1, beFailed: false)
+    transferFlowTokens(to: user1, amount: 1000.0)
+
+    // user1 opens wrapped position with FLOW collateral
+    // debt is MOET, collateral is FLOW
+    let pid1: UInt64 = 0
+    createWrappedPosition(signer: user1, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+
+    // user2 setup - deposits MockYieldToken
+    let user2 = Test.createAccount()
+    setupMoetVault(user2, beFailed: false)
+    setupMockYieldTokenVault(user2, beFailed: false)
+    mintMockYieldToken(signer: protocolAccount, to: user2.address, amount: 1000.0, beFailed: false)
+
+    // user2 opens wrapped position with MockYieldToken collateral
+    let pid2: UInt64 = 1
+    createWrappedPosition(signer: user2, amount: 1000.0, vaultStoragePath: MockYieldToken.VaultStoragePath, pushToDrawDownSink: true)
+
+    // health before price drop for user1
+    let hBefore = getPositionHealth(pid: pid1, beFailed: false)
+    let hBeforeUF = FlowCreditMarketMath.toUFix64Round(hBefore)
+    log("[LIQ] User1 health before price drop: raw=\(hBefore), approx=\(hBeforeUF)")
+
+    // cause undercollateralization for user1 by dropping FLOW price
+    let newPrice = 0.7 // $/FLOW
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    let hAfterPrice = getPositionHealth(pid: pid1, beFailed: false)
+    let hAfterPriceUF = FlowCreditMarketMath.toUFix64Round(hAfterPrice)
+    log("[LIQ] User1 health after price drop: raw=\(hAfterPrice), approx=\(hAfterPriceUF)")
+
+    // execute liquidation
+    let liquidator = Test.createAccount()
+    setupMockYieldTokenVault(liquidator, beFailed: false)
+    mintMockYieldToken(signer: protocolAccount, to: liquidator.address, amount: 1000.0, beFailed: false)
+
+    let liqBalance = getBalance(address: liquidator.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
+    log("Liquidator MOET balance after mint: \(liqBalance)")
+
+    // Try to liquidate user1's position but repay MockYieldToken instead of MOET
+    // user1 has no MockYieldToken debt balance 
+    let seizeAmount = 0.01
+    let repayAmount = 100.0
+    let liqRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [pid1, mockYieldTokenIdentifier, flowTokenIdentifier, seizeAmount, repayAmount],
+        liquidator
+    )
+    // Should fail because user1's position doesn't have MockYieldToken collateral
+    Test.expect(liqRes, Test.beFailed())
+    Test.assertError(liqRes, errorMessage: "Cannot repay more debt than is in position")
+}
+
+/// A liquidator specifies a supported debt type to repay, for an unhealthy position, but the position
+/// does not have a debt balance of the specified type.
+access(all)
+fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
+    safeReset()
+    let protocolAccount = Test.getAccount(0x0000000000000007)
+
+    // Add MockYieldToken as a supported token (can be used as collateral or debt)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: mockYieldTokenIdentifier, price: 1.0)
+    addSupportedTokenZeroRateCurve(
+        signer: protocolAccount,
+        tokenTypeIdentifier: mockYieldTokenIdentifier,
+        collateralFactor: 0.8,
+        borrowFactor: 1.0,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
+
+    // user1 setup - deposits FLOW, borrows MOET
+    let user1 = Test.createAccount()
+    setupMoetVault(user1, beFailed: false)
+    transferFlowTokens(to: user1, amount: 1000.0)
+
+    // user1 opens wrapped position with FLOW collateral, MOET debt
+    let pid1: UInt64 = 0
+    createWrappedPosition(signer: user1, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+
+    // user2 setup - deposits MockYieldToken, borrows MOET
+    let user2 = Test.createAccount()
+    setupMoetVault(user2, beFailed: false)
+    setupMockYieldTokenVault(user2, beFailed: false)
+    mintMockYieldToken(signer: protocolAccount, to: user2.address, amount: 1000.0, beFailed: false)
+
+    // user2 opens wrapped position with MockYieldToken collateral
+    let pid2: UInt64 = 1
+    createWrappedPosition(signer: user2, amount: 1000.0, vaultStoragePath: MockYieldToken.VaultStoragePath, pushToDrawDownSink: true)
+
+    // health before price drop for user1
+    let hBefore = getPositionHealth(pid: pid1, beFailed: false)
+    let hBeforeUF = FlowCreditMarketMath.toUFix64Round(hBefore)
+    log("[LIQ] User1 health before price drop: raw=\(hBefore), approx=\(hBeforeUF)")
+
+    // cause undercollateralization for user1 by dropping FLOW price
+    let newPrice = 0.5 // $/FLOW
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    let hAfterPrice = getPositionHealth(pid: pid1, beFailed: false)
+    let hAfterPriceUF = FlowCreditMarketMath.toUFix64Round(hAfterPrice)
+    log("[LIQ] User1 health after price drop: raw=\(hAfterPrice), approx=\(hAfterPriceUF)")
+
+    // execute liquidation
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    setupMockYieldTokenVault(liquidator, beFailed: false)
+    mintMoet(signer: protocolAccount, to: liquidator.address, amount: 1000.0, beFailed: false)
+
+    let liqBalance = getBalance(address: liquidator.address, vaultPublicPath: MockYieldToken.VaultPublicPath) ?? 0.0
+    log("Liquidator MockYieldToken balance after mint: \(liqBalance)")
+
+    // Try to liquidate user1's position by repaying MockYieldToken debt
+    // User1 only has MOET debt, not MockYieldToken debt
+    let seizeAmount = 0.01
+    let repayAmount = 100.0
+    let liqRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [pid1, Type<@MOET.Vault>().identifier, mockYieldTokenIdentifier, seizeAmount, repayAmount],
+        liquidator
+    )
+    // Should fail because user1's position doesn't have MockYieldToken debt
+    Test.expect(liqRes, Test.beFailed())
+    log(liqRes.error)
+    Test.assertError(liqRes, errorMessage: "Cannot seize more collateral than is in position")
+}
 
 /// All liquidations should fail when liquidations are paused.
 access(all)
