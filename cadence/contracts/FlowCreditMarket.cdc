@@ -641,10 +641,10 @@ access(all) contract FlowCreditMarket {
         access(EImplementation) var insuranceRate: UFix64
 
         /// Timestamp of the last insurance collection for this token
-        access(all) var lastInsuranceCollection: UFix64
+        access(EImplementation) var lastInsuranceCollection: UFix64
 
         /// Swapper used to convert this token to MOET for insurance collection
-        access(all) var insuranceSwapper: {DeFiActions.Swapper}?
+        access(EImplementation) var insuranceSwapper: {DeFiActions.Swapper}?
 
         /// Per-position limit fraction of capacity (default 0.05 i.e., 5%)
         access(EImplementation) var depositLimitFraction: UFix64
@@ -956,7 +956,7 @@ access(all) contract FlowCreditMarket {
         ///
         /// @param reserveVault: The reserve vault for this token type to withdraw insurance from
         /// @return: A MOET vault containing the collected insurance funds, or nil if no collection occurred
-        access(all) fun collectInsurance(
+        access(EImplementation) fun collectInsurance(
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
         ): @MOET.Vault? {
             // If no swapper configured, skip collection
