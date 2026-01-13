@@ -4,6 +4,8 @@ import "FlowCreditMarket"
 /* --- Global test constants --- */
 
 access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
+access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
+
 access(all) let defaultUFixVariance = 0.00000001
 // Variance for UFix64 comparisons
 access(all) let defaultUIntVariance: UInt128 = 1_000_000_000_000_000
@@ -436,7 +438,7 @@ fun setInsuranceSwapper(
 ): Test.TransactionResult {
     let res = _executeTransaction(
         "./transactions/flow-credit-market/pool-governance/set_insurance_swapper_mock.cdc",
-        [ tokenTypeIdentifier, priceRatio ],
+        [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, defaultTokenIdentifier],
         signer
     )
     return res
