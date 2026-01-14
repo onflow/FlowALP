@@ -916,28 +916,29 @@ access(all) contract FlowCreditMarket {
             let stabilityFeeRate = UFix128(self.stabilityFeeRate)
 
             var creditRate: UFix128 = 0.0
+            let protocolFeeRate = insuranceRate + stabilityFeeRate
 
             // Two calculation paths based on curve type:
-            // 1. FixedRateInterestCurve: simple spread model (creditRate = debitRate - insuranceRate)
+            // 1. FixedRateInterestCurve: simple spread model (creditRate = debitRate - protocolFeeRate)
             //    Used for stable assets like MOET where rates are governance-controlled
             // 2. KinkInterestCurve (and others): reserve factor model
-            //    Insurance is a percentage of interest income, not a fixed spread
+            //    Insurance and stability are percentages of interest income, not a fixed spread
             if self.interestCurve.getType() == Type<FlowCreditMarket.FixedRateInterestCurve>() {
-                // FixedRate path: creditRate = debitRate - insuranceRate
+                // FixedRate path: creditRate = debitRate - protocolFeeRate
                 // This provides a fixed, predictable spread between borrower and lender rates
-                if debitRate > insuranceRate {
-                    creditRate = debitRate - insuranceRate - stabilityFeeRate
+                if debitRate > protocolFeeRate {
+                    creditRate = debitRate - protocolFeeRate
                 }
-                // else creditRate remains 0.0 (insurance exceeds debit rate)
+                // else creditRate remains 0.0 (protocolFee exceeds debit rate)
             } else {
                 // KinkCurve path (and any other curves): reserve factor model
-                // insuranceAmount = debitIncome * insuranceRate (percentage of income)
-                // creditRate = (debitIncome - insuranceAmount) / totalCreditBalance
+                // protocolFeeAmount = debitIncome * protocolFeeRate (percentage of income)
+                // creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
                 let debitIncome = self.totalDebitBalance * debitRate
-                let insuranceAmount = debitIncome * insuranceRate
+                let protocolFeeAmount = debitIncome * protocolFeeRate
 
                 if self.totalCreditBalance > 0.0 {
-                    creditRate = (debitIncome - insuranceAmount- stabilityFeeRate) / self.totalCreditBalance
+                    creditRate = (debitIncome - protocolFeeAmount) / self.totalCreditBalance
                 }
             }
 
