@@ -997,7 +997,7 @@ access(all) contract FlowCreditMarket {
             let reserveVaultBalance = reserveVault.balance
             // Withdraw stability amount from reserves (use available balance if less than calculated)
             let amountToCollect = stabilityAmountUFix64 > reserveVaultBalance ? reserveVaultBalance : stabilityAmountUFix64
-            var stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
+            let stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
 
             // Update last collection time
             self.setLastStabilityFeeCollection(currentTime)
@@ -3288,7 +3288,10 @@ access(all) contract FlowCreditMarket {
                 amount > 0.0: "Withdrawal amount must be positive"
             }
             let fundRef = (&self.stabilityFunds[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
-            assert(fundRef.balance >= amount, message: "Insufficient stability fund balance. Available: \(fundRef.balance), requested: \(amount)")
+            assert(
+                fundRef.balance >= amount,
+                message: "Insufficient stability fund balance. Available: \(fundRef.balance), requested: \(amount)"
+            )
             
             let withdrawn <- fundRef.withdraw(amount: amount)
             recipient.deposit(from: <-withdrawn)
@@ -3299,7 +3302,7 @@ access(all) contract FlowCreditMarket {
         /// Fee is calculated based on time elapsed since last collection.
         access(EGovernance) fun collectFees(tokenType: Type) {
             pre {
-                self.globalLedger[tokenType] != nil: "Unsupported token type"
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             self.updateInterestRatesAndCollectFees(tokenType: tokenType)
         }
