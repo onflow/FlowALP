@@ -1413,7 +1413,7 @@ access(all) contract FlowCreditMarket {
 
         /// Returns the insurance rate for a given token type
         access(all) view fun getInsuranceRate(tokenType: Type): UFix64 {
-            assert(self.globalLedger[tokenType] != nil, message: "Token type not supported")
+            assert(self.isTokenSupported(tokenType: tokenType), message: "Token type not supported")
             return self.globalLedger[tokenType]?.insuranceRate ?? 0.0
         }
 
@@ -3261,7 +3261,7 @@ access(all) contract FlowCreditMarket {
         /// Sets per-token liquidation bonus fraction (0.0 to 1.0). E.g., 0.05 means +5% seize bonus.
         access(EGovernance) fun setTokenLiquidationBonus(tokenType: Type, bonus: UFix64) {
             pre {
-                self.globalLedger[tokenType] != nil:
+                self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
                 bonus >= 0.0 && bonus <= 1.0:
                     "Liquidation bonus must be between 0 and 1"
@@ -3272,7 +3272,7 @@ access(all) contract FlowCreditMarket {
         /// Updates the insurance rate for a given token (fraction in [0,1])
         access(EGovernance) fun setInsuranceRate(tokenType: Type, insuranceRate: UFix64) {
             pre {
-                self.globalLedger[tokenType] != nil:
+                self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
                 insuranceRate >= 0.0 && insuranceRate <= 1.0:
                     "insuranceRate must be between 0 and 1"
@@ -3285,7 +3285,7 @@ access(all) contract FlowCreditMarket {
         /// Sets the insurance swapper for a given token type (must swap from tokenType to MOET)
         access(EGovernance) fun setInsuranceSwapper(tokenType: Type, swapper: {DeFiActions.Swapper}?) {
             pre {
-                self.globalLedger[tokenType] != nil: "Unsupported token type"
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
@@ -3302,7 +3302,7 @@ access(all) contract FlowCreditMarket {
         /// Insurance is calculated based on time elapsed since last collection.
         access(EGovernance) fun collectInsurance(tokenType: Type) {
             pre {
-                self.globalLedger[tokenType] != nil: "Unsupported token type"
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             self.updateInterestRatesAndCollectInsurance(tokenType: tokenType)
         }
@@ -3310,7 +3310,7 @@ access(all) contract FlowCreditMarket {
         /// Updates the per-deposit limit fraction for a given token (fraction in [0,1])
         access(EGovernance) fun setDepositLimitFraction(tokenType: Type, fraction: UFix64) {
             pre {
-                self.globalLedger[tokenType] != nil:
+                self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
                 fraction > 0.0 && fraction <= 1.0:
                     "fraction must be in (0,1]"
@@ -3323,7 +3323,7 @@ access(all) contract FlowCreditMarket {
         /// Updates the deposit rate for a given token (tokens per hour)
         access(EGovernance) fun setDepositRate(tokenType: Type, hourlyRate: UFix64) {
             pre {
-                self.globalLedger[tokenType] != nil: "Unsupported token type"
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
@@ -3333,7 +3333,7 @@ access(all) contract FlowCreditMarket {
         /// Updates the deposit capacity cap for a given token
         access(EGovernance) fun setDepositCapacityCap(tokenType: Type, cap: UFix64) {
             pre {
-                self.globalLedger[tokenType] != nil: "Unsupported token type"
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
@@ -3362,7 +3362,7 @@ access(all) contract FlowCreditMarket {
         /// new rate, which would be incorrect.
         access(EGovernance) fun setInterestCurve(tokenType: Type, interestCurve: {InterestCurve}) {
             pre {
-                self.globalLedger[tokenType] != nil: "Unsupported token type"
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             // First, update interest indices to compound any accrued interest at the OLD rate
             // This "finalizes" all interest accrued up to this moment before switching curves
