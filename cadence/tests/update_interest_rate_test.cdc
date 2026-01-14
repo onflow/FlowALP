@@ -1,4 +1,5 @@
 import Test
+import "MOET"
 import "FlowCreditMarket"
 import "FlowCreditMarketMath"
 import "test_helpers.cdc"
@@ -32,6 +33,7 @@ fun test_FixedRateInterestCurve_uses_spread_model() {
     // For FixedRateInterestCurve, credit rate = debit rate - insurance rate (simple spread)
     let debitRate: UFix128 = 0.10  // 10% yearly
     var tokenState = FlowCreditMarket.TokenState(
+        tokenType: Type<@MOET.Vault>(),
         interestCurve: FlowCreditMarket.FixedRateInterestCurve(yearlyRate: debitRate),
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
@@ -55,6 +57,7 @@ fun test_FixedRateInterestCurve_zero_credit_rate_when_insurance_exceeds_debit() 
     // When insuranceRate >= debitRate, credit rate should be 0
     let debitRate: UFix128 = 0.001  // 0.1% yearly (same as default insurance)
     var tokenState = FlowCreditMarket.TokenState(
+        tokenType: Type<@MOET.Vault>(),
         interestCurve: FlowCreditMarket.FixedRateInterestCurve(yearlyRate: debitRate),
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
@@ -80,6 +83,7 @@ fun test_KinkCurve_uses_reserve_factor_model() {
     // For non-FixedRate curves, insurance is a percentage of debit income
     let debitRate: UFix128 = 0.20  // 20% yearly
     var tokenState = FlowCreditMarket.TokenState(
+        tokenType: Type<@MOET.Vault>(),
         interestCurve: CustomFixedCurve(debitRate),  // Custom curve triggers reserve factor path
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
@@ -106,6 +110,7 @@ fun test_KinkCurve_zero_credit_rate_when_no_borrowing() {
     // When there's no debit balance, credit rate should be 0 (no income to distribute)
     let debitRate: UFix128 = 0.10
     var tokenState = FlowCreditMarket.TokenState(
+        tokenType: Type<@MOET.Vault>(),
         interestCurve: CustomFixedCurve(debitRate),
         depositRate: 1.0,
         depositCapacityCap: 1_000.0

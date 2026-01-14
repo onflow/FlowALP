@@ -1,4 +1,5 @@
 import Test
+import "FlowToken"
 import "FlowCreditMarket"
 import "FlowCreditMarketMath"
 import "test_helpers.cdc"
@@ -152,6 +153,7 @@ fun test_TokenState_with_FixedRateInterestCurve() {
     // Create a TokenState with a fixed rate curve
     let fixedCurve = FlowCreditMarket.FixedRateInterestCurve(yearlyRate: 0.10)
     var tokenState = FlowCreditMarket.TokenState(
+        tokenType: Type<@FlowToken.Vault>(),
         interestCurve: fixedCurve,
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
@@ -185,6 +187,7 @@ fun test_TokenState_with_KinkInterestCurve() {
         slope2: 0.50
     )
     var tokenState = FlowCreditMarket.TokenState(
+        tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
@@ -214,6 +217,7 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
         slope2: 0.50
     )
     var tokenState = FlowCreditMarket.TokenState(
+        tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
         depositCapacityCap: 1_000.0

@@ -232,6 +232,13 @@ fun fundsRequiredForTargetHealthAfterWithdrawing(
     return res.returnValue as! UFix64
 }
 
+access(all)
+fun getDepositCapacityInfo(vaultIdentifier: String): {String: UFix64} {
+    let res = _executeScript("../scripts/flow-credit-market/get_deposit_capacity.cdc", [vaultIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! {String: UFix64}
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
@@ -293,6 +300,56 @@ fun addSupportedTokenZeroRateCurveWithResult(
         [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
         signer
     )
+}
+
+access(all)
+fun setDepositRate(signer: Test.TestAccount, tokenTypeIdentifier: String, hourlyRate: UFix64) {
+    let setRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_deposit_rate.cdc",
+        [tokenTypeIdentifier, hourlyRate],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun setDepositCapacityCap(signer: Test.TestAccount, tokenTypeIdentifier: String, cap: UFix64) {
+    let setRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_deposit_capacity_cap.cdc",
+        [tokenTypeIdentifier, cap],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: String, fraction: UFix64) {
+    let setRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_deposit_limit_fraction.cdc",
+        [tokenTypeIdentifier, fraction],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+    let openRes = _executeTransaction(
+        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        [amount, vaultStoragePath, pushToDrawDownSink],
+        signer
+    )
+    Test.expect(openRes, Test.beSucceeded())
+}
+
+access(all)
+fun depositToWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+    let depositRes = _executeTransaction(
+        "./transactions/mock-flow-credit-market-consumer/deposit_to_wrapped_position.cdc",
+        [amount, vaultStoragePath, pushToDrawDownSink],
+        signer
+    )
+    Test.expect(depositRes, Test.beSucceeded())
 }
 
 access(all)
@@ -380,6 +437,18 @@ fun setupMoetVault(_ signer: Test.TestAccount, beFailed: Bool) {
 access(all)
 fun mintMoet(signer: Test.TestAccount, to: Address, amount: UFix64, beFailed: Bool) {
     let mintRes = _executeTransaction("../transactions/moet/mint_moet.cdc", [to, amount], signer)
+    Test.expect(mintRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun setupMockYieldTokenVault(_ signer: Test.TestAccount, beFailed: Bool) {
+    let setupRes = _executeTransaction("../transactions/mocks/yieldtoken/setup_vault.cdc", [], signer)
+    Test.expect(setupRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun mintMockYieldToken(signer: Test.TestAccount, to: Address, amount: UFix64, beFailed: Bool) {
+    let mintRes = _executeTransaction("../transactions/mocks/yieldtoken/mint.cdc", [to, amount], signer)
     Test.expect(mintRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 

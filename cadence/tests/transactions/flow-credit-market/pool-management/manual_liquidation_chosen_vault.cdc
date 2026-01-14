@@ -5,13 +5,15 @@ import "MetadataViews"
 import "FlowCreditMarket"
 
 /// Attempt to liquidation a position by repaying `repayAmount`.
+/// This TESTING-ONLY transaction allows specifying a different repayment vault type.
 ///
 /// debtVaultIdentifier: e.g., Type<@MOET.Vault>().identifier
 /// seizeVaultIdentifier: e.g., Type<@FlowToken.Vault>().identifier
-transaction(pid: UInt64, debtVaultIdentifier: String, seizeVaultIdentifier: String, seizeAmount: UFix64, repayAmount: UFix64) {
+transaction(pid: UInt64, purportedDebtVaultIdentifier: String, actualDebtVaultIdentifier: String, seizeVaultIdentifier: String, seizeAmount: UFix64, repayAmount: UFix64) {
     let pool: &FlowCreditMarket.Pool
     let receiver: &{FungibleToken.Receiver}
-    let debtType: Type
+    let actualDebtType: Type
+    let purportedDebtType: Type
     let seizeType: Type
     let repay: @{FungibleToken.Vault}
 
@@ -21,15 +23,16 @@ transaction(pid: UInt64, debtVaultIdentifier: String, seizeVaultIdentifier: Stri
             ?? panic("Could not borrow Pool at \(FlowCreditMarket.PoolPublicPath)")
 
         // Resolve types
-        self.debtType = CompositeType(debtVaultIdentifier) ?? panic("Invalid debtVaultIdentifier: \(debtVaultIdentifier)")
+        self.actualDebtType = CompositeType(actualDebtVaultIdentifier) ?? panic("Invalid actualDebtVaultIdentifier: \(actualDebtVaultIdentifier)")
+        self.purportedDebtType = CompositeType(purportedDebtVaultIdentifier) ?? panic("Invalid purportedDebtVaultIdentifier: \(purportedDebtVaultIdentifier)")
         self.seizeType = CompositeType(seizeVaultIdentifier) ?? panic("Invalid seizeVaultIdentifier: \(seizeVaultIdentifier)")
 
         // Get the path and type data for the provided token type identifier
         let debtVaultData = MetadataViews.resolveContractViewFromTypeIdentifier(
-            resourceTypeIdentifier: debtVaultIdentifier,
+            resourceTypeIdentifier: actualDebtVaultIdentifier,
             viewType: Type<FungibleTokenMetadataViews.FTVaultData>()
         ) as? FungibleTokenMetadataViews.FTVaultData
-            ?? panic("Could not construct valid FT type and view from identifier \(debtVaultIdentifier)")
+            ?? panic("Could not construct valid FT type and view from identifier \(actualDebtVaultIdentifier)")
 
         let seizeVaultData = MetadataViews.resolveContractViewFromTypeIdentifier(
             resourceTypeIdentifier: seizeVaultIdentifier,
@@ -51,7 +54,7 @@ transaction(pid: UInt64, debtVaultIdentifier: String, seizeVaultIdentifier: Stri
     execute {
         let seizedVault <- self.pool.manualLiquidation(
             pid: pid,
-            debtType: self.debtType,
+            debtType: self.purportedDebtType,
             seizeType: self.seizeType,
             seizeAmount: seizeAmount,
             repayment: <-self.repay

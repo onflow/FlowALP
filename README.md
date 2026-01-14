@@ -89,13 +89,15 @@ For detailed test status and FlowVault removal summary, see [TestingCompletionSu
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/FlowCreditMarket.git
+git clone https://github.com/onflow/FlowCreditMarket.git
 cd FlowCreditMarket
+git submodule update --init --recursive
 ```
 
 2. Install dependencies:
 ```bash
-flow dependencies install
+flow deps install
+cd FlowActions && flow deps install && cd ..
 ```
 
 3. Run tests:
