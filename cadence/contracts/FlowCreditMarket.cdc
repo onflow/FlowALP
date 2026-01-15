@@ -3271,7 +3271,7 @@ access(all) contract FlowCreditMarket {
                 self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
                 insuranceRate >= 0.0 && insuranceRate <= 1.0:
-                    "insuranceRate must be between 0 and 1"
+                    "insurance rate must be between 0 and 1"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
@@ -3321,7 +3321,7 @@ access(all) contract FlowCreditMarket {
         access(EGovernance) fun setStabilityFeeRate(tokenType: Type, stabilityFeeRate: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type \(tokenType.identifier)"
-                stabilityFeeRate >= 0.0 && stabilityFeeRate <= 1.0: "stabilityFeeRate must be between 0 and 1"
+                stabilityFeeRate >= 0.0 && stabilityFeeRate <= 1.0: "stability fee rate must be between 0 and 1"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
