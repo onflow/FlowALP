@@ -38,6 +38,19 @@ access(all) contract FlowCreditMarketMath {
         return result
     }
 
+    // Deprecated
+    access(all) view fun div(_ x: UFix128, _ y: UFix128): UFix128 {
+        pre {
+            y > 0.0 as UFix128: "Division by zero"
+        }
+        return x / y
+    }
+
+    // Deprecated
+    access(all) view fun toUFix128(_ value: UFix64): UFix128 {
+        return UFix128(value)
+    }
+
     access(all) view fun toUFix64(_ value: UFix128, rounding: RoundingMode): UFix64 {
         let truncated = UFix64(value)
         let truncatedAs128 = UFix128(truncated)
