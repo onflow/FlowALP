@@ -228,6 +228,20 @@ fun getDepositCapacityInfo(vaultIdentifier: String): {String: UFix64} {
     return res.returnValue as! {String: UFix64}
 }
 
+access(all)
+fun getStabilityFeeRate(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_stability_fee_rate.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
+access(all)
+fun getStabilityFundBalance(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_stability_fund_balance.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)

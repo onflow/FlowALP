@@ -1346,9 +1346,21 @@ access(all) contract FlowCreditMarket {
         } 
 
         /// Returns the current balance of the stability fund for a given token type
-        access(all) view fun stabilityFundBalance(tokenType: Type): UFix64 {
-            let fundRef = &self.stabilityFunds[tokenType] as &{FungibleToken.Vault}?
-            return fundRef?.balance ?? 0.0
+        access(all) view fun getStabilityFundBalance(tokenType: Type): UFix64? {
+            if let fundRef = &self.stabilityFunds[tokenType] as &{FungibleToken.Vault}? {
+                return fundRef.balance
+            }
+            
+            return nil
+        }
+
+        /// Returns the stability fee rate for a given token type
+        access(all) view fun getStabilityFeeRate(tokenType: Type): UFix64? {
+            if let tokenState = self.globalLedger[tokenType] {
+                return tokenState.stabilityFeeRate
+            }
+
+            return nil
         }
 
         /// Returns current liquidation parameters
