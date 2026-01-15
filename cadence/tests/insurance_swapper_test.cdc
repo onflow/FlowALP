@@ -13,11 +13,12 @@ fun setup() {
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
 }
 
-/* --- Happy Path Tests --- */
-
-// testSetInsuranceSwapper verifies setting a valid insurance swapper succeeds
-access(all) fun test_setInsuranceSwapper() {
-    // set up a mock swapper that swaps from default token to MOET
+// -----------------------------------------------------------------------------
+// Test: setInsuranceSwapper with valid configuration should succeed
+// Verifies that a valid insurance swapper can be set for a token type
+// -----------------------------------------------------------------------------
+access(all)
+fun test_setInsuranceSwapper_success() {
     let res = setInsuranceSwapper(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
@@ -29,8 +30,12 @@ access(all) fun test_setInsuranceSwapper() {
     Test.assertEqual(true, insuranceSwapperExists(tokenTypeIdentifier: defaultTokenIdentifier))
 }
 
-// testSetInsuranceSwapper_UpdateExistingSwapper verifies updating an existing swapper succeeds
-access(all) fun test_setInsuranceSwapper_updateExistingSwapper() {
+// -----------------------------------------------------------------------------
+// Test: setInsuranceSwapper can update existing swapper
+// Verifies that an existing swapper can be replaced with a new one
+// -----------------------------------------------------------------------------
+access(all)
+fun test_setInsuranceSwapper_updateExistingSwapper_success() {
     // set initial swapper
     let initialPriceRatio = 1.0
     let res = setInsuranceSwapper(
@@ -53,8 +58,12 @@ access(all) fun test_setInsuranceSwapper_updateExistingSwapper() {
     Test.assertEqual(true, insuranceSwapperExists(tokenTypeIdentifier: defaultTokenIdentifier))
 }
 
-// testRemoveInsuranceSwapper verifies setting swapper to nil succeeds
-access(all) fun test_removeInsuranceSwapper() {
+// -----------------------------------------------------------------------------
+// Test: removeInsuranceSwapper should remove configured swapper
+// Verifies that an insurance swapper can be removed after being set
+// -----------------------------------------------------------------------------
+access(all)
+fun test_removeInsuranceSwapper_success() {
     // set a swapper
     let res = setInsuranceSwapper(
         signer: protocolAccount,
@@ -77,11 +86,12 @@ access(all) fun test_removeInsuranceSwapper() {
     Test.assertEqual(false, insuranceSwapperExists(tokenTypeIdentifier: defaultTokenIdentifier))
 }
 
-/* --- Access Control Tests --- */
-
-// testSetInsuranceSwapper_WithoutEGovernanceEntitlement verifies if account without EGovernance entitlement can set swapper.
-access(all) fun test_setInsuranceSwapper_withoutEGovernanceEntitlement() {
-    // non-protocol account tries to set swapper
+// -----------------------------------------------------------------------------
+// Test: setInsuranceSwapper without EGovernance entitlement should fail
+// Verifies that accounts without EGovernance entitlement cannot set swapper
+// -----------------------------------------------------------------------------
+access(all)
+fun test_setInsuranceSwapper_withoutEGovernanceEntitlement_fails() {
     let res = setInsuranceSwapper(
         signer: alice,
         tokenTypeIdentifier: defaultTokenIdentifier,
@@ -92,8 +102,12 @@ access(all) fun test_setInsuranceSwapper_withoutEGovernanceEntitlement() {
     Test.expect(res, Test.beFailed())
 }
 
-// testSetInsuranceSwapper_WithEGovernanceEntitlement verifies admin can set swapper
-access(all) fun test_setInsuranceSwapper_withEGovernanceEntitlement() {
+// -----------------------------------------------------------------------------
+// Test: setInsuranceSwapper with EGovernance entitlement should succeed
+// Verifies that admin with proper entitlement can set swapper
+// -----------------------------------------------------------------------------
+access(all)
+fun test_setInsuranceSwapper_withEGovernanceEntitlement_success() {
     let res = setInsuranceSwapper(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
@@ -102,12 +116,13 @@ access(all) fun test_setInsuranceSwapper_withEGovernanceEntitlement() {
     Test.expect(res, Test.beSucceeded())
 }
 
-/* --- Token Type Validation Tests --- */
-
-// testSetInsuranceSwapper_InvalidTokenTypeIdentifier_Fails verifies invalid token identifier fails
-access(all) fun test_setInsuranceSwapper_invalidTokenTypeIdentifier_fails() {
+// -----------------------------------------------------------------------------
+// Test: setInsuranceSwapper with invalid token identifier should fail
+// Verifies that non-existent token types are rejected
+// -----------------------------------------------------------------------------
+access(all)
+fun test_setInsuranceSwapper_invalidTokenTypeIdentifier_fails() {
     let invalidTokenIdentifier = "InvalidTokenType"
-    let priceRatio = 1.0
 
     let res = setInsuranceSwapper(
         signer: protocolAccount,
@@ -115,7 +130,6 @@ access(all) fun test_setInsuranceSwapper_invalidTokenTypeIdentifier_fails() {
         priceRatio: 1.0,
     )
 
-    // should fail with "Invalid tokenTypeIdentifier"
     Test.expect(res, Test.beFailed())
 
     let errorMessage = res.error!.message
@@ -123,8 +137,12 @@ access(all) fun test_setInsuranceSwapper_invalidTokenTypeIdentifier_fails() {
     Test.assert(containsExpectedError, message: "expected error about invalid token type identifier, got: \(errorMessage)")
 }
 
-// testSetInsuranceSwapper_EmptyTokenTypeIdentifier_Fails verifies empty token identifier fails
-access(all) fun test_setInsuranceSwapper_emptyTokenTypeIdentifier_fails() {
+// -----------------------------------------------------------------------------
+// Test: setInsuranceSwapper with empty token identifier should fail
+// Verifies that empty string token identifiers are rejected
+// -----------------------------------------------------------------------------
+access(all)
+fun test_setInsuranceSwapper_emptyTokenTypeIdentifier_fails() {
     let emptyTokenIdentifier = ""
 
     let res = setInsuranceSwapper(
@@ -133,48 +151,46 @@ access(all) fun test_setInsuranceSwapper_emptyTokenTypeIdentifier_fails() {
         priceRatio: 1.0,
     )
 
-    // should fail
     Test.expect(res, Test.beFailed())
+
     let errorMessage = res.error!.message
     let containsExpectedError = errorMessage.contains("Invalid tokenTypeIdentifier")
     Test.assert(containsExpectedError, message: "expected error about invalid token type identifier, got: \(errorMessage)")
 }
 
-/* --- Swapper Type Validation Tests --- */
-
-// testSetInsuranceSwapper_WrongOutputType_Fails verifies swapper must output MOET
-access(all) fun test_setInsuranceSwapper_wrongOutputType_fails() {
-    // This test requires a mock swapper that outputs a non-MOET type
-    // The contract enforces: swapper.outType() == Type<@MOET.Vault>()
-
-    // try to set a swapper that doesn't output MOET (flowTokenIdentifier)
+// -----------------------------------------------------------------------------
+// Test: setInsuranceSwapper with wrong output type should fail
+// Swapper must output MOET (insurance fund denomination)
+// -----------------------------------------------------------------------------
+access(all)
+fun test_setInsuranceSwapper_wrongOutputType_fails() {
+    // try to set a swapper that doesn't output MOET (outputs flowTokenIdentifier instead)
     let res = _executeTransaction(
         "./transactions/flow-credit-market/pool-governance/set_insurance_swapper_mock.cdc",
-        [ defaultTokenIdentifier, 1.0, defaultTokenIdentifier, flowTokenIdentifier],
+        [defaultTokenIdentifier, 1.0, defaultTokenIdentifier, flowTokenIdentifier],
         protocolAccount
     )
 
-    // should fail with "Swapper output type must be MOET"
     Test.expect(res, Test.beFailed())
 
     let errorMessage = res.error!.message
-    log(errorMessage)
     let containsExpectedError = errorMessage.contains("Swapper output type must be MOET")
     Test.assert(containsExpectedError, message: "expected error about swapper output type, got: \(errorMessage)")
 }
 
-// testSetInsuranceSwapper_WrongInputType_Fails verifies swapper input must match token type
-access(all) fun test_setInsuranceSwapper_wrongInputType_fails() {
-    // This test requires a mock swapper with mismatched input type
-    // The contract enforces: swapper.inType() == tokenType
-
-    // try to set a swapper with wrong input type
+// -----------------------------------------------------------------------------
+// Test: setInsuranceSwapper with wrong input type should fail
+// Swapper input type must match the token type being configured
+// -----------------------------------------------------------------------------
+access(all)
+fun test_setInsuranceSwapper_wrongInputType_fails() {
+    // try to set a swapper with wrong input type (flowTokenIdentifier instead of defaultTokenIdentifier)
     let res = _executeTransaction(
         "./transactions/flow-credit-market/pool-governance/set_insurance_swapper_mock.cdc",
         [defaultTokenIdentifier, 1.0, flowTokenIdentifier, defaultTokenIdentifier],
         protocolAccount
     )
-    // should fail with "Swapper input type must match token type"
+
     Test.expect(res, Test.beFailed())
 
     let errorMessage = res.error!.message

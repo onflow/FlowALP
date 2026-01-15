@@ -3,7 +3,7 @@ import "FlowCreditMarket"
 /// Returns the insurance rate for the specified token type
 ///
 /// @param tokenTypeIdentifier: The Type identifier of the token vault (e.g., "A.0x07.MOET.Vault")
-/// @return The insurance rate for the token type, or nil if the token is not supported
+/// @return The insurance rate for the token type, or nil if the token type is not supported
 access(all) fun main(tokenTypeIdentifier: String): UFix64? {
     let tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier \(tokenTypeIdentifier)")

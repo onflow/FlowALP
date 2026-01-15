@@ -41,12 +41,7 @@ fun test_collectInsurance_noSwapper_returnsNil() {
     createWrappedPosition(signer: user, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // verify no swapper
-    let hasSwapper = _executeScript(
-        "../scripts/flow-credit-market/insurance_token_swapper_exists.cdc",
-        [defaultTokenIdentifier]
-    )
-    Test.expect(hasSwapper, Test.beSucceeded())
-    Test.assertEqual(false, hasSwapper.returnValue as! Bool)
+    Test.assertEqual(false, insuranceSwapperExists(tokenTypeIdentifier: defaultTokenIdentifier))
 
     // get initial insurance fund balance
     let initialBalance = getInsuranceFundBalance()

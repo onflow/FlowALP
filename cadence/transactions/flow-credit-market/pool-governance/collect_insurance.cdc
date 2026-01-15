@@ -4,12 +4,6 @@ import "FlowCreditMarket"
 /// This withdraws accrued insurance from reserves, swaps to MOET via the configured swapper,
 /// and deposits the result into the pool's insurance fund.
 ///
-/// Prerequisites:
-/// - Token must have an insurance swapper configured via setInsuranceSwapper()
-/// - Token must have credit balance (totalCreditBalance > 0)
-/// - Reserves must have available balance
-/// - Time must have elapsed since last collection
-///
 /// Parameters:
 /// - tokenTypeIdentifier: String identifier of the token type (e.g., "A.0x07.MOET.Vault")
 transaction(tokenTypeIdentifier: String) {

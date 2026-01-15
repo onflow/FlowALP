@@ -8,7 +8,9 @@ import "DeFiActions"
 /// The swapper will convert the specified swapperIn type to swapperOut type using the provided price ratio.
 ///
 /// @param tokenTypeIdentifier: The token type to configure (e.g., "A.0x07.MOET.Vault")
-/// @param priceRatio: Output MOET per unit of input token (e.g., 1.0 for 1:1)
+/// @param priceRatio: Output tokens per unit of input token (e.g., 1.0 for 1:1)
+/// @param swapperInTypeIdentifier: The input token type for the swapper
+/// @param swapperOutTypeIdentifier: The output token type for the swapper (must be MOET for insurance)
 transaction(
     tokenTypeIdentifier: String, 
     priceRatio: UFix64,

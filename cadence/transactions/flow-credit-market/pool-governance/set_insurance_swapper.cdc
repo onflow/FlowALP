@@ -1,6 +1,11 @@
 import "FlowCreditMarket"
 import "DeFiActions"
 
+/// Configure or remove the insurance swapper for a token type.
+/// The insurance swapper converts collected reserve funds into MOET for the insurance fund.
+///
+/// @param tokenTypeIdentifier: The token type to configure (e.g., "A.0x07.MOET.Vault")
+/// @param swapper: The swapper to use for insurance collection, or nil to remove the swapper
 transaction(
     tokenTypeIdentifier: String,
     swapper: {DeFiActions.Swapper}?,

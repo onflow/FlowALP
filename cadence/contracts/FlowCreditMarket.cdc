@@ -1019,7 +1019,8 @@ access(all) contract FlowCreditMarket {
 
 			let insuranceSwapper = self.insuranceSwapper ?? panic("missing insurance swapper")
 
-            // Validate swapper output type (input type is already validated when swapper is set)
+            // Validate swapper input and output types (input and output types are already validated when swapper is set)
+            assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
             assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
 
             // Get quote and perform swap
@@ -1034,8 +1035,6 @@ access(all) contract FlowCreditMarket {
             return <-moetVault
         }
     }
-
-    
 
     /// Risk parameters for a token used in effective collateral/debt computations.
     /// - collateralFactor: fraction applied to credit value to derive effective collateral
