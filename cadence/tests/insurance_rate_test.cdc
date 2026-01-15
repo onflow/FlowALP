@@ -16,7 +16,7 @@ fun setup() {
 /* --- Access Control Tests --- */
 
 // testSetInsuranceRate_WithoutEGovernanceEntitlement verifies if account without EGovernance entitlement can set insurance rate.
-access(all) fun testSetInsuranceRate_WithoutEGovernanceEntitlement() {
+access(all) fun test_setInsuranceRate_withoutEGovernanceEntitlement() {
     let res= setInsuranceRate(
         signer: alice,
         tokenTypeIdentifier: defaultTokenIdentifier,
@@ -28,7 +28,7 @@ access(all) fun testSetInsuranceRate_WithoutEGovernanceEntitlement() {
 }
 
 // testSetInsuranceRate_RequiresEGovernanceEntitlement verifies the function requires proper EGovernance entitlement.
-access(all) fun testSetInsuranceRate_WithEGovernanceEntitlement() {
+access(all) fun test_setInsuranceRate_withEGovernanceEntitlement() {
     let insuranceRate = 0.01
     // use protocol account with proper entitlement
     let res = setInsuranceRate(
@@ -45,7 +45,7 @@ access(all) fun testSetInsuranceRate_WithEGovernanceEntitlement() {
 
 /* --- Boundary Tests: insuranceRate must be between 0 and 1 --- */
 
-access(all) fun testSetInsuranceRate_RateGreaterThanOne_Fails() {
+access(all) fun test_setInsuranceRate_rateGreaterThanOne_fails() {
     // rate > 1.0 violates precondition
     let invalidRate = 1.01
 
@@ -63,7 +63,7 @@ access(all) fun testSetInsuranceRate_RateGreaterThanOne_Fails() {
 }
 
 
-access(all) fun testSetInsuranceRate_RateLessThanZero_Fails() {
+access(all) fun test_setInsuranceRate_rateLessThanZero_fails() {
     // rate < 0
     let invalidRate = -0.01
     
@@ -83,7 +83,7 @@ access(all) fun testSetInsuranceRate_RateLessThanZero_Fails() {
 
 /* --- Token Type Tests --- */
 
-access(all) fun testSetInsuranceRate_InvalidTokenType_Fails() {    
+access(all) fun test_setInsuranceRate_invalidTokenType_fails() {    
     let unsupportedTokenIdentifier = flowTokenIdentifier
     let res = setInsuranceRate(
         signer: protocolAccount,
@@ -98,7 +98,7 @@ access(all) fun testSetInsuranceRate_InvalidTokenType_Fails() {
     Test.assert(containsExpectedError, message: "expected error about insurance rate bounds, got: \(errorMessage)")
 }
 
-access(all) fun testGetInsuranceRate_InvalidTokenType() {
+access(all) fun test_getInsuranceRate_invalidTokenType() {
     let unsupportedTokenIdentifier = flowTokenIdentifier
     
     let actual = getInsuranceRate(tokenTypeIdentifier: unsupportedTokenIdentifier)

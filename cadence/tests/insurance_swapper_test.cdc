@@ -16,7 +16,7 @@ fun setup() {
 /* --- Happy Path Tests --- */
 
 // testSetInsuranceSwapper verifies setting a valid insurance swapper succeeds
-access(all) fun testSetInsuranceSwapper() {
+access(all) fun test_setInsuranceSwapper() {
     // set up a mock swapper that swaps from default token to MOET
     let res = setInsuranceSwapper(
         signer: protocolAccount,
@@ -30,7 +30,7 @@ access(all) fun testSetInsuranceSwapper() {
 }
 
 // testSetInsuranceSwapper_UpdateExistingSwapper verifies updating an existing swapper succeeds
-access(all) fun testSetInsuranceSwapper_UpdateExistingSwapper() {
+access(all) fun test_setInsuranceSwapper_updateExistingSwapper() {
     // set initial swapper
     let initialPriceRatio = 1.0
     let res = setInsuranceSwapper(
@@ -54,7 +54,7 @@ access(all) fun testSetInsuranceSwapper_UpdateExistingSwapper() {
 }
 
 // testRemoveInsuranceSwapper verifies setting swapper to nil succeeds
-access(all) fun testRemoveInsuranceSwapper() {
+access(all) fun test_removeInsuranceSwapper() {
     // set a swapper
     let res = setInsuranceSwapper(
         signer: protocolAccount,
@@ -80,7 +80,7 @@ access(all) fun testRemoveInsuranceSwapper() {
 /* --- Access Control Tests --- */
 
 // testSetInsuranceSwapper_WithoutEGovernanceEntitlement verifies if account without EGovernance entitlement can set swapper.
-access(all) fun testSetInsuranceSwapper_WithoutEGovernanceEntitlement() {
+access(all) fun test_setInsuranceSwapper_withoutEGovernanceEntitlement() {
     // non-protocol account tries to set swapper
     let res = setInsuranceSwapper(
         signer: alice,
@@ -93,7 +93,7 @@ access(all) fun testSetInsuranceSwapper_WithoutEGovernanceEntitlement() {
 }
 
 // testSetInsuranceSwapper_WithEGovernanceEntitlement verifies admin can set swapper
-access(all) fun testSetInsuranceSwapper_WithEGovernanceEntitlement() {
+access(all) fun test_setInsuranceSwapper_withEGovernanceEntitlement() {
     let res = setInsuranceSwapper(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
@@ -105,7 +105,7 @@ access(all) fun testSetInsuranceSwapper_WithEGovernanceEntitlement() {
 /* --- Token Type Validation Tests --- */
 
 // testSetInsuranceSwapper_InvalidTokenTypeIdentifier_Fails verifies invalid token identifier fails
-access(all) fun testSetInsuranceSwapper_InvalidTokenTypeIdentifier_Fails() {
+access(all) fun test_setInsuranceSwapper_invalidTokenTypeIdentifier_fails() {
     let invalidTokenIdentifier = "InvalidTokenType"
     let priceRatio = 1.0
 
@@ -124,7 +124,7 @@ access(all) fun testSetInsuranceSwapper_InvalidTokenTypeIdentifier_Fails() {
 }
 
 // testSetInsuranceSwapper_EmptyTokenTypeIdentifier_Fails verifies empty token identifier fails
-access(all) fun testSetInsuranceSwapper_EmptyTokenTypeIdentifier_Fails() {
+access(all) fun test_setInsuranceSwapper_emptyTokenTypeIdentifier_fails() {
     let emptyTokenIdentifier = ""
 
     let res = setInsuranceSwapper(
@@ -143,7 +143,7 @@ access(all) fun testSetInsuranceSwapper_EmptyTokenTypeIdentifier_Fails() {
 /* --- Swapper Type Validation Tests --- */
 
 // testSetInsuranceSwapper_WrongOutputType_Fails verifies swapper must output MOET
-access(all) fun testSetInsuranceSwapper_WrongOutputType_Fails() {
+access(all) fun test_setInsuranceSwapper_wrongOutputType_fails() {
     // This test requires a mock swapper that outputs a non-MOET type
     // The contract enforces: swapper.outType() == Type<@MOET.Vault>()
 
@@ -164,7 +164,7 @@ access(all) fun testSetInsuranceSwapper_WrongOutputType_Fails() {
 }
 
 // testSetInsuranceSwapper_WrongInputType_Fails verifies swapper input must match token type
-access(all) fun testSetInsuranceSwapper_WrongInputType_Fails() {
+access(all) fun test_setInsuranceSwapper_wrongInputType_fails() {
     // This test requires a mock swapper with mismatched input type
     // The contract enforces: swapper.inType() == tokenType
 

@@ -960,7 +960,7 @@ access(all) contract FlowCreditMarket {
         /// @param reserveVault: The reserve vault for this token type to withdraw insurance from
         /// @return: A MOET vault containing the collected insurance funds, or nil if no collection occurred
         access(EImplementation) fun collectInsurance(
-            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
+            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
         ): @MOET.Vault? {
             // If no swapper configured, skip collection
             if self.insuranceSwapper == nil {
@@ -969,11 +969,6 @@ access(all) contract FlowCreditMarket {
 
             // If no credit balance, nothing to collect
             if self.totalCreditBalance == 0.0 {
-                return nil
-            }
-
-            // If no reserve vault provided, nothing to collect from
-            if reserveVault == nil {
                 return nil
             }
 
@@ -998,18 +993,16 @@ access(all) contract FlowCreditMarket {
                 self.setLastInsuranceCollection(currentTime)
                 return nil
             }
-
-            let reserveRef = reserveVault!
             
             // Check if we have enough balance in reserves
-            if reserveRef.balance <= 0.0 {
+            if reserveVault.balance <= 0.0 {
                 self.setLastInsuranceCollection(currentTime)
                 return nil
             }
 
             // Withdraw insurance amount from reserves (use available balance if less than calculated)
-            let amountToCollect = insuranceAmountUFix64 > reserveRef.balance ? reserveRef.balance : insuranceAmountUFix64
-            var insuranceVault <- reserveRef.withdraw(amount: amountToCollect)
+            let amountToCollect = insuranceAmountUFix64 > reserveVault.balance ? reserveVault.balance : insuranceAmountUFix64
+            var insuranceVault <- reserveVault.withdraw(amount: amountToCollect)
 
 			let insuranceSwapper = self.insuranceSwapper ?? panic("missing insurance swapper")
 
@@ -1353,7 +1346,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Returns whether an insurance swapper is configured for a given token type
-        access(all) view fun isInsuranceSwapper(tokenType: Type): Bool {
+        access(all) view fun isInsuranceSwapperConfigured(tokenType: Type): Bool {
             if let tokenState = self.globalLedger[tokenType] {
                 return tokenState.insuranceSwapper != nil
             }
@@ -3641,12 +3634,12 @@ access(all) contract FlowCreditMarket {
             }
 
             // Get reference to reserves
-            let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)
-
-            // Collect insurance and get MOET vault
-            if let collectedMOET <- tokenState.collectInsurance(reserveVault: reserveRef) {
-                // Deposit collected MOET into insurance fund
-                self.insuranceFund.deposit(from: <-collectedMOET)
+            if let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?) {
+                // Collect insurance and get MOET vault
+                if let collectedMOET <- tokenState.collectInsurance(reserveVault: reserveRef) {
+                    // Deposit collected MOET into insurance fund
+                    self.insuranceFund.deposit(from: <-collectedMOET)
+                }
             }
         }
 
