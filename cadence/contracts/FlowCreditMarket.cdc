@@ -121,6 +121,19 @@ access(all) contract FlowCreditMarket {
         remainingCapacity: UFix64
     )
 
+    access(all) event InsuranceRateUpdated(
+        poolUUID: UInt64,
+        tokenType: String,
+        insuranceRate: UFix64,
+    )
+
+    access(all) event InsuranceFeeCollected(
+        poolUUID: UInt64,
+        tokenType: String,
+        insuranceAmount: UFix64,
+        lastInsuranceCollection: UFix64,
+    )
+
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
     access(all) entitlement EPosition
@@ -3284,6 +3297,12 @@ access(all) contract FlowCreditMarket {
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
             tsRef.setInsuranceRate(insuranceRate)
+
+            emit InsuranceRateUpdated(
+                poolUUID: self.uuid,
+                tokenType: tokenType.identifier,
+                insuranceRate: insuranceRate,
+            )
         }
 
         /// Sets the insurance swapper for a given token type (must swap from tokenType to MOET)
@@ -3645,8 +3664,16 @@ access(all) contract FlowCreditMarket {
 
             // Collect insurance and get MOET vault
             if let collectedMOET <- tokenState.collectInsurance(reserveVault: reserveRef) {
+                let collectedMOETBalance = collectedMOET.balance
                 // Deposit collected MOET into insurance fund
                 self.insuranceFund.deposit(from: <-collectedMOET)
+
+                emit InsuranceFeeCollected(
+                    poolUUID: self.uuid,
+                    tokenType: tokenType.identifier,
+                    insuranceAmount: collectedMOETBalance,
+                    lastInsuranceCollection: tokenState.lastInsuranceCollection
+        )
             }
         }
 
