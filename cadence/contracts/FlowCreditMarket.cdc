@@ -1345,7 +1345,8 @@ access(all) contract FlowCreditMarket {
             return self.globalLedger[tokenType] != nil
         } 
 
-        /// Returns the current balance of the stability fund for a given token type
+        /// Returns the current balance of the stability fund for a given token type.
+        /// Returns nil if the token type is not supported.
         access(all) view fun getStabilityFundBalance(tokenType: Type): UFix64? {
             if let fundRef = &self.stabilityFunds[tokenType] as &{FungibleToken.Vault}? {
                 return fundRef.balance
@@ -1354,10 +1355,21 @@ access(all) contract FlowCreditMarket {
             return nil
         }
 
-        /// Returns the stability fee rate for a given token type
+        /// Returns the stability fee rate for a given token type.
+        /// Returns nil if the token type is not supported.
         access(all) view fun getStabilityFeeRate(tokenType: Type): UFix64? {
             if let tokenState = self.globalLedger[tokenType] {
                 return tokenState.stabilityFeeRate
+            }
+
+            return nil
+        }
+
+        /// Returns the timestamp of the last stability collection for a given token type.
+        /// Returns nil if the token type is not supported.
+        access(all) view fun getLastStabilityCollection(tokenType: Type): UFix64? {
+            if let tokenState = self.globalLedger[tokenType] {
+                return tokenState.lastStabilityFeeCollection
             }
 
             return nil
@@ -3299,7 +3311,13 @@ access(all) contract FlowCreditMarket {
             tsRef.setDepositCapacityCap(cap)
         }
 
-        /// Updates the stability fee rate for a given token (fraction in [0,1])
+        /// Updates the stability fee rate for a given token (fraction in [0,1]).
+        ///
+        /// @param tokenTypeIdentifier: The fully qualified type identifier of the token (e.g., "A.0x1.FlowToken.Vault")
+        /// @param stabilityFeeRate: The fee rate as a fraction in [0, 1]
+        ///
+        ///
+        /// Emits: StabilityFeeRateUpdated
         access(EGovernance) fun setStabilityFeeRate(tokenType: Type, stabilityFeeRate: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type \(tokenType.identifier)"
