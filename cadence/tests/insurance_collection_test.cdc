@@ -126,7 +126,7 @@ fun test_collectInsurance_noTimeElapsed_returnsNil() {
 
     // check for no additional collection
     let balanceAfterSecond = getInsuranceFundBalance()
-    assertEqualWithVariance(balanceAfterFirst, balanceAfterSecond)
+    Test.assert(ufixEqualWithinVariance(balanceAfterFirst, balanceAfterSecond), message: "Balance should not change on second immediate collection")
 }
 
 // -----------------------------------------------------------------------------
@@ -180,11 +180,11 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     Test.assert(amountWithdrawnFromReserves > 0.0, message: "Amount should have been withdrawn from reserves")
 
     // with 1:1 swap ratio, insurance fund balance should equal amount withdrawn from reserves
-    assertEqualWithVariance(amountWithdrawnFromReserves, finalInsuranceBalance)
+    Test.assert(ufixEqualWithinVariance(amountWithdrawnFromReserves, finalInsuranceBalance), message: "Insurance fund balance should equal amount withdrawn from reserves")
 
     // verify collection was limited by reserves
     // Formula: 500.0 * 1.0 * (secondsInYear / secondsInYearPlusDay) ≈ 501.37 MOET, but limited to totalCreditBalance = 500.0
-    assertEqualWithVariance(500.0, finalInsuranceBalance)
+    Test.assert(ufixEqualWithinVariance(500.0, finalInsuranceBalance), message: "Insurance should be limited to 500.0 MOET")
 }
 
 // -----------------------------------------------------------------------------
@@ -276,12 +276,12 @@ fun test_collectInsurance_success_fullAmount() {
 
     // verify the amount withdrawn from reserves equals the insurance fund balance (1:1 swap ratio)
     let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
-    assertEqualWithVariance(amountWithdrawnFromReserves, finalInsuranceBalance)
+    Test.assert(ufixEqualWithinVariance(amountWithdrawnFromReserves, finalInsuranceBalance), message: "Amount withdrawn from reserves should equal insurance fund balance")
 
     // verify lastInsuranceCollection was updated to current block timestamp
     let currentTimestamp = getBlockTimestamp()
     let lastCollection = getLastInsuranceCollection(tokenTypeIdentifier: defaultTokenIdentifier)
-    assertEqualWithVariance(currentTimestamp, lastCollection!)
+    Test.assert(ufixEqualWithinVariance(currentTimestamp, lastCollection!), message: "lastInsuranceCollection should match current timestamp")
 }
 
 // -----------------------------------------------------------------------------
@@ -356,7 +356,7 @@ fun test_collectInsurance_multipleTokens() {
 
     // verify the amount withdrawn from MOET reserves equals the insurance fund balance increase (1:1 swap ratio)
     let moetAmountWithdrawn = moetReservesBefore - getReserveBalance(vaultIdentifier: defaultTokenIdentifier)
-    assertEqualWithVariance(moetAmountWithdrawn, balanceAfterMoetCollection)
+    Test.assert(ufixEqualWithinVariance(moetAmountWithdrawn, balanceAfterMoetCollection), message: "MOET withdrawn should equal insurance fund increase")
 
     let moetLastCollection = getLastInsuranceCollection(tokenTypeIdentifier: defaultTokenIdentifier)
     let flowLastCollectionBeforeFlowCollection = getLastInsuranceCollection(tokenTypeIdentifier: flowTokenIdentifier)
@@ -384,7 +384,7 @@ fun test_collectInsurance_multipleTokens() {
     // verify the amount withdrawn from Flow reserves equals the insurance fund balance increase (1:1 swap ratio)
     let flowAmountWithdrawn = flowReservesBefore - flowReservesAfter
     let flowInsuranceIncrease = balanceAfterFlowCollection - balanceAfterMoetCollection
-    assertEqualWithVariance(flowAmountWithdrawn, flowInsuranceIncrease)
+    Test.assert(ufixEqualWithinVariance(flowAmountWithdrawn, flowInsuranceIncrease), message: "Flow withdrawn should equal insurance fund increase")
 
     // verify Flow timestamp is now updated (should be >= MOET timestamp since it was collected after)
     Test.assert(flowLastCollectionAfter! >= moetLastCollection!, message: "Flow timestamp should be >= MOET timestamp")

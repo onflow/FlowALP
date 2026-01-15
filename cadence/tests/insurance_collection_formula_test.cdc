@@ -71,14 +71,14 @@ fun test_collectInsurance_success_fullAmount() {
     Test.assert(collectedAmount > 0.0, message: "Insurance fund should have received MOET")
 
     // verify the amount withdrawn from reserves equals the collected amount (1:1 swap ratio)
-    assertEqualWithVariance(amountWithdrawnFromReserves, collectedAmount)
+    Test.assert(ufixEqualWithinVariance(amountWithdrawnFromReserves, collectedAmount), message: "Amount withdrawn from reserves should equal collected amount")
 
     // verify lastInsuranceCollection was updated to current block timestamp
     let currentTimestamp = getBlockTimestamp()
     let lastCollection = getLastInsuranceCollection(tokenTypeIdentifier: defaultTokenIdentifier)
-    assertEqualWithVariance(currentTimestamp, lastCollection!)
+    Test.assert(ufixEqualWithinVariance(currentTimestamp, lastCollection!), message: "lastInsuranceCollection should match current timestamp")
 
     // verify formula: insuranceAmount = totalCreditBalance * insuranceRate * (timeElapsed / secondsPerYear)
     // Expected: 500.0 * 0.1 * (secondsInYear / secondsInYear) = 50.0 MOET
-    assertEqualWithVariance(50.0, collectedAmount)
+    Test.assert(ufixEqualWithinVariance(50.0, collectedAmount), message: "Insurance collected should be ~50.0 MOET")
 }

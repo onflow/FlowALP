@@ -26,18 +26,6 @@ access(all) var intTargetHealth: UFix128 = 1.3
 access(all) var intMaxHealth: UFix128 = 1.5
 access(all) let ceilingHealth: UFix128 = UFix128.max      // infinite health when debt ~ 0.0
 
-/* --- Assertion helpers --- */
-
-/// Asserts that two UFix64 values are equal within defaultUFixVariance tolerance
-access(all)
-fun assertEqualWithVariance(_ expected: UFix64, _ actual: UFix64) {
-    let diff = expected > actual ? expected - actual : actual - expected
-    Test.assert(
-        diff <= defaultUFixVariance,
-        message: "Expected \(expected) but got \(actual) (diff: \(diff), variance: \(defaultUFixVariance))"
-    )
-}
-
 /* --- Test execution helpers --- */
 
 access(all)
