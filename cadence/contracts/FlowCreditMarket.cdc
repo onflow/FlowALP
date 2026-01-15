@@ -438,6 +438,7 @@ access(all) contract FlowCreditMarket {
         /// the position exceeds its maximum health.
         ///
         /// NOTE: If a non-nil value is provided, the Sink MUST accept MOET deposits or the operation will revert.
+        /// TODO(jord): precondition assumes Pool's default token is MOET, however Pool has option to specify default token in constructor.
         access(EImplementation) fun setDrawDownSink(_ sink: {DeFiActions.Sink}?) {
             pre {
                 sink == nil || sink!.getSinkType() == Type<@MOET.Vault>():
@@ -449,6 +450,8 @@ access(all) contract FlowCreditMarket {
         /// Sets the InternalPosition's topUpSource. If `nil`, the Pool will not be able to pull underflown value when
         /// the position falls below its minimum health which may result in liquidation.
         access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source}?) {
+            /// TODO(jord): User can provide top-up source containing unsupported token type. Then later rebalances will revert.
+            /// Possibly an attack vector on automated rebalancing, if multiple positions are rebalanced in the same transaction.
             self.topUpSource = source
         }
     }
@@ -1643,6 +1646,7 @@ access(all) contract FlowCreditMarket {
             )
         }
 
+        // TODO: documentation
         access(self) fun computeAdjustedBalancesAfterWithdrawal(
             balanceSheet: BalanceSheet,
             position: &InternalPosition,
@@ -1704,6 +1708,8 @@ access(all) contract FlowCreditMarket {
             )
         }
 
+        // TODO(jord): ~100-line function - consider refactoring
+        // TODO: documentation
          access(self) fun computeRequiredDepositForHealth(
             position: &InternalPosition,
             depositType: Type,
@@ -1960,7 +1966,7 @@ access(all) contract FlowCreditMarket {
         }
 
         // Helper function to compute available withdrawal
-        // Helper function to compute available withdrawal
+        // TODO(jord): ~100-line function - consider refactoring
         access(self) fun computeAvailableWithdrawal(
             position: &InternalPosition,
             withdrawType: Type,
@@ -2173,6 +2179,7 @@ access(all) contract FlowCreditMarket {
         /// depositing the loaned amount to the given Sink.
         /// If a Source is provided, the position will be configured to pull loan repayment
         /// when the loan becomes undercollateralized, preferring repayment to outright liquidation.
+        /// TODO(jord): it does not seem like there is any permission system for positions. Anyone with (auth EPosition) &Pool can operate on any position.
         access(EParticipant) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DeFiActions.Sink},
@@ -2182,6 +2189,7 @@ access(all) contract FlowCreditMarket {
             pre {
                 self.globalLedger[funds.getType()] != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
+                // TODO(jord): Sink/source should be valid
             }
             // construct a new InternalPosition, assigning it the current position ID
             let id = self.nextPositionID
@@ -2223,6 +2231,7 @@ access(all) contract FlowCreditMarket {
         /// Deposits the provided funds to the specified position with the configurable `pushToDrawDownSink` option.
         /// If `pushToDrawDownSink` is true, excess value putting the position above its max health
         /// is pushed to the position's configured `drawDownSink`.
+        /// TODO(jord): ~100-line function - consider refactoring.
         access(EPosition) fun depositAndPush(
             pid: UInt64,
             from: @{FungibleToken.Vault},
@@ -2349,6 +2358,7 @@ access(all) contract FlowCreditMarket {
         ///
         /// If `pullFromTopUpSource` is true, deficient value putting the position below its min health
         /// is pulled from the position's configured `topUpSource`.
+        /// TODO(jord): ~150-line function - consider refactoring.
         access(EPosition) fun withdrawAndPull(
             pid: UInt64,
             type: Type,
@@ -2777,9 +2787,12 @@ access(all) contract FlowCreditMarket {
             self.debugLogging = enabled
         }
 
-        /// Rebalances the position to the target health value.
-        /// If `force` is `true`, the position will be rebalanced even if it is currently healthy.
-        /// Otherwise, this function will do nothing if the position is within the min/max health bounds.
+        /// Rebalances the position to the target health value, if the position is under- or over-collateralized,
+        /// as defined by the position-specific min/max health thresholds.
+        /// If force=true, the position will be rebalanced regardless of its current health.
+        ///
+        /// When rebalancing, funds are withdrawn from the position's topUpSource or deposited to its drawDownSink.
+        /// Rebalancing 
         access(EPosition) fun rebalancePosition(pid: UInt64, force: Bool) {
             if self.debugLogging {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
