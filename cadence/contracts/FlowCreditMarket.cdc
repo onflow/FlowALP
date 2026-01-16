@@ -153,7 +153,7 @@ access(all) contract FlowCreditMarket {
     */
 
     /// Seconds in a year (365.25 days to account for leap years)
-    access(all) let secondsInYear: UFix128
+    access(all) let secondsInYear: UFix64
 
     /// InternalBalance
     ///
@@ -993,7 +993,7 @@ access(all) contract FlowCreditMarket {
             }
 
             // Calculate insurance amount: insuranceRate is annual, so prorate by time elapsed
-            let yearsElapsed = UFix128(timeElapsed) / FlowCreditMarket.secondsInYear
+            let yearsElapsed = UFix128(timeElapsed) / UFix128(FlowCreditMarket.secondsInYear)
             let insuranceRate = UFix128(self.insuranceRate)
             // Insurance amount is a percentage of total credit balance per year
             let insuranceAmount = self.totalCreditBalance * insuranceRate * yearsElapsed

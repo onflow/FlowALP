@@ -80,5 +80,12 @@ fun test_collectInsurance_success_fullAmount() {
 
     // verify formula: insuranceAmount = totalCreditBalance * insuranceRate * (timeElapsed / secondsPerYear)
     // Expected: 500.0 * 0.1 * (secondsInYear / secondsInYear) = 50.0 MOET
-    Test.assert(ufixEqualWithinVariance(50.0, collectedAmount), message: "Insurance collected should be ~50.0 MOET")
+    // Multiple script calls (getInsuranceFundBalance, getReserveBalance, getBlockTimestamp) - each advances the block timestamp slightly
+    // and that's why the time passed can be more than secondsInYear by few sec (usually 1 sec)
+    Test.assert(
+        ufixEqualWithinVariance(50.0, collectedAmount)                  // time passed = secondsInYear
+        || ufixEqualWithinVariance(50.00000158, collectedAmount)        // time passed = secondsInYear + 1 sec
+        || ufixEqualWithinVariance(50.00000316, collectedAmount)        // time passed = secondsInYear + 2 sec
+        || ufixEqualWithinVariance(50.00000475, collectedAmount),       // time passed = secondsInYear + 3 sec
+        message: "Insurance collected should be ~50.0 MOET")
 }
