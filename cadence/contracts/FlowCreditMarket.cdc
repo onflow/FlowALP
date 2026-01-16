@@ -653,7 +653,7 @@ access(all) contract FlowCreditMarket {
         /// The interest curve implementation used to calculate interest rate
         access(EImplementation) var interestCurve: {InterestCurve}
 
-        /// The insurance rate applied to total credit when computing credit interest (default 0.1%)
+        /// The annual insurance rate applied to total credit when computing credit interest (default 0.1%)
         access(EImplementation) var insuranceRate: UFix64
 
         /// Timestamp of the last insurance collection for this token
@@ -722,9 +722,7 @@ access(all) contract FlowCreditMarket {
         /// Sets the swapper used for insurance collection (must swap from this token type to MOET)
         access(EImplementation) fun setInsuranceSwapper(_ swapper: {DeFiActions.Swapper}?) {
             if let swapper = swapper {
-                // Validate that swapper can handle this token type and outputs MOET
-                // Note: We can't validate the input type here without knowing the token type,
-                // but we'll validate it when collectInsurance is called
+                assert(swapper.inType() == self.tokenType, message: "Insurance swapper must accept \(self.tokenType.identifier), not \(swapper.inType().identifier)")
                 assert(swapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
             }
             self.insuranceSwapper = swapper
@@ -1026,7 +1024,6 @@ access(all) contract FlowCreditMarket {
             // Get quote and perform swap
             let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
             var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
-            assert(moetVault.getType() == Type<@MOET.Vault>(), message: "Insurance swapper returned wrong out type")
 
             // Update last collection time
             self.setLastInsuranceCollection(currentTime)
