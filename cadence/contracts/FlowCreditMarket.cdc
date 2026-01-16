@@ -1282,6 +1282,19 @@ access(all) contract FlowCreditMarket {
             return vaultRef?.balance ?? 0.0
         }
 
+        /// Returns a reference to the reserve vault for the given type, if the token type is supported.
+        /// If no reserve vault exists yet, and the token type is supported, the reserve vault is created.
+        access(self) fun _borrowOrCreateReserveVault(type: Type): &{FungibleToken.Vault} {
+            pre {
+                self.isTokenSupported(tokenType: type)
+            }
+            if self.reserves[type] == nil {
+                self.reserves[type] <-! DeFiActionsUtils.getEmptyVault(type)
+            }
+            let vaultRef = &self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
+            return vaultRef!
+        }
+
         /// Returns a position's balance available for withdrawal of a given Vault type.
         /// Phase 0 refactor: compute via pure helpers using a PositionView and TokenSnapshot for the base path.
         /// When `pullFromTopUpSource` is true and a topUpSource exists, preserve deposit-assisted semantics.
@@ -1813,12 +1826,9 @@ access(all) contract FlowCreditMarket {
                 message: "Seize amount below minimum"
             )
 
-            // Ensure internal reserves exist for seizeType and debtType
+            // Ensure internal reserve exists for seizeType
             if self.reserves[seizeType] == nil {
                 self.reserves[seizeType] <-! DeFiActionsUtils.getEmptyVault(seizeType)
-            }
-            if self.reserves[debtType] == nil {
-                self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
             }
 
             // Move repay tokens into reserves (repay vault must exactly match requiredRepay)
@@ -1831,7 +1841,7 @@ access(all) contract FlowCreditMarket {
                 message: "Repay vault balance must be at least requiredRepay"
             )
             let toUse <- from.withdraw(amount: quote.requiredRepay)
-            let debtReserveRef = (&self.reserves[debtType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let debtReserveRef = self._borrowOrCreateReserveVault(type: debtType)
             debtReserveRef.deposit(from: <-toUse)
 
             // Reduce borrower's debt position by repayAmount
@@ -1906,14 +1916,6 @@ access(all) contract FlowCreditMarket {
                     "Liquidations paused"
             }
             self._assertLiquidationsActive()
-
-            // Ensure reserve vaults exist for both tokens
-            if self.reserves[seizeType] == nil {
-                self.reserves[seizeType] <-! DeFiActionsUtils.getEmptyVault(seizeType)
-            }
-            if self.reserves[debtType] == nil {
-                self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
-            }
 
             // Validate position is liquidatable
             let health = self.positionHealth(pid: pid)
@@ -2055,12 +2057,9 @@ access(all) contract FlowCreditMarket {
 
         access(self) fun internalRepay(pid: UInt64, from: @{FungibleToken.Vault}): UFix64 {
             let debtType = from.getType()
-            if self.reserves[debtType] == nil {
-                self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
-            }
             let toDeposit <- from
             let amount = toDeposit.balance
-            let reserveRef = (&self.reserves[debtType] as &{FungibleToken.Vault}?)!
+            let reserveRef = self._borrowOrCreateReserveVault(type: debtType)
             reserveRef.deposit(from: <-toDeposit)
             let position = self._borrowPosition(pid: pid)
             let debtState = self._borrowUpdatedTokenState(type: debtType)
