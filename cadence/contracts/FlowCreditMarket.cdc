@@ -773,7 +773,6 @@ access(all) contract FlowCreditMarket {
         /// which recalculates interest rates based on the new utilization ratio.
         /// This ensures rates always reflect the current state of the pool
         /// without requiring manual rate update calls.
-
         access(EImplementation) fun increaseCreditBalance(by amount: UFix128) {
             self.totalCreditBalance = self.totalCreditBalance + amount
             self.updateForUtilizationChange()
