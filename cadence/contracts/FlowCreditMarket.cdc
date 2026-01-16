@@ -1185,20 +1185,24 @@ access(all) contract FlowCreditMarket {
         //  - also to make allowlist pattern work with automated liquidation, initiator of this automation will need actual handle on a dex in order to pass it to FCM 
 
         /// Allowlist of permitted DeFiActions Swapper types for DEX liquidations
+        /// TODO: unused! To remove, must re-deploy existing contracts
         access(self) var allowedSwapperTypes: {Type: Bool}
+
+        access(self) let dex: {DeFiActions.SwapperProvider}
 
         /// Max allowed deviation in basis points between DEX-implied price and oracle price
         access(self) var dexOracleDeviationBps: UInt16
 
         /// Max slippage allowed in basis points for DEX liquidations
         /// TODO(jord): revisit this. Is this ever necessary if we are also checking dexOracleDeviationBps? Do we want both a spot price check and a slippage from spot price check?
+        /// TODO: unused! To remove, must re-deploy existing contracts
         access(self) var dexMaxSlippageBps: UInt64
 
         /// Max route hops allowed for DEX liquidations
-        // TODO(jord): unused
+        /// TODO: unused! To remove, must re-deploy existing contracts
         access(self) var dexMaxRouteHops: UInt64
 
-        init(defaultToken: Type, priceOracle: {DeFiActions.PriceOracle}) {
+        init(defaultToken: Type, priceOracle: {DeFiActions.PriceOracle}, dex: {DeFiActions.SwapperProvider}) {
             pre {
                 priceOracle.unitOfAccount() == defaultToken:
                     "Price oracle must return prices in terms of the default token"
@@ -1230,6 +1234,7 @@ access(all) contract FlowCreditMarket {
             self.lastUnpausedAt = nil
             self.protocolLiquidationFeeBps = 0
             self.allowedSwapperTypes = {}
+            self.dex = dex
             self.dexOracleDeviationBps = UInt16(300) // 3% default
             self.dexMaxSlippageBps = 100
             self.dexMaxRouteHops = 3
