@@ -1853,9 +1853,12 @@ access(all) contract FlowCreditMarket {
                 message: "Seize amount below minimum"
             )
 
-            // Ensure internal reserve exists for seizeType
+            // Ensure internal reserves exist for seizeType and debtType
             if self.reserves[seizeType] == nil {
                 self.reserves[seizeType] <-! DeFiActionsUtils.getEmptyVault(seizeType)
+            }
+            if self.reserves[debtType] == nil {
+                self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
             }
 
             // Move repay tokens into reserves (repay vault must exactly match requiredRepay)
@@ -1868,7 +1871,7 @@ access(all) contract FlowCreditMarket {
                 message: "Repay vault balance must be at least requiredRepay"
             )
             let toUse <- from.withdraw(amount: quote.requiredRepay)
-            let debtReserveRef = self._borrowOrCreateReserveVault(type: debtType)
+            let debtReserveRef = (&self.reserves[debtType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
             debtReserveRef.deposit(from: <-toUse)
 
             // Reduce borrower's debt position by repayAmount
@@ -1943,6 +1946,14 @@ access(all) contract FlowCreditMarket {
                     "Liquidations paused"
             }
             self._assertLiquidationsActive()
+
+            // Ensure reserve vaults exist for both tokens
+            if self.reserves[seizeType] == nil {
+                self.reserves[seizeType] <-! DeFiActionsUtils.getEmptyVault(seizeType)
+            }
+            if self.reserves[debtType] == nil {
+                self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
+            }
 
             // Validate position is liquidatable
             let health = self.positionHealth(pid: pid)
@@ -2084,9 +2095,12 @@ access(all) contract FlowCreditMarket {
 
         access(self) fun internalRepay(pid: UInt64, from: @{FungibleToken.Vault}): UFix64 {
             let debtType = from.getType()
+            if self.reserves[debtType] == nil {
+                self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
+            }
             let toDeposit <- from
             let amount = toDeposit.balance
-            let reserveRef = self._borrowOrCreateReserveVault(type: debtType)
+            let reserveRef = (&self.reserves[debtType] as &{FungibleToken.Vault}?)!
             reserveRef.deposit(from: <-toDeposit)
             let position = self._borrowPosition(pid: pid)
             let debtState = self._borrowUpdatedTokenState(type: debtType)
