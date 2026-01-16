@@ -1308,19 +1308,6 @@ access(all) contract FlowCreditMarket {
             return vaultRef?.balance ?? 0.0
         }
 
-        /// Returns a reference to the reserve vault for the given type, if the token type is supported.
-        /// If no reserve vault exists yet, and the token type is supported, the reserve vault is created.
-        access(self) fun _borrowOrCreateReserveVault(type: Type): &{FungibleToken.Vault} {
-            pre {
-                self.isTokenSupported(tokenType: type)
-            }
-            if self.reserves[type] == nil {
-                self.reserves[type] <-! DeFiActionsUtils.getEmptyVault(type)
-            }
-            let vaultRef = &self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
-            return vaultRef!
-        }
-
         /// Returns a position's balance available for withdrawal of a given Vault type.
         /// Phase 0 refactor: compute via pure helpers using a PositionView and TokenSnapshot for the base path.
         /// When `pullFromTopUpSource` is true and a topUpSource exists, preserve deposit-assisted semantics.
