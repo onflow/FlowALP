@@ -1188,6 +1188,7 @@ access(all) contract FlowCreditMarket {
         /// TODO: unused! To remove, must re-deploy existing contracts
         access(self) var allowedSwapperTypes: {Type: Bool}
 
+        /// A trusted DEX (or set of DEXes) used by FCM as a pricing oracle and trading counterparty for liquidations.
         access(self) let dex: {DeFiActions.SwapperProvider}
 
         /// Max allowed deviation in basis points between DEX-implied price and oracle price
@@ -2105,7 +2106,7 @@ access(all) contract FlowCreditMarket {
             )
         }
 
-         // Returns health value of this position if the given amount of the specified token were withdrawn without
+        // Returns health value of this position if the given amount of the specified token were withdrawn without
         // using the top up source.
         // NOTE: This method can return health values below 1.0, which aren't actually allowed. This indicates
         // that the proposed withdrawal would fail (unless a top up source is available and used).
@@ -3087,12 +3088,12 @@ access(all) contract FlowCreditMarket {
     ///
     access(all) resource PoolFactory {
         /// Creates the contract-managed Pool and saves it to the canonical path, reverting if one is already stored
-        access(all) fun createPool(defaultToken: Type, priceOracle: {DeFiActions.PriceOracle}) {
+        access(all) fun createPool(defaultToken: Type, priceOracle: {DeFiActions.PriceOracle}, dex: {DeFiActions.SwapperProvider}) {
             pre {
                 FlowCreditMarket.account.storage.type(at: FlowCreditMarket.PoolStoragePath) == nil:
                     "Storage collision - Pool has already been created & saved to \(FlowCreditMarket.PoolStoragePath)"
             }
-            let pool <- create Pool(defaultToken: defaultToken, priceOracle: priceOracle)
+            let pool <- create Pool(defaultToken: defaultToken, priceOracle: priceOracle, dex: dex)
             FlowCreditMarket.account.storage.save(<-pool, to: FlowCreditMarket.PoolStoragePath)
             let cap = FlowCreditMarket.account.capabilities.storage.issue<&Pool>(FlowCreditMarket.PoolStoragePath)
             FlowCreditMarket.account.capabilities.unpublish(FlowCreditMarket.PoolPublicPath)

@@ -3,6 +3,7 @@ import "FungibleToken"
 import "DeFiActions"
 import "FlowCreditMarket"
 import "MockOracle"
+import "MockDexSwapper"
 
 /// THIS TRANSACTION IS NOT INTENDED FOR PRODUCTION
 /// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -16,15 +17,17 @@ transaction(defaultTokenIdentifier: String) {
     let factory: &FlowCreditMarket.PoolFactory
     let defaultToken: Type
     let oracle: {DeFiActions.PriceOracle}
+    let dex: {DeFiActions.SwapperProvider}
 
     prepare(signer: auth(BorrowValue) &Account) {
         self.factory = signer.storage.borrow<&FlowCreditMarket.PoolFactory>(from: FlowCreditMarket.PoolFactoryPath)
             ?? panic("Could not find PoolFactory in signer's account")
         self.defaultToken = CompositeType(defaultTokenIdentifier) ?? panic("Invalid defaultTokenIdentifier \(defaultTokenIdentifier)")
         self.oracle = MockOracle.PriceOracle()
+        self.dex = MockDexSwapper.SwapperProvider()
     }
 
     execute {
-        self.factory.createPool(defaultToken: self.defaultToken, priceOracle: self.oracle)
+        self.factory.createPool(defaultToken: self.defaultToken, priceOracle: self.oracle, dex: self.dex)
     }
 }
