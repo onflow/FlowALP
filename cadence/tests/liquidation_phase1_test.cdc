@@ -27,6 +27,7 @@ fun setup() {
     let protocolAccount = Test.getAccount(0x0000000000000007)
 
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: moetIdentifier, price: 1.0)
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
     grantPoolCapToConsumer()
     addSupportedTokenZeroRateCurve(
@@ -36,6 +37,16 @@ fun setup() {
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
+    )
+
+    // Add DEX swapper for FLOW -> MOET pair (for liquidations)
+    // priceRatio = 1.0 means 1 MOET per 1 FLOW (matches oracle prices)
+    addMockDexSwapper(
+        signer: protocolAccount,
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: 1.0
     )
 
     snapshot = getCurrentBlockHeight()
@@ -100,6 +111,14 @@ fun testManualLiquidation_liquidationExceedsTargetHealth() {
     // cause undercollateralization
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: Test.getAccount(0x0000000000000007),
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     // execute liquidation
@@ -149,6 +168,14 @@ fun testManualLiquidation_repayExceedsDebt() {
     // cause undercollateralization
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: Test.getAccount(0x0000000000000007),
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: moetIdentifier)
@@ -201,6 +228,14 @@ fun testManualLiquidation_seizeExceedsCollateral() {
     // cause undercollateralization AND insolvency
     let newPrice = 0.5 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: Test.getAccount(0x0000000000000007),
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let collateralBalance = getPositionBalance(pid: pid, vaultID: flowTokenIdentifier).balance
@@ -251,6 +286,14 @@ fun testManualLiquidation_reduceHealth() {
     // cause undercollateralization AND insolvency
     let newPrice = 0.5 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: Test.getAccount(0x0000000000000007),
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let collateralBalancePreLiq = getPositionBalance(pid: pid, vaultID: flowTokenIdentifier).balance
@@ -309,6 +352,14 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
     // cause undercollateralization
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: Test.getAccount(0x0000000000000007),
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: moetIdentifier)
@@ -354,6 +405,14 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
     // cause undercollateralization
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: Test.getAccount(0x0000000000000007),
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: moetIdentifier)
@@ -401,6 +460,14 @@ fun testManualLiquidation_unsupportedDebtType() {
     // cause undercollateralization
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: Test.getAccount(0x0000000000000007),
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: moetIdentifier)
@@ -448,6 +515,14 @@ fun testManualLiquidation_unsupportedCollateralType() {
     // cause undercollateralization
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: Test.getAccount(0x0000000000000007),
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let collateralBalancePreLiq = getPositionBalance(pid: pid, vaultID: flowTokenIdentifier).balance
@@ -492,6 +567,15 @@ fun testManualLiquidation_supportedDebtTypeNotInPosition() {
         depositCapacityCap: 1_000_000.0
     )
 
+    // Add DEX swapper for MockYieldToken -> MOET pair
+    addMockDexSwapper(
+        signer: protocolAccount,
+        inVaultIdentifier: mockYieldTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: 1.0
+    )
+
     // user1 setup - deposits FLOW
     let user1 = Test.createAccount()
     setupMoetVault(user1, beFailed: false)
@@ -518,6 +602,14 @@ fun testManualLiquidation_supportedDebtTypeNotInPosition() {
     // cause undercollateralization for user1 by dropping FLOW price
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: protocolAccount,
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
     let hAfterPrice = getPositionHealth(pid: pid1, beFailed: false)
 
     // execute liquidation
@@ -559,6 +651,15 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
         depositCapacityCap: 1_000_000.0
     )
 
+    // Add DEX swapper for MockYieldToken -> MOET pair
+    addMockDexSwapper(
+        signer: protocolAccount,
+        inVaultIdentifier: mockYieldTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: 1.0
+    )
+
     // user1 setup - deposits FLOW, borrows MOET
     let user1 = Test.createAccount()
     setupMoetVault(user1, beFailed: false)
@@ -584,6 +685,14 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
     // cause undercollateralization for user1 by dropping FLOW price
     let newPrice = 0.5 // $/FLOW
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: protocolAccount,
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
     let hAfterPrice = getPositionHealth(pid: pid1, beFailed: false)
 
     // execute liquidation

@@ -270,6 +270,22 @@ fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, pri
 }
 
 access(all)
+fun addMockDexSwapper(
+    signer: Test.TestAccount,
+    inVaultIdentifier: String,
+    outVaultIdentifier: String,
+    vaultSourceStoragePath: StoragePath,
+    priceRatio: UFix64
+) {
+    let addRes = _executeTransaction(
+        "./transactions/mock-dex-swapper/add_swapper.cdc",
+        [inVaultIdentifier, outVaultIdentifier, vaultSourceStoragePath, priceRatio],
+        signer
+    )
+    Test.expect(addRes, Test.beSucceeded())
+}
+
+access(all)
 fun addSupportedTokenZeroRateCurve(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,

@@ -1537,14 +1537,12 @@ access(all) contract FlowCreditMarket {
             let postHealth = FlowCreditMarket.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
             assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: \(postHealth)>\(self.liquidationTargetHF)")
 
-            // TODO(jord): uncomment following when implementing dex logic https://github.com/onflow/FlowCreditMarket/issues/94
-/* 
             // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
             let swapper = self.dex!.getSwapper(inType: seizeType, outType: debtType)! // TODO: will revert if pair unsupported
             // Get a quote: "how much collateral do I need to give you to get `repayAmount` debt tokens"
             let quote = swapper.quoteIn(forDesired: repayAmount, reverse: false)
             assert(seizeAmount < quote.inAmount, message: "Liquidation offer must be better than that offered by DEX")
-            
+
             // Compare the DEX price to the oracle price and revert if they diverge beyond configured threshold.
             let Pcd_dex = quote.outAmount / quote.inAmount // price of collateral, denominated in debt token, implied by dex quote (D/C)
             // Compute the absolute value of the difference between the oracle price and dex price
@@ -1554,7 +1552,6 @@ access(all) contract FlowCreditMarket {
             let Pcd_dex_oracle_diffBps = UInt16(Pcd_dex_oracle_diffPct * 10_000.0) // cannot overflow because Pcd_dex_oracle_diffPct<=1
 
             assert(Pcd_dex_oracle_diffBps <= self.dexOracleDeviationBps, message: "Too large difference between dex/oracle prices diff=\(Pcd_dex_oracle_diffBps)bps")
-*/
 
             // Execute the liquidation
             return <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
