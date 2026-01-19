@@ -109,6 +109,10 @@ fun test_collectInsurance_noTimeElapsed_returnsNil() {
     let swapperResult = setInsuranceSwapper(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
+    // set insurance rate
+    let rateResult = setInsuranceRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, insuranceRate: 0.1)
+    Test.expect(rateResult, Test.beSucceeded())
+    
     // get initial insurance fund balance
     let initialBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialBalance)

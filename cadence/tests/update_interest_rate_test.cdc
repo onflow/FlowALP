@@ -38,6 +38,8 @@ fun test_FixedRateInterestCurve_uses_spread_model() {
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
     )
+    // set insurance rate
+    tokenState.setInsuranceRate(0.001)
     // Balance changes automatically trigger updateInterestRates() via updateForUtilizationChange()
     tokenState.increaseCreditBalance(by: 1000.0)
     tokenState.increaseDebitBalance(by: 500.0)  // 50% utilization
@@ -62,6 +64,8 @@ fun test_FixedRateInterestCurve_zero_credit_rate_when_insurance_exceeds_debit() 
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
     )
+    // set insurance rate
+    tokenState.setInsuranceRate(0.001)
     // Balance changes automatically trigger rate updates via updateForUtilizationChange()
     tokenState.increaseCreditBalance(by: 100.0)
     tokenState.increaseDebitBalance(by: 50.0)
@@ -88,6 +92,8 @@ fun test_KinkCurve_uses_reserve_factor_model() {
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
     )
+    // set insurance rate
+    tokenState.setInsuranceRate(0.001)
     // Balance changes automatically trigger rate updates via updateForUtilizationChange()
     tokenState.increaseCreditBalance(by: 200.0)
     tokenState.increaseDebitBalance(by: 50.0)  // 25% utilization
@@ -115,6 +121,8 @@ fun test_KinkCurve_zero_credit_rate_when_no_borrowing() {
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
     )
+    // set insurance rate
+    tokenState.setInsuranceRate(0.001)
     // Balance changes automatically trigger rate updates via updateForUtilizationChange()
     tokenState.increaseCreditBalance(by: 100.0)
     // No debit balance - zero utilization

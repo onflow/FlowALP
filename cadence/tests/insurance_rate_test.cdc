@@ -1,16 +1,27 @@
 import Test
+import BlockchainHelpers
 
 import "test_helpers.cdc"
 import "FlowCreditMarket"
 
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) let alice = Test.createAccount()
+access(all) var snapshot: UInt64 = 0
 
 access(all)
 fun setup() {
     deployContracts()
-
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    
+    // take snapshot first, then advance time so reset() target is always lower than current height
+    snapshot = getCurrentBlockHeight()
+    // move time by 1 second so Test.reset() works properly before each test
+    Test.moveTime(by: 1.0)
+}
+
+access(all)
+fun beforeEach() {
+     Test.reset(to: snapshot)
 }
 
 // -----------------------------------------------------------------------------
@@ -19,7 +30,15 @@ fun setup() {
 // -----------------------------------------------------------------------------
 access(all)
 fun test_setInsuranceRate_withoutEGovernanceEntitlement() {
-    let res = setInsuranceRate(
+    // set insurance swapper
+    var res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    res = setInsuranceRate(
         signer: alice,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: 0.01,
@@ -35,13 +54,21 @@ fun test_setInsuranceRate_withoutEGovernanceEntitlement() {
 // -----------------------------------------------------------------------------
 access(all)
 fun test_setInsuranceRate_withEGovernanceEntitlement() {
-    let defaultInsuranceRate = 0.001
+    // set insurance swapper
+    var res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    let defaultInsuranceRate = 0.0
     var actual = getInsuranceRate(tokenTypeIdentifier: defaultTokenIdentifier)
     Test.assertEqual(defaultInsuranceRate, actual!)
 
     let insuranceRate = 0.02
     // use protocol account with proper entitlement
-    let res = setInsuranceRate(
+    res = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: insuranceRate,
@@ -54,14 +81,41 @@ fun test_setInsuranceRate_withEGovernanceEntitlement() {
 }
 
 // -----------------------------------------------------------------------------
+// Test: setInsuranceRate with EGovernance entitlement should fail
+// Verifies that swapper is already provided
+// -----------------------------------------------------------------------------
+access(all)
+fun test_set_insuranceRate_without_set_swapper() {
+    let res = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.01,
+    )
+
+    Test.expect(res, Test.beFailed())
+
+    let errorMessage = res.error!.message
+    let containsExpectedError = errorMessage.contains("Cannot set non-zero insurance rate without an insurance swapper configured for \(defaultTokenIdentifier)")
+    Test.assert(containsExpectedError, message: "expected error about insurance rate, got: \(errorMessage)")
+}
+
+// -----------------------------------------------------------------------------
 // Test: setInsuranceRate with rate > 1.0 should fail
 // Insurance rate must be between 0 and 1 (0% to 100%)
 // -----------------------------------------------------------------------------
 access(all)
 fun test_setInsuranceRate_rateGreaterThanOne_fails() {
+    // set insurance swapper
+    var res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
     let invalidRate = 1.01
 
-    let res = setInsuranceRate(
+    res = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: invalidRate,
@@ -80,9 +134,17 @@ fun test_setInsuranceRate_rateGreaterThanOne_fails() {
 // -----------------------------------------------------------------------------
 access(all)
 fun test_setInsuranceRate_rateLessThanZero_fails() {
+    // set insurance swapper
+    var res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
     let invalidRate = -0.01
 
-    let res = _executeTransaction(
+    res = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
         [defaultTokenIdentifier, invalidRate],
         protocolAccount
@@ -101,8 +163,16 @@ fun test_setInsuranceRate_rateLessThanZero_fails() {
 // -----------------------------------------------------------------------------
 access(all)
 fun test_setInsuranceRate_invalidTokenType_fails() {
+    // set insurance swapper
+    var res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
     let unsupportedTokenIdentifier = flowTokenIdentifier
-    let res = setInsuranceRate(
+    res = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: unsupportedTokenIdentifier,
         insuranceRate: 0.05,

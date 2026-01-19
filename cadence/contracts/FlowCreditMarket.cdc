@@ -698,7 +698,7 @@ access(all) contract FlowCreditMarket {
             self.currentCreditRate = 1.0
             self.currentDebitRate = 1.0
             self.interestCurve = interestCurve
-            self.insuranceRate = 0.001
+            self.insuranceRate = 0.0
             self.lastInsuranceCollectionTime = getCurrentBlock().timestamp
             self.insuranceSwapper = nil
             self.depositLimitFraction = 0.05
@@ -973,8 +973,11 @@ access(all) contract FlowCreditMarket {
         access(EImplementation) fun collectInsurance(
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
         ): @MOET.Vault? {
-            // If no swapper configured, skip collection
-            if self.insuranceSwapper == nil {
+            let currentTime = getCurrentBlock().timestamp
+
+            // If insuranceRate is 0.0 configured, skip collection but update the last insurance collection time
+            if self.insuranceRate == 0.0 {
+                self.setLastInsuranceCollectionTime(currentTime)
                 return nil
             }
 
@@ -984,7 +987,6 @@ access(all) contract FlowCreditMarket {
             }
 
             // Calculate accrued insurance amount based on time elapsed since last collection
-            let currentTime = getCurrentBlock().timestamp
             let timeElapsed = currentTime - self.lastInsuranceCollectionTime
             
             // If no time has elapsed, nothing to collect
@@ -3285,6 +3287,14 @@ access(all) contract FlowCreditMarket {
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
+
+            // Validate constraint: non-zero rate requires swapper
+            if insuranceRate > 0.0 {
+                assert(
+                    tsRef.insuranceSwapper != nil, 
+                    message:"Cannot set non-zero insurance rate without an insurance swapper configured for \(tokenType.identifier)",
+                )
+            }
             tsRef.setInsuranceRate(insuranceRate)
 
             emit InsuranceRateUpdated(
@@ -3301,6 +3311,14 @@ access(all) contract FlowCreditMarket {
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
+
+            // cannot remove swapper if insurance rate > 0
+            if swapper == nil {
+                assert(
+                    tsRef.insuranceRate == 0.0,
+                    message: "Cannot remove insurance swapper while insurance rate is non-zero for \(tokenType.identifier)"
+                )
+            }
             if let swapper = swapper {
                 // Validate swapper types match
                 assert(swapper.inType() == tokenType, message: "Swapper input type must match token type")
