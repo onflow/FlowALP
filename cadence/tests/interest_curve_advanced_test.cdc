@@ -315,9 +315,9 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     log("Sum of phases: \(sumOfPhases.toString())")
     log("Difference: \(growthDiff.toString())")
 
-    // Allow small tolerance (< 0.01) for fixed-point arithmetic rounding
+    // Allow small tolerance (< 0.0001) for fixed-point arithmetic rounding
     Test.assert(
-        growthDiff < 0.01,
+        growthDiff < 0.0001,
         message: "Total growth should equal sum of phase growths"
     )
 
@@ -419,7 +419,6 @@ fun test_exact_compounding_verification_one_year() {
     // Formula: perSecondRate = 1 + 0.10/31557600, factor = perSecondRate^31557600
     // factor = (1 + 0.10/31557600)^31557600 ≈ 1.105170918
     // Expected growth rate = factor - 1 ≈ 0.105170918
-    // Expected growth = debtBefore * 0.105170918 ≈ debtBefore * 0.105170918 MOET
     // Note: Tests run sequentially with accumulated interest, so exact values depend on debtBefore
 
     // Verify growth rate is approximately 10.52% (the effective rate from 10% APY compounded per-second)
@@ -530,7 +529,7 @@ fun test_rapid_curve_changes_no_double_counting() {
     log("Expected growth rate: \(expectedGrowthRate.toString())")
 
     Test.assert(
-        growth <= tolerance,
+        growthDiff <= tolerance,
         message: "Growth should be ~0.0. Actual: \(growth)"
     )
 
