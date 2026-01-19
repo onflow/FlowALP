@@ -3310,20 +3310,21 @@ access(all) contract FlowCreditMarket {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
-                ?? panic("Invariant: token state missing")
+                ?? panic("Invariant: token state missing")   
 
-            // cannot remove swapper if insurance rate > 0
-            if swapper == nil {
+            if let swapper = swapper {
+                // Validate swapper types match
+                assert(swapper.inType() == tokenType, message: "Swapper input type must match token type")
+                assert(swapper.outType() == Type<@MOET.Vault>(), message: "Swapper output type must be MOET")
+            
+            } else {
+                // cannot remove swapper if insurance rate > 0
                 assert(
                     tsRef.insuranceRate == 0.0,
                     message: "Cannot remove insurance swapper while insurance rate is non-zero for \(tokenType.identifier)"
                 )
             }
-            if let swapper = swapper {
-                // Validate swapper types match
-                assert(swapper.inType() == tokenType, message: "Swapper input type must match token type")
-                assert(swapper.outType() == Type<@MOET.Vault>(), message: "Swapper output type must be MOET")
-            }
+
             tsRef.setInsuranceSwapper(swapper)
         }
 

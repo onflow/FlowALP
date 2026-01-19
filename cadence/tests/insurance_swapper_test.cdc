@@ -87,6 +87,46 @@ fun test_removeInsuranceSwapper_success() {
 }
 
 // -----------------------------------------------------------------------------
+// Test: test_remove_insuranceSwapper_failed should not remove configured swapper
+// Verifies that an insurance swapper cannot be removed when insurance rate is being set
+// -----------------------------------------------------------------------------
+access(all)
+fun test_remove_insuranceSwapper_failed() {
+    // set a swapper
+    var res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    // verify swapper is configured
+    Test.assertEqual(true, insuranceSwapperExists(tokenTypeIdentifier: defaultTokenIdentifier))
+
+    // set insurance rate
+    res = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.001,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    // remove swapper
+    let removeResult = removeInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+    )
+    Test.expect(removeResult, Test.beFailed())
+
+    let errorMessage = removeResult.error!.message
+    let containsExpectedError = errorMessage.contains("Cannot remove insurance swapper while insurance rate is non-zero for \(defaultTokenIdentifier)")
+    Test.assert(containsExpectedError, message: "expected error about cannot remove insurance swapper, got: \(errorMessage)")
+
+    // verify swapper is still exist
+    Test.assertEqual(true, insuranceSwapperExists(tokenTypeIdentifier: defaultTokenIdentifier))
+}
+
+// -----------------------------------------------------------------------------
 // Test: setInsuranceSwapper without EGovernance entitlement should fail
 // Verifies that accounts without EGovernance entitlement cannot set swapper
 // -----------------------------------------------------------------------------
