@@ -2952,16 +2952,14 @@ access(all) contract FlowCreditMarket {
                 amount: uintAmount,
                 tokenState: tokenState
             )
-            // Ensure that this withdrawal doesn't cause the position to be overdrawn.
-            // Skip the assertion only when a top-up was used in this call and the immediate
-            // post-withdrawal health is 0 (transitional state before top-up effects fully reflect).
+            // Attempt to pull additional collateral from the top-up source (if configured)
+            // to keep the position above minHealth after the withdrawal.
+            // Regardless of whether a top-up occurs, the final post-call health must satisfy minHealth.
             let postHealth = self.positionHealth(pid: pid)
-            if !(usedTopUp && postHealth == 0.0) {
-                assert(
-                    position.minHealth <= postHealth,
-                    message: "Position is overdrawn"
-                )
-            }
+            assert(
+                position.minHealth <= postHealth,
+                message: "Position is overdrawn"
+            )
 
             // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
