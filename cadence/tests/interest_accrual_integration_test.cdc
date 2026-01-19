@@ -238,8 +238,8 @@ fun test_moet_debit_accrues_interest() {
     // During this time, interest will accrue on the borrower's debt.
     //
     // The protocol uses per-second discrete compounding:
-    // FinalDebt = InitialDebt × (1 + r/31536000)^seconds
-    // where r is the annual rate and 31536000 is seconds per year.
+    // FinalDebt = InitialDebt × (1 + r/31_557_600)^seconds
+    // where r is the annual rate and 31_557_600 is seconds per year (365.25 days).
     Test.moveTime(by: THIRTY_DAYS)
     Test.commitBlock()
 
@@ -307,9 +307,9 @@ fun test_moet_debit_accrues_interest() {
     // -------------------------------------------------------------------------
     // Expected Growth Calculation
     // -------------------------------------------------------------------------
-    // Per-second compounding: (1 + r/31536000)^seconds - 1
+    // Per-second compounding: (1 + r / 31_557_600) ^ seconds - 1
     // At 4% APY for 30 days (2,592,000 seconds):
-    // Growth = (1 + 0.04/31536000)^2592000 - 1 ≈ 0.329%
+    // Growth = (1 + 0.04 / 31_557_600) ^ 2_592_000 - 1 ≈ 0.328%
     //
     // We use a wide tolerance range because:
     // 1. Actual utilization affects some curve types
@@ -980,12 +980,12 @@ fun test_insurance_deduction_verification() {
     // =========================================================================
     // STEP 7: Advance Time by 1 Full Year
     // =========================================================================
-    // Using 1 year (31,536,000 seconds) makes the percentage calculations
+    // Using 1 year (31,557,600 seconds for 365.25 days) makes the percentage calculations
     // straightforward. With per-second discrete compounding:
-    // - 10% APY → (1 + 0.10/31536000)^31536000 - 1 ≈ 10.52% effective rate
-    // - 9% APY → (1 + 0.09/31536000)^31536000 - 1 ≈ 9.42% effective rate
+    // - 10% APY → (1 + 0.10 / 31_557_600) ^ 31_557_600 - 1 ≈ 10.52% effective rate
+    // - 9% APY → (1 + 0.09 / 31_557_600) ^ 31_557_600 - 1 ≈ 9.42% effective rate
     // - Spread should be approximately 1%
-    let ONE_YEAR: Fix64 = 31536000.0
+    let ONE_YEAR: Fix64 = 31_557_600.0 // 365.25 days
     Test.moveTime(by: ONE_YEAR)
     Test.commitBlock()
 
