@@ -13,5 +13,5 @@ access(all) fun main(tokenTypeIdentifier: String): UFix64? {
     let pool = getAccount(protocolAddress).capabilities.borrow<&FlowCreditMarket.Pool>(FlowCreditMarket.PoolPublicPath)
         ?? panic("Could not find Pool at path \(FlowCreditMarket.PoolPublicPath)")
     
-    return pool.getLastStabilityCollection(tokenType: tokenType)
+    return pool.getLastStabilityCollectionTime(tokenType: tokenType)
 }

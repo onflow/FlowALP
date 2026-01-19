@@ -127,9 +127,9 @@ access(all) contract FlowCreditMarket {
         stabilityFeeRate: UFix64,
     )
 
-    access(all) event LastStabilityFeeCollectionUpdated(
+    access(all) event LastStabilityFeeCollectionTimeUpdated(
         tokenType: String,
-        lastStabilityFeeCollection: UFix64,
+        lastStabilityFeeCollectionTime: UFix64,
     )
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
@@ -655,7 +655,7 @@ access(all) contract FlowCreditMarket {
         access(EImplementation) var stabilityFeeRate: UFix64
 
         /// Timestamp of the last stability collection for this token.
-        access(EImplementation) var lastStabilityFeeCollection: UFix64
+        access(EImplementation) var lastStabilityFeeCollectionTime: UFix64
 
         /// Per-position limit fraction of capacity (default 0.05 i.e., 5%)
         access(EImplementation) var depositLimitFraction: UFix64
@@ -695,7 +695,7 @@ access(all) contract FlowCreditMarket {
             self.interestCurve = interestCurve
             self.insuranceRate = 0.001
             self.stabilityFeeRate = 0.05
-            self.lastStabilityFeeCollection = getCurrentBlock().timestamp
+            self.lastStabilityFeeCollectionTime = getCurrentBlock().timestamp
             self.depositLimitFraction = 0.05
             self.depositRate = depositRate
             self.depositCapacity = depositCapacityCap
@@ -739,8 +739,8 @@ access(all) contract FlowCreditMarket {
         }
         
         /// Sets the last stability fee collection timestamp for this token state.
-        access(EImplementation) fun setLastStabilityFeeCollection(_ timestamp: UFix64) {
-            self.lastStabilityFeeCollection = timestamp
+        access(EImplementation) fun setLastStabilityFeeCollectionTime(_ lastStabilityFeeCollectionTime: UFix64) {
+            self.lastStabilityFeeCollectionTime = lastStabilityFeeCollectionTime
         }
 
         /// Calculates the per-user deposit limit cap based on depositLimitFraction * depositCapacityCap
@@ -966,19 +966,16 @@ access(all) contract FlowCreditMarket {
         access(EImplementation) fun collectStabilityFee(
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
         ): @{FungibleToken.Vault}? {
-            // If no credit balance, nothing to collect
-            if self.totalCreditBalance == 0.0 {
-                return nil
-            }
+            let currentTime = getCurrentBlock().timestamp
 
-            // If no reserve vault provided, nothing to collect from
-            if reserveVault == nil {
+            // If stabilityFeeRate is 0.0 configured, skip collection but update the last stability collection time
+            if self.stabilityFeeRate == 0.0 {
+                self.setLastStabilityFeeCollectionTime(currentTime)
                 return nil
             }
 
             // Calculate accrued stability amount based on time elapsed since last collection
-            let currentTime = getCurrentBlock().timestamp
-            let timeElapsed = currentTime - self.lastStabilityFeeCollection
+            let timeElapsed = currentTime - self.lastStabilityFeeCollectionTime
 
             // If no time has elapsed, nothing to collect
             if timeElapsed <= 0.0 {
@@ -995,20 +992,20 @@ access(all) contract FlowCreditMarket {
             let stabilityAmount = interestIncome * stabilityFeeRate
             let stabilityAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(stabilityAmount)
 
-            emit LastStabilityFeeCollectionUpdated(
+            emit LastStabilityFeeCollectionTimeUpdated(
                 tokenType: reserveVault.getType().identifier,
-                lastStabilityFeeCollection: currentTime,
+                lastStabilityFeeCollectionTime: currentTime,
             )
 
             // If calculated amount is zero or negative, skip collection but update timestamp
             if stabilityAmountUFix64 <= 0.0 {
-                self.setLastStabilityFeeCollection(currentTime)
+                self.setLastStabilityFeeCollectionTime(currentTime)
                 return nil
             }
 
             // Check if we have enough balance in reserves
             if reserveVault.balance <= 0.0 {
-                self.setLastStabilityFeeCollection(currentTime)
+                self.setLastStabilityFeeCollectionTime(currentTime)
                 return nil
             }
 
@@ -1018,7 +1015,7 @@ access(all) contract FlowCreditMarket {
             let stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
 
             // Update last collection time
-            self.setLastStabilityFeeCollection(currentTime)
+            self.setLastStabilityFeeCollectionTime(currentTime)
 
             // Return the vault for the caller to deposit
             return <-stabilityVault
@@ -1368,9 +1365,9 @@ access(all) contract FlowCreditMarket {
 
         /// Returns the timestamp of the last stability collection for a given token type.
         /// Returns nil if the token type is not supported.
-        access(all) view fun getLastStabilityCollection(tokenType: Type): UFix64? {
+        access(all) view fun getLastStabilityCollectionTime(tokenType: Type): UFix64? {
             if let tokenState = self.globalLedger[tokenType] {
-                return tokenState.lastStabilityFeeCollection
+                return tokenState.lastStabilityFeeCollectionTime
             }
 
             return nil

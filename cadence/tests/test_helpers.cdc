@@ -243,8 +243,8 @@ fun getStabilityFundBalance(tokenTypeIdentifier: String): UFix64? {
 }
 
 access(all)
-fun getLastStabilityCollection(tokenTypeIdentifier: String): UFix64? {
-    let res = _executeScript("../scripts/flow-credit-market/get_last_stability_collection.cdc", [tokenTypeIdentifier])
+fun getLastStabilityCollectionTime(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_last_stability_collection_time.cdc", [tokenTypeIdentifier])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as? UFix64
 }
