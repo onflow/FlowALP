@@ -127,8 +127,10 @@ access(all) contract FlowCreditMarket {
         stabilityFeeRate: UFix64,
     )
 
-    access(all) event LastStabilityFeeCollectionTimeUpdated(
+    access(all) event StabilityFeeCollected(
+        poolUUID: UInt64,
         tokenType: String,
+        stabilityAmount: UFix64,
         lastStabilityFeeCollectionTime: UFix64,
     )
 
@@ -958,8 +960,8 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Collects stability funds by withdrawing from reserves.
-        /// The stability amount is calculated based on the insurance rate applied to the total credit balance over the time elapsed.
-        /// This should be called periodically (e.g., when updateInterestRates is called) to accumulate the insurance fund.
+        /// The stability amount is calculated based on the stability rate applied to the interest income over the time elapsed.
+        /// This should be called periodically (e.g., when updateInterestRates is called) to accumulate the stability fund.
         ///
         /// @param reserveVault: The reserve vault for this token type to withdraw stability amount from
         /// @return: A token type vault containing the collected stability funds, or nil if no collection occurred
@@ -991,11 +993,6 @@ access(all) contract FlowCreditMarket {
             let interestIncome = self.totalDebitBalance * UFix128(self.currentDebitRate) * UFix128(yearsElapsed) 
             let stabilityAmount = interestIncome * stabilityFeeRate
             let stabilityAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(stabilityAmount)
-
-            emit LastStabilityFeeCollectionTimeUpdated(
-                tokenType: reserveVault.getType().identifier,
-                lastStabilityFeeCollectionTime: currentTime,
-            )
 
             // If calculated amount is zero or negative, skip collection but update timestamp
             if stabilityAmountUFix64 <= 0.0 {
@@ -3572,8 +3569,9 @@ access(all) contract FlowCreditMarket {
             // Get reference to reserves
             let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
 
-            // Collect insurance and get token vault
-            if let collectedVault <- tokenState.collectStabilityFee(reserveVault: reserveRef) {       
+            // Collect stability and get token vault
+            if let collectedVault <- tokenState.collectStabilityFee(reserveVault: reserveRef) {  
+                let collectedBalance = collectedVault.balance     
                 // Deposit collected token into stability fund
                 if self.stabilityFunds[tokenType] == nil {
                     self.stabilityFunds[tokenType] <-! collectedVault
@@ -3581,6 +3579,13 @@ access(all) contract FlowCreditMarket {
                     let fundRef = (&self.stabilityFunds[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
                     fundRef.deposit(from: <-collectedVault)
                 }
+                
+                emit StabilityFeeCollected(
+                    poolUUID: self.uuid,
+                    tokenType: tokenType.identifier,
+                    stabilityAmount: collectedBalance,
+                    lastStabilityFeeCollectionTime: tokenState.lastStabilityFeeCollectionTime
+                )
             }
         }
 
