@@ -3351,7 +3351,7 @@ access(all) contract FlowCreditMarket {
             recipient.deposit(from: <-withdrawn)
         }
 
-        /// Manually triggers fees for a given token type.
+        /// Manually triggers fee collection for a given token type.
         /// This is useful for governance to collect accrued stability on-demand.
         /// Fee is calculated based on time elapsed since last collection.
         access(EGovernance) fun collectFees(tokenType: Type) {
