@@ -2893,7 +2893,9 @@ access(all) contract FlowCreditMarket {
                     )
 
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
+                    assert(pulledVault.getType() == topUpType, message: "topUpSource returned unexpected token type")
                     let pulledAmount = pulledVault.balance
+
 
                     // NOTE: We requested the "ideal" deposit, but we compare against the required deposit here.
                     // The top up source may not have enough funds get us to the target health, but could have
@@ -3305,7 +3307,9 @@ access(all) contract FlowCreditMarket {
                         log("    [CONTRACT] idealDeposit: \(idealDeposit)")
                     }
 
+                    let topUpType = topUpSource.getSourceType()
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
+                    assert(pulledVault.getType() == topUpType, message: "topUpSource returned unexpected token type")
 
                     emit Rebalanced(
                         pid: pid,
