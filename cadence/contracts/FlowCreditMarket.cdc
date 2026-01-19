@@ -653,7 +653,7 @@ access(all) contract FlowCreditMarket {
         /// The interest curve implementation used to calculate interest rate
         access(EImplementation) var interestCurve: {InterestCurve}
 
-        /// The annual insurance rate applied to total credit when computing credit interest (default 0.1%)
+        /// The annual insurance rate applied to total debit when computing credit interest (default 0.1%)
         access(EImplementation) var insuranceRate: UFix64
 
         /// Timestamp of the last insurance collection for this token
@@ -997,8 +997,8 @@ access(all) contract FlowCreditMarket {
             // Calculate insurance amount: insuranceRate is annual, so prorate by time elapsed
             let yearsElapsed = UFix128(timeElapsed) / UFix128(FlowCreditMarket.secondsInYear)
             let insuranceRate = UFix128(self.insuranceRate)
-            // Insurance amount is a percentage of total credit balance per year
-            let insuranceAmount = self.totalCreditBalance * insuranceRate * yearsElapsed
+            // Insurance amount is a percentage of total debit balance per year
+            let insuranceAmount = self.totalDebitBalance * insuranceRate * yearsElapsed
             let insuranceAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(insuranceAmount)
 
             // If calculated amount is zero or negative, skip collection but update timestamp

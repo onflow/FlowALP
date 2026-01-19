@@ -2,35 +2,59 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
+import "FlowToken"
 import "test_helpers.cdc"
 
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
+access(all) let flowVaultStoragePath = /storage/flowTokenVault
 
 access(all)
 fun setup() {
     deployContracts()
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+
+    // Add FlowToken as a supported collateral type (needed for borrowing scenarios)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
+    addSupportedTokenZeroRateCurve(
+        signer: protocolAccount,
+        tokenTypeIdentifier: flowTokenIdentifier,
+        collateralFactor: 0.8,
+        borrowFactor: 1.0,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
 }
 
 // -----------------------------------------------------------------------------
 // Test: collectInsurance full success flow with formula verification
-// Full flow: deposit to create credit → advance time → collect insurance
-// → verify MOET returned, reserves reduced, timestamp updated, and formula
-// Formula: insuranceAmount = totalCreditBalance * insuranceRate * (timeElapsed / secondsPerYear)
+// Full flow: LP deposits to create credit → borrower borrows to create debit
+// → advance time → collect insurance → verify MOET returned, reserves reduced,
+// timestamp updated, and formula
+// Formula: insuranceAmount = totalDebitBalance * insuranceRate * (timeElapsed / secondsPerYear)
 //
-// This test runs in isolation (separate file) to ensure totalCreditBalance
-// equals exactly the depositAmount without interference from other tests.
+// This test runs in isolation (separate file) to ensure totalDebitBalance
+// equals exactly the borrowed amount without interference from other tests.
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_success_fullAmount() {
-    // setup user and create a position with deposit
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    mintMoet(signer: protocolAccount, to: user.address, amount: 1000.0, beFailed: false)
+    // setup LP to provide MOET liquidity for borrowing
+    let lp = Test.createAccount()
+    setupMoetVault(lp, beFailed: false)
+    mintMoet(signer: protocolAccount, to: lp.address, amount: 10000.0, beFailed: false)
 
-    // create position with 500.0 deposit - totalCreditBalance = 500.0 (isolated test)
     grantPoolCapToConsumer()
-    createWrappedPosition(signer: user, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // LP deposits MOET (creates credit balance, provides borrowing liquidity)
+    createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+
+    // setup borrower with FLOW collateral
+    // With 0.8 CF and 1.3 target health: 1000 FLOW collateral allows borrowing ~615 MOET
+    // borrow = (collateral * price * CF) / targetHealth = (1000 * 1.0 * 0.8) / 1.3 ≈ 615.38
+    let borrower = Test.createAccount()
+    setupMoetVault(borrower, beFailed: false)
+    transferFlowTokens(to: borrower, amount: 1000.0)
+
+    // borrower deposits FLOW and auto-borrows MOET (creates debit balance ~615 MOET)
+    createWrappedPosition(signer: borrower, amount: 1000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: true)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(protocolAccount, beFailed: false)
@@ -78,14 +102,14 @@ fun test_collectInsurance_success_fullAmount() {
     let lastInsuranceCollectionTime = getLastInsuranceCollectionTime(tokenTypeIdentifier: defaultTokenIdentifier)
     Test.assert(ufixEqualWithinVariance(currentTimestamp, lastInsuranceCollectionTime!), message: "lastInsuranceCollectionTime should match current timestamp")
 
-    // verify formula: insuranceAmount = totalCreditBalance * insuranceRate * (timeElapsed / secondsPerYear)
-    // Expected: 500.0 * 0.1 * (secondsInYear / secondsInYear) = 50.0 MOET
-    // Multiple script calls (getInsuranceFundBalance, getReserveBalance, getBlockTimestamp) - each advances the block timestamp slightly
-    // and that's why the time passed can be more than secondsInYear by few sec (usually 1 sec)
+    // verify formula: insuranceAmount = totalDebitBalance * insuranceRate * (timeElapsed / secondsPerYear)
+    // With 1000 FLOW collateral, 0.8 CF, and 1.3 target health:
+    // debitBalance ≈ (1000 * 1.0 * 0.8) / 1.3 ≈ 615.38 MOET
+    // Expected: ~615.38 * 0.1 * 1 ≈ 61.538 MOET (approximate due to auto-borrow mechanics)
+    // We use a range check since exact debit balance depends on auto-borrow calculation
+    let tolerance = 0.001 // MOET tolerance
+    let expectedCollectedAmount = 61.538
     Test.assert(
-        ufixEqualWithinVariance(50.0, collectedAmount)                  // time passed = secondsInYear
-        || ufixEqualWithinVariance(50.00000158, collectedAmount)        // time passed = secondsInYear + 1 sec
-        || ufixEqualWithinVariance(50.00000316, collectedAmount)        // time passed = secondsInYear + 2 sec
-        || ufixEqualWithinVariance(50.00000475, collectedAmount),       // time passed = secondsInYear + 3 sec
-        message: "Insurance collected should be ~50.0 MOET")
+        collectedAmount >= expectedCollectedAmount - tolerance && collectedAmount <= expectedCollectedAmount + tolerance,
+        message: "Insurance collected should be approximately 61.538 MOET (10% of ~615.38 MOET debit balance). Actual: ".concat(collectedAmount.toString()))
 }

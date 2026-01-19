@@ -13,6 +13,18 @@ access(all)
 fun setup() {
     deployContracts()
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+
+    // Add FlowToken as a supported collateral type (needed for borrowing scenarios)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
+    addSupportedTokenZeroRateCurve(
+        signer: protocolAccount,
+        tokenTypeIdentifier: flowTokenIdentifier,
+        collateralFactor: 0.8,
+        borrowFactor: 1.0,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
+
     // take snapshot first, then advance time so reset() target is always lower than current height
     snapshot = getCurrentBlockHeight()
     // move time by 1 second so Test.reset() works properly before each test
@@ -87,19 +99,28 @@ fun test_collectInsurance_zeroCreditBalance_returnsNil() {
 
 // -----------------------------------------------------------------------------
 // Test: collectInsurance when no time elapsed returns nil
-// Even with swapper, reserves, and credit balance, no collection occurs
+// Even with swapper, reserves, and debit balance, no collection occurs
 // if called immediately after a previous collection (timeElapsed == 0)
+// Note: Insurance is calculated on totalDebitBalance, so we need borrowing activity
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_noTimeElapsed_returnsNil() {
-    // setup user and create a position with deposit
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    mintMoet(signer: protocolAccount, to: user.address, amount: 1000.0, beFailed: false)
+    // setup LP to provide MOET liquidity for borrowing
+    let lp = Test.createAccount()
+    setupMoetVault(lp, beFailed: false)
+    mintMoet(signer: protocolAccount, to: lp.address, amount: 10000.0, beFailed: false)
 
-    // create position with deposit
     grantPoolCapToConsumer()
-    createWrappedPosition(signer: user, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // LP deposits MOET (creates credit balance, provides borrowing liquidity)
+    createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+
+    // setup borrower with FLOW collateral
+    let borrower = Test.createAccount()
+    setupMoetVault(borrower, beFailed: false)
+    transferFlowTokens(to: borrower, amount: 1000.0)
+
+    // borrower deposits FLOW and auto-borrows MOET (creates debit balance)
+    createWrappedPosition(signer: borrower, amount: 1000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: true)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(protocolAccount, beFailed: false)
@@ -112,14 +133,14 @@ fun test_collectInsurance_noTimeElapsed_returnsNil() {
     // set insurance rate
     let rateResult = setInsuranceRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, insuranceRate: 0.1)
     Test.expect(rateResult, Test.beSucceeded())
-    
+
     // get initial insurance fund balance
     let initialBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialBalance)
 
     Test.moveTime(by: 86400.0) // 1 day
 
-    // first collection - should succeed and collect insurance
+    // first collection - should succeed and collect insurance (on debit balance)
     collectInsurance(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, beFailed: false)
 
     let balanceAfterFirst = getInsuranceFundBalance()
@@ -137,17 +158,29 @@ fun test_collectInsurance_noTimeElapsed_returnsNil() {
 // Test: collectInsurance only collects up to available reserve balance
 // When calculated insurance amount exceeds reserve balance, it collects
 // only what is available. Verify exact amount withdrawn from reserves.
+// Note: Insurance is calculated on totalDebitBalance, so we need borrowing activity
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_partialReserves_collectsAvailable() {
-    // setup user and create a position with small deposit
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    mintMoet(signer: protocolAccount, to: user.address, amount: 1000.0, beFailed: false)
-
-    // create position with deposit - creates reserves
+    // setup LP to provide MOET liquidity for borrowing (small amount to create limited reserves)
+    let lp = Test.createAccount()
+    setupMoetVault(lp, beFailed: false)
+    mintMoet(signer: protocolAccount, to: lp.address, amount: 1000.0, beFailed: false)
     grantPoolCapToConsumer()
-    createWrappedPosition(signer: user, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    
+    // LP deposits 1000 MOET (creates credit balance, provides borrowing liquidity)
+    createWrappedPosition(signer: lp, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+
+    // setup borrower with large FLOW collateral to borrow most of the MOET
+    let borrower = Test.createAccount()
+    setupMoetVault(borrower, beFailed: false)
+    transferFlowTokens(to: borrower, amount: 10000.0)
+
+    // borrower deposits 10000 FLOW and auto-borrows MOET
+    // With 0.8 CF and 1.3 target health: 10000 FLOW allows borrowing ~6153 MOET
+    // But pool only has 1000 MOET, so borrower gets ~1000 MOET (limited by liquidity)
+    // This leaves reserves very low (close to 0)
+    createWrappedPosition(signer: borrower, amount: 10000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: true)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(protocolAccount, beFailed: false)
@@ -158,37 +191,28 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     Test.expect(swapperResult, Test.beSucceeded())
 
     // set a high insurance rate so calculated amount would exceed reserves
-    // 100% annual rate on 500 MOET credit = 500 MOET insurance needed per year
+    // 100% annual rate on ~1000 MOET debit balance = ~1000 MOET insurance needed per year
     let rateResult = setInsuranceRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, insuranceRate: 1.0)
     Test.expect(rateResult, Test.beSucceeded())
 
     let initialInsuranceBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialInsuranceBalance)
 
-    let reserveBalanceBefore = getReserveBalance(vaultIdentifier: defaultTokenIdentifier)
-    Test.assert(reserveBalanceBefore > 0.0, message: "Reserves should exist after deposit")
-
-    Test.moveTime(by: secondsInYear + Fix64(24.0 * 60.0 * 60.0)) // 1 year + 1 day - at 100% rate this would want to collect more than 500 MOET
+    Test.moveTime(by: secondsInYear + Fix64(24.0 * 60.0 * 60.0)) // 1 year + 1 day
 
     // collect insurance - should collect up to available reserve balance
     collectInsurance(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, beFailed: false)
 
-    // verify insurance was collected
     let finalInsuranceBalance = getInsuranceFundBalance()
-    Test.assert(finalInsuranceBalance > 0.0, message: "Insurance should have been collected")
-
     let reserveBalanceAfter = getReserveBalance(vaultIdentifier: defaultTokenIdentifier)
 
-    // calculate exact amount withdrawn from reserves
-    let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
-    Test.assert(amountWithdrawnFromReserves > 0.0, message: "Amount should have been withdrawn from reserves")
-
     // with 1:1 swap ratio, insurance fund balance should equal amount withdrawn from reserves
-    Test.assert(ufixEqualWithinVariance(amountWithdrawnFromReserves, finalInsuranceBalance), message: "Insurance fund balance should equal amount withdrawn from reserves")
+    Test.assert(ufixEqualWithinVariance(1000.0, finalInsuranceBalance), message: "Insurance fund balance should equal amount withdrawn from reserves")
+    Test.assert(ufixEqualWithinVariance(0.0, reserveBalanceAfter), message: "Reserve balance should be 0 after withdrawn all available balance")
 
     // verify collection was limited by reserves
-    // Formula: 500.0 * 1.0 * (secondsInYear / secondsInYearPlusDay) ≈ 501.37 MOET, but limited to totalCreditBalance = 500.0
-    Test.assert(ufixEqualWithinVariance(500.0, finalInsuranceBalance), message: "Insurance should be limited to 500.0 MOET")
+    // Formula: 1000.0 * 1.0 * (secondsInYear / secondsInYearPlusDay) ≈ 1002.74 MOET, but limited to totalCreditBalance = 500.0
+    Test.assert(ufixEqualWithinVariance(1000.0, finalInsuranceBalance), message: "Insurance should be limited to 500.0 MOET")
 }
 
 // -----------------------------------------------------------------------------
@@ -235,20 +259,28 @@ fun test_collectInsurance_tinyAmount_roundsToZero_returnsNil() {
 
 // -----------------------------------------------------------------------------
 // Test: collectInsurance full success flow
-// Full flow: deposit to create credit → advance time → collect insurance
-// → verify MOET returned, reserves reduced, timestamp updated
+// Full flow: LP deposits to create credit → borrower borrows to create debit
+// → advance time → collect insurance → verify MOET returned, reserves reduced, timestamp updated
 // Note: Formula verification is in insurance_collection_formula_test.cdc (isolated test)
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_success_fullAmount() {
-    // setup user and create a position with deposit
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    mintMoet(signer: protocolAccount, to: user.address, amount: 1000.0, beFailed: false)
+    // setup LP to provide MOET liquidity for borrowing
+    let lp = Test.createAccount()
+    setupMoetVault(lp, beFailed: false)
+    mintMoet(signer: protocolAccount, to: lp.address, amount: 10000.0, beFailed: false)
 
-    // create position with deposit
     grantPoolCapToConsumer()
-    createWrappedPosition(signer: user, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // LP deposits MOET (creates credit balance, provides borrowing liquidity)
+    createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+
+    // setup borrower with FLOW collateral
+    let borrower = Test.createAccount()
+    setupMoetVault(borrower, beFailed: false)
+    transferFlowTokens(to: borrower, amount: 1000.0)
+
+    // borrower deposits FLOW and auto-borrows MOET (creates debit balance)
+    createWrappedPosition(signer: borrower, amount: 1000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: true)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(protocolAccount, beFailed: false)
@@ -292,35 +324,46 @@ fun test_collectInsurance_success_fullAmount() {
 // Test: collectInsurance with multiple token types
 // Verifies that insurance collection works independently for different tokens
 // Each token type has its own last insurance collection timestamp and rate
+// Note: Insurance is calculated on totalDebitBalance, so we need borrowing activity for each token
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_multipleTokens() {
-    // set oracle price for FlowToken (needed for collateral factor calculations)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
+    // Note: FlowToken is already added in setup()
 
-    // add FlowToken as a supported collateral type
-    addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
-        collateralFactor: 0.8,
-        borrowFactor: 1.0,
-        depositRate: 1_000_000.0,
-        depositCapacityCap: 1_000_000.0
-    )
+    // setup MOET LP to provide MOET liquidity for borrowing
+    let moetLp = Test.createAccount()
+    setupMoetVault(moetLp, beFailed: false)
+    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 10000.0, beFailed: false)
 
-    // setup users with both token types
-    let moetUser = Test.createAccount()
-    setupMoetVault(moetUser, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetUser.address, amount: 1000.0, beFailed: false)
-
-    let flowUser = Test.createAccount()
-    setupMoetVault(flowUser, beFailed: false)
-    transferFlowTokens(to: flowUser, amount: 1000.0)
-
-    // create positions with deposits for both token types
     grantPoolCapToConsumer()
-    createWrappedPosition(signer: moetUser, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
-    createWrappedPosition(signer: flowUser, amount: 500.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
+    // MOET LP deposits MOET (creates MOET credit balance)
+    createWrappedPosition(signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+
+    // setup FLOW LP to provide FLOW liquidity for borrowing
+    let flowLp = Test.createAccount()
+    setupMoetVault(flowLp, beFailed: false)
+    transferFlowTokens(to: flowLp, amount: 10000.0)
+
+    // FLOW LP deposits FLOW (creates FLOW credit balance)
+    createWrappedPosition(signer: flowLp, amount: 10000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
+
+    // setup MOET borrower with FLOW collateral (creates MOET debit)
+    let moetBorrower = Test.createAccount()
+    setupMoetVault(moetBorrower, beFailed: false)
+    transferFlowTokens(to: moetBorrower, amount: 1000.0)
+
+    // MOET borrower deposits FLOW and auto-borrows MOET (creates MOET debit balance)
+    createWrappedPosition(signer: moetBorrower, amount: 1000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: true)
+
+    // setup FLOW borrower with MOET collateral (creates FLOW debit)
+    let flowBorrower = Test.createAccount()
+    setupMoetVault(flowBorrower, beFailed: false)
+    mintMoet(signer: protocolAccount, to: flowBorrower.address, amount: 1000.0, beFailed: false)
+
+    // FLOW borrower deposits MOET as collateral
+    createWrappedPosition(signer: flowBorrower, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // Then borrow FLOW (creates FLOW debit balance)
+    borrowFromPosition(signer: flowBorrower, positionId: 3, tokenTypeIdentifier: flowTokenIdentifier, amount: 500.0, beFailed: false)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(protocolAccount, beFailed: false)

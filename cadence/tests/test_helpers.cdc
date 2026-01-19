@@ -376,6 +376,16 @@ fun depositToWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStor
 }
 
 access(all)
+fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, beFailed: Bool) {
+    let borrowRes = _executeTransaction(
+        "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
+        [positionId, tokenTypeIdentifier, amount],
+        signer
+    )
+    Test.expect(borrowRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
 fun addSupportedTokenKinkCurve(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
