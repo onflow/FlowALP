@@ -1224,13 +1224,15 @@ access(all) contract FlowCreditMarket {
         access(self) fun _lockPosition(_ pid: UInt64) {
             // If key absent => unlocked
             let locked = self.positionLock[pid] ?? false
-            assert(!locked, message: "Reentrancy: position \(pid) is locked")
-            self.positionLock = self.positionLock.insert(key: pid, true)
+            assert(locked == false, message: "Reentrancy: position \(pid) is locked")
+            self.positionLock[pid] = true
+            //self.positionLock = self.positionLock.insert(key: pid, true)
         }
 
         access(self) fun _unlockPosition(_ pid: UInt64) {
             // Always unlock (even if missing)
-            self.positionLock = self.positionLock.remove(key: pid) 
+            //self.positionLock = self.positionLock.remove(key: pid) 
+            self.positionLock[pid] = false 
         }
 
         access(self) fun _assertLiquidationsActive() {
@@ -2792,7 +2794,6 @@ access(all) contract FlowCreditMarket {
 
             self._lockPosition(pid)
 
-            let amount = from.balance
             let depositedUUID = from.uuid
             let type = from.getType()
 
