@@ -48,7 +48,7 @@ Both credit and debit rates are converted from annual rates to per-second compou
 perSecondRate = (yearlyRate / secondsInYear) + 1.0
 ```
 
-Where `secondsInYear = 31,536,000` (365 days × 24 hours × 60 minutes × 60 seconds).
+Where `secondsInYear = 31_557_600` (365.25 days × 24 hours × 60 minutes × 60 seconds).
 
 This conversion allows for continuous compounding of interest over time.
 
