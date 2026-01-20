@@ -10,6 +10,9 @@ access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 // Fix64 type for use with Test.moveTime()
 access(all) let secondsInYear: Fix64 = 31_557_600.0
 
+/// Number of seconds in one day (24 hours × 60 minutes × 60 seconds)
+access(all) let secondsInDay: Fix64 = 86_400.0
+
 access(all) let defaultUFixVariance = 0.00000001
 // Variance for UFix64 comparisons
 access(all) let defaultUIntVariance: UInt128 = 1_000_000_000_000_000

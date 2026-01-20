@@ -59,7 +59,7 @@ fun test_collectInsurance_noSwapper_returnsNil() {
     let initialBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialBalance)
 
-    Test.moveTime(by: 86400.0) // 1 day
+    Test.moveTime(by: secondsInDay)
 
     collectInsurance(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, beFailed: false)
 
@@ -87,7 +87,7 @@ fun test_collectInsurance_zeroCreditBalance_returnsNil() {
     let initialBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialBalance)
 
-    Test.moveTime(by: 86400.0) // 1 day
+    Test.moveTime(by: secondsInDay)
 
     // collect insurance - should return nil since totalCreditBalance == 0
     collectInsurance(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, beFailed: false)
@@ -138,7 +138,7 @@ fun test_collectInsurance_noTimeElapsed_returnsNil() {
     let initialBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialBalance)
 
-    Test.moveTime(by: 86400.0) // 1 day
+    Test.moveTime(by: secondsInDay)
 
     // first collection - should succeed and collect insurance (on debit balance)
     collectInsurance(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, beFailed: false)
