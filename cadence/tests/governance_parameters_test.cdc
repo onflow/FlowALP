@@ -26,7 +26,7 @@ fun test_setGovernanceParams_and_exercise_paths() {
 
     // 2) Exercise setInsuranceRate and negative-credit-rate branch
     // Set a relatively high insurance rate and construct a state with tiny debit income
-    let setInsRes= setInsuranceRate(
+    let setInsRes = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: 0.50,

@@ -192,7 +192,7 @@ fun test_moet_debit_accrues_interest() {
     )
     Test.expect(res, Test.beSucceeded())
 
-    let setInsRes= setInsuranceRate(
+    let setInsRes = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: 0.001,
@@ -425,7 +425,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     )
     Test.expect(res, Test.beSucceeded())
 
-    let setInsRes= setInsuranceRate(
+    let setInsRes = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: 0.01,
@@ -613,7 +613,7 @@ fun test_flow_debit_accrues_interest() {
     )
     Test.expect(res, Test.beSucceeded())
 
-    let setInsRes= setInsuranceRate(
+    let setInsRes = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: 0.01,
@@ -808,7 +808,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
     )
     Test.expect(res, Test.beSucceeded())
 
-    let setInsRes= setInsuranceRate(
+    let setInsRes = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: 0.01,
@@ -1217,7 +1217,7 @@ fun test_combined_all_interest_scenarios() {
     )
     Test.expect(res, Test.beSucceeded())
 
-    let setInsRes= setInsuranceRate(
+    let setInsRes = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: 0.01,
