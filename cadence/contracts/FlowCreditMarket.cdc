@@ -1177,7 +1177,7 @@ access(all) contract FlowCreditMarket {
         access(self) var dexMaxRouteHops: UInt64
 
         // Reentrancy guards keyed by position id
-        access(self) var positionLock: {UInt64: Bool?}
+        access(self) var positionLock: {UInt64: Bool}
 
         init(defaultToken: Type, priceOracle: {DeFiActions.PriceOracle}) {
             pre {
@@ -1224,15 +1224,13 @@ access(all) contract FlowCreditMarket {
         access(self) fun _lockPosition(_ pid: UInt64) {
             // If key absent => unlocked
             let locked = self.positionLock[pid] ?? false
-            assert(locked == false, message: "Reentrancy: position \(pid) is locked")
+            assert(!locked, message: "Reentrancy: position \(pid) is locked")
             self.positionLock[pid] = true
-            //self.positionLock = self.positionLock.insert(key: pid, true)
         }
 
         access(self) fun _unlockPosition(_ pid: UInt64) {
             // Always unlock (even if missing)
-            //self.positionLock = self.positionLock.remove(key: pid) 
-            self.positionLock[pid] = false 
+            self.positionLock.remove(key: pid)
         }
 
         access(self) fun _assertLiquidationsActive() {
