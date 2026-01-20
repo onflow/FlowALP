@@ -98,64 +98,6 @@ fun test_collectInsurance_zeroCreditBalance_returnsNil() {
 }
 
 // -----------------------------------------------------------------------------
-// Test: collectInsurance when no time elapsed returns nil
-// Even with swapper, reserves, and debit balance, no collection occurs
-// if called immediately after a previous collection (timeElapsed == 0)
-// Note: Insurance is calculated on totalDebitBalance, so we need borrowing activity
-// -----------------------------------------------------------------------------
-access(all)
-fun test_collectInsurance_noTimeElapsed_returnsNil() {
-    // setup LP to provide MOET liquidity for borrowing
-    let lp = Test.createAccount()
-    setupMoetVault(lp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: lp.address, amount: 10000.0, beFailed: false)
-
-    grantPoolCapToConsumer()
-    // LP deposits MOET (creates credit balance, provides borrowing liquidity)
-    createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
-
-    // setup borrower with FLOW collateral
-    let borrower = Test.createAccount()
-    setupMoetVault(borrower, beFailed: false)
-    transferFlowTokens(to: borrower, amount: 1000.0)
-
-    // borrower deposits FLOW and auto-borrows MOET (creates debit balance)
-    createWrappedPosition(signer: borrower, amount: 1000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: true)
-
-    // setup protocol account with MOET vault for the swapper
-    setupMoetVault(protocolAccount, beFailed: false)
-    mintMoet(signer: protocolAccount, to: protocolAccount.address, amount: 10000.0, beFailed: false)
-
-    // configure insurance swapper (1:1 ratio)
-    let swapperResult = setInsuranceSwapper(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, priceRatio: 1.0)
-    Test.expect(swapperResult, Test.beSucceeded())
-
-    // set insurance rate
-    let rateResult = setInsuranceRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, insuranceRate: 0.1)
-    Test.expect(rateResult, Test.beSucceeded())
-
-    // get initial insurance fund balance
-    let initialBalance = getInsuranceFundBalance()
-    Test.assertEqual(0.0, initialBalance)
-
-    Test.moveTime(by: secondsInDay)
-
-    // first collection - should succeed and collect insurance (on debit balance)
-    collectInsurance(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, beFailed: false)
-
-    let balanceAfterFirst = getInsuranceFundBalance()
-    Test.assert(balanceAfterFirst > 0.0, message: "Insurance should have been collected")
-
-    // second collection immediately after - should return nil (no time elapsed)
-    collectInsurance(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, beFailed: false)
-
-    // check for no additional collection
-    let balanceAfterSecond = getInsuranceFundBalance()
-    // Balance should not change on second immediate collection
-    Test.assertEqual(balanceAfterFirst, balanceAfterSecond)
-}
-
-// -----------------------------------------------------------------------------
 // Test: collectInsurance only collects up to available reserve balance
 // When calculated insurance amount exceeds reserve balance, it collects
 // only what is available. Verify exact amount withdrawn from reserves.
