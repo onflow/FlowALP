@@ -140,7 +140,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     Test.expect(res, Test.beSucceeded())
 
     // set insurance rate
-    let setInsRes= setInsuranceRate(
+    let setInsRes = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: 0.001,
