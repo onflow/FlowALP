@@ -1522,7 +1522,7 @@ access(all) contract FlowCreditMarket {
             let Ce_pre = balanceSheet.effectiveCollateral // effective collateral pre-liquidation
             let De_pre = balanceSheet.effectiveDebt       // effective debt pre-liquidation
             let Fc = positionView.snapshots[seizeType]!.risk.collateralFactor
-            let Fd = positionView.snapshots[debtType]!.risk.collateralFactor
+            let Fd = positionView.snapshots[debtType]!.risk.borrowFactor
 
             let Ce_seize = UFix128(seizeAmount) * UFix128(Pc_oracle) * Fc // effective value of seized collateral ($)
             let De_seize = UFix128(repayAmount) * UFix128(Pd_oracle) * Fd // effective value of repaid debt ($)
