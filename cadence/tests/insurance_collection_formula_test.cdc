@@ -80,7 +80,6 @@ fun test_collectInsurance_success_fullAmount() {
 
     // record timestamp before advancing time
     let timestampBefore = getBlockTimestamp()
-
     Test.moveTime(by: secondsInYear)
 
     collectInsurance(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, beFailed: false)
@@ -91,9 +90,9 @@ fun test_collectInsurance_success_fullAmount() {
     Test.assert(reserveBalanceAfter < reserveBalanceBefore, message: "Reserves should have decreased after collection")
 
     let collectedAmount = finalInsuranceBalance - initialInsuranceBalance
-    let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
     Test.assert(collectedAmount > 0.0, message: "Insurance fund should have received MOET")
 
+    let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
     // verify the amount withdrawn from reserves equals the collected amount (1:1 swap ratio)
     Test.assertEqual(amountWithdrawnFromReserves, collectedAmount)
 
@@ -107,9 +106,7 @@ fun test_collectInsurance_success_fullAmount() {
     // debitBalance ≈ (1000 * 1.0 * 0.8) / 1.3 ≈ 615.38 MOET
     // Expected: ~615.38 * 0.1 * 1 ≈ 61.538 MOET (approximate due to auto-borrow mechanics)
     // We use a range check since exact debit balance depends on auto-borrow calculation
-    let tolerance = 0.001 // MOET tolerance
-    let expectedCollectedAmount = 61.538
-    Test.assert(
-        collectedAmount >= expectedCollectedAmount - tolerance && collectedAmount <= expectedCollectedAmount + tolerance,
-        message: "Insurance collected should be approximately 61.538 MOET (10% of ~615.38 MOET debit balance). Actual: ".concat(collectedAmount.toString()))
+    let expectedCollectedAmount = 61.53846153 
+    // Insurance collected should be 10% of ~615.38 MOET debit balance
+    Test.assertEqual(expectedCollectedAmount, collectedAmount)
 }
