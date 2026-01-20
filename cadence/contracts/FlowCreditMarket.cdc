@@ -2767,6 +2767,15 @@ access(all) contract FlowCreditMarket {
             reserveVault.deposit(from: <-from)
 
             self._queuePositionForUpdateIfNecessary(pid: pid)
+
+            emit Deposited(
+                pid: pid,
+                poolUUID: self.uuid,
+                vaultType: type,
+                amount: amount,
+                depositedUUID: depositedUUID
+            )
+
         }
 
         /// Deposits the provided funds to the specified position with the configurable `pushToDrawDownSink` option.
@@ -2801,16 +2810,8 @@ access(all) contract FlowCreditMarket {
 
             // Rebalancing and queue management
             if pushToDrawDownSink {
-                self.rebalancePosition(pid: pid, force: true)
+                self._rebalancePositionNoLock(pid: pid, force: true)
             }
-
-            emit Deposited(
-                pid: pid,
-                poolUUID: self.uuid,
-                vaultType: type,
-                amount: amount,
-                depositedUUID: depositedUUID
-            )
 
             self._unlockPosition(pid)
         }
@@ -3279,6 +3280,10 @@ access(all) contract FlowCreditMarket {
         /// Otherwise, this function will do nothing if the position is within the min/max health bounds.
         access(EPosition) fun rebalancePosition(pid: UInt64, force: Bool) {
             self._lockPosition(pid)
+            self._rebalancePositionNoLock(pid: pid, force: force)
+            self._unlockPosition(pid)
+        }
+        access(self) fun _rebalancePositionNoLock(pid: UInt64, force: Bool) {
             if self.debugLogging {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
             }
@@ -3286,7 +3291,6 @@ access(all) contract FlowCreditMarket {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
 
             if !force && (position.minHealth <= balanceSheet.health && balanceSheet.health <= position.maxHealth) {
-                self._unlockPosition(pid)
                 // We aren't forcing the update, and the position is already between its desired min and max. Nothing to do!
                 return
             }
@@ -3379,7 +3383,6 @@ access(all) contract FlowCreditMarket {
                 }
             }
 
-            self._unlockPosition(pid)
         }
 
         /// Executes asynchronous updates on positions that have been queued up to the lesser of the queue length or
@@ -3399,6 +3402,7 @@ access(all) contract FlowCreditMarket {
 
         /// Executes an asynchronous update on the specified position
         access(EImplementation) fun asyncUpdatePosition(pid: UInt64) {
+            self._lockPosition(pid)
             let position = self._borrowPosition(pid: pid)
 
             // First check queued deposits, their addition could affect the rebalance we attempt later
@@ -3432,7 +3436,8 @@ access(all) contract FlowCreditMarket {
 
             // Now that we've deposited a non-zero amount of any queued deposits, we can rebalance
             // the position if necessary.
-            self.rebalancePosition(pid: pid, force: false)
+            self._rebalancePositionNoLock(pid: pid, force: false)
+            self._unlockPosition(pid)
         }
 
         ////////////////
