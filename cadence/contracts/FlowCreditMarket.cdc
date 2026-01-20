@@ -2697,6 +2697,7 @@ access(all) contract FlowCreditMarket {
 
             // Get a reference to the user's position and global token state for the affected token.
             let type = from.getType()
+            let depositedUUID = from.uuid
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: type)
 
@@ -2798,9 +2799,6 @@ access(all) contract FlowCreditMarket {
             }
 
             self._lockPosition(pid)
-
-            let depositedUUID = from.uuid
-            let type = from.getType()
 
             self._depositEffectsOnly(pid: pid, from: <-from)
 
