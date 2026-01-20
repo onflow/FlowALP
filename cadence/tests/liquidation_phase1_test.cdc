@@ -331,6 +331,127 @@ fun testManualLiquidation_reduceHealth() {
     Test.assert(hAfterLiq < hAfterPrice, message: "test expects health to decrease after liquidation")
 }
 
+/// Should be able to liquidate to below target health while increasing health factor.
+access(all)
+fun testManualLiquidation_increaseHealthBelowTarget() {
+    safeReset()
+    let pid: UInt64 = 0
+
+    // user setup
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    transferFlowTokens(to: user, amount: 1000.0)
+
+    // open wrapped position and deposit via existing helper txs
+    // debt is MOET, collateral is FLOW
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+
+    // cause severe undercollateralization
+    let newPrice = 0.5 // $/FLOW
+    setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: Test.getAccount(0x0000000000000007),
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
+
+    let healthBefore = getPositionHealth(pid: pid, beFailed: false)
+    Test.assert(healthBefore < 1.05, message: "position should be unhealthy before liquidation")
+
+    // execute liquidation
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
+
+    // Repay MOET to seize FLOW
+    // DEX quote would require: 100/0.5 = 200 FLOW
+    // Liquidator offers 150 FLOW < 200 FLOW (better price)
+    let repayAmount = 100.0
+    let seizeAmount = 150.0
+    let liqRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, seizeAmount, repayAmount],
+        liquidator
+    )
+    // Should succeed
+    Test.expect(liqRes, Test.beSucceeded())
+
+    // Check post-liquidation health
+    let healthAfter = getPositionHealth(pid: pid, beFailed: false)
+
+    // Health should have improved
+    Test.assert(healthAfter > healthBefore, message: "health should improve after liquidation")
+
+    // Health should still be below target
+    Test.assert(healthAfter < 1.05, message: "health should still be below target (1.05)")
+}
+
+/// Should be able to liquidate to exactly target health
+access(all)
+fun testManualLiquidation_liquidateToTarget() {
+    safeReset()
+    let pid: UInt64 = 0
+
+    // user setup
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    transferFlowTokens(to: user, amount: 1000.0)
+
+    // open wrapped position and deposit via existing helper txs
+    // debt is MOET, collateral is FLOW
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+
+    // cause undercollateralization
+    let newPrice = 0.7 // $/FLOW
+    setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
+
+    // Update DEX price to match oracle
+    addMockDexSwapper(
+        signer: Test.getAccount(0x0000000000000007),
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
+
+    let healthBefore = getPositionHealth(pid: pid, beFailed: false)
+    Test.assert(healthBefore < 1.05, message: "position should be unhealthy before liquidation")
+
+    // execute liquidation
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
+
+    // Repay MOET to seize FLOW - calculated to bring health to exactly 1.05
+    // Initial: 1000 FLOW at $0.7 with effective collateral factor 0.8
+    // Debt: ~615.38 MOET (from auto-borrow at creation)
+    // Pre-health: (1000 * 0.7 * 0.8) / 615.38 = 0.91
+    // Target post-health: 1.05
+    // Formula: (1000 - seizeAmount) * 0.7 * 0.8 / (615.38 - repayAmount) = 1.05
+    // Using repayAmount = 100: seizeAmount = 33.66
+    // DEX quote would require: 100/0.7 = 142.86 FLOW
+    // Liquidator offers 33.66 FLOW < 142.86 FLOW (better price)
+    let repayAmount = 100.0
+    let seizeAmount = 33.66
+    let liqRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, seizeAmount, repayAmount],
+        liquidator
+    )
+    // Should succeed
+    Test.expect(liqRes, Test.beSucceeded())
+
+    // Check post-liquidation health
+    let healthAfter = getPositionHealth(pid: pid, beFailed: false)
+
+    // Health should be very close to target (1.05), allowing for small variance
+    Test.assert(healthAfter >= 1.04 && healthAfter <= 1.06, message: "health should be close to target (1.05), actual: ".concat(healthAfter.toString()))
+}
+
 /// Test the case where the liquidator provides a repayment vault of the collateral type instead of debt type.
 access(all)
 fun testManualLiquidation_repaymentVaultCollateralType() {
@@ -847,127 +968,6 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexAboveOracle() {
     // Should fail because divergence exceeds threshold
     Test.expect(liqRes, Test.beFailed())
     Test.assertError(liqRes, errorMessage: "Too large difference between dex/oracle prices")
-}
-
-/// Should be able to liquidate to below target health while increasing health factor.
-access(all)
-fun testManualLiquidation_increaseHealthBelowTarget() {
-    safeReset()
-    let pid: UInt64 = 0
-
-    // user setup
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    transferFlowTokens(to: user, amount: 1000.0)
-
-    // open wrapped position and deposit via existing helper txs
-    // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
-
-    // cause severe undercollateralization
-    let newPrice = 0.5 // $/FLOW
-    setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
-
-    // Update DEX price to match oracle
-    addMockDexSwapper(
-        signer: Test.getAccount(0x0000000000000007),
-        inVaultIdentifier: flowTokenIdentifier,
-        outVaultIdentifier: moetIdentifier,
-        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
-        priceRatio: newPrice
-    )
-
-    let healthBefore = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(healthBefore < 1.05, message: "position should be unhealthy before liquidation")
-
-    // execute liquidation
-    let liquidator = Test.createAccount()
-    setupMoetVault(liquidator, beFailed: false)
-    mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
-
-    // Repay MOET to seize FLOW
-    // DEX quote would require: 100/0.5 = 200 FLOW
-    // Liquidator offers 150 FLOW < 200 FLOW (better price)
-    let repayAmount = 100.0
-    let seizeAmount = 150.0
-    let liqRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
-        [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, seizeAmount, repayAmount],
-        liquidator
-    )
-    // Should succeed
-    Test.expect(liqRes, Test.beSucceeded())
-
-    // Check post-liquidation health
-    let healthAfter = getPositionHealth(pid: pid, beFailed: false)
-
-    // Health should have improved
-    Test.assert(healthAfter > healthBefore, message: "health should improve after liquidation")
-
-    // Health should still be below target
-    Test.assert(healthAfter < 1.05, message: "health should still be below target (1.05)")
-}
-
-/// Should be able to liquidate to exactly target health
-access(all)
-fun testManualLiquidation_liquidateToTarget() {
-    safeReset()
-    let pid: UInt64 = 0
-
-    // user setup
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    transferFlowTokens(to: user, amount: 1000.0)
-
-    // open wrapped position and deposit via existing helper txs
-    // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
-
-    // cause undercollateralization
-    let newPrice = 0.7 // $/FLOW
-    setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
-
-    // Update DEX price to match oracle
-    addMockDexSwapper(
-        signer: Test.getAccount(0x0000000000000007),
-        inVaultIdentifier: flowTokenIdentifier,
-        outVaultIdentifier: moetIdentifier,
-        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
-        priceRatio: newPrice
-    )
-
-    let healthBefore = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(healthBefore < 1.05, message: "position should be unhealthy before liquidation")
-
-    // execute liquidation
-    let liquidator = Test.createAccount()
-    setupMoetVault(liquidator, beFailed: false)
-    mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
-
-    // Repay MOET to seize FLOW - calculated to bring health to exactly 1.05
-    // Initial: 1000 FLOW at $0.7 with effective collateral factor 0.8
-    // Debt: ~615.38 MOET (from auto-borrow at creation)
-    // Pre-health: (1000 * 0.7 * 0.8) / 615.38 = 0.91
-    // Target post-health: 1.05
-    // Formula: (1000 - seizeAmount) * 0.7 * 0.8 / (615.38 - repayAmount) = 1.05
-    // Using repayAmount = 100: seizeAmount = 33.66
-    // DEX quote would require: 100/0.7 = 142.86 FLOW
-    // Liquidator offers 33.66 FLOW < 142.86 FLOW (better price)
-    let repayAmount = 100.0
-    let seizeAmount = 33.66
-    let liqRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
-        [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, seizeAmount, repayAmount],
-        liquidator
-    )
-    // Should succeed
-    Test.expect(liqRes, Test.beSucceeded())
-
-    // Check post-liquidation health
-    let healthAfter = getPositionHealth(pid: pid, beFailed: false)
-
-    // Health should be very close to target (1.05), allowing for small variance
-    Test.assert(healthAfter >= 1.04 && healthAfter <= 1.06, message: "health should be close to target (1.05), actual: ".concat(healthAfter.toString()))
 }
 
 /// Liquidation should fail if liquidator offer is worse than DEX price.
