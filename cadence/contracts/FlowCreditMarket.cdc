@@ -2689,7 +2689,8 @@ access(all) contract FlowCreditMarket {
             from: @{FungibleToken.Vault}
         ) {
             // NOTE: caller must have already validated pid + token support
-            if from.balance == 0.0 {
+            let amount = from.balance
+            if amount == 0.0 {
                 Burner.burn(<-from)
                 return
             }
@@ -2794,11 +2795,6 @@ access(all) contract FlowCreditMarket {
             }
             if self.debugLogging {
                 log("    [CONTRACT] depositAndPush(pid: \(pid), pushToDrawDownSink: \(pushToDrawDownSink))")
-            }
-            let amount = from.balance
-            if amount == 0.0 {
-                Burner.burn(<-from)
-                return
             }
 
             self._lockPosition(pid)
