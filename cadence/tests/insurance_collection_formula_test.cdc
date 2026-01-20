@@ -95,12 +95,12 @@ fun test_collectInsurance_success_fullAmount() {
     Test.assert(collectedAmount > 0.0, message: "Insurance fund should have received MOET")
 
     // verify the amount withdrawn from reserves equals the collected amount (1:1 swap ratio)
-    Test.assert(ufixEqualWithinVariance(amountWithdrawnFromReserves, collectedAmount), message: "Amount withdrawn from reserves should equal collected amount")
+    Test.assertEqual(amountWithdrawnFromReserves, collectedAmount)
 
     // verify last insurance collection time was updated to current block timestamp
     let currentTimestamp = getBlockTimestamp()
     let lastInsuranceCollectionTime = getLastInsuranceCollectionTime(tokenTypeIdentifier: defaultTokenIdentifier)
-    Test.assert(ufixEqualWithinVariance(currentTimestamp, lastInsuranceCollectionTime!), message: "lastInsuranceCollectionTime should match current timestamp")
+    Test.assertEqual(currentTimestamp, lastInsuranceCollectionTime!)
 
     // verify formula: insuranceAmount = totalDebitBalance * insuranceRate * (timeElapsed / secondsPerYear)
     // With 1000 FLOW collateral, 0.8 CF, and 1.3 target health:
