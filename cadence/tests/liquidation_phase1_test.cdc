@@ -725,10 +725,9 @@ fun testManualLiquidation_liquidationPaused() {}
 access(all)
 fun testManualLiquidation_liquidationWarmup() {}
 
-/// Liquidations should fail if DEX price and oracle price diverge by too much.
+/// Liquidations should succeed when DEX/oracle price divergence is within threshold.
 access(all)
-fun testManualLiquidation_dexOraclePriceDivergence() {
-    // Test Case 1a: Within threshold (2.94%, should succeed)
+fun testManualLiquidation_dexOraclePriceDivergence_withinThreshold() {
     safeReset()
     let pid: UInt64 = 0
 
@@ -767,20 +766,26 @@ fun testManualLiquidation_dexOraclePriceDivergence() {
     // Liquidator offers 72 FLOW < 73.53 FLOW (better price)
     let repayAmount = 50.0
     let seizeAmount = 72.0
-    let liqRes1a = _executeTransaction(
+    let liqRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, seizeAmount, repayAmount],
         liquidator
     )
     // Should succeed because divergence is within threshold
-    Test.expect(liqRes1a, Test.beSucceeded())
+    Test.expect(liqRes, Test.beSucceeded())
+}
 
-    // Test Case 1b: Exceeds threshold (6.06%, should fail)
+/// Liquidations should fail when DEX/oracle price divergence exceeds threshold.
+access(all)
+fun testManualLiquidation_dexOraclePriceDivergence_exceedsThreshold() {
+    // Test Case 1: DEX price below oracle, exceeds threshold (6.06%)
     safeReset()
-    let user1b = Test.createAccount()
-    setupMoetVault(user1b, beFailed: false)
-    transferFlowTokens(to: user1b, amount: 1000.0)
-    createWrappedPosition(signer: user1b, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    let pid: UInt64 = 0
+
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    transferFlowTokens(to: user, amount: 1000.0)
+    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // cause undercollateralization
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 0.7)
@@ -794,25 +799,25 @@ fun testManualLiquidation_dexOraclePriceDivergence() {
         priceRatio: 0.66
     )
 
-    let liquidator1b = Test.createAccount()
-    setupMoetVault(liquidator1b, beFailed: false)
-    mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator1b.address, amount: 1000.0, beFailed: false)
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
 
-    let liqRes1b = _executeTransaction(
+    let liqRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, 70.0, 50.0],
-        liquidator1b
+        liquidator
     )
     // Should fail because divergence exceeds threshold
-    Test.expect(liqRes1b, Test.beFailed())
-    Test.assertError(liqRes1b, errorMessage: "Too large difference between dex/oracle prices")
+    Test.expect(liqRes, Test.beFailed())
+    Test.assertError(liqRes, errorMessage: "Too large difference between dex/oracle prices")
 
-    // Test Case 1c: DEX higher than oracle, exceeds threshold (should fail)
+    // Test Case 2: DEX price above oracle, exceeds threshold (5.71%)
     safeReset()
-    let user1c = Test.createAccount()
-    setupMoetVault(user1c, beFailed: false)
-    transferFlowTokens(to: user1c, amount: 1000.0)
-    createWrappedPosition(signer: user1c, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    let user2 = Test.createAccount()
+    setupMoetVault(user2, beFailed: false)
+    transferFlowTokens(to: user2, amount: 1000.0)
+    createWrappedPosition(signer: user2, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // cause undercollateralization
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 0.7)
@@ -826,18 +831,18 @@ fun testManualLiquidation_dexOraclePriceDivergence() {
         priceRatio: 0.74
     )
 
-    let liquidator1c = Test.createAccount()
-    setupMoetVault(liquidator1c, beFailed: false)
-    mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator1c.address, amount: 1000.0, beFailed: false)
+    let liquidator2 = Test.createAccount()
+    setupMoetVault(liquidator2, beFailed: false)
+    mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator2.address, amount: 1000.0, beFailed: false)
 
-    let liqRes1c = _executeTransaction(
+    let liqRes2 = _executeTransaction(
         "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, 66.0, 50.0],
-        liquidator1c
+        liquidator2
     )
     // Should fail because divergence exceeds threshold
-    Test.expect(liqRes1c, Test.beFailed())
-    Test.assertError(liqRes1c, errorMessage: "Too large difference between dex/oracle prices")
+    Test.expect(liqRes2, Test.beFailed())
+    Test.assertError(liqRes2, errorMessage: "Too large difference between dex/oracle prices")
 }
 
 /// Should be able to liquidate to below target health while increasing health factor.
