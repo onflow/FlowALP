@@ -239,6 +239,16 @@ fun getDepositCapacityInfo(vaultIdentifier: String): {String: UFix64} {
     return res.returnValue as! {String: UFix64}
 }
 
+access(all)
+fun getLiquidationParams(): FlowCreditMarket.LiquidationParamsView {
+    let res = _executeScript(
+        "../scripts/flow-credit-market/get_liquidation_params.cdc",
+        []
+    )
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue! as! FlowCreditMarket.LiquidationParamsView
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
@@ -346,6 +356,16 @@ fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: Strin
         signer
     )
     Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun pauseLiquidations(signer: Test.TestAccount, flag: Bool) {
+    let res = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/pause_liquidations.cdc",
+        [flag],
+        signer
+    )
+    Test.expect(res, Test.beSucceeded())
 }
 
 access(all)
