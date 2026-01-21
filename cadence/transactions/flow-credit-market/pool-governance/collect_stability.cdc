@@ -6,7 +6,7 @@ import "FlowCreditMarket"
 /// Only governance-authorized accounts can execute this transaction.
 ///
 /// Prerequisites:
-/// - Token must have credit balance (totalCreditBalance > 0)
+/// - Token must have debit balance (totalDebitBalance > 0)
 /// - Reserves must have available balance
 /// - Time must have elapsed since last collection
 ///
@@ -25,6 +25,6 @@ transaction(tokenTypeIdentifier: String) {
     }
 
     execute {
-        self.pool.collectFees(tokenType: self.tokenType)
+        self.pool.collectStability(tokenType: self.tokenType)
     }
 }

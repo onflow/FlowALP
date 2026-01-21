@@ -15,13 +15,21 @@ access(all)
 fun test_setGovernanceParams_and_exercise_paths() {
     // Create pool
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    
+    // 1) Set insurance swapper
+    let res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
 
-    // 1) Exercise setInsuranceRate and negative-credit-rate branch
+    // 2) Exercise setInsuranceRate and negative-credit-rate branch
     // Set a relatively high insurance rate and construct a state with tiny debit income
-    let setInsRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
-        [ defaultTokenIdentifier, 0.50 ],
-        protocolAccount
+    let setInsRes = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.50,
     )
     Test.expect(setInsRes, Test.beSucceeded())
 
@@ -42,7 +50,7 @@ fun test_setGovernanceParams_and_exercise_paths() {
     // Trigger availableBalance which walks interest paths and ensures indices/rates get updated
     let _ = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: false, beFailed: false)
 
-    // 2) Exercise depositLimitFraction and queue branch
+    // 3) Exercise depositLimitFraction and queue branch
     // Set fraction small so a single deposit exceeds the per-deposit limit
     let setFracRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_deposit_limit_fraction.cdc",
@@ -60,7 +68,7 @@ fun test_setGovernanceParams_and_exercise_paths() {
     )
     Test.expect(depositRes, Test.beSucceeded())
 
-    // 3) Exercise health accessors write/read
+    // 4) Exercise health accessors write/read
     let poolExistsRes = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [protocolAccount.address])
     Test.expect(poolExistsRes, Test.beSucceeded())
 

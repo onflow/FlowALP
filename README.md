@@ -180,6 +180,9 @@ pool.deposit(pid: positionId, funds: <-vault)
 # Run all tests
 flow test --cover
 
+# Run FlowCreditMarket tests
+flow test --cover --covercode="contracts" --coverprofile="coverage.lcov" ./cadence/tests/*_test.cdc
+
 # Run specific test category
 flow test cadence/tests/interest_mechanics_test.cdc
 ```
