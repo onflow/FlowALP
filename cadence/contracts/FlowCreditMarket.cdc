@@ -1250,10 +1250,13 @@ access(all) contract FlowCreditMarket {
             // Vaults will be created when tokens are first deposited.
         }
 
+        /// Panics if liquidations are not active.
+        /// Liquidations are active when:
+        ///   - liquidations are not currently paused (liquidationsPaused == false)
+        ///   - the last time liquidations were paused was at least liquidationWarmupSec seconds ago
         access(self) fun _assertLiquidationsActive() {
             pre {
-                !self.liquidationsPaused:
-                    "Liquidations paused"
+                !self.liquidationsPaused: "Liquidations paused"
             }
             if let lastUnpausedAt = self.lastUnpausedAt {
                 let now = UInt64(getCurrentBlock().timestamp)
