@@ -840,11 +840,188 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
 
 /// All liquidations should fail when liquidations are paused.
 access(all)
-fun testManualLiquidation_liquidationPaused() {}
+fun testManualLiquidation_liquidationPaused() {
+    safeReset()
+    let pid: UInt64 = 0
+    let protocolAccount = Test.getAccount(0x0000000000000007)
+
+    // Setup: Create undercollateralized position
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    transferFlowTokens(to: user, amount: 1000.0)
+    createWrappedPosition(
+        signer: user,
+        amount: 1000.0,
+        vaultStoragePath: /storage/flowTokenVault,
+        pushToDrawDownSink: true
+    )
+
+    // Cause undercollateralization by dropping FLOW price
+    let newPrice = 0.7
+    setMockOraclePrice(
+        signer: protocolAccount,
+        forTokenIdentifier: flowTokenIdentifier,
+        price: newPrice
+    )
+    addMockDexSwapper(
+        signer: protocolAccount,
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
+
+    // Verify position is unhealthy
+    let health = getPositionHealth(pid: pid, beFailed: false)
+    Test.assert(health < 1.0, message: "Position should be liquidatable")
+
+    // PAUSE LIQUIDATIONS
+    pauseLiquidations(signer: protocolAccount, flag: true)
+
+    // Verify pause state
+    let params = getLiquidationParams(beFailed: false)
+    Test.assert(
+        params["paused"] as! Bool == true,
+        message: "Liquidations should be paused"
+    )
+
+    // Setup liquidator
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(
+        signer: protocolAccount,
+        to: liquidator.address,
+        amount: 1000.0,
+        beFailed: false
+    )
+
+    // Attempt liquidation - should fail due to pause
+    let repayAmount = 2.0
+    let seizeAmount = 1.0
+    let liqRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [
+            pid,
+            Type<@MOET.Vault>().identifier,
+            flowTokenIdentifier,
+            seizeAmount,
+            repayAmount
+        ],
+        liquidator
+    )
+
+    // Assert: Liquidation should fail with pause message
+    Test.expect(liqRes, Test.beFailed())
+    Test.assertError(liqRes, errorMessage: "Liquidations paused")
+}
 
 /// All liquidations should fail during warmup period following liquidation pause.
 access(all)
-fun testManualLiquidation_liquidationWarmup() {}
+fun testManualLiquidation_liquidationWarmup() {
+    safeReset()
+    let pid: UInt64 = 0
+    let protocolAccount = Test.getAccount(0x0000000000000007)
+
+    // Setup: Create undercollateralized position
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    transferFlowTokens(to: user, amount: 1000.0)
+    createWrappedPosition(
+        signer: user,
+        amount: 1000.0,
+        vaultStoragePath: /storage/flowTokenVault,
+        pushToDrawDownSink: true
+    )
+
+    // Cause undercollateralization
+    let newPrice = 0.7
+    setMockOraclePrice(
+        signer: protocolAccount,
+        forTokenIdentifier: flowTokenIdentifier,
+        price: newPrice
+    )
+    addMockDexSwapper(
+        signer: protocolAccount,
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
+
+    // Verify position is unhealthy
+    let health = getPositionHealth(pid: pid, beFailed: false)
+    Test.assert(health < 1.0, message: "Position should be liquidatable")
+
+    // Pause then unpause liquidations to trigger warmup
+    pauseLiquidations(signer: protocolAccount, flag: true)
+    pauseLiquidations(signer: protocolAccount, flag: false)
+
+    // Verify unpause state and warmup is active
+    let params = getLiquidationParams(beFailed: false)
+    Test.assert(
+        params["paused"] as! Bool == false,
+        message: "Liquidations should be unpaused"
+    )
+    Test.assert(
+        params["lastUnpausedAt"] != nil,
+        message: "lastUnpausedAt should be set"
+    )
+
+    let warmupSec = params["warmupSec"] as! UInt64
+    Test.assert(
+        warmupSec == 300,
+        message: "Default warmup should be 300 seconds"
+    )
+
+    // Setup liquidator
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(
+        signer: protocolAccount,
+        to: liquidator.address,
+        amount: 1000.0,
+        beFailed: false
+    )
+
+    // Attempt liquidation during warmup - should fail
+    let repayAmount = 2.0
+    let seizeAmount = 1.0
+    let liqRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [
+            pid,
+            Type<@MOET.Vault>().identifier,
+            flowTokenIdentifier,
+            seizeAmount,
+            repayAmount
+        ],
+        liquidator
+    )
+
+    // Assert: Liquidation should fail with warmup message
+    Test.expect(liqRes, Test.beFailed())
+    Test.assertError(liqRes, errorMessage: "Liquidations in warm-up period")
+
+    // Now advance time past warmup period
+    Test.moveTime(by: Fix64(warmupSec + 1))
+    Test.commitBlock()
+
+    // Attempt liquidation after warmup - should succeed
+    let liqRes2 = _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [
+            pid,
+            Type<@MOET.Vault>().identifier,
+            flowTokenIdentifier,
+            seizeAmount,
+            repayAmount
+        ],
+        liquidator
+    )
+
+    // Assert: Liquidation should now succeed
+    Test.expect(liqRes2, Test.beSucceeded())
+}
 
 /// Liquidations should succeed when DEX/oracle price divergence is within threshold.
 access(all)
