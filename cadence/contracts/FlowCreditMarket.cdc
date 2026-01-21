@@ -960,7 +960,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Collects stability funds by withdrawing from reserves.
-        /// The stability amount is calculated based on the stability rate applied to the interest income over the time elapsed.
+        /// The stability amount is calculated based on the stability rate applied to the total debit balance over the time elapsed.
         /// This should be called periodically (e.g., when updateInterestRates is called) to accumulate the stability fund.
         ///
         /// @param reserveVault: The reserve vault for this token type to withdraw stability amount from
@@ -990,18 +990,18 @@ access(all) contract FlowCreditMarket {
             let yearsElapsed = timeElapsed / secondsPerYear
             let stabilityFeeRate = UFix128(self.stabilityFeeRate)
 
-            let interestIncome = self.totalDebitBalance * UFix128(self.currentDebitRate) * UFix128(yearsElapsed) 
+            let interestIncome = self.totalDebitBalance * UFix128(self.currentDebitRate) * UFix128(yearsElapsed)
             let stabilityAmount = interestIncome * stabilityFeeRate
             let stabilityAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(stabilityAmount)
 
             // If calculated amount is zero or negative, skip collection but update timestamp
-            if stabilityAmountUFix64 <= 0.0 {
+            if stabilityAmountUFix64 == 0.0 {
                 self.setLastStabilityFeeCollectionTime(currentTime)
                 return nil
             }
 
             // Check if we have enough balance in reserves
-            if reserveVault.balance <= 0.0 {
+            if reserveVault.balance == 0.0 {
                 self.setLastStabilityFeeCollectionTime(currentTime)
                 return nil
             }
