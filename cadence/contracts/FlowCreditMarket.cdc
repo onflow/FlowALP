@@ -967,20 +967,18 @@ access(all) contract FlowCreditMarket {
             let stabilityFeeRate = UFix128(self.stabilityFeeRate)
 
             var creditRate: UFix128 = 0.0
+            // Total protocol cut as a percentage of debit interest income
             let protocolFeeRate = insuranceRate + stabilityFeeRate
 
             // Two calculation paths based on curve type:
-            // 1. FixedRateInterestCurve: simple spread model (creditRate = debitRate - protocolFeeRate)
+            // 1. FixedRateInterestCurve: simple spread model (creditRate = debitRate * (1 - protocolFeeRate))
             //    Used for stable assets like MOET where rates are governance-controlled
             // 2. KinkInterestCurve (and others): reserve factor model
             //    Insurance and stability are percentages of interest income, not a fixed spread
             if self.interestCurve.getType() == Type<FlowCreditMarket.FixedRateInterestCurve>() {
                 // FixedRate path: creditRate = debitRate - protocolFeeRate
                 // This provides a fixed, predictable spread between borrower and lender rates
-                if debitRate > protocolFeeRate {
-                    creditRate = debitRate - protocolFeeRate
-                }
-                // else creditRate remains 0.0 (protocolFee exceeds debit rate)
+                creditRate = debitRate * (1.0 - protocolFeeRate) 
             } else {
                 // KinkCurve path (and any other curves): reserve factor model
                 // protocolFeeAmount = debitIncome * protocolFeeRate (percentage of income)
@@ -1093,9 +1091,7 @@ access(all) contract FlowCreditMarket {
             }
 
             // Calculate stability amount: stabilityFeeRate is annual, so prorate by time elapsed
-            // Convert timeElapsed from seconds to years (assuming 365.25 days per year)
-            let secondsPerYear = 365.25 * 24.0 * 60.0 * 60.0
-            let yearsElapsed = timeElapsed / secondsPerYear
+            let yearsElapsed = UFix128(timeElapsed) / UFix128(FlowCreditMarket.secondsInYear)
             let stabilityFeeRate = UFix128(self.stabilityFeeRate)
 
             let interestIncome = self.totalDebitBalance * UFix128(self.currentDebitRate) * UFix128(yearsElapsed)
