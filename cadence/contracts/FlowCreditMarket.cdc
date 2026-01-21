@@ -1007,12 +1007,10 @@ access(all) contract FlowCreditMarket {
                 return nil
             }
 
-            // Calculate insurance amount: insuranceRate is annual, so prorate by time elapsed
-            let yearsElapsed = UFix128(timeElapsed) / UFix128(FlowCreditMarket.secondsInYear)
-            let insuranceRate = UFix128(self.insuranceRate)
-            // Insurance amount is a percentage of total debit balance per year
-            // TODO: update the insurance amount calculation formula 
-            let insuranceAmount = self.totalDebitBalance * insuranceRate * yearsElapsed
+            // Insurance amount is a percentage of debit income
+            // debitIncome = debitBalance * (curentDebitRate ^ time_elapsed - 1.0)
+            let debitIncome = self.totalDebitBalance * (FlowCreditMarketMath.powUFix128(self.currentDebitRate, timeElapsed) - 1.0)
+            let insuranceAmount = debitIncome * UFix128(self.insuranceRate)
             let insuranceAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(insuranceAmount)
 
             // If calculated amount is zero, skip collection but update timestamp

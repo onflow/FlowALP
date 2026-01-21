@@ -64,7 +64,11 @@ fun test_collectInsurance_success_fullAmount() {
     let swapperResult = setInsuranceSwapper(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set insurance rate (10% annual)
+    // set 10% annual debit rate
+    // insurance is calculated on debit income, not debit balance
+    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 0.1)
+
+    // set insurance rate (10% of debit income)
     let rateResult = setInsuranceRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, insuranceRate: 0.1)
     Test.expect(rateResult, Test.beSucceeded())
 
@@ -90,7 +94,6 @@ fun test_collectInsurance_success_fullAmount() {
     Test.assert(reserveBalanceAfter < reserveBalanceBefore, message: "Reserves should have decreased after collection")
 
     let collectedAmount = finalInsuranceBalance - initialInsuranceBalance
-    Test.assert(collectedAmount > 0.0, message: "Insurance fund should have received MOET")
 
     let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
     // verify the amount withdrawn from reserves equals the collected amount (1:1 swap ratio)
@@ -101,12 +104,18 @@ fun test_collectInsurance_success_fullAmount() {
     let lastInsuranceCollectionTime = getLastInsuranceCollectionTime(tokenTypeIdentifier: defaultTokenIdentifier)
     Test.assertEqual(currentTimestamp, lastInsuranceCollectionTime!)
 
-    // verify formula: insuranceAmount = totalDebitBalance * insuranceRate * (timeElapsed / secondsPerYear)
-    // With 1000 FLOW collateral, 0.8 CF, and 1.3 target health:
-    // debitBalance ≈ (1000 * 1.0 * 0.8) / 1.3 ≈ 615.38 MOET
-    // Expected: ~615.38 * 0.1 * 1 ≈ 61.538 MOET (approximate due to auto-borrow mechanics)
-    // We use a range check since exact debit balance depends on auto-borrow calculation
-    let expectedCollectedAmount = 61.53846153 
-    // Insurance collected should be 10% of ~615.38 MOET debit balance
-    Test.assertEqual(expectedCollectedAmount, collectedAmount)
+    // verify formula: insuranceAmount = debitIncome * insuranceRate
+    // where debitIncome = totalDebitBalance * (currentDebitRate^timeElapsed - 1.0)
+    // debitBalance ≈ 615.38 MOET
+    // With 10% annual debit rate over 1 year: debitIncome ≈ 615.38 * (1.105246617130926037773784 - 1) ≈ 64.767
+    // Insurance = debitIncome * 0.1 ≈ 6.4767 MOET
+    // Note: Actual value depends on continuous compounding calculation
+
+    let tolerance = 0.001
+    let expectedCollectedAmount = 6.476
+    let diff = expectedCollectedAmount > collectedAmount 
+        ? expectedCollectedAmount - collectedAmount
+        : collectedAmount - expectedCollectedAmount
+
+    Test.assert(diff < tolerance, message: "Insurance collected should be around \(expectedCollectedAmount) but current \(collectedAmount)")
 }
