@@ -27,18 +27,14 @@ The interest curve typically increases the rate as utilization increases, incent
 
 ### 2. Credit Rate Calculation
 
-The credit rate is calculated from the debit income, with the insurance fee deducted:
+/// The credit rate is derived from the total debit interest income, with insurance and stability fees applied proportionally as a percentage of the interest generated.
 
 ```
 debitIncome = totalDebitBalance * debitRate
-insuranceAmount = totalCreditBalance * insuranceRate
-creditRate = (debitIncome - insuranceAmount) / totalCreditBalance
+protocolFeeRate = insuranceRate + stabilityFeeRate
+protocolFeeAmount = debitIncome * protocolFeeRate
+creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
 ```
-
-**Key Points:**
-- If `debitIncome >= insuranceAmount`: Credit rate is positive, lenders earn interest
-- If `debitIncome < insuranceAmount`: Credit rate is set to 0% (no negative rates)
-- The insurance rate is configurable per token (default: 0.1% or 0.001)
 
 ### 3. Per-Second Rate Conversion
 

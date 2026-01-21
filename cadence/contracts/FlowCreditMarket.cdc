@@ -976,7 +976,7 @@ access(all) contract FlowCreditMarket {
             // 2. KinkInterestCurve (and others): reserve factor model
             //    Insurance and stability are percentages of interest income, not a fixed spread
             if self.interestCurve.getType() == Type<FlowCreditMarket.FixedRateInterestCurve>() {
-                // FixedRate path: creditRate = debitRate - protocolFeeRate
+                // FixedRate path: creditRate = debitRate * (1 - protocolFeeRate))
                 // This provides a fixed, predictable spread between borrower and lender rates
                 creditRate = debitRate * (1.0 - protocolFeeRate) 
             } else {
