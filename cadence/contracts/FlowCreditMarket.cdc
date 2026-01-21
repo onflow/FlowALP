@@ -981,11 +981,6 @@ access(all) contract FlowCreditMarket {
                 return nil
             }
 
-            // If no credit balance, nothing to collect
-            if self.totalCreditBalance == 0.0 {
-                return nil
-            }
-
             // Calculate accrued insurance amount based on time elapsed since last collection
             let timeElapsed = currentTime - self.lastInsuranceCollectionTime
             
@@ -998,6 +993,7 @@ access(all) contract FlowCreditMarket {
             let yearsElapsed = UFix128(timeElapsed) / UFix128(FlowCreditMarket.secondsInYear)
             let insuranceRate = UFix128(self.insuranceRate)
             // Insurance amount is a percentage of total debit balance per year
+            // TODO: update the insurance amount calculation formula 
             let insuranceAmount = self.totalDebitBalance * insuranceRate * yearsElapsed
             let insuranceAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(insuranceAmount)
 
