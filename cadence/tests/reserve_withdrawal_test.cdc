@@ -4,7 +4,6 @@ import BlockchainHelpers
 import "MOET"
 import "test_helpers.cdc"
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) let treasury = Test.createAccount()
 
 access(all) var snapshot: UInt64 = 0
@@ -20,7 +19,7 @@ fun setup() {
 access(all)
 fun testReserveWithdrawalGovernanceControlled() {
     // create pool
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
     
     // Setup MOET vault for treasury account
     setupMoetVault(treasury, beFailed: false)
@@ -35,7 +34,7 @@ fun testReserveWithdrawalGovernanceControlled() {
     withdrawReserve(
         signer: attacker,
         poolAddress: protocolAccount.address,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        tokenTypeIdentifier: moetTokenIdentifier,
         amount: 10.0,
         recipient: attacker.address,
         beFailed: true
@@ -45,7 +44,7 @@ fun testReserveWithdrawalGovernanceControlled() {
     withdrawReserve(
         signer: protocolAccount,
         poolAddress: protocolAccount.address,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        tokenTypeIdentifier: moetTokenIdentifier,
         amount: 10.0,
         recipient: treasury.address,
         beFailed: false

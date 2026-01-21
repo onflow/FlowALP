@@ -4,18 +4,14 @@ import BlockchainHelpers
 import "MOET"
 import "test_helpers.cdc"
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 access(all) var snapshot: UInt64 = 0
 
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) let flowVaultStoragePath = /storage/flowTokenVault
 
 access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
+    let betaTxResult = grantBeta(protocolAccount, consumerAccount)
 
     snapshot = getCurrentBlockHeight()
 }
@@ -25,10 +21,10 @@ fun testZeroDebtFullWithdrawalAvailable() {
     // 1. price setup
     let initialPrice = 1.0
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: defaultTokenIdentifier, price: initialPrice)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: moetTokenIdentifier, price: initialPrice)
 
     // 2. pool + token support
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,

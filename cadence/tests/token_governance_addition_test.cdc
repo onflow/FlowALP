@@ -8,10 +8,7 @@ import "test_helpers.cdc"
 // Token Governance Addition Test
 // -----------------------------------------------------------------------------
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) var snapshot: UInt64 = 0
-
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 
 access(all)
 fun setup() {
@@ -25,7 +22,7 @@ access(all)
 fun testAddSupportedTokenSucceedsAndDuplicateFails() {
 
     // create pool first
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
 
     // add FLOW token support
     addSupportedTokenZeroRateCurve(

@@ -7,14 +7,7 @@ import "MOET"
 import "FlowCreditMarket"
 import "FlowCreditMarketMath"
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 access(all) let userAccount = Test.createAccount()
-
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) var moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
-access(all) let flowVaultStoragePath = /storage/flowTokenVault
-access(all) let wrapperStoragePath = /storage/flowCreditMarketPositionWrapper
 
 access(all) let flowCollateralFactor = 0.8
 access(all) let flowBorrowFactor = 1.0
@@ -51,7 +44,7 @@ access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
+    let betaTxResult = grantBeta(protocolAccount, consumerAccount)
 
     Test.expect(betaTxResult, Test.beSucceeded())
 
@@ -59,7 +52,7 @@ fun setup() {
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: flowStartPrice)
 
     // create the Pool & add FLOW as suppoorted token
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,

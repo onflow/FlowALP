@@ -4,18 +4,13 @@ import BlockchainHelpers
 import "MOET"
 import "test_helpers.cdc"
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 access(all) var snapshot: UInt64 = 0
-
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) let flowVaultStoragePath = /storage/flowTokenVault
 
 access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
+    let betaTxResult = grantBeta(protocolAccount, consumerAccount)
 
     Test.expect(betaTxResult, Test.beSucceeded())
 
@@ -30,7 +25,7 @@ fun testRebalanceUndercollateralised() {
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice)
 
     // pool + token support
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
@@ -56,12 +51,12 @@ fun testRebalanceUndercollateralised() {
     let healthBefore = getPositionHealth(pid: 0, beFailed: false)
 
     // Capture available balance before price change so we can verify directionality.
-    let availableBeforePriceChange = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
+    let availableBeforePriceChange = getAvailableBalance(pid: 0, vaultIdentifier: moetTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
 
     // Apply price drop.
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice * (1.0 - priceDropPct))
 
-    let availableAfterPriceChange = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
+    let availableAfterPriceChange = getAvailableBalance(pid: 0, vaultIdentifier: moetTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
 
     // After a price drop, the position becomes less healthy so the amount that is safely withdrawable should drop.
     Test.assert(availableAfterPriceChange < availableBeforePriceChange, message: "Expected available balance to decrease after price drop (before: ".concat(availableBeforePriceChange.toString()).concat(", after: ").concat(availableAfterPriceChange.toString()).concat(")"))
@@ -93,7 +88,7 @@ fun testRebalanceUndercollateralised() {
 
     var actualDebt: UFix64 = 0.0
     for bal in detailsAfterRebalance.balances {
-        if bal.vaultType.identifier == defaultTokenIdentifier && bal.balance > 0.0 {
+        if bal.vaultType.identifier == moetTokenIdentifier && bal.balance > 0.0 {
             actualDebt = bal.balance
         }
     }

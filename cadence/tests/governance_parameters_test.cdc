@@ -3,8 +3,6 @@ import Test
 import "MOET"
 import "test_helpers.cdc"
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-
 access(all)
 fun setup() {
     deployContracts()
@@ -14,13 +12,13 @@ fun setup() {
 access(all)
 fun test_setGovernanceParams_and_exercise_paths() {
     // Create pool
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
 
     // 1) Exercise setInsuranceRate and negative-credit-rate branch
     // Set a relatively high insurance rate and construct a state with tiny debit income
     let setInsRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
-        [ defaultTokenIdentifier, 0.50 ],
+        [ moetTokenIdentifier, 0.50 ],
         protocolAccount
     )
     Test.expect(setInsRes, Test.beSucceeded())
@@ -40,13 +38,13 @@ fun test_setGovernanceParams_and_exercise_paths() {
     Test.expect(openRes, Test.beSucceeded())
 
     // Trigger availableBalance which walks interest paths and ensures indices/rates get updated
-    let _ = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: false, beFailed: false)
+    let _ = getAvailableBalance(pid: 0, vaultIdentifier: moetTokenIdentifier, pullFromTopUpSource: false, beFailed: false)
 
     // 2) Exercise depositLimitFraction and queue branch
     // Set fraction small so a single deposit exceeds the per-deposit limit
     let setFracRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_deposit_limit_fraction.cdc",
-        [ defaultTokenIdentifier, 0.05 ],
+        [ moetTokenIdentifier, 0.05 ],
         protocolAccount
     )
     Test.expect(setFracRes, Test.beSucceeded())

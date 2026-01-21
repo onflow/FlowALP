@@ -3,10 +3,16 @@ import "FlowCreditMarket"
 
 /* --- Global test constants --- */
 
-access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
-access(all) let defaultUFixVariance = 0.00000001
+access(all) let moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
+access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
+access(all) let flowVaultStoragePath = /storage/flowTokenVault
+access(all) let wrapperStoragePath = /storage/flowCreditMarketPositionWrapper
+
+access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
+access(all) let consumerAccount = Test.getAccount(0x0000000000000008)
+
 // Variance for UFix64 comparisons
-access(all) let defaultUIntVariance: UInt128 = 1_000_000_000_000_000
+access(all) let defaultUFixVariance = 0.00000001
 // Variance for UFix128 comparisons
 access(all) let defaultUFix128Variance: UFix128 = 0.00000001
 
@@ -19,6 +25,12 @@ access(all) var intMinHealth: UFix128 = 1.1
 access(all) var intTargetHealth: UFix128 = 1.3
 access(all) var intMaxHealth: UFix128 = 1.5
 access(all) let ceilingHealth: UFix128 = UFix128.max      // infinite health when debt ~ 0.0
+
+// Time constants
+access(all) let TEN_DAYS: Fix64 = 864_000.0
+access(all) let THIRTY_DAYS: Fix64 = 2_592_000.0   // 30 * 86400
+access(all) let ONE_YEAR: Fix64 = 31_557_600.0     // 365.25 * 86400
+
 
 /* --- Test execution helpers --- */
 
@@ -104,7 +116,7 @@ fun deployContracts() {
     err = Test.deployContract(
         name: "MockOracle",
         path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [defaultTokenIdentifier]
+        arguments: [moetTokenIdentifier]
     )
     Test.expect(err, Test.beNil())
 
@@ -473,8 +485,6 @@ fun withdrawReserve(
 // Must be called AFTER the pool is created and stored, otherwise publishing will fail the capability check.
 access(all)
 fun grantPoolCapToConsumer() {
-    let protocolAccount = Test.getAccount(0x0000000000000007)
-    let consumerAccount = Test.getAccount(0x0000000000000008)
     // Check pool exists (defensively handle CI ordering). If not, no-op.
     let existsRes = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [protocolAccount.address])
     Test.expect(existsRes, Test.beSucceeded())

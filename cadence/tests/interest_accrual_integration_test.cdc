@@ -34,16 +34,8 @@ import "MockFlowCreditMarketConsumer"
 //         (45% optimal utilization, 0% base, 4% slope1, 300% slope2)
 // =============================================================================
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
-
 // Snapshot for state reset between tests (each test starts fresh)
 access(all) var snapshot: UInt64 = 0
-
-// Token identifiers and storage paths
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) let flowVaultStoragePath = /storage/flowTokenVault
-access(all) let wrapperStoragePath = /storage/flowCreditMarketPositionWrapper
 
 // =============================================================================
 // Interest Rate Parameters
@@ -82,9 +74,6 @@ access(all) let flowBaseRate: UFix128 = 0.0             // 0% base rate
 access(all) let flowSlope1: UFix128 = 0.04              // 4% slope below kink
 access(all) let flowSlope2: UFix128 = 3.0               // 300% slope above kink
 
-// Time constants for test scenarios
-access(all) let THIRTY_DAYS: Fix64 = 2592000.0  // 30 days × 86400 seconds/day
-
 // =============================================================================
 // Test Setup
 // =============================================================================
@@ -95,7 +84,7 @@ access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
+    let betaTxResult = grantBeta(protocolAccount, consumerAccount)
     Test.expect(betaTxResult, Test.beSucceeded())
 
     // Capture snapshot AFTER deployment for clean test resets
@@ -128,7 +117,7 @@ fun test_moet_debit_accrues_interest() {
 
     // Create the lending pool that will manage all positions.
     // MOET is the default token (the primary borrowable asset).
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
 
     // -------------------------------------------------------------------------
     // STEP 2: Configure FlowToken as Collateral
@@ -181,7 +170,7 @@ fun test_moet_debit_accrues_interest() {
     // Note: Interest curve must be set AFTER LP deposit to ensure credit exists.
     setInterestCurveFixed(
         signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        tokenTypeIdentifier: moetTokenIdentifier,
         yearlyRate: moetFixedRate
     )
     log("Set MOET interest rate to 4% APY (after LP deposit)")
@@ -358,7 +347,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     // STEP 2: Initialize Protocol Environment
     // -------------------------------------------------------------------------
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
 
     // Add FlowToken as collateral (needed for borrower to borrow MOET)
     addSupportedTokenKinkCurve(
@@ -401,7 +390,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     // Set 4% APY debit rate. Credit rate will be ~3.9% after insurance deduction.
     setInterestCurveFixed(
         signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        tokenTypeIdentifier: moetTokenIdentifier,
         yearlyRate: moetFixedRate
     )
 
@@ -527,7 +516,7 @@ fun test_flow_debit_accrues_interest() {
     // STEP 2: Initialize Protocol Environment
     // -------------------------------------------------------------------------
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
 
     // Add FlowToken with KinkCurve parameters
     addSupportedTokenKinkCurve(
@@ -712,7 +701,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
     // STEP 2: Initialize Protocol Environment
     // -------------------------------------------------------------------------
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
 
     // Add FlowToken with KinkCurve
     addSupportedTokenKinkCurve(
@@ -888,7 +877,7 @@ fun test_insurance_deduction_verification() {
     // STEP 2: Initialize Protocol Environment
     // -------------------------------------------------------------------------
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
 
     // Add FlowToken for collateral
     addSupportedTokenKinkCurve(
@@ -932,14 +921,14 @@ fun test_insurance_deduction_verification() {
     // Expected Credit Rate: 10% - 1% = 9%
     setInsuranceRate(
         signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        tokenTypeIdentifier: moetTokenIdentifier,
         insuranceRate: 0.01  // 1% insurance rate
     )
 
     let highDebitRate: UFix128 = 0.10
     setInterestCurveFixed(
         signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        tokenTypeIdentifier: moetTokenIdentifier,
         yearlyRate: highDebitRate
     )
     log("Set MOET: 10% debit rate, 1% insurance rate")
@@ -1074,7 +1063,7 @@ fun test_combined_all_interest_scenarios() {
     // STEP 2: Initialize Protocol Environment
     // -------------------------------------------------------------------------
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
 
     // Add FlowToken with KinkCurve
     addSupportedTokenKinkCurve(
@@ -1135,7 +1124,7 @@ fun test_combined_all_interest_scenarios() {
     // Flow: KinkInterestCurve with Aave v3 Volatile One parameters
     setInterestCurveFixed(
         signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        tokenTypeIdentifier: moetTokenIdentifier,
         yearlyRate: moetFixedRate  // 4% APY
     )
     setInterestCurveKink(

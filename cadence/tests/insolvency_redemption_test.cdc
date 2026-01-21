@@ -6,7 +6,6 @@ import "MOET"
 import "FlowToken"
 import "FlowCreditMarketMath"
 
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) var snapshot: UInt64 = 0
 
 access(all)
@@ -24,7 +23,7 @@ fun setup() {
     let protocolAccount = Test.getAccount(0x0000000000000007)
 
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
     grantPoolCapToConsumer()
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,

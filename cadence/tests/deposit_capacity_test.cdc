@@ -5,7 +5,6 @@ import "MOET"
 import "FlowCreditMarket"
 import "test_helpers.cdc"
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) var snapshot: UInt64 = 0
 access(all) let hourInSeconds = 3600.0
 
@@ -20,7 +19,7 @@ fun safeReset() {
 access(all)
 fun setup() {
     deployContracts()
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
     // Note: We don't add the token in setup - each test adds it with specific parameters
     snapshot = getCurrentBlockHeight()
 }
@@ -38,14 +37,14 @@ fun test_deposit_capacity_consumption() {
     let initialCap = 10000.0
     
     // Set deposit rate and capacity cap using governance functions
-    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, hourlyRate: depositRate)
-    setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, cap: initialCap)
+    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, hourlyRate: depositRate)
+    setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, cap: initialCap)
     
     // Set a higher deposit limit fraction to allow larger deposits (default is 5%)
-    setDepositLimitFraction(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, fraction: 0.5) // 50% to allow larger deposits
+    setDepositLimitFraction(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, fraction: 0.5) // 50% to allow larger deposits
     
     // Check initial capacity - cap should be set correctly
-    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     Test.assertEqual(initialCap, capacityInfo["depositCapacityCap"]!)
     // Get the initial capacity (may have regenerated, so we'll track changes)
     let initialCapacity = capacityInfo["depositCapacity"]!
@@ -57,14 +56,14 @@ fun test_deposit_capacity_consumption() {
     grantPoolCapToConsumer()
     
     // Get capacity before position creation (the initial deposit will consume capacity)
-    capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let capacityBeforePositionCreation = capacityInfo["depositCapacity"]!
     let initialDepositAmount = 100.0
     
     createWrappedPosition(signer: user, amount: initialDepositAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Get capacity right after position creation - should have decreased by initialDepositAmount
-    capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let capacityAfterPositionCreation = capacityInfo["depositCapacity"]!
     // Capacity should have decreased by exactly the initial deposit amount (no regeneration should occur)
     Test.assertEqual(capacityAfterPositionCreation, capacityBeforePositionCreation - initialDepositAmount)
@@ -74,7 +73,7 @@ fun test_deposit_capacity_consumption() {
     depositToWrappedPosition(signer: user, amount: depositAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Check that capacity decreased by exactly depositAmount (no regeneration should occur)
-    capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let capacityAfterFirstDeposit = capacityInfo["depositCapacity"]!
     // Capacity should have decreased by exactly depositAmount from capacity after position creation
     Test.assertEqual(capacityAfterFirstDeposit, capacityAfterPositionCreation - depositAmount)
@@ -85,7 +84,7 @@ fun test_deposit_capacity_consumption() {
     depositToWrappedPosition(signer: user, amount: depositAmount2, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Check that capacity decreased further
-    capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let capacityAfterSecondDeposit = capacityInfo["depositCapacity"]!
     // Capacity should have decreased by exactly depositAmount2 from previous capacity
     Test.assertEqual(capacityAfterSecondDeposit, capacityAfterFirstDeposit - depositAmount2)
@@ -105,11 +104,11 @@ fun test_per_user_deposit_limits() {
     let depositLimitFraction = 0.05 // 5%
     
     // Set deposit rate and capacity cap
-    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, hourlyRate: depositRate)
-    setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, cap: initialCap)
+    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, hourlyRate: depositRate)
+    setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, cap: initialCap)
     
     // Set deposit limit fraction
-    setDepositLimitFraction(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, fraction: depositLimitFraction)
+    setDepositLimitFraction(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, fraction: depositLimitFraction)
     
     // Calculate expected per-user limit
     let expectedUserLimit = initialCap * depositLimitFraction // 10000 * 0.05 = 500
@@ -153,7 +152,7 @@ fun test_per_user_deposit_limits() {
     
     // Verify that both users have independent limits by checking capacity
     // Get capacity after all deposits
-    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let finalCapacity = capacityInfo["depositCapacity"]!
     
     // Total accepted deposits: 
@@ -179,14 +178,14 @@ fun test_capacity_regeneration() {
     let depositLimitFraction = 0.5
 
     // Set deposit rate and capacity cap
-    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, hourlyRate: depositRate)
-    setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, cap: initialCap)
+    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, hourlyRate: depositRate)
+    setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, cap: initialCap)
     
     // Set a higher deposit limit fraction to allow larger deposits
-    setDepositLimitFraction(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, fraction: depositLimitFraction) // 50% to allow larger deposits
+    setDepositLimitFraction(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, fraction: depositLimitFraction) // 50% to allow larger deposits
     
     // Check initial capacity
-    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     Test.assertEqual(initialCap, capacityInfo["depositCapacityCap"]!)
     // Capacity may have regenerated, so we'll track changes from here
     
@@ -197,14 +196,14 @@ fun test_capacity_regeneration() {
     grantPoolCapToConsumer()
     
     // Get capacity before position creation (the initial deposit will consume capacity)
-    capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let capacityBeforePositionCreation = capacityInfo["depositCapacity"]!
     let initialDepositAmount = 100.0
     
     createWrappedPosition(signer: user, amount: initialDepositAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Get capacity right after position creation (no regeneration should occur)
-    capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let capacityAfterPositionCreation = capacityInfo["depositCapacity"]!
     Test.assertEqual(initialCap, capacityInfo["depositCapacityCap"]!)
     // Capacity should have decreased by exactly the initial deposit amount
@@ -219,7 +218,7 @@ fun test_capacity_regeneration() {
     depositToWrappedPosition(signer: user, amount: depositAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Verify capacity decreased by the accepted amount
-    capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let capacityAfterDeposit = capacityInfo["depositCapacity"]!
     // Capacity should have decreased by exactly the accepted amount 
     let expectedCapacity = capacityAfterPositionCreation - depositAmount
@@ -236,7 +235,7 @@ fun test_capacity_regeneration() {
     depositToWrappedPosition(signer: user, amount: smallDeposit, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Check that capacity cap increased and capacity was reset to new cap
-    capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let actualNewCap = capacityInfo["depositCapacityCap"]!
     let newUpdateTime = capacityInfo["lastDepositCapacityUpdate"]!
     // Calculate the actual multiplier used based on the actual cap value
@@ -267,11 +266,11 @@ fun test_user_usage_reset_on_regeneration() {
     let depositLimitFraction = 0.05 // 5%
     
     // Set deposit rate and capacity cap
-    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, hourlyRate: depositRate)
-    setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, cap: initialCap)
+    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, hourlyRate: depositRate)
+    setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, cap: initialCap)
     
     // Set deposit limit fraction
-    setDepositLimitFraction(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, fraction: depositLimitFraction)
+    setDepositLimitFraction(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, fraction: depositLimitFraction)
     
     // Setup user
     let user = Test.createAccount()
@@ -302,7 +301,7 @@ fun test_user_usage_reset_on_regeneration() {
     
     // After regeneration, user's usage should be reset, so they should be able to deposit again
     // Get the actual cap to calculate the actual multiplier used
-    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let actualNewCap = capacityInfo["depositCapacityCap"]!
     
     // Calculate the actual multiplier used: actualMultiplier = (actualNewCap - initialCap) / depositRate
@@ -318,7 +317,7 @@ fun test_user_usage_reset_on_regeneration() {
     
     // Verify capacity info
     // Note: The cap may have regenerated slightly, so we check it's at least the expected value
-    capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let actualCap = capacityInfo["depositCapacityCap"]!
     // The cap should be at least newCap (may be slightly higher if time passed)
     Test.assert(actualCap >= newCap)
@@ -337,8 +336,8 @@ fun test_multiple_hours_regeneration() {
     let initialCap = 10000.0
     
     // Set deposit rate and capacity cap
-    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, hourlyRate: depositRate)
-    setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, cap: initialCap)
+    setDepositRate(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, hourlyRate: depositRate)
+    setDepositCapacityCap(signer: protocolAccount, tokenTypeIdentifier: moetTokenIdentifier, cap: initialCap)
     // After setDepositCapacityCap, lastDepositCapacityUpdate is reset to current time
     
     // Advance time by 2 hours + 1 second (needs to be > 3600.0 to trigger regeneration)
@@ -359,7 +358,7 @@ fun test_multiple_hours_regeneration() {
     depositToWrappedPosition(signer: user, amount: 1.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Get the actual cap and calculate the actual multiplier used
-    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: defaultTokenIdentifier)
+    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: moetTokenIdentifier)
     let actualNewCap = capacityInfo["depositCapacityCap"]!
     
     // Calculate the actual multiplier used: actualMultiplier = (actualNewCap - initialCap) / depositRate
