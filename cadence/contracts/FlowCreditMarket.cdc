@@ -965,7 +965,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Collects insurance by withdrawing from reserves and swapping to MOET.
-        /// The insurance amount is calculated based on the insurance rate applied to the total credit balance over the time elapsed.
+        /// The insurance amount is calculated based on the insurance rate applied to the total debit balance over the time elapsed.
         /// This should be called periodically (e.g., when updateInterestRates is called) to accumulate the insurance fund.
         ///
         /// @param reserveVault: The reserve vault for this token type to withdraw insurance from
@@ -1001,14 +1001,14 @@ access(all) contract FlowCreditMarket {
             let insuranceAmount = self.totalDebitBalance * insuranceRate * yearsElapsed
             let insuranceAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(insuranceAmount)
 
-            // If calculated amount is zero or negative, skip collection but update timestamp
-            if insuranceAmountUFix64 <= 0.0 {
+            // If calculated amount is zero, skip collection but update timestamp
+            if insuranceAmountUFix64 == 0.0 {
                 self.setLastInsuranceCollectionTime(currentTime)
                 return nil
             }
             
             // Check if we have enough balance in reserves
-            if reserveVault.balance <= 0.0 {
+            if reserveVault.balance == 0.0 {
                 self.setLastInsuranceCollectionTime(currentTime)
                 return nil
             }
