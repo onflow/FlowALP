@@ -31,7 +31,7 @@ The credit rate is calculated from the debit income, with the insurance fee dedu
 
 ```
 debitIncome = totalDebitBalance * debitRate
-insuranceAmount = totalCreditBalance * insuranceRate
+insuranceAmount = debitIncome * insuranceRate
 creditRate = (debitIncome - insuranceAmount) / totalCreditBalance
 ```
 
