@@ -6,7 +6,6 @@ import "FlowToken"
 import "FlowCreditMarket"
 import "FlowCreditMarketMath"
 import "test_helpers.cdc"
-import "MockFlowCreditMarketConsumer"
 
 // =============================================================================
 // Interest Accrual Integration Tests

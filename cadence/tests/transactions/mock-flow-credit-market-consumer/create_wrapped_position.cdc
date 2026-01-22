@@ -9,8 +9,8 @@ import "FlowCreditMarket"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
-/// Opens a Position with the amount of funds source from the Vault at the provided StoragePath and wraps it in a
-/// MockFlowCreditMarketConsumer PositionWrapper
+/// Opens a Position with the amount of funds sourced from the Vault at the provided StoragePath
+/// and stores it directly in the user's account
 ///
 transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
 
@@ -20,10 +20,10 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     let sink: {DeFiActions.Sink}
     // DEBUG: this DeFiActions Source that will allow for the repayment of a loan if the position becomes undercollateralized
     let source: {DeFiActions.Source}
-    // the signer's account in which to store a PositionWrapper
-    let account: auth(SaveValue) &Account
+    // the signer's account in which to store the Position
+    let account: auth(Storage, Capabilities) &Account
 
-    prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
+    prepare(signer: auth(BorrowValue, Storage, Capabilities) &Account) {
         // configure a MOET Vault to receive the loaned amount
         if signer.storage.type(at: MOET.VaultStoragePath) == nil {
             // save a new MOET Vault
@@ -63,14 +63,15 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     }
 
     execute {
-        // open a position & save in the Wrapper
-        let wrapper <- MockFlowCreditMarketConsumer.createPositionWrapper(
+        // Create and store the position directly in the user's account
+        let pid = MockFlowCreditMarketConsumer.createAndStorePosition(
+            account: self.account,
             collateral: <-self.collateral,
             issuanceSink: self.sink,
             repaymentSource: self.source,
             pushToDrawDownSink: pushToDrawDownSink
         )
-        // save the wrapper into the signer's account - reverts on storage collision
-        self.account.storage.save(<-wrapper, to: MockFlowCreditMarketConsumer.WrapperStoragePath)
+        // Position is now stored at FlowCreditMarket.getPositionStoragePath(pid: pid)
+        log("Created and stored Position with ID: ".concat(pid.toString()))
     }
 }

@@ -78,7 +78,7 @@ fun test_borrower_full_redemption_insolvency() {
     // Note: use the helper tx which withdraws availableBalance with pullFromTopUpSource=true
     let closeRes = _executeTransaction(
         "./transactions/flow-credit-market/pool-management/repay_and_close_position.cdc",
-        [/storage/flowCreditMarketPositionWrapper],
+        [pid],
         borrower
     )
     Test.expect(closeRes, Test.beSucceeded())

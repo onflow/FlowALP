@@ -6,71 +6,60 @@ import "FlowCreditMarket"
 /// THIS CONTRACT IS NOT SAFE FOR PRODUCTION - FOR TEST USE ONLY
 /// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ///
-/// A simple contract enabling the persistent storage of a Position similar to a pattern expected for platforms
-/// building on top of FlowCreditMarket's lending protocol
+/// A simple contract demonstrating how to create and store Position resources
+/// for platforms building on top of FlowCreditMarket's lending protocol
 ///
 access(all) contract MockFlowCreditMarketConsumer {
 
-    /// Canonical path for where the wrapper is to be stored
-    access(all) let WrapperStoragePath: StoragePath
-
-    /// Opens a FlowCreditMarket Position and returns a PositionWrapper containing that new position
+    /// Opens a FlowCreditMarket Position and stores it directly in the account
+    /// Returns the position ID for reference
     ///
     access(all)
-    fun createPositionWrapper(
+    fun createAndStorePosition(
+        account: auth(Storage, Capabilities) &Account,
         collateral: @{FungibleToken.Vault},
         issuanceSink: {DeFiActions.Sink},
         repaymentSource: {DeFiActions.Source}?,
         pushToDrawDownSink: Bool
-    ): @PositionWrapper {
-        let poolCap = self.account.storage.load<Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>>(
+    ): UInt64 {
+        let poolCap = self.account.storage.load<Capability<auth(FlowCreditMarket.EParticipant) &FlowCreditMarket.Pool>>(
             from: FlowCreditMarket.PoolCapStoragePath
         ) ?? panic("Missing pool capability")
 
         let poolRef = poolCap.borrow() ?? panic("Invalid Pool Cap")
 
-        let pid = poolRef.createPosition(
-                funds: <-collateral,
-                issuanceSink: issuanceSink,
-                repaymentSource: repaymentSource,
-                pushToDrawDownSink: pushToDrawDownSink
-            )
-        let position = FlowCreditMarket.Position(id: pid, pool: poolCap)
-        self.account.storage.save(poolCap, to: FlowCreditMarket.PoolCapStoragePath)
-        return <- create PositionWrapper(
-            position: position
+        // Create position - now returns a Position resource
+        let position <- poolRef.createPosition(
+            funds: <-collateral,
+            issuanceSink: issuanceSink,
+            repaymentSource: repaymentSource,
+            pushToDrawDownSink: pushToDrawDownSink
         )
-    }
 
-    /// A simple resource encapsulating a FlowCreditMarket Position
-    access(all) resource PositionWrapper {
+        let pid = position.id
 
-        access(self) let position: FlowCreditMarket.Position
+        // Store the Position resource in the user's account
+        let storagePath = FlowCreditMarket.getPositionStoragePath(pid: pid)
+        account.storage.save(<-position, to: storagePath)
 
-        init(position: FlowCreditMarket.Position) {
-            self.position = position
-        }
+        // Issue and publish capabilities for the Position
+        let depositCap = account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionDeposit) &FlowCreditMarket.Position>(storagePath)
+        let withdrawCap = account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.Position>(storagePath)
+        let configureCap = account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionConfigure) &FlowCreditMarket.Position>(storagePath)
+        let manageCap = account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionManage) &FlowCreditMarket.Position>(storagePath)
+        let readCap = account.capabilities.storage.issue<&FlowCreditMarket.Position>(storagePath)
 
-        /// NOT SAFE FOR PRODUCTION
-        ///
-        /// Returns a reference to the wrapped Position
-        access(all) fun borrowPosition(): &FlowCreditMarket.Position {
-            return &self.position
-        }
+        // Publish read-only capability publicly
+        let publicPath = FlowCreditMarket.getPositionPublicPath(pid: pid)
+        account.capabilities.publish(readCap, at: publicPath)
 
-        /// NOT SAFE FOR PRODUCTION
-        ///
-        /// Returns a reference to the wrapped Position with EParticipant entitlement for deposits
-        access(all) fun borrowPositionForDeposit(): auth(FlowCreditMarket.EParticipant) &FlowCreditMarket.Position {
-            return &self.position
-        }
+        // Store the pool capability back
+        self.account.storage.save(poolCap, to: FlowCreditMarket.PoolCapStoragePath)
 
-        access(all) fun borrowPositionForWithdraw(): auth(FungibleToken.Withdraw) &FlowCreditMarket.Position {
-            return &self.position
-        }
+        return pid
     }
 
     init() {
-        self.WrapperStoragePath = /storage/flowCreditMarketPositionWrapper
+        // No storage paths needed since Positions are stored directly using FlowCreditMarket helper functions
     }
 }

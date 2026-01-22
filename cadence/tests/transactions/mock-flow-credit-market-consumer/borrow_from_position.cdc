@@ -5,24 +5,25 @@ import "MockFlowCreditMarketConsumer"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
-/// Borrows (withdraws) the specified token type from the wrapped position.
+/// Borrows (withdraws) the specified token type from the position.
 /// This creates a debit balance if the position doesn't have sufficient credit balance.
 ///
 transaction(
-    positionId: UInt64,  // Kept for API compatibility but ignored (position ID is in wrapper)
+    positionId: UInt64,
     tokenTypeIdentifier: String,
     amount: UFix64
 ) {
-    let position: auth(FungibleToken.Withdraw) &FlowCreditMarket.Position
+    let position: auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.Position
     let tokenType: Type
     let receiverVault: &{FungibleToken.Receiver}
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
-        // Reference the wrapped position with withdraw entitlement
-        self.position = signer.storage.borrow<&MockFlowCreditMarketConsumer.PositionWrapper>(
-                from: MockFlowCreditMarketConsumer.WrapperStoragePath
-            )?.borrowPositionForWithdraw()
-            ?? panic("Could not find a WrappedPosition in signer's storage at \(MockFlowCreditMarketConsumer.WrapperStoragePath.toString())")
+        // Borrow the Position resource directly from storage with withdraw entitlement
+        let storagePath = FlowCreditMarket.getPositionStoragePath(pid: positionId)
+        self.position = signer.storage.borrow<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.Position>(
+                from: storagePath
+            )
+            ?? panic("Could not find Position with ID \(positionId) in signer's storage at \(storagePath.toString())")
 
         // Parse the token type
         self.tokenType = CompositeType(tokenTypeIdentifier)

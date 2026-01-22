@@ -1,14 +1,11 @@
 // Repay MOET debt and withdraw collateral from a position
-// 
+//
 // This transaction uses withdrawAndPull with pullFromTopUpSource: true to:
 // 1. Automatically pull MOET from the user's vault to repay the debt
 // 2. Withdraw and return the collateral to the user
 //
-// The MockFlowCreditMarketConsumer.PositionWrapper provides the necessary
-// FungibleToken.Withdraw authorization through borrowPositionForWithdraw()
-//
 // After running this transaction:
-// - MOET debt will be repaid (balance goes to 0) 
+// - MOET debt will be repaid (balance goes to 0)
 // - Flow collateral will be returned to the user's vault
 // - The position will be empty (all balances at 0)
 
@@ -16,23 +13,20 @@ import "FungibleToken"
 import "FlowToken"
 import "DeFiActions"
 import "FlowCreditMarket"
-import "MockFlowCreditMarketConsumer"
 import "MOET"
 
-transaction(positionWrapperPath: StoragePath) {
-    
-    let positionRef: auth(FungibleToken.Withdraw) &FlowCreditMarket.Position
+transaction(positionId: UInt64) {
+
+    let positionRef: auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.Position
     let receiverRef: &{FungibleToken.Receiver}
     let moetWithdrawRef: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
-    
+
     prepare(borrower: auth(BorrowValue) &Account) {
-        // Get wrapper reference
-        let wrapperRef = borrower.storage.borrow<&MockFlowCreditMarketConsumer.PositionWrapper>(
-            from: positionWrapperPath
-        ) ?? panic("Could not borrow reference to position wrapper")
-        
-        // Get position reference with withdraw authorization
-        self.positionRef = wrapperRef.borrowPositionForWithdraw()
+        // Borrow the Position resource directly from storage with withdraw entitlement
+        let storagePath = FlowCreditMarket.getPositionStoragePath(pid: positionId)
+        self.positionRef = borrower.storage.borrow<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.Position>(
+            from: storagePath
+        ) ?? panic("Could not find Position with ID \(positionId) in storage at \(storagePath.toString())")
         
         // Get receiver reference for depositing withdrawn collateral
         self.receiverRef = borrower.capabilities.borrow<&{FungibleToken.Receiver}>(
