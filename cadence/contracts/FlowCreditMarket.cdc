@@ -1090,11 +1090,11 @@ access(all) contract FlowCreditMarket {
                 return nil
             }
 
-            // Calculate stability amount: stabilityFeeRate is annual, so prorate by time elapsed
-            let yearsElapsed = UFix128(timeElapsed) / UFix128(FlowCreditMarket.secondsInYear)
             let stabilityFeeRate = UFix128(self.stabilityFeeRate)
 
-            let interestIncome = self.totalDebitBalance * UFix128(self.currentDebitRate) * UFix128(yearsElapsed)
+            // Calculate stability amount: is a percentage of debit income
+            // debitIncome = debitBalance * (curentDebitRate ^ time_elapsed - 1.0)
+            let interestIncome = self.totalDebitBalance * (FlowCreditMarketMath.powUFix128(self.currentDebitRate, timeElapsed) - 1.0)
             let stabilityAmount = interestIncome * stabilityFeeRate
             let stabilityAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(stabilityAmount)
 
