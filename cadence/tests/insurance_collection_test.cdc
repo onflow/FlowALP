@@ -101,7 +101,7 @@ fun test_collectInsurance_zeroCreditBalance_returnsNil() {
 // Test: collectInsurance only collects up to available reserve balance
 // When calculated insurance amount exceeds reserve balance, it collects
 // only what is available. Verify exact amount withdrawn from reserves.
-// Note: Insurance is calculated on totalDebitBalance, so we need borrowing activity
+// Note: Insurance is calculated on debit income (interest accrued on debit balance)
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_partialReserves_collectsAvailable() {
@@ -110,7 +110,7 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: protocolAccount, to: lp.address, amount: 1000.0, beFailed: false)
     grantPoolCapToConsumer()
-    
+
     // LP deposits 1000 MOET (creates credit balance, provides borrowing liquidity)
     createWrappedPosition(signer: lp, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
@@ -133,8 +133,10 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     let swapperResult = setInsuranceSwapper(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set a high insurance rate so calculated amount would exceed reserves
-    // 100% annual rate on ~1000 MOET debit balance = ~1000 MOET insurance needed per year
+    // set 100% annual debit rate
+    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 1.0)
+
+    // set a high insurance rate (100% of debit income goes to insurance)
     let rateResult = setInsuranceRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, insuranceRate: 1.0)
     Test.expect(rateResult, Test.beSucceeded())
 
@@ -153,7 +155,7 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     Test.assertEqual(0.0, reserveBalanceAfter)
 
     // verify collection was limited by reserves
-    // Formula: 1000.0 * 1.0 * (secondsInYear / secondsInYearPlusDay) ≈ 1002.74 MOET, but limited to totalCreditBalance = 500.0
+    // Formula: 100% debit income -> 100% insurance rate -> more than 1000 MOET for 1 day + 1 year, but limited to totalCreditBalance = 1000.0
     Test.assertEqual(1000.0, finalInsuranceBalance)
 }
 
@@ -232,7 +234,11 @@ fun test_collectInsurance_success_fullAmount() {
     let swapperResult = setInsuranceSwapper(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set insurance rate
+    // set 10% annual debit rate
+    // Insurance is calculated on debit income, not debit balance directly
+    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 0.1)
+
+    // set insurance rate (10% of debit income)
     let rateResult = setInsuranceRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, insuranceRate: 0.1)
     Test.expect(rateResult, Test.beSucceeded())
 
@@ -318,7 +324,12 @@ fun test_collectInsurance_multipleTokens() {
     let flowSwapperResult = setInsuranceSwapper(signer: protocolAccount, tokenTypeIdentifier: flowTokenIdentifier, priceRatio: 1.0)
     Test.expect(flowSwapperResult, Test.beSucceeded())
 
-    // set different insurance rates for each token type
+    // set 10% annual debit rates
+    // Insurance is calculated on debit income, not debit balance directly
+    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 0.1)
+    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: flowTokenIdentifier, yearlyRate: 0.1)
+
+    // set different insurance rates for each token type (percentage of debit income)
     let moetRateResult = setInsuranceRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, insuranceRate: 0.1) // 10%
     Test.expect(moetRateResult, Test.beSucceeded())
 
