@@ -100,8 +100,8 @@ fun test_set_insuranceRate_without_set_swapper() {
 }
 
 // -----------------------------------------------------------------------------
-// Test: setInsuranceRate with rate > 1.0 should fail
-// Insurance rate must be between 0 and 1 (0% to 100%)
+// Test: setInsuranceRate with rate >= 1.0 should fail
+// insuranceRate + stabilityFeeRate must be in range [0, 1)
 // -----------------------------------------------------------------------------
 access(all)
 fun test_setInsuranceRate_rateGreaterThanOne_fails() {
@@ -124,8 +124,81 @@ fun test_setInsuranceRate_rateGreaterThanOne_fails() {
     Test.expect(res, Test.beFailed())
 
     let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("insuranceRate must be between 0 and 1")
+    let containsExpectedError = errorMessage.contains("insuranceRate + stabilityFeeRate must be in range [0, 1)")
     Test.assert(containsExpectedError, message: "expected error about insurance rate bounds, got: \(errorMessage)")
+}
+
+// -----------------------------------------------------------------------------
+// Test: setInsuranceRate fails when combined with stabilityFeeRate >= 1.0
+// insuranceRate + stabilityFeeRate must be in range [0, 1) to avoid underflow
+// in credit rate calculation: creditRate = debitRate * (1.0 - protocolFeeRate)
+// -----------------------------------------------------------------------------
+access(all)
+fun test_setInsuranceRate_combinedRateExceedsOne_fails() {
+    // set insurance swapper
+    var res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    // first set stability fee rate to 0.6
+    res = setStabilityFeeRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        stabilityFeeRate: 0.6,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    // now try to set insurance rate to 0.5, which would make combined rate 1.1 >= 1.0
+    res = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.5,
+    )
+
+    Test.expect(res, Test.beFailed())
+
+    let errorMessage = res.error!.message
+    let containsExpectedError = errorMessage.contains("insuranceRate + stabilityFeeRate must be in range [0, 1)")
+    Test.assert(containsExpectedError, message: "expected error about combined rate bounds, got: \(errorMessage)")
+}
+
+// -----------------------------------------------------------------------------
+// Test: setStabilityFeeRate fails when combined with insuranceRate >= 1.0
+// stabilityFeeRate + insuranceRate must be in range [0, 1) to avoid underflow
+// -----------------------------------------------------------------------------
+access(all)
+fun test_setStabilityFeeRate_combinedRateExceedsOne_fails() {
+    // set insurance swapper
+    var res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    // first set insurance rate to 0.6
+    res = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.6,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    // now try to set stability fee rate to 0.5, which would make combined rate 1.1 >= 1.0
+    res = setStabilityFeeRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        stabilityFeeRate: 0.5,
+    )
+
+    Test.expect(res, Test.beFailed())
+
+    let errorMessage = res.error!.message
+    let containsExpectedError = errorMessage.contains("stabilityFeeRate + insuranceRate must be in range [0, 1)")
+    Test.assert(containsExpectedError, message: "expected error about combined rate bounds, got: \(errorMessage)")
 }
 
 // -----------------------------------------------------------------------------

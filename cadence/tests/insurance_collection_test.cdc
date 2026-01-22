@@ -136,17 +136,18 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     let swapperResult = setInsuranceSwapper(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set 100% annual debit rate
-    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 1.0)
+    // set 90% annual debit rate
+    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 0.9)
 
-    // set a high insurance rate (100% of debit income goes to insurance)
-    let rateResult = setInsuranceRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, insuranceRate: 1.0)
+    // set a high insurance rate (90% of debit income goes to insurance)
+    // Note: default stabilityFeeRate is 0.05, so insuranceRate + stabilityFeeRate = 0.9 + 0.05 = 0.95 < 1.0
+    let rateResult = setInsuranceRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, insuranceRate: 0.9)
     Test.expect(rateResult, Test.beSucceeded())
 
     let initialInsuranceBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialInsuranceBalance)
 
-    Test.moveTime(by: secondsInYear + secondsInDay) // 1 year + 1 day
+    Test.moveTime(by: secondsInYear + secondsInDay * 30.0) // year + month
 
     // collect insurance - should collect up to available reserve balance
     collectInsurance(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, beFailed: false)
@@ -158,7 +159,7 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     Test.assertEqual(0.0, reserveBalanceAfter)
 
     // verify collection was limited by reserves
-    // Formula: 100% debit income -> 100% insurance rate -> more than 1000 MOET for 1 day + 1 year, but limited to totalDebitBalance = 1000.0
+    // Formula: 90% debit income -> 90% insurance rate -> large insurance amount, but limited by available reserves
     Test.assertEqual(1000.0, finalInsuranceBalance)
 }
 

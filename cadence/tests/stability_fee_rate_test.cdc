@@ -6,8 +6,6 @@ import "FlowCreditMarket"
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) let alice = Test.createAccount()
 
-//TODO(Uliana): remove flowTokenIdentifier when PR #75 will be merged (https://github.com/onflow/FlowCreditMarket/pull/75)
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 
 access(all)
 fun setup() {
