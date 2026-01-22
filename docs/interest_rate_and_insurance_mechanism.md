@@ -27,7 +27,7 @@ The interest curve typically increases the rate as utilization increases, incent
 
 ### 2. Credit Rate Calculation
 
-/// The credit rate is derived from the total debit interest income, with insurance and stability fees applied proportionally as a percentage of the interest generated.
+The credit rate is derived from the total debit interest income, with insurance and stability fees applied proportionally as a percentage of the interest generated.
 
 ```
 debitIncome = totalDebitBalance * debitRate
