@@ -552,10 +552,11 @@ fun withdrawStabilityFund(
     tokenTypeIdentifier: String,
     amount: UFix64,
     recipient: Address,
+    recipientPath: PublicPath,
 ): Test.TransactionResult {
     let res = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/withdraw_stability_fund.cdc",
-        [tokenTypeIdentifier, amount, recipient],
+        [tokenTypeIdentifier, amount, recipient, recipientPath],
         signer
     )
     

@@ -13,7 +13,7 @@ transaction(
     tokenTypeIdentifier: String,
     amount: UFix64,
     recipient: Address,
-    recipientPath: String,
+    recipientPath: PublicPath,
 ) {
     let pool: auth(FlowCreditMarket.EGovernance) &FlowCreditMarket.Pool
     let tokenType: Type
@@ -25,10 +25,8 @@ transaction(
         self.tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier \(tokenTypeIdentifier)")
 
-        let publicPath = PublicPath(identifier: recipientPath)
-            ?? panic("Invalid recipient path \(recipientPath)")
         self.recipient = getAccount(recipient)
-            .capabilities.borrow<&{FungibleToken.Receiver}>(publicPath)
+            .capabilities.borrow<&{FungibleToken.Receiver}>(recipientPath)
             ?? panic("Could not borrow receiver ref")
     }
 
