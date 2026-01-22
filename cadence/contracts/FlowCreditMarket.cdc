@@ -152,9 +152,6 @@ access(all) contract FlowCreditMarket {
         - We convert at boundaries via type casting to UFix128 or FlowCreditMarketMath.toUFix64.
     */
 
-    /// Seconds in a year (365.25 days to account for leap years)
-    access(all) let secondsInYear: UFix64
-
     /// InternalBalance
     ///
     /// A structure used internally to track a position's balance for a particular token
@@ -4308,7 +4305,7 @@ access(all) contract FlowCreditMarket {
     // number with 18 decimal places). The input to this function will be just the relative annual interest rate
     // (e.g. 0.05 for 5% interest), and the result will be the per-second multiplier (e.g. 1.000000000001).
     access(all) view fun perSecondInterestRate(yearlyRate: UFix128): UFix128 {
-        // TODO: replace 31536000.0 by self.secondsInYear, fix tests: interest_curve_advanced_test.cdc, interest_accrual_integration_test
+        // TODO(FCM, #110): replace 31536000.0 to 31_557_600.0, fix tests: interest_curve_advanced_test.cdc, interest_accrual_integration_test
         let perSecondScaledValue = yearlyRate / 31536000.0 // 365.0 * 24.0 * 60.0 * 60.0
         assert(
             perSecondScaledValue < UFix128.max,
@@ -4358,7 +4355,6 @@ access(all) contract FlowCreditMarket {
     }
 
     init() {
-        self.secondsInYear = 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
         self.PoolStoragePath = StoragePath(identifier: "flowCreditMarketPool_\(self.account.address)")!
         self.PoolFactoryPath = StoragePath(identifier: "flowCreditMarketPoolFactory_\(self.account.address)")!
         self.PoolPublicPath = PublicPath(identifier: "flowCreditMarketPool_\(self.account.address)")!
