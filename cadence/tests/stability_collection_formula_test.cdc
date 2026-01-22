@@ -1,0 +1,116 @@
+import Test
+import BlockchainHelpers
+
+import "MOET"
+import "FlowToken"
+import "test_helpers.cdc"
+
+access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
+access(all) let flowVaultStoragePath = /storage/flowTokenVault
+
+access(all)
+fun setup() {
+    deployContracts()
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+
+    // Add FlowToken as a supported collateral type (needed for borrowing scenarios)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
+    addSupportedTokenZeroRateCurve(
+        signer: protocolAccount,
+        tokenTypeIdentifier: flowTokenIdentifier,
+        collateralFactor: 0.8,
+        borrowFactor: 1.0,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
+}
+
+// -----------------------------------------------------------------------------
+// Test: collectStability full success flow with formula verification
+// Full flow: LP deposits to create credit → borrower borrows to create debit
+// → advance time → collect stability → verify tokens returned, reserves reduced,
+// timestamp updated, and formula
+// Formula: stabilityAmount = interestIncome * stabilityFeeRate
+// where interestIncome = totalDebitBalance * (currentDebitRate^timeElapsed - 1.0)
+//
+// This test runs in isolation (separate file) to ensure totalDebitBalance
+// equals exactly the borrowed amount without interference from other tests.
+// -----------------------------------------------------------------------------
+access(all)
+fun test_collectStability_success_fullAmount() {
+    // setup LP to provide MOET liquidity for borrowing
+    let lp = Test.createAccount()
+    setupMoetVault(lp, beFailed: false)
+    mintMoet(signer: protocolAccount, to: lp.address, amount: 10000.0, beFailed: false)
+
+    grantPoolCapToConsumer()
+    // LP deposits MOET (creates credit balance, provides borrowing liquidity)
+    createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+
+    // setup borrower with FLOW collateral
+    // With 0.8 CF and 1.3 target health: 1000 FLOW collateral allows borrowing ~615 MOET
+    // borrow = (collateral * price * CF) / targetHealth = (1000 * 1.0 * 0.8) / 1.3 ≈ 615.38
+    let borrower = Test.createAccount()
+    setupMoetVault(borrower, beFailed: false)
+    transferFlowTokens(to: borrower, amount: 1000.0)
+
+    // borrower deposits FLOW and auto-borrows MOET (creates debit balance ~615 MOET)
+    createWrappedPosition(signer: borrower, amount: 1000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: true)
+
+    // set 10% annual debit rate
+    // stability is calculated on interest income, not debit balance directly
+    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 0.1)
+
+    // set stability fee rate (10% of interest income)
+    let rateResult = setStabilityFeeRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, stabilityFeeRate: 0.1)
+    Test.expect(rateResult, Test.beSucceeded())
+
+    // collect stability to reset last stability collection timestamp,
+    // this accounts for timing variation between pool creation and this point
+    // (each transaction/script execution advances the block timestamp slightly)
+    var res = collectStability(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier)
+    Test.expect(res, Test.beSucceeded())
+
+    // record balances after resetting the timestamp
+    let initialStabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: defaultTokenIdentifier)
+    let reserveBalanceBefore = getReserveBalance(vaultIdentifier: defaultTokenIdentifier)
+    Test.assert(reserveBalanceBefore > 0.0, message: "Reserves should exist after deposit")
+
+    // record timestamp before advancing time
+    let timestampBefore = getBlockTimestamp()
+    Test.moveTime(by: secondsInYear)
+
+    res = collectStability(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier)
+    Test.expect(res, Test.beSucceeded())
+
+    // verify stability was collected, reserves decreased
+    let finalStabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: defaultTokenIdentifier)
+    let reserveBalanceAfter = getReserveBalance(vaultIdentifier: defaultTokenIdentifier)
+    Test.assert(reserveBalanceAfter < reserveBalanceBefore, message: "Reserves should have decreased after collection")
+
+    let collectedAmount = finalStabilityBalance! - initialStabilityBalance!
+
+    let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
+    // verify the amount withdrawn from reserves equals the collected amount
+    Test.assertEqual(amountWithdrawnFromReserves, collectedAmount)
+
+    // verify last stability collection time was updated to current block timestamp
+    let currentTimestamp = getBlockTimestamp()
+    let lastStabilityCollectionTime = getLastStabilityCollectionTime(tokenTypeIdentifier: defaultTokenIdentifier)
+    Test.assertEqual(currentTimestamp, lastStabilityCollectionTime!)
+
+    // verify formula: stabilityAmount = interestIncome * stabilityFeeRate
+    // where interestIncome = totalDebitBalance * (currentDebitRate^timeElapsed - 1.0)
+    // debitBalance ≈ 615.38 MOET
+    // With 10% annual debit rate over 1 year: interestIncome ≈ 615.38 * (1.105246617130926037773784 - 1) ≈ 64.767
+    // Stability = interestIncome * 0.1 ≈ 6.4767 MOET
+    // Note: Actual value depends on continuous compounding calculation
+
+    let tolerance = 0.001
+    let expectedCollectedAmount = 6.476
+    let diff = expectedCollectedAmount > collectedAmount 
+        ? expectedCollectedAmount - collectedAmount
+        : collectedAmount - expectedCollectedAmount
+
+    Test.assert(diff < tolerance, message: "Stability collected should be around \(expectedCollectedAmount) but current \(collectedAmount)")
+}
