@@ -124,7 +124,7 @@ fun test_setInsuranceRate_rateGreaterThanOne_fails() {
     Test.expect(res, Test.beFailed())
 
     let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("insuranceRate + stabilityFeeRate must be in range [0, 1)")
+    let containsExpectedError = errorMessage.contains("insuranceRate must be in range [0, 1)")
     Test.assert(containsExpectedError, message: "expected error about insurance rate bounds, got: \(errorMessage)")
 }
 

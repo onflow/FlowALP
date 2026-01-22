@@ -98,18 +98,18 @@ fun test_collectStability_partialReserves_collectsAvailable() {
     setupMoetVault(protocolAccount, beFailed: false)
     mintMoet(signer: protocolAccount, to: protocolAccount.address, amount: 10000.0, beFailed: false)
 
-    // set 100% annual debit rate
-    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 1.0)
+    // set 90% annual debit rate
+    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 0.9)
 
     // set a high stability fee rate so calculated amount would exceed reserves
-    // 100% fee rate on interest income
-    let rateResult = setStabilityFeeRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, stabilityFeeRate: 1.0)
+    // Note: stabilityFeeRate must be < 1.0, using 0.9 which combined with default insuranceRate (0.0) = 0.9 < 1.0
+    let rateResult = setStabilityFeeRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, stabilityFeeRate: 0.9)
     Test.expect(rateResult, Test.beSucceeded())
 
     let initialStabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: defaultTokenIdentifier)
     Test.assertEqual(nil, initialStabilityBalance)
 
-    Test.moveTime(by: secondsInYear + secondsInDay) // 1 year + 1 day
+    Test.moveTime(by: secondsInYear + secondsInDay * 30.0) // 1 year + 1 month
 
     // collect stability - should collect up to available reserve balance
     let res = collectStability(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier)
@@ -122,7 +122,7 @@ fun test_collectStability_partialReserves_collectsAvailable() {
     Test.assertEqual(0.0, reserveBalanceAfter)
 
     // verify collection was limited by reserves
-    // Formula: 100% debit income -> 100% stability rate -> more than 1000 FLOW for 1 day + 1 year, but limited to totalDebitBalance = 1000.0
+    // Formula: 90% debit income -> 90% stability rate -> large amount, but limited by available reserves
     Test.assertEqual(1000.0, finalStabilityBalance!)
 }
 
