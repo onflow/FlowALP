@@ -429,7 +429,7 @@ fun test_exact_compounding_verification_one_year() {
     log("Expected growth rate: \(expectedGrowthRate.toString())")
 
     Test.assert(
-        actualGrowthRate >= expectedGrowthRate - tolerance && actualGrowthRate <= expectedGrowthRate + tolerance,
+        rateDiff <= tolerance,
         message: "Growth rate should be ~0.105170918 (10.52% effective). Actual: \(actualGrowthRate)"
     )
     

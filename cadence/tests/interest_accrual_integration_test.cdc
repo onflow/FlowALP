@@ -974,7 +974,6 @@ fun test_insurance_deduction_verification() {
     // - 10% APY → (1 + 0.10 / 31_557_600) ^ 31_557_600 - 1 ≈ 10.52% effective rate
     // - 9% APY → (1 + 0.09 / 31_557_600) ^ 31_557_600 - 1 ≈ 9.42% effective rate
     // - Spread should be approximately 1%
-    let ONE_YEAR: Fix64 = 31_557_600.0 // 365.25 days
     Test.moveTime(by: ONE_YEAR)
     Test.commitBlock()
 
