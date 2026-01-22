@@ -1261,7 +1261,7 @@ fun testManualLiquidation_combinedEdgeCase() {
 
 /// When liquidation bonus is 5%, manual offer at exactly bonus limit should succeed.
 access(all)
-fun testManualLiquidation_bonusFivePercent_offerAtBonusLimit() {
+fun testManualLiquidation_bonusEnabled_offerAtBonusLimit() {
     safeReset()
     let pid: UInt64 = 0
     let protocolAccount = Test.getAccount(0x0000000000000007)
@@ -1331,7 +1331,7 @@ fun testManualLiquidation_bonusFivePercent_offerAtBonusLimit() {
 
 /// When liquidation bonus is 5%, manual offer within bonus tolerance should succeed.
 access(all)
-fun testManualLiquidation_bonusFivePercent_offerWithinBonus() {
+fun testManualLiquidation_bonusEnabled_offerWithinBonus() {
     safeReset()
     let pid: UInt64 = 0
     let protocolAccount = Test.getAccount(0x0000000000000007)
@@ -1399,9 +1399,9 @@ fun testManualLiquidation_bonusFivePercent_offerWithinBonus() {
     Test.expect(liqRes, Test.beSucceeded())
 }
 
-/// When liquidation bonus is 5%, manual offer exceeding bonus should fail.
+/// When liquidation bonus is 5%, manual offer exceeding bonus tolerance should fail.
 access(all)
-fun testManualLiquidation_bonusFivePercent_offerExceedsBonus() {
+fun testManualLiquidation_bonusEnabled_offerExceedsBonus() {
     safeReset()
     let pid: UInt64 = 0
     let protocolAccount = Test.getAccount(0x0000000000000007)
