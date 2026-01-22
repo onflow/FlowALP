@@ -64,7 +64,7 @@ access(all) fun test_set_stability_fee_rate_greater_than_one_fails() {
     Test.expect(res, Test.beFailed())
 
     let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("stability fee rate must be between 0 and 1")
+    let containsExpectedError = errorMessage.contains("stability fee rate must be in range [0, 1)")
     Test.assert(containsExpectedError, message: "expected error about stability rate bounds, got: \(errorMessage)")
 }
 
