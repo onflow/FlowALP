@@ -1548,11 +1548,20 @@ access(all) contract FlowCreditMarket {
             let postHealth = FlowCreditMarket.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
             assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: \(postHealth)>\(self.liquidationTargetHF)")
 
-            // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
+            // Compare the liquidation offer to liquidation via DEX.
+            // Manual liquidators are allowed to propose offers up to liquidationBonus% worse than DEX price.
+            // This tolerance incentivizes manual liquidations when automated DEX liquidations are unavailable.
             let swapper = self.dex.getSwapper(inType: seizeType, outType: debtType)! // TODO: will revert if pair unsupported
             // Get a quote: "how much collateral do I need to give you to get `repayAmount` debt tokens"
             let quote = swapper.quoteIn(forDesired: repayAmount, reverse: false)
-            assert(seizeAmount < quote.inAmount, message: "Liquidation offer must be better than that offered by DEX")
+
+            // Apply liquidation bonus tolerance (configured per collateral token type)
+            let bonusFraction = self.liquidationBonus[seizeType]!
+            let maxAllowedSeizeAmount = quote.inAmount * (1.0 + bonusFraction)
+            assert(
+                seizeAmount <= maxAllowedSeizeAmount,
+                message: "Liquidation offer exceeds allowed tolerance: seizeAmount=\(seizeAmount) max=\(maxAllowedSeizeAmount) (DEX=\(quote.inAmount) bonus=\(bonusFraction))"
+            )
 
             // Compare the DEX price to the oracle price and revert if they diverge beyond configured threshold.
             let Pcd_dex = quote.outAmount / quote.inAmount // price of collateral, denominated in debt token, implied by dex quote (D/C)
