@@ -3430,7 +3430,7 @@ access(all) contract FlowCreditMarket {
                     "Unsupported token type \(tokenType.identifier)"
                 insuranceRate >= 0.0 && insuranceRate < 1.0:
                     "insuranceRate must be in range [0, 1)"
-                insuranceRate + (self.getStabilityFeeRate(tokenType: tokenType) ?? 0.0) >= 0.0 && insuranceRate + (self.getStabilityFeeRate(tokenType: tokenType) ?? 0.0) < 1.0:
+                insuranceRate + (self.getStabilityFeeRate(tokenType: tokenType) ?? 0.0) < 1.0:
                     "insuranceRate + stabilityFeeRate must be in range [0, 1) to avoid underflow in credit rate calculation"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
@@ -3532,7 +3532,7 @@ access(all) contract FlowCreditMarket {
                     "Unsupported token type \(tokenType.identifier)"
                 stabilityFeeRate >= 0.0 && stabilityFeeRate < 1.0:
                     "stability fee rate must be in range [0, 1)"
-                stabilityFeeRate + (self.getInsuranceRate(tokenType: tokenType) ?? 0.0) >= 0.0 && stabilityFeeRate + (self.getInsuranceRate(tokenType: tokenType) ?? 0.0) < 1.0:
+                stabilityFeeRate + (self.getInsuranceRate(tokenType: tokenType) ?? 0.0) < 1.0:
                     "stabilityFeeRate + insuranceRate must be in range [0, 1) to avoid underflow in credit rate calculation"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
