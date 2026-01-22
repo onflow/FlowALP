@@ -347,6 +347,8 @@ access(all) contract FlowCreditMarket {
         access(all) let warmupSec: UInt64
         access(all) let lastUnpausedAt: UInt64?
         access(all) let triggerHF: UFix128
+        /// Deprecated: Unused field, but cannot be removed without contract update
+        access(all) let protocolFeeBps: UInt16
 
         init(
             targetHF: UFix128,
@@ -360,6 +362,7 @@ access(all) contract FlowCreditMarket {
             self.warmupSec = warmupSec
             self.lastUnpausedAt = lastUnpausedAt
             self.triggerHF = triggerHF
+            self.protocolFeeBps = 0
         }
     }
 
@@ -1201,7 +1204,7 @@ access(all) contract FlowCreditMarket {
         /// Time this pool most recently had liquidations paused
         access(self) var lastUnpausedAt: UInt64?
 
-        /// TODO: unused! To remove, must re-deploy existing contracts
+        /// Deprecated: Unused field, but cannot be removed without contract update
         access(self) var protocolLiquidationFeeBps: UInt16
 
         // TODO(jord): figure out how to reference dex https://github.com/onflow/FlowCreditMarket/issues/94
