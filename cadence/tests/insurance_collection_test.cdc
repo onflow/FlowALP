@@ -38,11 +38,11 @@ fun beforeEach() {
 
 
 // -----------------------------------------------------------------------------
-// Test: collectInsurance when no swapper is configured should complete without errors
+// Test: collectInsurance when no insurance rate is configured should complete without errors
 // The collectInsurance function should return nil internally and not fail
 // -----------------------------------------------------------------------------
 access(all)
-fun test_collectInsurance_noSwapper_returnsNil() {
+fun test_collectInsurance_noInsuranceRate_returnsNil() {
     // setup user
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
@@ -54,6 +54,9 @@ fun test_collectInsurance_noSwapper_returnsNil() {
 
     // verify no swapper
     Test.assertEqual(false, insuranceSwapperExists(tokenTypeIdentifier: defaultTokenIdentifier))
+    // verify insurance rate
+    let insuranceRate = getInsuranceRate(tokenTypeIdentifier: defaultTokenIdentifier)
+    Test.assertEqual(0.0, insuranceRate!)
 
     // get initial insurance fund balance
     let initialBalance = getInsuranceFundBalance()
@@ -69,13 +72,13 @@ fun test_collectInsurance_noSwapper_returnsNil() {
 }
 
 // -----------------------------------------------------------------------------
-// Test: collectInsurance when totalCreditBalance == 0 should return nil
-// When no deposits have been made, totalCreditBalance is 0 and no collection occurs
+// Test: collectInsurance when totalDebitBalance == 0 should return nil
+// When no deposits have been made, totalDebitBalance is 0 and no collection occurs
 // Note: This is similar to noReserveVault since both conditions occur together
 // -----------------------------------------------------------------------------
 access(all)
-fun test_collectInsurance_zeroCreditBalance_returnsNil() {
-    // setup swapper but DON'T create any positions (no deposits = no credit balance)
+fun test_collectInsurance_zeroDebitBalance_returnsNil() {
+    // setup swapper but DON'T create any positions
     setupMoetVault(protocolAccount, beFailed: false)
     mintMoet(signer: protocolAccount, to: protocolAccount.address, amount: 10000.0, beFailed: false)
 
@@ -89,7 +92,7 @@ fun test_collectInsurance_zeroCreditBalance_returnsNil() {
 
     Test.moveTime(by: secondsInDay)
 
-    // collect insurance - should return nil since totalCreditBalance == 0
+    // collect insurance - should return nil since totalDebitBalance == 0
     collectInsurance(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, beFailed: false)
 
     // verify insurance fund balance is still 0 (no collection occurred)
@@ -155,13 +158,13 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     Test.assertEqual(0.0, reserveBalanceAfter)
 
     // verify collection was limited by reserves
-    // Formula: 100% debit income -> 100% insurance rate -> more than 1000 MOET for 1 day + 1 year, but limited to totalCreditBalance = 1000.0
+    // Formula: 100% debit income -> 100% insurance rate -> more than 1000 MOET for 1 day + 1 year, but limited to totalDebitBalance = 1000.0
     Test.assertEqual(1000.0, finalInsuranceBalance)
 }
 
 // -----------------------------------------------------------------------------
 // Test: collectInsurance when calculated amount rounds to zero returns nil
-// Very small time elapsed + small credit balance can result in insuranceAmountUFix64 == 0
+// Very small time elapsed + small debit balance can result in insuranceAmountUFix64 == 0
 // Should return nil and update the last insurance collection timestamp
 // -----------------------------------------------------------------------------
 access(all)
@@ -292,7 +295,7 @@ fun test_collectInsurance_multipleTokens() {
     setupMoetVault(flowLp, beFailed: false)
     transferFlowTokens(to: flowLp, amount: 10000.0)
 
-    // FLOW LP deposits FLOW (creates FLOW credit balance)
+    // FLOW LP deposits FLOW (creates FLOW debit balance)
     createWrappedPosition(signer: flowLp, amount: 10000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
 
     // setup MOET borrower with FLOW collateral (creates MOET debit)
