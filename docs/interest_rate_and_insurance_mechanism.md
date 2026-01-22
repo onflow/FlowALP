@@ -110,8 +110,8 @@ Insurance is collected through the `collectInsurance()` function on `TokenState`
 1. **Calculates Accrued Insurance**:
    ```
    timeElapsed = currentTime - lastInsuranceCollectionTime
-   yearsElapsed = timeElapsed / secondsPerYear
-   insuranceAmount = totalCreditBalance * insuranceRate * yearsElapsed
+   debitIncome = totalDebitBalance * (curentDebitRate ^ time_elapsed - 1.0)
+   insuranceAmount = debitIncome * insuranceRate
    ```
 
 2. **Withdraws from Reserves**:
