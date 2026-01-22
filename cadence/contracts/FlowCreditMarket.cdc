@@ -934,7 +934,11 @@ access(all) contract FlowCreditMarket {
     /// - borrowFactor: the factor used to derive effective debt
     /// - liquidationBonus: premium applied to liquidations to incentivize repayors
     access(all) struct RiskParams {
+        /// The factor (Fc) used to determine effective collateral, in the range [0, 1]
+        /// See FlowCreditMarket.effectiveCollateral for additional detail.
         access(all) let collateralFactor: UFix128
+        /// The factor (Fd) used to determine effective debt, in the range [0, 1]
+        /// See FlowCreditMarket.effectiveDebt for additional detail.
         access(all) let borrowFactor: UFix128
 
         /// Bonus expressed as fractional rate, e.g. 0.05 for 5%
@@ -972,6 +976,18 @@ access(all) contract FlowCreditMarket {
             self.creditIndex = credit
             self.debitIndex = debit
             self.risk = risk
+        }
+
+        /// Returns the effective debt (denominated in $) for the given debit balance of this snapshot's token.
+        /// See FlowCreditMarket.effectiveDebt for additional details.
+        access(all) view fun effectiveDebt(debitBalance: UFix128): UFix128 {
+            return FlowCreditMarket.effectiveDebt(debit: debitBalance, price: self.price, borrowFactor: self.risk.borrowFactor)
+        }
+
+        /// Returns the effective collateral (denominated in $) for the given credit balance of this snapshot's token.
+        /// See FlowCreditMarket.effectiveCollateral for additional details.
+        access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128 {
+            return FlowCreditMarket.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.collateralFactor)
         }
     }
 
@@ -1024,12 +1040,36 @@ access(all) contract FlowCreditMarket {
 
     // PURE HELPERS -------------------------------------------------------------
 
-    access(all) view fun effectiveCollateral(credit: UFix128, snap: TokenSnapshot): UFix128 {
-        return (credit * snap.price) * snap.risk.collateralFactor
+    /// Returns the effective collateral (denominated in $) for the given credit balance of some token T.
+    /// Effective Collateral is defined:
+    ///   Ce = (Nc)(Pc)(Fc)
+    /// Where:
+    /// Ce = Effective Collateral 
+    /// Nc = Number of Collateral Tokens
+    /// Pc = Collateral Token Price
+    /// Fc = Collateral Factor
+    ///
+    /// @param credit           The credit balance of the position for token T.
+    /// @param price            The price of token T ($/T).
+    /// @param collateralFactor The collateral factor for token T (see RiskParams for details).
+    access(all) view fun effectiveCollateral(credit: UFix128, price: UFix128, collateralFactor: UFix128): UFix128 {
+        return (credit * price) * collateralFactor
     }
 
-    access(all) view fun effectiveDebt(debit: UFix128, snap: TokenSnapshot): UFix128 {
-        return (debit * snap.price) / snap.risk.borrowFactor
+    /// Returns the effective debt (denominated in $) for the given debit balance of some token T.
+    /// Effective Debt is defined:
+    ///   De = (Nd)(Pd)(Fd)
+    /// Where:
+    /// De = Effective Debt 
+    /// Nd = Number of Collateral Tokens
+    /// Pd = Debt Token Price
+    /// Fd = Borrow Factor
+    ///
+    /// @param debit       The debit balance of the position for token T.
+    /// @param price       The price of token T ($/T).
+    /// @param borowFactor The borrow factor for token T (see RiskParams for details).
+    access(all) view fun effectiveDebt(debit: UFix128, price: UFix128, borrowFactor: UFix128): UFix128 {
+        return (debit * price) / borrowFactor
     }
 
     /// Computes health = totalEffectiveCollateral / totalEffectiveDebt (∞ when debt == 0)
@@ -1051,7 +1091,7 @@ access(all) contract FlowCreditMarket {
                         interestIndex: snap.creditIndex
                     )
                     effectiveCollateralTotal = effectiveCollateralTotal
-                        + FlowCreditMarket.effectiveCollateral(credit: trueBalance, snap: snap)
+                        + snap.effectiveCollateral(creditBalance: trueBalance)
 
                 case BalanceDirection.Debit:
                     let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
@@ -1059,7 +1099,7 @@ access(all) contract FlowCreditMarket {
                         interestIndex: snap.debitIndex
                     )
                     effectiveDebtTotal = effectiveDebtTotal
-                        + FlowCreditMarket.effectiveDebt(debit: trueBalance, snap: snap)
+                        + snap.effectiveDebt(debitBalance: trueBalance)
             }
         }
         return FlowCreditMarket.healthComputation(
@@ -1096,7 +1136,7 @@ access(all) contract FlowCreditMarket {
                         interestIndex: snap.creditIndex
                     )
                     effectiveCollateralTotal = effectiveCollateralTotal
-                        + FlowCreditMarket.effectiveCollateral(credit: trueBalance, snap: snap)
+                        + snap.effectiveCollateral(creditBalance: trueBalance)
 
                 case BalanceDirection.Debit:
                     let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
@@ -1104,7 +1144,7 @@ access(all) contract FlowCreditMarket {
                         interestIndex: snap.debitIndex
                     )
                     effectiveDebtTotal = effectiveDebtTotal
-                        + FlowCreditMarket.effectiveDebt(debit: trueBalance, snap: snap)
+                        + snap.effectiveDebt(debitBalance: trueBalance)
             }
         }
 
@@ -1552,10 +1592,12 @@ access(all) contract FlowCreditMarket {
             let Fc = positionView.snapshots[seizeType]!.risk.collateralFactor
             let Fd = positionView.snapshots[debtType]!.risk.borrowFactor
 
-            let Ce_seize = UFix128(seizeAmount) * UFix128(Pc_oracle) * Fc // effective value of seized collateral ($)
-            let De_seize = UFix128(repayAmount) * UFix128(Pd_oracle) * Fd // effective value of repaid debt ($)
-            let Ce_post = Ce_pre - Ce_seize                               // position's total effective collateral after liquidation ($)
-            let De_post = De_pre - De_seize                               // position's total effective debt after liquidation ($)
+            // Ce_seize = effective value of seized collateral ($)
+            let Ce_seize = FlowCreditMarket.effectiveCollateral(credit: UFix128(seizeAmount), price: UFix128(Pc_oracle), collateralFactor: Fc)
+            // De_seize = effective value of repaid debt ($)
+            let De_seize = FlowCreditMarket.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd) 
+            let Ce_post = Ce_pre - Ce_seize // position's total effective collateral after liquidation ($)
+            let De_post = De_pre - De_seize // position's total effective debt after liquidation ($)
             let postHealth = FlowCreditMarket.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
             assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: \(postHealth)>\(self.liquidationTargetHF)")
 
