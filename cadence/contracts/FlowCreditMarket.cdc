@@ -398,13 +398,18 @@ access(all) contract FlowCreditMarket {
     /// An internal resource used to track deposits, withdrawals, balances, and queued deposits to an open position.
     access(all) resource InternalPosition {
 
-        /// The target health of the position
+        /// The position-specific target health, for auto-balancing purposes.
+        /// When the position health moves outside the range [minHealth, maxHealth], the balancing operation
+        /// should result in a position health of targetHealth.
         access(EImplementation) var targetHealth: UFix128
 
-        /// The minimum health of the position, below which a position is considered undercollateralized
+        /// The position-specific minimum health threshold, below which a position is considered undercollateralized.
+        /// When a position is under-collateralized, it is eligible for rebalancing.
+        /// NOTE: An under-collateralized position is distinct from an unhealthy position, and cannot be liquidated
         access(EImplementation) var minHealth: UFix128
 
-        /// The maximum health of the position, above which a position is considered overcollateralized
+        /// The position-specific maximum health threshold, above which a position is considered overcollateralized.
+        /// When a position is over-collateralized, it is eligible for rebalancing.
         access(EImplementation) var maxHealth: UFix128
 
         /// The balances of deposited and withdrawn token types
@@ -457,6 +462,7 @@ access(all) contract FlowCreditMarket {
         /// the position exceeds its maximum health.
         ///
         /// NOTE: If a non-nil value is provided, the Sink MUST accept MOET deposits or the operation will revert.
+        /// TODO(jord): precondition assumes Pool's default token is MOET, however Pool has option to specify default token in constructor.
         access(EImplementation) fun setDrawDownSink(_ sink: {DeFiActions.Sink}?) {
             pre {
                 sink == nil || sink!.getSinkType() == Type<@MOET.Vault>():
@@ -468,14 +474,19 @@ access(all) contract FlowCreditMarket {
         /// Sets the InternalPosition's topUpSource. If `nil`, the Pool will not be able to pull underflown value when
         /// the position falls below its minimum health which may result in liquidation.
         access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source}?) {
+            /// TODO(jord): User can provide top-up source containing unsupported token type. Then later rebalances will revert.
+            /// Possibly an attack vector on automated rebalancing, if multiple positions are rebalanced in the same transaction.
             self.topUpSource = source
         }
     }
 
     /// InterestCurve
     ///
-    /// A simple interface to calculate interest rate
+    /// A simple interface to calculate interest rate for a token type.
     access(all) struct interface InterestCurve {
+        /// Returns the annual interest rate for the given credit and debit balance, for some token T.
+        /// @param creditBalance The credit (deposit) balance of token T
+        /// @param debitBalance The debit (withdrawal) balance of token T
         access(all) fun interestRate(creditBalance: UFix128, debitBalance: UFix128): UFix128 {
             post {
                 // Max rate is 400% (4.0) to accommodate high-utilization scenarios
@@ -606,10 +617,14 @@ access(all) contract FlowCreditMarket {
         /// The timestamp at which the TokenState was last updated
         access(EImplementation) var lastUpdate: UFix64
 
-        /// The total credit balance of the related Token across the whole Pool in which this TokenState resides
+        /// The total credit balance for this token, in a specific Pool.
+        /// The total credit balance is the sum of balances of all positions with a credit balance (ie. they have lent this token).
+        /// In other words, it is the the sum of net deposits among positions which are net creditors in this token.
         access(EImplementation) var totalCreditBalance: UFix128
 
-        /// The total debit balance of the related Token across the whole Pool in which this TokenState resides
+        /// The total debit balance for this token, in a specific Pool.
+        /// The total debit balance is the sum of balances of all positions with a debit balance (ie. they have borrowed this token).
+        /// In other words, it is the the sum of net withdrawals among positions which are net debtors in this token.
         access(EImplementation) var totalDebitBalance: UFix128
 
         /// The index of the credit interest for the related token.
@@ -787,6 +802,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Updates the totalCreditBalance by the provided amount
+        /// TODO(jord): unused
         access(EImplementation) fun updateCreditBalance(amount: Int256) {
             // temporary cast the credit balance to a signed value so we can add/subtract
             let adjustedBalance = Int256(self.totalCreditBalance) + amount
@@ -799,6 +815,7 @@ access(all) contract FlowCreditMarket {
             self.updateForUtilizationChange()
         }
 
+        /// TODO(jord): unused
         access(EImplementation) fun updateDebitBalance(amount: Int256) {
             // temporary cast the debit balance to a signed value so we can add/subtract
             let adjustedBalance = Int256(self.totalDebitBalance) + amount
@@ -811,7 +828,7 @@ access(all) contract FlowCreditMarket {
             self.updateForUtilizationChange()
         }
 
-        // Enhanced updateInterestIndices with deposit capacity update
+        // Updates the credit and debit interest index for this token, accounting for time since the last update.
         access(EImplementation) fun updateInterestIndices() {
             let currentTime = getCurrentBlock().timestamp
             let dt = currentTime - self.lastUpdate
@@ -903,6 +920,7 @@ access(all) contract FlowCreditMarket {
             //    Used for stable assets like MOET where rates are governance-controlled
             // 2. KinkInterestCurve (and others): reserve factor model
             //    Insurance is a percentage of interest income, not a fixed spread
+            // TODO(jord): seems like InterestCurve abstraction could be improved if we need to check specific types here.
             if self.interestCurve.getType() == Type<FlowCreditMarket.FixedRateInterestCurve>() {
                 // FixedRate path: creditRate = debitRate - insuranceRate
                 // This provides a fixed, predictable spread between borrower and lender rates
@@ -971,7 +989,11 @@ access(all) contract FlowCreditMarket {
 
     /// Copy-only representation of a position used by pure math (no storage refs)
     access(all) struct PositionView {
+        /// Set of all non-zero balances in the position.
+        /// If the position does not have a balance for a supported token, no entry for that token exists in this map.
         access(all) let balances: {Type: InternalBalance}
+        /// Set of all token snapshots for which this position has a non-zero balance.
+        /// If the position does not have a balance for a supported token, no entry for that token exists in this map.
         access(all) let snapshots: {Type: TokenSnapshot}
         access(all) let defaultToken: Type
         access(all) let minHealth: UFix128
@@ -1004,6 +1026,8 @@ access(all) contract FlowCreditMarket {
 
     /// Computes health = totalEffectiveCollateral / totalEffectiveDebt (∞ when debt == 0)
     access(all) view fun healthFactor(view: PositionView): UFix128 {
+        // TODO: this logic partly duplicates BalanceSheet construction in _getUpdatedBalanceSheet
+        // This function differs in that it does not read any data from a Pool resource. Consider consolidating the two implementations.
         var effectiveCollateralTotal: UFix128 = 0.0
         var effectiveDebtTotal: UFix128 = 0.0
 
@@ -1047,6 +1071,8 @@ access(all) contract FlowCreditMarket {
             return 0.0
         }
 
+        // TODO: this logic partly duplicates BalanceSheet construction in _getUpdatedBalanceSheet
+        // This function differs in that it does not read any data from a Pool resource. Consider consolidating the two implementations.
         var effectiveCollateralTotal: UFix128 = 0.0
         var effectiveDebtTotal: UFix128 = 0.0
 
@@ -2105,6 +2131,7 @@ access(all) contract FlowCreditMarket {
             return amount
         }
 
+        // TODO: documentation
         access(self) fun computeAdjustedBalancesAfterWithdrawal(
             balanceSheet: BalanceSheet,
             position: &InternalPosition,
@@ -2166,6 +2193,8 @@ access(all) contract FlowCreditMarket {
             )
         }
 
+        // TODO(jord): ~100-line function - consider refactoring
+        // TODO: documentation
          access(self) fun computeRequiredDepositForHealth(
             position: &InternalPosition,
             depositType: Type,
@@ -2422,7 +2451,7 @@ access(all) contract FlowCreditMarket {
         }
 
         // Helper function to compute available withdrawal
-        // Helper function to compute available withdrawal
+        // TODO(jord): ~100-line function - consider refactoring
         access(self) fun computeAvailableWithdrawal(
             position: &InternalPosition,
             withdrawType: Type,
@@ -2635,6 +2664,7 @@ access(all) contract FlowCreditMarket {
         /// depositing the loaned amount to the given Sink.
         /// If a Source is provided, the position will be configured to pull loan repayment
         /// when the loan becomes undercollateralized, preferring repayment to outright liquidation.
+        /// TODO(jord): it does not seem like there is any permission system for positions. Anyone with (auth EPosition) &Pool can operate on any position.
         access(EParticipant) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DeFiActions.Sink},
@@ -2644,6 +2674,7 @@ access(all) contract FlowCreditMarket {
             pre {
                 self.globalLedger[funds.getType()] != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
+                // TODO(jord): Sink/source should be valid
             }
             // construct a new InternalPosition, assigning it the current position ID
             let id = self.nextPositionID
@@ -2682,6 +2713,7 @@ access(all) contract FlowCreditMarket {
             )
         }
 
+        /// TODO(jord): ~100-line function - consider refactoring.
         access(self) fun _depositEffectsOnly(
             pid: UInt64,
             from: @{FungibleToken.Vault}
@@ -2828,6 +2860,7 @@ access(all) contract FlowCreditMarket {
         ///
         /// If `pullFromTopUpSource` is true, deficient value putting the position below its min health
         /// is pulled from the position's configured `topUpSource`.
+        /// TODO(jord): ~150-line function - consider refactoring.
         access(EPosition) fun withdrawAndPull(
             pid: UInt64,
             type: Type,
@@ -3267,9 +3300,14 @@ access(all) contract FlowCreditMarket {
             self.debugLogging = enabled
         }
 
-        /// Rebalances the position to the target health value.
-        /// If `force` is `true`, the position will be rebalanced even if it is currently healthy.
-        /// Otherwise, this function will do nothing if the position is within the min/max health bounds.
+        /// Rebalances the position to the target health value, if the position is under- or over-collateralized,
+        /// as defined by the position-specific min/max health thresholds.
+        /// If force=true, the position will be rebalanced regardless of its current health.
+        ///
+        /// When rebalancing, funds are withdrawn from the position's topUpSource or deposited to its drawDownSink.
+        /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
+        /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
+        /// not cause the position to reach its target health.
         access(EPosition) fun rebalancePosition(pid: UInt64, force: Bool) {
             self._lockPosition(pid)
             self._rebalancePositionNoLock(pid: pid, force: force)
@@ -3337,6 +3375,7 @@ access(all) contract FlowCreditMarket {
                     let sinkCapacity = drawDownSink.minimumCapacity()
                     let sinkAmount = (idealWithdrawal > sinkCapacity) ? sinkCapacity : idealWithdrawal
 
+                    // TODO(jord): we enforce in setDrawDownSink that the type is MOET -> we should panic here if that does not hold (currently silently fail)
                     if sinkAmount > 0.0 && sinkType == Type<@MOET.Vault>() {
                         let tokenState = self._borrowUpdatedTokenState(type: Type<@MOET.Vault>())
                         if position.balances[Type<@MOET.Vault>()] == nil {
