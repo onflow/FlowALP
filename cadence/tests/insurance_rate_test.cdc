@@ -153,10 +153,7 @@ fun test_setInsuranceRate_combinedRateExceedsOne_fails() {
     )
 
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("insuranceRate + stabilityFeeRate must be in range [0, 1)")
-    Test.assert(containsExpectedError, message: "expected error about combined rate bounds, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "insuranceRate + stabilityFeeRate must be in range [0, 1)")
 }
 
 // -----------------------------------------------------------------------------
@@ -189,10 +186,7 @@ fun test_setStabilityFeeRate_combinedRateExceedsOne_fails() {
     )
 
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("stabilityFeeRate + insuranceRate must be in range [0, 1)")
-    Test.assert(containsExpectedError, message: "expected error about combined rate bounds, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "stabilityFeeRate + insuranceRate must be in range [0, 1)")
 }
 
 // -----------------------------------------------------------------------------

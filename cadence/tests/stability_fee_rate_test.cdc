@@ -62,10 +62,7 @@ access(all) fun test_set_stability_fee_rate_greater_than_one_fails() {
     )
     // should fail with "stability fee rate must be between 0 and 1"
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("stability fee rate must be in range [0, 1)")
-    Test.assert(containsExpectedError, message: "expected error about stability rate bounds, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "stability fee rate must be in range [0, 1)")
 }
 
 
@@ -82,10 +79,7 @@ access(all) fun test_set_stability_fee_rate_less_than_zero_fails() {
 
     // should fail with "expected value of type UFix64"
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("invalid argument at index 1: expected value of type `UFix64`")
-    Test.assert(containsExpectedError, message: "expected error about stability fee rate bounds, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "invalid argument at index 1: expected value of type `UFix64`")
 }
 
 /* --- Token Type Tests --- */
@@ -99,10 +93,7 @@ access(all) fun test_set_stability_fee_rate_invalid_token_type_fails() {
     )
     // should fail with "Unsupported token type"
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("Unsupported token type")
-    Test.assert(containsExpectedError, message: "expected error about stability fee rate bounds, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "Unsupported token type")
 }
 
 // test_get_stability_fee_rate_invalid_token_type that getStabilityFeeRate returns nil for unsupported token types.
