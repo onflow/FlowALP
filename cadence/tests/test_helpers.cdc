@@ -339,20 +339,6 @@ fun setDepositRate(signer: Test.TestAccount, tokenTypeIdentifier: String, hourly
 }
 
 access(all)
-fun setTokenLiquidationBonus(
-    signer: Test.TestAccount,
-    tokenTypeIdentifier: String,
-    bonus: UFix64
-) {
-    let setRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_token_liquidation_bonus.cdc",
-        [tokenTypeIdentifier, bonus],
-        signer
-    )
-    Test.expect(setRes, Test.beSucceeded())
-}
-
-access(all)
 fun setDepositCapacityCap(signer: Test.TestAccount, tokenTypeIdentifier: String, cap: UFix64) {
     let setRes = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_deposit_capacity_cap.cdc",
