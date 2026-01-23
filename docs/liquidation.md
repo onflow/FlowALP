@@ -34,18 +34,6 @@ The collateral and debt factors discount the value of collateral and inflate the
 
 A collateral/debt factor close to 1 indicates a low-risk token, or a token with a low anticipated volatility. A collateral/debt factor closer to 0 indicates a high-risk token, or a token with a high anticipated volatility.
 
-### Effective Debt
-
-
-
-Where:
-- `De` = Effective Debt ($)
-- `Nd` = Number of debt tokens
-- `Pd` = Debt token price ($/token)
-- `Fd` = Borrow factor (0-1, representing risk discount)
-
-The borrow factor inflates the debt value, creating additional safety margin. For example, Fd=0.9 means debt is treated as if it's worth 1/0.9 = ~11% more than its market value for health calculations.
-
 ### Health Factor
 
 The health factor is a measure of position solvency, using effective debt and collateral values. Since debt values are inflated and collateral values are discounted, a position which is slightly unhealthy still typically still be solvent in terms of market prices. This provides a buffer where the position can be liquidated without the protocol incurring any losses.
