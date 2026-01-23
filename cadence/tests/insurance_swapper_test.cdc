@@ -117,10 +117,7 @@ fun test_remove_insuranceSwapper_failed() {
         tokenTypeIdentifier: defaultTokenIdentifier,
     )
     Test.expect(removeResult, Test.beFailed())
-
-    let errorMessage = removeResult.error!.message
-    let containsExpectedError = errorMessage.contains("Cannot remove insurance swapper while insurance rate is non-zero for \(defaultTokenIdentifier)")
-    Test.assert(containsExpectedError, message: "expected error about cannot remove insurance swapper, got: \(errorMessage)")
+    Test.assertError(removeResult, errorMessage: "Cannot remove insurance swapper while insurance rate is non-zero for \(defaultTokenIdentifier)")
 
     // verify swapper is still exist
     Test.assertEqual(true, insuranceSwapperExists(tokenTypeIdentifier: defaultTokenIdentifier))
@@ -171,10 +168,7 @@ fun test_setInsuranceSwapper_invalidTokenTypeIdentifier_fails() {
     )
 
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("Invalid tokenTypeIdentifier")
-    Test.assert(containsExpectedError, message: "expected error about invalid token type identifier, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "Invalid tokenTypeIdentifier")
 }
 
 // -----------------------------------------------------------------------------
@@ -192,10 +186,7 @@ fun test_setInsuranceSwapper_emptyTokenTypeIdentifier_fails() {
     )
 
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("Invalid tokenTypeIdentifier")
-    Test.assert(containsExpectedError, message: "expected error about invalid token type identifier, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "Invalid tokenTypeIdentifier")
 }
 
 // -----------------------------------------------------------------------------
@@ -212,10 +203,7 @@ fun test_setInsuranceSwapper_wrongOutputType_fails() {
     )
 
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("Swapper output type must be MOET")
-    Test.assert(containsExpectedError, message: "expected error about swapper output type, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "Swapper output type must be MOET")
 }
 
 // -----------------------------------------------------------------------------
@@ -232,8 +220,5 @@ fun test_setInsuranceSwapper_wrongInputType_fails() {
     )
 
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("Swapper input type must match token type")
-    Test.assert(containsExpectedError, message: "expected error about swapper input type, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "Swapper input type must match token type")
 }
