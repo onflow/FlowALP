@@ -1255,6 +1255,9 @@ access(all) contract FlowCreditMarket {
         }
 
         access(self) fun _unlockPosition(_ pid: UInt64) {
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
             // Always unlock (even if missing)
             self.positionLock.remove(key: pid)
         }
