@@ -1019,7 +1019,7 @@ access(all) contract FlowCreditMarket {
 
         /// Returns the true balance of the given token in this position, accounting for interest.
         /// Returns balance 0.0 if the position has no balance stored for the given token.
-        access(all) fun trueBalance(ofToken: Type): UFix128 {
+        access(all) view fun trueBalance(ofToken: Type): UFix128 {
             if let balance = self.balances[ofToken] {
                 if let tokenSnapshot = self.snapshots[ofToken] {
                     switch balance.direction {
@@ -1061,7 +1061,7 @@ access(all) contract FlowCreditMarket {
     ///   De = (Nd)(Pd)(Fd)
     /// Where:
     /// De = Effective Debt 
-    /// Nd = Number of Collateral Tokens
+    /// Nd = Number of Debt Tokens
     /// Pd = Debt Token Price
     /// Fd = Borrow Factor
     ///
@@ -1390,7 +1390,7 @@ access(all) contract FlowCreditMarket {
         /// If no reserve vault exists yet, and the token type is supported, the reserve vault is created.
         access(self) fun _borrowOrCreateReserveVault(type: Type): &{FungibleToken.Vault} {
             pre {
-                self.isTokenSupported(tokenType: type)
+                self.isTokenSupported(tokenType: type): "Cannot borrow reserve for unsupported token \(type.identifier)"
             }
             if self.reserves[type] == nil {
                 self.reserves[type] <-! DeFiActionsUtils.getEmptyVault(type)
@@ -1564,7 +1564,7 @@ access(all) contract FlowCreditMarket {
         ///
         /// Terminology:
         /// - N means number of some token: Nc means number of collateral tokens, Nd means number of debt tokens
-        /// - P means price of some token: Pc, Pd mean price of collateral, 
+        /// - P means price of some token: Pc means price of collateral, Pd means price of debt
         /// - C means collateral: Ce is effective collateral, Ct is true collateral, measured in $
         /// - D means debt: De is effective debt, Dt is true debt, measured in $
         /// - Fc, Fd are collateral and debt factors
@@ -1587,14 +1587,14 @@ access(all) contract FlowCreditMarket {
             let positionView = self.buildPositionView(pid: pid)
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let initialHealth = balanceSheet.health
-            assert(initialHealth < 1.0, message: "Cannot liquidate healthy position: \(initialHealth)>1")
+            assert(initialHealth < 1.0, message: "Cannot liquidate healthy position: \(initialHealth)>=1")
 
             // Ensure liquidation amounts don't exceed position amounts
             let repayAmount = repayment.balance
             let Nc = positionView.trueBalance(ofToken: seizeType) // number of collateral tokens (true balance)
             let Nd = positionView.trueBalance(ofToken: debtType)  // number of debt tokens (true balance)
-            assert(UFix128(seizeAmount) <= Nc, message: "Cannot seize more collateral than is in position: \(Nc)<\(seizeAmount))")
-            assert(UFix128(repayAmount) <= Nd, message: "Cannot repay more debt than is in position: \(Nd)<\(repayAmount))")
+            assert(UFix128(seizeAmount) <= Nc, message: "Cannot seize more collateral than is in position: collateral balance (\(Nc)) is less than seize amount (\(seizeAmount))")
+            assert(UFix128(repayAmount) <= Nd, message: "Cannot repay more debt than is in position: debt balance (\(Nd)) is less than repay amount (\(repayAmount))")
 
             // Oracle prices
             let Pd_oracle = self.priceOracle.price(ofToken: debtType)!  // debt price given by oracle ($/D)
@@ -1616,7 +1616,7 @@ access(all) contract FlowCreditMarket {
             let Ce_post = Ce_pre - Ce_seize // position's total effective collateral after liquidation ($)
             let De_post = De_pre - De_seize // position's total effective debt after liquidation ($)
             let postHealth = FlowCreditMarket.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
-            assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: \(postHealth)>\(self.liquidationTargetHF)")
+            assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: post-liquidation health (\(postHealth)) is greater than target health (\(self.liquidationTargetHF))")
 
             // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
             let swapper = self.dex.getSwapper(inType: seizeType, outType: debtType)! // TODO: will revert if pair unsupported
@@ -1647,7 +1647,7 @@ access(all) contract FlowCreditMarket {
             }
 
             let repayAmount = repayment.balance
-            assert(repayment.getType() == debtType, message: "Vault type mismatch for repay")
+            assert(repayment.getType() == debtType, message: "Vault type mismatch for repay. Repayment type is \(repayment.getType().identifier) but debt type is \(debtType.identifier)")
             let debtReserveRef = self._borrowOrCreateReserveVault(type: debtType)
             debtReserveRef.deposit(from: <-repayment)
 
