@@ -1019,7 +1019,7 @@ access(all) contract FlowCreditMarket {
 
         /// Returns the true balance of the given token in this position, accounting for interest.
         /// Returns balance 0.0 if the position has no balance stored for the given token.
-        access(all) fun trueBalance(ofToken: Type): UFix128 {
+        access(all) view fun trueBalance(ofToken: Type): UFix128 {
             if let balance = self.balances[ofToken] {
                 if let tokenSnapshot = self.snapshots[ofToken] {
                     switch balance.direction {
@@ -1375,7 +1375,7 @@ access(all) contract FlowCreditMarket {
         /// If no reserve vault exists yet, and the token type is supported, the reserve vault is created.
         access(self) fun _borrowOrCreateReserveVault(type: Type): &{FungibleToken.Vault} {
             pre {
-                self.isTokenSupported(tokenType: type)
+                self.isTokenSupported(tokenType: type): "Cannot borrow reserve for unsupported token \(type.identifier)"
             }
             if self.reserves[type] == nil {
                 self.reserves[type] <-! DeFiActionsUtils.getEmptyVault(type)
@@ -1576,8 +1576,8 @@ access(all) contract FlowCreditMarket {
             let repayAmount = repayment.balance
             let Nc = positionView.trueBalance(ofToken: seizeType) // number of collateral tokens (true balance)
             let Nd = positionView.trueBalance(ofToken: debtType)  // number of debt tokens (true balance)
-            assert(UFix128(seizeAmount) <= Nc, message: "Cannot seize more collateral than is in position: \(Nc)<\(seizeAmount))")
-            assert(UFix128(repayAmount) <= Nd, message: "Cannot repay more debt than is in position: \(Nd)<\(repayAmount))")
+            assert(UFix128(seizeAmount) <= Nc, message: "Cannot seize more collateral than is in position: collateral balance (\(Nc)) is less than seize amount (\(seizeAmount))")
+            assert(UFix128(repayAmount) <= Nd, message: "Cannot repay more debt than is in position: debt balance (\(Nd)) is less than repay amount (\(repayAmount))")
 
             // Oracle prices
             let Pd_oracle = self.priceOracle.price(ofToken: debtType)!  // debt price given by oracle ($/D)
@@ -1599,7 +1599,7 @@ access(all) contract FlowCreditMarket {
             let Ce_post = Ce_pre - Ce_seize // position's total effective collateral after liquidation ($)
             let De_post = De_pre - De_seize // position's total effective debt after liquidation ($)
             let postHealth = FlowCreditMarket.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
-            assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: \(postHealth)>\(self.liquidationTargetHF)")
+            assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: post-liquidation health (\(postHealth)) is greater than target health (\(self.liquidationTargetHF))")
 
             // TODO(jord): uncomment following when implementing dex logic https://github.com/onflow/FlowCreditMarket/issues/94
 /* 
