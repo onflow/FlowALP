@@ -12,29 +12,31 @@ Liquidations should be relatively rare events, invoked only when automatic rebal
 
 ## Key Concepts
 
-### Effective Collateral
+### Effective Collateral & Debt
 
-The effective collateral represents a risk-adjusted value of deposited collateral, denominated in MOET ($):
-
+The effective collateral represents a risk-adjusted value of **deposited collateral**, denominated in MOET ($):
 ```
 Ce = (Nc)(Pc)(Fc)
 ```
 
-Where:
-- `Ce` = Effective Collateral ($)
-- `Nc` = Number of collateral tokens
-- `Pc` = Collateral token price ($/token)
-- `Fc` = Collateral factor (0-1, representing risk discount)
-
-The collateral factor applies a discount to the market value, creating a safety buffer. For example, Fc=0.8 means only 80% of the collateral's market value counts toward the position's borrowing capacity.
-
-### Effective Debt
-
-The effective debt represents a risk-adjusted value of borrowed funds, denominated in MOET ($):
-
+The effective debt represents a risk-adjusted value of **borrowed funds**, denominated in MOET ($):
 ```
 De = (Nd)(Pd) / Fd
 ```
+
+Where:
+- `Ce/De` = Effective collateral / Debt ($)
+- `Nc/Nd` = Number of collateral tokens / debt tokens
+- `Pc/Pd` = Collateral / debt token price ($/token)
+- `Fc/Fd` = Collateral / debt factor (0-1, representing risk discount)
+
+The collateral and debt factors discount the value of collateral and inflate the value of debt, creating a safety buffer. For example, Fc=0.8 means only 80% of the collateral's market value counts toward the position's borrowing capacity. Fd=0.9 means debt is treated as if it's worth 1/0.9 = ~11% more than its market value for health calculations.
+
+A collateral/debt factor close to 1 indicates a low-risk token, or a token with a low anticipated volatility. A collateral/debt factor closer to 0 indicates a high-risk token, or a token with a high anticipated volatility.
+
+### Effective Debt
+
+
 
 Where:
 - `De` = Effective Debt ($)
