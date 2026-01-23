@@ -1259,6 +1259,76 @@ fun testManualLiquidation_combinedEdgeCase() {
     Test.assertError(liqRes, errorMessage: "Too large difference between dex/oracle prices")
 }
 
+/// When liquidation bonus is 0%, manual offer must be strictly better than DEX.
+access(all)
+fun testManualLiquidation_bonusZero_requiresStrictlyBetter() {
+    safeReset()
+    let pid: UInt64 = 0
+    let protocolAccount = Test.getAccount(0x0000000000000007)
+
+    // Setup: Create unhealthy position (FLOW collateral, MOET debt)
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    transferFlowTokens(to: user, amount: 1000.0)
+    createWrappedPosition(
+        signer: user,
+        amount: 1000.0,
+        vaultStoragePath: /storage/flowTokenVault,
+        pushToDrawDownSink: true
+    )
+
+    // Cause undercollateralization
+    let newPrice = 0.7 // $/FLOW
+    setMockOraclePrice(
+        signer: protocolAccount,
+        forTokenIdentifier: flowTokenIdentifier,
+        price: newPrice
+    )
+    addMockDexSwapper(
+        signer: protocolAccount,
+        inVaultIdentifier: flowTokenIdentifier,
+        outVaultIdentifier: moetIdentifier,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
+
+    // Set liquidation bonus to 0
+    setTokenLiquidationBonus(
+        signer: protocolAccount,
+        tokenTypeIdentifier: flowTokenIdentifier,
+        bonus: 0.0
+    )
+
+    // Verify position is unhealthy
+    let health = getPositionHealth(pid: pid, beFailed: false)
+    Test.assert(health < 1.0, message: "Position should be unhealthy")
+
+    // Setup liquidator
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(
+        signer: protocolAccount,
+        to: liquidator.address,
+        amount: 1000.0,
+        beFailed: false
+    )
+
+    // Attempt liquidation at exactly DEX price
+    // DEX quote: 50 MOET requires 50/0.7 = 71.428571... FLOW
+    // Liquidator offers: 71.43 FLOW (effectively equal to DEX)
+    let repayAmount = 50.0
+    let seizeAmount = 71.43
+    let liqRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [pid, Type<@MOET.Vault>().identifier, flowTokenIdentifier, seizeAmount, repayAmount],
+        liquidator
+    )
+
+    // Should fail because offer is not strictly better (bonus = 0 requires strict inequality)
+    Test.expect(liqRes, Test.beFailed())
+    Test.assertError(liqRes, errorMessage: "Liquidation offer exceeds allowed tolerance")
+}
+
 /// When liquidation bonus is 5%, manual offer at exactly bonus limit should succeed.
 access(all)
 fun testManualLiquidation_bonusFivePercent_offerAtBonusLimit() {
