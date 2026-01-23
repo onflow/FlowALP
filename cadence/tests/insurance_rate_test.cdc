@@ -93,10 +93,7 @@ fun test_set_insuranceRate_without_set_swapper() {
     )
 
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("Cannot set non-zero insurance rate without an insurance swapper configured for \(defaultTokenIdentifier)")
-    Test.assert(containsExpectedError, message: "expected error about insurance rate, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "Cannot set non-zero insurance rate without an insurance swapper configured for \(defaultTokenIdentifier)")
 }
 
 // -----------------------------------------------------------------------------
@@ -122,10 +119,7 @@ fun test_setInsuranceRate_rateGreaterThanOne_fails() {
     )
 
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("insuranceRate must be in range [0, 1)")
-    Test.assert(containsExpectedError, message: "expected error about insurance rate bounds, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "insuranceRate must be in range [0, 1)")
 }
 
 // -----------------------------------------------------------------------------
@@ -224,10 +218,7 @@ fun test_setInsuranceRate_rateLessThanZero_fails() {
     )
 
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("invalid argument at index 1: expected value of type `UFix64`")
-    Test.assert(containsExpectedError, message: "expected error about insurance rate bounds, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "invalid argument at index 1: expected value of type `UFix64`")
 }
 
 // -----------------------------------------------------------------------------
@@ -252,10 +243,7 @@ fun test_setInsuranceRate_invalidTokenType_fails() {
     )
 
     Test.expect(res, Test.beFailed())
-
-    let errorMessage = res.error!.message
-    let containsExpectedError = errorMessage.contains("Unsupported token type")
-    Test.assert(containsExpectedError, message: "expected error about unsupported token type, got: \(errorMessage)")
+    Test.assertError(res, errorMessage: "Unsupported token type")
 }
 
 // -----------------------------------------------------------------------------
