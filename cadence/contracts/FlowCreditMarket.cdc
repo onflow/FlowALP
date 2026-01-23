@@ -1061,7 +1061,7 @@ access(all) contract FlowCreditMarket {
     ///   De = (Nd)(Pd)(Fd)
     /// Where:
     /// De = Effective Debt 
-    /// Nd = Number of Collateral Tokens
+    /// Nd = Number of Debt Tokens
     /// Pd = Debt Token Price
     /// Fd = Borrow Factor
     ///
@@ -1549,7 +1549,7 @@ access(all) contract FlowCreditMarket {
         ///
         /// Terminology:
         /// - N means number of some token: Nc means number of collateral tokens, Nd means number of debt tokens
-        /// - P means price of some token: Pc, Pd mean price of collateral, 
+        /// - P means price of some token: Pc means price of collateral, Pd means price of debt
         /// - C means collateral: Ce is effective collateral, Ct is true collateral, measured in $
         /// - D means debt: De is effective debt, Dt is true debt, measured in $
         /// - Fc, Fd are collateral and debt factors
@@ -1570,7 +1570,7 @@ access(all) contract FlowCreditMarket {
             let positionView = self.buildPositionView(pid: pid)
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let initialHealth = balanceSheet.health
-            assert(initialHealth < 1.0, message: "Cannot liquidate healthy position: \(initialHealth)>1")
+            assert(initialHealth < 1.0, message: "Cannot liquidate healthy position: \(initialHealth)>=1")
 
             // Ensure liquidation amounts don't exceed position amounts
             let repayAmount = repayment.balance
@@ -1633,7 +1633,7 @@ access(all) contract FlowCreditMarket {
             }
 
             let repayAmount = repayment.balance
-            assert(repayment.getType() == debtType, message: "Vault type mismatch for repay")
+            assert(repayment.getType() == debtType, message: "Vault type mismatch for repay. Repayment type is \(repayment.getType().identifier) but debt type is \(debtType.identifier)")
             let debtReserveRef = self._borrowOrCreateReserveVault(type: debtType)
             debtReserveRef.deposit(from: <-repayment)
 
