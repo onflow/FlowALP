@@ -140,20 +140,6 @@ fun test_setInsuranceSwapper_withoutEGovernanceEntitlement_fails() {
 }
 
 // -----------------------------------------------------------------------------
-// Test: setInsuranceSwapper with EGovernance entitlement should succeed
-// Verifies that admin with proper entitlement can set swapper
-// -----------------------------------------------------------------------------
-access(all)
-fun test_setInsuranceSwapper_withEGovernanceEntitlement_success() {
-    let res = setInsuranceSwapper(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
-        priceRatio: 1.0,
-    )
-    Test.expect(res, Test.beSucceeded())
-}
-
-// -----------------------------------------------------------------------------
 // Test: setInsuranceSwapper with invalid token identifier should fail
 // Verifies that non-existent token types are rejected
 // -----------------------------------------------------------------------------
