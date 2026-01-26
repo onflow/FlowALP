@@ -121,17 +121,21 @@ access(all) contract FlowCreditMarket {
         remainingCapacity: UFix64
     )
 
+    //// Emitted each time the insurance rate is updated for a specific token in a specific pool.
+    //// The insurance rate is an annual percentage; for example a value of 0.001 indicates 0.1%.
     access(all) event InsuranceRateUpdated(
         poolUUID: UInt64,
         tokenType: String,
         insuranceRate: UFix64,
     )
 
+    /// Emitted each time an insurance fee is collected for a specific token in a specific pool.
+    /// The insurance amount is the amount of insurance collected, denominated in MOET.
     access(all) event InsuranceFeeCollected(
         poolUUID: UInt64,
         tokenType: String,
         insuranceAmount: UFix64,
-        lastInsuranceCollectionTime: UFix64,
+        collectionTime: UFix64,
     )
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
@@ -3710,7 +3714,7 @@ access(all) contract FlowCreditMarket {
                         poolUUID: self.uuid,
                         tokenType: tokenType.identifier,
                         insuranceAmount: collectedMOETBalance,
-                        lastInsuranceCollectionTime: tokenState.lastInsuranceCollectionTime
+                        collectionTime: tokenState.lastInsuranceCollectionTime
                     )
                 }
             }
