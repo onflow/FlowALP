@@ -5,7 +5,16 @@ import "MockDexSwapper"
 import "DeFiActions"
 
 /// TEST-ONLY: Test transaction to configure a MockDexSwapper as the insurance swapper for a token.
-/// The swapper will convert the specified swapperIn type to swapperOut type using the provided price ratio.
+///
+/// This transaction intentionally allows specifying arbitrary swapper input
+/// and output types in order to test validation and failure cases in
+/// `setInsuranceSwapper`, such as:
+/// - mismatched input token types
+/// - non-MOET output token types
+///
+/// In production usage, insurance swappers are always expected to swap
+/// *to* MOET. The additional parameters exist solely to enable negative
+/// test coverage and are not intended as supported behavior.
 ///
 /// @param tokenTypeIdentifier: The token type to configure (e.g., "A.0x07.MOET.Vault")
 /// @param priceRatio: Output tokens per unit of input token (e.g., 1.0 for 1:1)
