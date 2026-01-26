@@ -81,7 +81,7 @@ fun test_setInsuranceRate_withEGovernanceEntitlement() {
 }
 
 // -----------------------------------------------------------------------------
-// Test: setInsuranceRate with EGovernance entitlement should fail
+// Test: setInsuranceRate with EGovernance entitlement should fail when no swapper is configured.
 // Verifies if swapper is already provided
 // -----------------------------------------------------------------------------
 access(all)

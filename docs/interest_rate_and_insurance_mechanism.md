@@ -8,7 +8,7 @@ The FlowCreditMarket protocol uses a dual-rate interest system:
 - **Debit Rate**: The interest rate charged to borrowers
 - **Credit Rate**: The interest rate paid to lenders (depositors)
 
-The credit rate is calculated as the debit income minus the insurance fee, ensuring that the protocol maintains an insurance fund while still providing returns to lenders.
+The credit rate is calculated as the debit income minus the protocol fee. The protocol fee is in place to protect the protocol against adverse events, and is contributed to an insurance fund and a stability fund.
 
 ## Interest Rate Calculation
 

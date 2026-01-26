@@ -982,6 +982,7 @@ access(all) contract FlowCreditMarket {
         /// Collects insurance by withdrawing from reserves and swapping to MOET.
         /// The insurance amount is calculated based on the insurance rate applied to the total debit balance over the time elapsed.
         /// This should be called periodically (e.g., when updateInterestRates is called) to accumulate the insurance fund.
+        /// CAUTION: This function will panic if no insuranceSwapper is provided.
         ///
         /// @param reserveVault: The reserve vault for this token type to withdraw insurance from
         /// @return: A MOET vault containing the collected insurance funds, or nil if no collection occurred
