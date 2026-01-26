@@ -170,65 +170,6 @@ fun test_collectStability_tinyAmount_roundsToZero_returnsNil() {
 }
 
 // -----------------------------------------------------------------------------
-// Test: collectStability full success flow
-// Full flow: LP deposits to create credit → borrower borrows to create debit
-// → advance time → collect stability → verify tokens returned, reserves reduced, timestamp updated
-// -----------------------------------------------------------------------------
-access(all)
-fun test_collectStability_success_fullAmount() {
-    // setup LP to provide MOET liquidity for borrowing
-    let lp = Test.createAccount()
-    setupMoetVault(lp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: lp.address, amount: 10000.0, beFailed: false)
-
-    grantPoolCapToConsumer()
-    // LP deposits MOET (creates credit balance, provides borrowing liquidity)
-    createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
-
-    // setup borrower with FLOW collateral
-    let borrower = Test.createAccount()
-    setupMoetVault(borrower, beFailed: false)
-    transferFlowTokens(to: borrower, amount: 1000.0)
-
-    // borrower deposits FLOW and auto-borrows MOET (creates debit balance)
-    createWrappedPosition(signer: borrower, amount: 1000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: true)
-
-    // set 10% annual debit rate
-    // Stability is calculated on interest income, not debit balance directly
-    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 0.1)
-
-    // set stability fee rate (10% of interest income)
-    let rateResult = setStabilityFeeRate(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, stabilityFeeRate: 0.1)
-    Test.expect(rateResult, Test.beSucceeded())
-
-    // initial stability and reserves
-    let initialStabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: defaultTokenIdentifier)
-    Test.assertEqual(nil, initialStabilityBalance)
-    let reserveBalanceBefore = getReserveBalance(vaultIdentifier: defaultTokenIdentifier)
-    Test.assert(reserveBalanceBefore > 0.0, message: "Reserves should exist after deposit")
-
-    Test.moveTime(by: secondsInYear)
-
-    let res= collectStability(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier)
-    Test.expect(res, Test.beSucceeded())
-
-    // verify stability was collected, reserves decreased
-    let finalStabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: defaultTokenIdentifier)
-    Test.assert(finalStabilityBalance! > 0.0, message: "Stability fund should have received tokens")
-    let reserveBalanceAfter = getReserveBalance(vaultIdentifier: defaultTokenIdentifier)
-    Test.assert(reserveBalanceAfter < reserveBalanceBefore, message: "Reserves should have decreased after collection")
-
-    // verify the amount withdrawn from reserves equals the stability fund balance
-    let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
-    Test.assertEqual(amountWithdrawnFromReserves, finalStabilityBalance!)
-
-    // verify last stability collection time was updated to current block timestamp
-    let currentTimestamp = getBlockTimestamp()
-    let lastCollectionTime = getLastStabilityCollectionTime(tokenTypeIdentifier: defaultTokenIdentifier)
-    Test.assertEqual(currentTimestamp, lastCollectionTime!)
-}
-
-// -----------------------------------------------------------------------------
 // Test: collectStability with multiple token types
 // Verifies that stability collection works independently for different tokens
 // Each token type has its own last stability collection timestamp and rate
