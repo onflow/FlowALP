@@ -138,17 +138,21 @@ access(all) contract FlowCreditMarket {
         collectionTime: UFix64,
     )
 
+    //// Emitted each time the stability rate is updated for a specific token in a specific pool.
+    //// The stability rate is an annual percentage; the default value is 0.05 (5%).
     access(all) event StabilityFeeRateUpdated(
         poolUUID: UInt64,
         tokenType: String,
         stabilityFeeRate: UFix64,
     )
 
+    /// Emitted each time an stability fee is collected for a specific token in a specific pool.
+    /// The stability amount is the amount of stability collected, denominated in token type.
     access(all) event StabilityFeeCollected(
         poolUUID: UInt64,
         tokenType: String,
         stabilityAmount: UFix64,
-        lastStabilityFeeCollectionTime: UFix64,
+        collectionTime: UFix64,
     )
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
@@ -3812,7 +3816,7 @@ access(all) contract FlowCreditMarket {
                     poolUUID: self.uuid,
                     tokenType: tokenType.identifier,
                     stabilityAmount: collectedBalance,
-                    lastStabilityFeeCollectionTime: tokenState.lastStabilityFeeCollectionTime
+                    collectionTime: tokenState.lastStabilityFeeCollectionTime
                 )
             }
         }
