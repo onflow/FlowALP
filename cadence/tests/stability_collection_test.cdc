@@ -75,7 +75,7 @@ fun test_collectStability_zeroDebitBalance_returnsNil() {
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectStability_partialReserves_collectsAvailable() {
-        // setup LP to provide MOET liquidity for borrowing (small amount to create limited reserves)
+    // setup LP to provide MOET liquidity for borrowing (small amount to create limited reserves)
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: protocolAccount, to: lp.address, amount: 1000.0, beFailed: false)
