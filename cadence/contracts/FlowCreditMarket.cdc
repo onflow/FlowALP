@@ -155,6 +155,14 @@ access(all) contract FlowCreditMarket {
         collectionTime: UFix64,
     )
 
+    /// Emitted each time funds are withdrawn from the stability fund for a specific token in a specific pool.
+    /// The amount is the quantity withdrawn, denominated in the token type.
+    access(all) event StabilityFundWithdrawn(
+        poolUUID: UInt64,
+        tokenType: String,
+        amount: UFix64,
+    )
+
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
     access(all) entitlement EPosition
@@ -3556,6 +3564,8 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Withdraws stability funds collected from the stability fee for a given token
+        ///
+        /// Emits: StabilityFundWithdrawn
         access(EGovernance) fun withdrawStabilityFund(tokenType: Type, amount: UFix64, recipient: &{FungibleToken.Receiver}) {
             pre {
                 self.stabilityFunds[tokenType] != nil: "No stability fund exists for token type \(tokenType.identifier)"
@@ -3569,6 +3579,12 @@ access(all) contract FlowCreditMarket {
             
             let withdrawn <- fundRef.withdraw(amount: amount)
             recipient.deposit(from: <-withdrawn)
+
+            emit StabilityFundWithdrawn(
+                poolUUID: self.uuid,
+                tokenType: tokenType.identifier,
+                amount: amount,
+            )
         }
 
         /// Manually triggers fee collection for a given token type.
