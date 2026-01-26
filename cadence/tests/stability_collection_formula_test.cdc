@@ -104,8 +104,12 @@ fun test_collectStability_success_fullAmount() {
     // debitBalance ≈ 615.38 MOET
     // With 10% annual debit rate over 1 year: interestIncome ≈ 615.38 * (1.105246617130926037773784 - 1) ≈ 64.767
     // Stability = interestIncome * 0.1 ≈ 6.4767 MOET
-    // Note: Actual value depends on continuous compounding calculation
-
+    
+    // NOTE:
+    // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
+    // The default variance is designed for deterministic math, but insurance collection
+    // depends on block timestamps, which can differ slightly between test runs. 
+    // A larger, time-aware tolerance is required.
     let tolerance = 0.001
     let expectedCollectedAmount = 6.476
     let diff = expectedCollectedAmount > collectedAmount 
