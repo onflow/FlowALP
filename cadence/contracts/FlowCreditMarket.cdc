@@ -138,6 +138,31 @@ access(all) contract FlowCreditMarket {
         collectionTime: UFix64,
     )
 
+    //// Emitted each time the stability rate is updated for a specific token in a specific pool.
+    //// The stability rate is an annual percentage; the default value is 0.05 (5%).
+    access(all) event StabilityFeeRateUpdated(
+        poolUUID: UInt64,
+        tokenType: String,
+        stabilityFeeRate: UFix64,
+    )
+
+    /// Emitted each time an stability fee is collected for a specific token in a specific pool.
+    /// The stability amount is the amount of stability collected, denominated in token type.
+    access(all) event StabilityFeeCollected(
+        poolUUID: UInt64,
+        tokenType: String,
+        stabilityAmount: UFix64,
+        collectionTime: UFix64,
+    )
+
+    /// Emitted each time funds are withdrawn from the stability fund for a specific token in a specific pool.
+    /// The amount is the quantity withdrawn, denominated in the token type.
+    access(all) event StabilityFundWithdrawn(
+        poolUUID: UInt64,
+        tokenType: String,
+        amount: UFix64,
+    )
+
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
     access(all) entitlement EPosition
@@ -672,11 +697,17 @@ access(all) contract FlowCreditMarket {
         /// The annual insurance rate applied to total debit when computing credit interest (default 0.1%)
         access(EImplementation) var insuranceRate: UFix64
 
-        /// Timestamp of the last insurance collection for this token
+        /// Timestamp of the last insurance collection for this token.
         access(EImplementation) var lastInsuranceCollectionTime: UFix64
 
-        /// Swapper used to convert this token to MOET for insurance collection
+        /// Swapper used to convert this token to MOET for insurance collection.
         access(EImplementation) var insuranceSwapper: {DeFiActions.Swapper}?
+
+        /// The stability fee rate to calculate stability (default 0.05, 5%).
+        access(EImplementation) var stabilityFeeRate: UFix64
+
+        /// Timestamp of the last stability collection for this token.
+        access(EImplementation) var lastStabilityFeeCollectionTime: UFix64
 
         /// Per-position limit fraction of capacity (default 0.05 i.e., 5%)
         access(EImplementation) var depositLimitFraction: UFix64
@@ -717,6 +748,8 @@ access(all) contract FlowCreditMarket {
             self.insuranceRate = 0.0
             self.lastInsuranceCollectionTime = getCurrentBlock().timestamp
             self.insuranceSwapper = nil
+            self.stabilityFeeRate = 0.05
+            self.lastStabilityFeeCollectionTime = getCurrentBlock().timestamp
             self.depositLimitFraction = 0.05
             self.depositRate = depositRate
             self.depositCapacity = depositCapacityCap
@@ -766,6 +799,16 @@ access(all) contract FlowCreditMarket {
             }
             // Reset the last update timestamp to prevent regeneration based on old timestamp
             self.lastDepositCapacityUpdate = getCurrentBlock().timestamp
+        }
+
+        /// Sets the stability fee rate for this token state.
+        access(EImplementation) fun setStabilityFeeRate(_ rate: UFix64) {
+            self.stabilityFeeRate = rate
+        }
+        
+        /// Sets the last stability fee collection timestamp for this token state.
+        access(EImplementation) fun setLastStabilityFeeCollectionTime(_ lastStabilityFeeCollectionTime: UFix64) {
+            self.lastStabilityFeeCollectionTime = lastStabilityFeeCollectionTime
         }
 
         /// Calculates the per-user deposit limit cap based on depositLimitFraction * depositCapacityCap
@@ -951,31 +994,31 @@ access(all) contract FlowCreditMarket {
                 debitBalance: self.totalDebitBalance
             )
             let insuranceRate = UFix128(self.insuranceRate)
+            let stabilityFeeRate = UFix128(self.stabilityFeeRate)
 
             var creditRate: UFix128 = 0.0
+            // Total protocol cut as a percentage of debit interest income
+            let protocolFeeRate = insuranceRate + stabilityFeeRate
 
             // Two calculation paths based on curve type:
-            // 1. FixedRateInterestCurve: simple spread model (creditRate = debitRate - insuranceRate)
+            // 1. FixedRateInterestCurve: simple spread model (creditRate = debitRate * (1 - protocolFeeRate))
             //    Used for stable assets like MOET where rates are governance-controlled
             // 2. KinkInterestCurve (and others): reserve factor model
-            //    Insurance is a percentage of interest income, not a fixed spread
+            //    Insurance and stability are percentages of interest income, not a fixed spread
             // TODO(jord): seems like InterestCurve abstraction could be improved if we need to check specific types here.
             if self.interestCurve.getType() == Type<FlowCreditMarket.FixedRateInterestCurve>() {
-                // FixedRate path: creditRate = debitRate - insuranceRate
+                // FixedRate path: creditRate = debitRate * (1 - protocolFeeRate))
                 // This provides a fixed, predictable spread between borrower and lender rates
-                if debitRate > insuranceRate {
-                    creditRate = debitRate - insuranceRate
-                }
-                // else creditRate remains 0.0 (insurance exceeds debit rate)
+                creditRate = debitRate * (1.0 - protocolFeeRate) 
             } else {
                 // KinkCurve path (and any other curves): reserve factor model
-                // insuranceAmount = debitIncome * insuranceRate (percentage of income)
-                // creditRate = (debitIncome - insuranceAmount) / totalCreditBalance
+                // protocolFeeAmount = debitIncome * protocolFeeRate (percentage of income)
+                // creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
                 let debitIncome = self.totalDebitBalance * debitRate
-                let insuranceAmount = debitIncome * insuranceRate
+                let protocolFeeAmount = debitIncome * protocolFeeRate
 
                 if self.totalCreditBalance > 0.0 {
-                    creditRate = (debitIncome - insuranceAmount) / self.totalCreditBalance
+                    creditRate = (debitIncome - protocolFeeAmount) / self.totalCreditBalance
                 }
             }
 
@@ -1046,6 +1089,63 @@ access(all) contract FlowCreditMarket {
 
             // Return the MOET vault for the caller to deposit
             return <-moetVault
+        }
+
+        /// Collects stability funds by withdrawing from reserves.
+        /// The stability amount is calculated based on the stability rate applied to the total debit balance over the time elapsed.
+        /// This should be called periodically (e.g., when updateInterestRates is called) to accumulate the stability fund.
+        ///
+        /// @param reserveVault: The reserve vault for this token type to withdraw stability amount from
+        /// @return: A token type vault containing the collected stability funds, or nil if no collection occurred
+        access(EImplementation) fun collectStability(
+            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+        ): @{FungibleToken.Vault}? {
+            let currentTime = getCurrentBlock().timestamp
+
+            // If stabilityFeeRate is 0.0 configured, skip collection but update the last stability collection time
+            if self.stabilityFeeRate == 0.0 {
+                self.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            // Calculate accrued stability amount based on time elapsed since last collection
+            let timeElapsed = currentTime - self.lastStabilityFeeCollectionTime
+
+            // If no time has elapsed, nothing to collect
+            if timeElapsed <= 0.0 {
+                return nil
+            }
+
+            let stabilityFeeRate = UFix128(self.stabilityFeeRate)
+
+            // Calculate stability amount: is a percentage of debit income
+            // debitIncome = debitBalance * (curentDebitRate ^ time_elapsed - 1.0)
+            let interestIncome = self.totalDebitBalance * (FlowCreditMarketMath.powUFix128(self.currentDebitRate, timeElapsed) - 1.0)
+            let stabilityAmount = interestIncome * stabilityFeeRate
+            let stabilityAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(stabilityAmount)
+
+            // If calculated amount is zero or negative, skip collection but update timestamp
+            if stabilityAmountUFix64 == 0.0 {
+                self.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            // Check if we have enough balance in reserves
+            if reserveVault.balance == 0.0 {
+                self.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            let reserveVaultBalance = reserveVault.balance
+            // Withdraw stability amount from reserves (use available balance if less than calculated)
+            let amountToCollect = stabilityAmountUFix64 > reserveVaultBalance ? reserveVaultBalance : stabilityAmountUFix64
+            let stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
+
+            // Update last collection time
+            self.setLastStabilityFeeCollectionTime(currentTime)
+
+            // Return the vault for the caller to deposit
+            return <-stabilityVault
         }
     }
 
@@ -1282,6 +1382,9 @@ access(all) contract FlowCreditMarket {
         /// The count of positions to update per asynchronous update
         access(self) var positionsProcessedPerCallback: UInt64
 
+        /// The stability fund vaults storing tokens collected from stability fee rates.
+        access(self) var stabilityFunds: @{Type: {FungibleToken.Vault}}
+
         /// Position update queue to be processed as an asynchronous update
         access(EImplementation) var positionsNeedingUpdates: [UInt64]
 
@@ -1328,6 +1431,7 @@ access(all) contract FlowCreditMarket {
             self.positions <- {}
             self.reserves <- {}
             self.insuranceFund <- MOET.createEmptyVault(vaultType: Type<@MOET.Vault>())
+            self.stabilityFunds <- {}
             self.defaultToken = defaultToken
             self.priceOracle = priceOracle
             self.collateralFactor = {defaultToken: 1.0}
@@ -1376,6 +1480,36 @@ access(all) contract FlowCreditMarket {
         /// Returns whether a given token Type is supported or not
         access(all) view fun isTokenSupported(tokenType: Type): Bool {
             return self.globalLedger[tokenType] != nil
+        } 
+
+        /// Returns the current balance of the stability fund for a given token type.
+        /// Returns nil if the token type is not supported.
+        access(all) view fun getStabilityFundBalance(tokenType: Type): UFix64? {
+            if let fundRef = &self.stabilityFunds[tokenType] as &{FungibleToken.Vault}? {
+                return fundRef.balance
+            }
+            
+            return nil
+        }
+
+        /// Returns the stability fee rate for a given token type.
+        /// Returns nil if the token type is not supported.
+        access(all) view fun getStabilityFeeRate(tokenType: Type): UFix64? {
+            if let tokenState = self.globalLedger[tokenType] {
+                return tokenState.stabilityFeeRate
+            }
+
+            return nil
+        }
+
+        /// Returns the timestamp of the last stability collection for a given token type.
+        /// Returns nil if the token type is not supported.
+        access(all) view fun getLastStabilityCollectionTime(tokenType: Type): UFix64? {
+            if let tokenState = self.globalLedger[tokenType] {
+                return tokenState.lastStabilityFeeCollectionTime
+            }
+
+            return nil
         }
 
         /// Returns whether an insurance swapper is configured for a given token type
@@ -3311,8 +3445,10 @@ access(all) contract FlowCreditMarket {
             pre {
                 self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
-                insuranceRate >= 0.0 && insuranceRate <= 1.0:
-                    "insuranceRate must be between 0 and 1"
+                insuranceRate >= 0.0 && insuranceRate < 1.0:
+                    "insuranceRate must be in range [0, 1)"
+                insuranceRate + (self.getStabilityFeeRate(tokenType: tokenType) ?? 0.0) < 1.0:
+                    "insuranceRate + stabilityFeeRate must be in range [0, 1) to avoid underflow in credit rate calculation"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
@@ -3398,6 +3534,67 @@ access(all) contract FlowCreditMarket {
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositCapacityCap(cap)
+        }
+
+        /// Updates the stability fee rate for a given token (fraction in [0,1]).
+        ///
+        /// @param tokenTypeIdentifier: The fully qualified type identifier of the token (e.g., "A.0x1.FlowToken.Vault")
+        /// @param stabilityFeeRate: The fee rate as a fraction in [0, 1]
+        ///
+        ///
+        /// Emits: StabilityFeeRateUpdated
+        access(EGovernance) fun setStabilityFeeRate(tokenType: Type, stabilityFeeRate: UFix64) {
+            pre {
+                self.isTokenSupported(tokenType: tokenType):
+                    "Unsupported token type \(tokenType.identifier)"
+                stabilityFeeRate >= 0.0 && stabilityFeeRate < 1.0:
+                    "stability fee rate must be in range [0, 1)"
+                stabilityFeeRate + (self.getInsuranceRate(tokenType: tokenType) ?? 0.0) < 1.0:
+                    "stabilityFeeRate + insuranceRate must be in range [0, 1) to avoid underflow in credit rate calculation"
+            }
+            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+                ?? panic("Invariant: token state missing")
+            tsRef.setStabilityFeeRate(stabilityFeeRate)
+            
+            emit StabilityFeeRateUpdated(
+                poolUUID: self.uuid,
+                tokenType: tokenType.identifier,
+                stabilityFeeRate: stabilityFeeRate,
+            )
+        }
+
+        /// Withdraws stability funds collected from the stability fee for a given token
+        ///
+        /// Emits: StabilityFundWithdrawn
+        access(EGovernance) fun withdrawStabilityFund(tokenType: Type, amount: UFix64, recipient: &{FungibleToken.Receiver}) {
+            pre {
+                self.stabilityFunds[tokenType] != nil: "No stability fund exists for token type \(tokenType.identifier)"
+                amount > 0.0: "Withdrawal amount must be positive"
+            }
+            let fundRef = (&self.stabilityFunds[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            assert(
+                fundRef.balance >= amount,
+                message: "Insufficient stability fund balance. Available: \(fundRef.balance), requested: \(amount)"
+            )
+            
+            let withdrawn <- fundRef.withdraw(amount: amount)
+            recipient.deposit(from: <-withdrawn)
+
+            emit StabilityFundWithdrawn(
+                poolUUID: self.uuid,
+                tokenType: tokenType.identifier,
+                amount: amount,
+            )
+        }
+
+        /// Manually triggers fee collection for a given token type.
+        /// This is useful for governance to collect accrued stability on-demand.
+        /// Fee is calculated based on time elapsed since last collection.
+        access(EGovernance) fun collectStability(tokenType: Type) {
+            pre {
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
+            }
+            self.updateInterestRatesAndCollectStability(tokenType: tokenType)
         }
 
         /// Regenerates deposit capacity for all supported token types
@@ -3602,6 +3799,42 @@ access(all) contract FlowCreditMarket {
             // Now that we've deposited a non-zero amount of any queued deposits, we can rebalance
             // the position if necessary.
             self.rebalancePosition(pid: pid, force: false)
+        }
+
+        /// Updates interest rates for a token and collects stability fee.
+        /// This method should be called periodically to ensure rates are current and fee amounts are collected.
+        ///
+        /// @param tokenType: The token type to update rates for
+        access(self) fun updateInterestRatesAndCollectStability(tokenType: Type) {
+            let tokenState = self._borrowUpdatedTokenState(type: tokenType)
+            tokenState.updateInterestRates()
+
+            // Ensure reserves exist for this token type
+            if self.reserves[tokenType] == nil {
+                return
+            }
+
+            // Get reference to reserves
+            let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+
+            // Collect stability and get token vault
+            if let collectedVault <- tokenState.collectStability(reserveVault: reserveRef) {  
+                let collectedBalance = collectedVault.balance     
+                // Deposit collected token into stability fund
+                if self.stabilityFunds[tokenType] == nil {
+                    self.stabilityFunds[tokenType] <-! collectedVault
+                } else {
+                    let fundRef = (&self.stabilityFunds[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                    fundRef.deposit(from: <-collectedVault)
+                }
+                
+                emit StabilityFeeCollected(
+                    poolUUID: self.uuid,
+                    tokenType: tokenType.identifier,
+                    stabilityAmount: collectedBalance,
+                    collectionTime: tokenState.lastStabilityFeeCollectionTime
+                )
+            }
         }
 
         ////////////////

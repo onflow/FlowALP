@@ -265,6 +265,27 @@ fun getLastInsuranceCollectionTime(tokenTypeIdentifier: String): UFix64? {
     return res.returnValue as? UFix64
 }
 
+access(all)
+fun getStabilityFeeRate(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_stability_fee_rate.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
+access(all)
+fun getStabilityFundBalance(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_stability_fund_balance.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
+access(all)
+fun getLastStabilityCollectionTime(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_last_stability_collection_time.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
@@ -493,6 +514,53 @@ fun collectInsurance(
         signer
     )
     Test.expect(collectRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+
+access(all)
+fun setStabilityFeeRate(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    stabilityFeeRate: UFix64
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_stability_fee_rate.cdc",
+        [ tokenTypeIdentifier, stabilityFeeRate ],
+        signer
+    )
+
+    return res
+}
+
+access(all)
+fun collectStability(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/collect_stability.cdc",
+        [ tokenTypeIdentifier ],
+        signer
+    )
+    
+    return res
+}
+
+access(all)
+fun withdrawStabilityFund(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    amount: UFix64,
+    recipient: Address,
+    recipientPath: PublicPath,
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/withdraw_stability_fund.cdc",
+        [tokenTypeIdentifier, amount, recipient, recipientPath],
+        signer
+    )
+    
+    return res
 }
 
 access(all)
