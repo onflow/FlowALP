@@ -64,7 +64,6 @@ access(all) contract FlowCreditMarket {
         poolUUID: UInt64,
         targetHF: UFix128,
         warmupSec: UInt64,
-        protocolFeeBps: UInt16
     )
 
     access(all) event LiquidationsPaused(
@@ -356,15 +355,15 @@ access(all) contract FlowCreditMarket {
     /// BalanceSheet
     ///
     /// An struct containing a position's overview in terms of its effective collateral and debt
-    /// as well as its current health
+    /// as well as its current health.
     access(all) struct BalanceSheet {
 
-        /// A position's withdrawable value based on collateral deposits
-        /// against the Pool's collateral and borrow factors
+        /// Effective collateral is a normalized valuation of collateral deposited into this position, denominated in $.
+        /// In combination with effective debt, this determines how much additional debt can be taken out by this position.
         access(all) let effectiveCollateral: UFix128
 
-        /// A position's withdrawn value based on withdrawals
-        /// against the Pool's collateral and borrow factors
+        /// Effective debt is a normalized valuation of debt withdrawn against this position, denominated in $.
+        /// In combination with effective collateral, this determines how much additional debt can be taken out by this position.
         access(all) let effectiveDebt: UFix128
 
         /// The health of the related position
@@ -390,6 +389,7 @@ access(all) contract FlowCreditMarket {
         access(all) let warmupSec: UInt64
         access(all) let lastUnpausedAt: UInt64?
         access(all) let triggerHF: UFix128
+        /// Deprecated: Unused field, but cannot be removed without contract update
         access(all) let protocolFeeBps: UInt16
 
         init(
@@ -398,34 +398,13 @@ access(all) contract FlowCreditMarket {
             warmupSec: UInt64,
             lastUnpausedAt: UInt64?,
             triggerHF: UFix128,
-            protocolFeeBps: UInt16
         ) {
             self.targetHF = targetHF
             self.paused = paused
             self.warmupSec = warmupSec
             self.lastUnpausedAt = lastUnpausedAt
             self.triggerHF = triggerHF
-            self.protocolFeeBps = protocolFeeBps
-        }
-    }
-
-    /// Liquidation quote output
-    access(all) struct LiquidationQuote {
-        access(all) let requiredRepay: UFix64
-        access(all) let seizeType: Type
-        access(all) let seizeAmount: UFix64
-        access(all) let newHF: UFix128
-
-        init(
-            requiredRepay: UFix64,
-            seizeType: Type,
-            seizeAmount: UFix64,
-            newHF: UFix128
-        ) {
-            self.requiredRepay = requiredRepay
-            self.seizeType = seizeType
-            self.seizeAmount = seizeAmount
-            self.newHF = newHF
+            self.protocolFeeBps = 0
         }
     }
 
@@ -681,13 +660,15 @@ access(all) contract FlowCreditMarket {
         /// to maintain precision when converting between scaled and true balances and when compounding.
         access(EImplementation) var debitInterestIndex: UFix128
 
-        /// The interest rate for credit of the associated token.
+        /// The per-second interest rate for credit of the associated token.
         ///
+        /// For example, if the per-second rate is 1%, this value is 0.01.
         /// Stored as UFix128 to match index precision and avoid cumulative rounding during compounding.
         access(EImplementation) var currentCreditRate: UFix128
 
-        /// The interest rate for debit of the associated token.
+        /// The per-second interest rate for debit of the associated token.
         ///
+        /// For example, if the per-second rate is 1%, this value is 0.01.
         /// Stored as UFix128 for consistency with indices/rates math.
         access(EImplementation) var currentDebitRate: UFix128
 
@@ -1150,11 +1131,18 @@ access(all) contract FlowCreditMarket {
     }
 
     /// Risk parameters for a token used in effective collateral/debt computations.
-    /// - collateralFactor: fraction applied to credit value to derive effective collateral
-    /// - borrowFactor: fraction dividing debt value to derive effective debt
+    /// The collateral and borrow factors are fractional values which represent a discount to the "true/market" value of the token.
+    /// The size of this discount indicates a subjective assessment of risk for the token.
+    /// The difference between the effective value and "true" value represents the safety buffer available to prevent loss.
+    /// - collateralFactor: the factor used to derive effective collateral
+    /// - borrowFactor: the factor used to derive effective debt
     /// - liquidationBonus: premium applied to liquidations to incentivize repayors
     access(all) struct RiskParams {
+        /// The factor (Fc) used to determine effective collateral, in the range [0, 1]
+        /// See FlowCreditMarket.effectiveCollateral for additional detail.
         access(all) let collateralFactor: UFix128
+        /// The factor (Fd) used to determine effective debt, in the range [0, 1]
+        /// See FlowCreditMarket.effectiveDebt for additional detail.
         access(all) let borrowFactor: UFix128
 
         /// Bonus expressed as fractional rate, e.g. 0.05 for 5%
@@ -1165,6 +1153,10 @@ access(all) contract FlowCreditMarket {
             borrowFactor: UFix128,
             liquidationBonus: UFix128
         ) {
+            pre {
+                collateralFactor <= 1.0: "collateral factor must be <=1"
+                borrowFactor <= 1.0: "borrow factor must be <=1"
+            }
             self.collateralFactor = collateralFactor
             self.borrowFactor = borrowFactor
             self.liquidationBonus = liquidationBonus
@@ -1188,6 +1180,18 @@ access(all) contract FlowCreditMarket {
             self.creditIndex = credit
             self.debitIndex = debit
             self.risk = risk
+        }
+
+        /// Returns the effective debt (denominated in $) for the given debit balance of this snapshot's token.
+        /// See FlowCreditMarket.effectiveDebt for additional details.
+        access(all) view fun effectiveDebt(debitBalance: UFix128): UFix128 {
+            return FlowCreditMarket.effectiveDebt(debit: debitBalance, price: self.price, borrowFactor: self.risk.borrowFactor)
+        }
+
+        /// Returns the effective collateral (denominated in $) for the given credit balance of this snapshot's token.
+        /// See FlowCreditMarket.effectiveCollateral for additional details.
+        access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128 {
+            return FlowCreditMarket.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.collateralFactor)
         }
     }
 
@@ -1216,19 +1220,64 @@ access(all) contract FlowCreditMarket {
             self.minHealth = min
             self.maxHealth = max
         }
+
+        /// Returns the true balance of the given token in this position, accounting for interest.
+        /// Returns balance 0.0 if the position has no balance stored for the given token.
+        access(all) view fun trueBalance(ofToken: Type): UFix128 {
+            if let balance = self.balances[ofToken] {
+                if let tokenSnapshot = self.snapshots[ofToken] {
+                    switch balance.direction {
+                    case BalanceDirection.Debit:
+                        return FlowCreditMarket.scaledBalanceToTrueBalance(
+                            balance.scaledBalance, interestIndex: tokenSnapshot.debitIndex)
+                    case BalanceDirection.Credit:
+                        return FlowCreditMarket.scaledBalanceToTrueBalance(
+                            balance.scaledBalance, interestIndex: tokenSnapshot.creditIndex)
+                    }
+                    panic("unreachable")
+                }
+            } 
+            // If the token doesn't exist in the position, the balance is 0
+            return 0.0
+        }
     }
 
     // PURE HELPERS -------------------------------------------------------------
 
-    access(all) view fun effectiveCollateral(credit: UFix128, snap: TokenSnapshot): UFix128 {
-        return (credit * snap.price) * snap.risk.collateralFactor
+    /// Returns the effective collateral (denominated in $) for the given credit balance of some token T.
+    /// Effective Collateral is defined:
+    ///   Ce = (Nc)(Pc)(Fc)
+    /// Where:
+    /// Ce = Effective Collateral 
+    /// Nc = Number of Collateral Tokens
+    /// Pc = Collateral Token Price
+    /// Fc = Collateral Factor
+    ///
+    /// @param credit           The credit balance of the position for token T.
+    /// @param price            The price of token T ($/T).
+    /// @param collateralFactor The collateral factor for token T (see RiskParams for details).
+    access(all) view fun effectiveCollateral(credit: UFix128, price: UFix128, collateralFactor: UFix128): UFix128 {
+        return (credit * price) * collateralFactor
     }
 
-    access(all) view fun effectiveDebt(debit: UFix128, snap: TokenSnapshot): UFix128 {
-        return (debit * snap.price) / snap.risk.borrowFactor
+    /// Returns the effective debt (denominated in $) for the given debit balance of some token T.
+    /// Effective Debt is defined:
+    ///   De = (Nd)(Pd)(Fd)
+    /// Where:
+    /// De = Effective Debt 
+    /// Nd = Number of Debt Tokens
+    /// Pd = Debt Token Price
+    /// Fd = Borrow Factor
+    ///
+    /// @param debit       The debit balance of the position for token T.
+    /// @param price       The price of token T ($/T).
+    /// @param borowFactor The borrow factor for token T (see RiskParams for details).
+    access(all) view fun effectiveDebt(debit: UFix128, price: UFix128, borrowFactor: UFix128): UFix128 {
+        return (debit * price) / borrowFactor
     }
 
     /// Computes health = totalEffectiveCollateral / totalEffectiveDebt (∞ when debt == 0)
+    // TODO: return BalanceSheet, this seems like a dupe of _getUpdatedBalanceSheet
     access(all) view fun healthFactor(view: PositionView): UFix128 {
         // TODO: this logic partly duplicates BalanceSheet construction in _getUpdatedBalanceSheet
         // This function differs in that it does not read any data from a Pool resource. Consider consolidating the two implementations.
@@ -1246,7 +1295,7 @@ access(all) contract FlowCreditMarket {
                         interestIndex: snap.creditIndex
                     )
                     effectiveCollateralTotal = effectiveCollateralTotal
-                        + FlowCreditMarket.effectiveCollateral(credit: trueBalance, snap: snap)
+                        + snap.effectiveCollateral(creditBalance: trueBalance)
 
                 case BalanceDirection.Debit:
                     let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
@@ -1254,7 +1303,7 @@ access(all) contract FlowCreditMarket {
                         interestIndex: snap.debitIndex
                     )
                     effectiveDebtTotal = effectiveDebtTotal
-                        + FlowCreditMarket.effectiveDebt(debit: trueBalance, snap: snap)
+                        + snap.effectiveDebt(debitBalance: trueBalance)
             }
         }
         return FlowCreditMarket.healthComputation(
@@ -1291,7 +1340,7 @@ access(all) contract FlowCreditMarket {
                         interestIndex: snap.creditIndex
                     )
                     effectiveCollateralTotal = effectiveCollateralTotal
-                        + FlowCreditMarket.effectiveCollateral(credit: trueBalance, snap: snap)
+                        + snap.effectiveCollateral(creditBalance: trueBalance)
 
                 case BalanceDirection.Debit:
                     let trueBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
@@ -1299,7 +1348,7 @@ access(all) contract FlowCreditMarket {
                         interestIndex: snap.debitIndex
                     )
                     effectiveDebtTotal = effectiveDebtTotal
-                        + FlowCreditMarket.effectiveDebt(debit: trueBalance, snap: snap)
+                        + snap.effectiveDebt(debitBalance: trueBalance)
             }
         }
 
@@ -1377,6 +1426,7 @@ access(all) contract FlowCreditMarket {
         access(self) var borrowFactor: {Type: UFix64}
 
         /// Per-token liquidation bonus fraction (e.g., 0.05 for 5%)
+        /// TODO(jord): we want to keep this logic but set it to 0 initially
         access(self) var liquidationBonus: {Type: UFix64}
 
         /// The count of positions to update per asynchronous update
@@ -1392,12 +1442,24 @@ access(all) contract FlowCreditMarket {
         access(EImplementation) var version: UInt64
 
         /// Liquidation target health and controls (global)
-        access(self) var liquidationTargetHF: UFix128   // e24 fixed-point, e.g., 1.05e24
 
+        /// The target health factor when liquidating a position, which limits how much collateral can be liquidated.
+        /// After a liquidation, the position's health factor must be less than or equal to this target value.
+        access(self) var liquidationTargetHF: UFix128
+        /// Whether liquidations are currently paused
         access(self) var liquidationsPaused: Bool
+        /// Period (s) following liquidation unpause in which liquidations are still not allowed
         access(self) var liquidationWarmupSec: UInt64
+        /// Time this pool most recently had liquidations paused
         access(self) var lastUnpausedAt: UInt64?
+
+        /// Deprecated: Unused field, but cannot be removed without contract update
         access(self) var protocolLiquidationFeeBps: UInt16
+
+        // TODO(jord): figure out how to reference dex https://github.com/onflow/FlowCreditMarket/issues/94
+        //  - either need to redeploy contract to create new dex field
+        //  - or need to revert to allowlist pattern and pass in swapper instances (I worry about security of this option)
+        //  - also to make allowlist pattern work with automated liquidation, initiator of this automation will need actual handle on a dex in order to pass it to FCM 
 
         /// Allowlist of permitted DeFiActions Swapper types for DEX liquidations
         access(self) var allowedSwapperTypes: {Type: Bool}
@@ -1406,9 +1468,11 @@ access(all) contract FlowCreditMarket {
         access(self) var dexOracleDeviationBps: UInt16
 
         /// Max slippage allowed in basis points for DEX liquidations
+        /// TODO(jord): revisit this. Is this ever necessary if we are also checking dexOracleDeviationBps? Do we want both a spot price check and a slippage from spot price check?
         access(self) var dexMaxSlippageBps: UInt64
 
         /// Max route hops allowed for DEX liquidations
+        // TODO(jord): unused
         access(self) var dexMaxRouteHops: UInt64
 
         init(defaultToken: Type, priceOracle: {DeFiActions.PriceOracle}) {
@@ -1536,7 +1600,6 @@ access(all) contract FlowCreditMarket {
                 warmupSec: self.liquidationWarmupSec,
                 lastUnpausedAt: self.lastUnpausedAt,
                 triggerHF: 1.0,
-                protocolFeeBps: self.protocolLiquidationFeeBps
             )
         }
 
@@ -1578,6 +1641,19 @@ access(all) contract FlowCreditMarket {
             }
             
             return nil
+        }
+
+        /// Returns a reference to the reserve vault for the given type, if the token type is supported.
+        /// If no reserve vault exists yet, and the token type is supported, the reserve vault is created.
+        access(self) fun _borrowOrCreateReserveVault(type: Type): &{FungibleToken.Vault} {
+            pre {
+                self.isTokenSupported(tokenType: type): "Cannot borrow reserve for unsupported token \(type.identifier)"
+            }
+            if self.reserves[type] == nil {
+                self.reserves[type] <-! DeFiActionsUtils.getEmptyVault(type)
+            }
+            let vaultRef = &self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
+            return vaultRef!
         }
 
         /// Returns a position's balance available for withdrawal of a given Vault type.
@@ -1636,6 +1712,7 @@ access(all) contract FlowCreditMarket {
         /// to its debt as denominated in the Pool's default token.
         /// "Effective collateral" means the value of each credit balance times the liquidation threshold
         /// for that token, i.e. the maximum borrowable amount
+        // TODO: make this output enumeration of effective debts/collaterals (or provide option that does)
         access(all) fun positionHealth(pid: UInt64): UFix128 {
             let position = self._borrowPosition(pid: pid)
 
@@ -1734,306 +1811,136 @@ access(all) contract FlowCreditMarket {
             )
         }
 
-        /// Quote liquidation required repay and seize amounts to bring HF to liquidationTargetHF
-        /// using a single seizeType
-        access(all) fun quoteLiquidation(pid: UInt64, debtType: Type, seizeType: Type): FlowCreditMarket.LiquidationQuote {
+        /// Any external party can perform a manual liquidation on a position under the following circumstances:
+        /// - the position has health < 1
+        /// - the liquidation price offered is better than what is available on a DEX
+        /// - the liquidation results in a health <= liquidationTargetHF
+        ///
+        /// If a liquidation attempt is successful, the balance of the input `repayment` vault is deposited to the pool
+        /// and a vault containing a balance of `seizeAmount` collateral tokens are returned to the caller.
+        ///
+        /// Terminology:
+        /// - N means number of some token: Nc means number of collateral tokens, Nd means number of debt tokens
+        /// - P means price of some token: Pc means price of collateral, Pd means price of debt
+        /// - C means collateral: Ce is effective collateral, Ct is true collateral, measured in $
+        /// - D means debt: De is effective debt, Dt is true debt, measured in $
+        /// - Fc, Fd are collateral and debt factors
+        access(all) fun manualLiquidation(
+            pid: UInt64,
+            debtType: Type,
+            seizeType: Type,
+            seizeAmount: UFix64,
+            repayment: @{FungibleToken.Vault}
+        ): @{FungibleToken.Vault} {
             pre {
-                self.globalLedger[debtType] != nil:
-                    "Invalid debt type \(debtType.identifier)"
-                self.globalLedger[seizeType] != nil:
-                    "Invalid seize type \(seizeType.identifier)"
-            }
-            let view = self.buildPositionView(pid: pid)
-            let health = FlowCreditMarket.healthFactor(view: view)
-            if health >= 1.0 {
-                return FlowCreditMarket.LiquidationQuote(
-                    requiredRepay: 0.0,
-                    seizeType: seizeType,
-                    seizeAmount: 0.0,
-                    newHF: health
-                )
+                self.isTokenSupported(tokenType: debtType): "Debt token type unsupported: \(debtType.identifier)"
+                self.isTokenSupported(tokenType: seizeType): "Collateral token type unsupported: \(seizeType.identifier)"
+                debtType == repayment.getType(): "Repayment vault does not match debt type: \(debtType.identifier)!=\(repayment.getType().identifier)"
+                // TODO(jord): liquidation paused / post-pause warm
             }
 
-            // Build snapshots
+            let positionView = self.buildPositionView(pid: pid)
+            let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+            let initialHealth = balanceSheet.health
+            assert(initialHealth < 1.0, message: "Cannot liquidate healthy position: \(initialHealth)>=1")
+
+            // Ensure liquidation amounts don't exceed position amounts
+            let repayAmount = repayment.balance
+            let Nc = positionView.trueBalance(ofToken: seizeType) // number of collateral tokens (true balance)
+            let Nd = positionView.trueBalance(ofToken: debtType)  // number of debt tokens (true balance)
+            assert(UFix128(seizeAmount) <= Nc, message: "Cannot seize more collateral than is in position: collateral balance (\(Nc)) is less than seize amount (\(seizeAmount))")
+            assert(UFix128(repayAmount) <= Nd, message: "Cannot repay more debt than is in position: debt balance (\(Nd)) is less than repay amount (\(repayAmount))")
+
+            // Oracle prices
+            let Pd_oracle = self.priceOracle.price(ofToken: debtType)!  // debt price given by oracle ($/D)
+            let Pc_oracle = self.priceOracle.price(ofToken: seizeType)! // collateral price given by oracle ($/C)
+            // Price of collateral, denominated in debt token, implied by oracle (D/C)
+            // Oracle says: "1 unit of collateral is worth `Pcd_oracle` units of debt"
+            let Pcd_oracle = Pc_oracle / Pd_oracle 
+
+            // Compute the health factor which would result if we were to accept this liquidation
+            let Ce_pre = balanceSheet.effectiveCollateral // effective collateral pre-liquidation
+            let De_pre = balanceSheet.effectiveDebt       // effective debt pre-liquidation
+            let Fc = positionView.snapshots[seizeType]!.risk.collateralFactor
+            let Fd = positionView.snapshots[debtType]!.risk.borrowFactor
+
+            // Ce_seize = effective value of seized collateral ($)
+            let Ce_seize = FlowCreditMarket.effectiveCollateral(credit: UFix128(seizeAmount), price: UFix128(Pc_oracle), collateralFactor: Fc)
+            // De_seize = effective value of repaid debt ($)
+            let De_seize = FlowCreditMarket.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd) 
+            let Ce_post = Ce_pre - Ce_seize // position's total effective collateral after liquidation ($)
+            let De_post = De_pre - De_seize // position's total effective debt after liquidation ($)
+            let postHealth = FlowCreditMarket.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
+            assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: post-liquidation health (\(postHealth)) is greater than target health (\(self.liquidationTargetHF))")
+
+            // TODO(jord): uncomment following when implementing dex logic https://github.com/onflow/FlowCreditMarket/issues/94
+/* 
+            // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
+            let swapper = self.dex!.getSwapper(inType: seizeType, outType: debtType)! // TODO: will revert if pair unsupported
+            // Get a quote: "how much collateral do I need to give you to get `repayAmount` debt tokens"
+            let quote = swapper.quoteIn(forDesired: repayAmount, reverse: false)
+            assert(seizeAmount < quote.inAmount, message: "Liquidation offer must be better than that offered by DEX")
+            
+            // Compare the DEX price to the oracle price and revert if they diverge beyond configured threshold.
+            let Pcd_dex = quote.outAmount / quote.inAmount // price of collateral, denominated in debt token, implied by dex quote (D/C)
+            // Compute the absolute value of the difference between the oracle price and dex price
+            let Pcd_dex_oracle_diff: UFix64 = Pcd_dex < Pcd_oracle ? Pcd_oracle - Pcd_dex : Pcd_dex - Pcd_oracle
+            // Compute the percent difference (eg. 0.05 for 5%). Always use the smaller price as the denominator.
+            let Pcd_dex_oracle_diffPct: UFix64 = Pcd_dex < Pcd_oracle ? Pcd_dex_oracle_diff / Pcd_dex : Pcd_dex_oracle_diff / Pcd_oracle
+            let Pcd_dex_oracle_diffBps = UInt16(Pcd_dex_oracle_diffPct * 10_000.0) // cannot overflow because Pcd_dex_oracle_diffPct<=1
+
+            assert(Pcd_dex_oracle_diffBps <= self.dexOracleDeviationBps, message: "Too large difference between dex/oracle prices diff=\(Pcd_dex_oracle_diffBps)bps")
+*/
+
+            // Execute the liquidation
+            return <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
+        }
+
+        /// Internal liquidation function which performs a liquidation.
+        /// The balance of `repayment` is deposited to the debt token reserve, and `seizeAmount` units of collateral are returned.
+        /// Callers are responsible for checking preconditions.
+        access(self) fun _doLiquidation(pid: UInt64, repayment: @{FungibleToken.Vault}, debtType: Type, seizeType: Type, seizeAmount: UFix64): @{FungibleToken.Vault} {
+            pre {
+                // position must have debt and collateral balance 
+            }
+
+            let repayAmount = repayment.balance
+            assert(repayment.getType() == debtType, message: "Vault type mismatch for repay. Repayment type is \(repayment.getType().identifier) but debt type is \(debtType.identifier)")
+            let debtReserveRef = self._borrowOrCreateReserveVault(type: debtType)
+            debtReserveRef.deposit(from: <-repayment)
+
+            // Reduce borrower's debt position by repayAmount
+            let position = self._borrowPosition(pid: pid)
             let debtState = self._borrowUpdatedTokenState(type: debtType)
+
+            if position.balances[debtType] == nil {
+                position.balances[debtType] = InternalBalance(direction: BalanceDirection.Debit, scaledBalance: 0.0)
+            }
+            position.balances[debtType]!.recordDeposit(amount: UFix128(repayAmount), tokenState: debtState)
+
+            // Withdraw seized collateral from position and send to liquidator
             let seizeState = self._borrowUpdatedTokenState(type: seizeType)
+            if position.balances[seizeType] == nil {
+                position.balances[seizeType] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0)
+            }
+            position.balances[seizeType]!.recordWithdrawal(amount: UFix128(seizeAmount), tokenState: seizeState)
+            let seizeReserveRef = (&self.reserves[seizeType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let seizedCollateral <- seizeReserveRef.withdraw(amount: seizeAmount)
 
-            // Resolve per-token liquidation bonus (default 5%) for debtType
-            let lbDebtUFix = self.liquidationBonus[debtType] ?? 0.05
-            let debtSnap = FlowCreditMarket.TokenSnapshot(
-                price: UFix128(self.priceOracle.price(ofToken: debtType)!),
-                credit: debtState.creditInterestIndex,
-                debit: debtState.debitInterestIndex,
-                risk: FlowCreditMarket.RiskParams(
-                    collateralFactor: UFix128(self.collateralFactor[debtType]!),
-                    borrowFactor: UFix128(self.borrowFactor[debtType]!),
-                    liquidationBonus: UFix128(lbDebtUFix)
-                )
-            )
-            // Resolve per-token liquidation bonus (default 5%) for seizeType
-            let lbSeizeUFix = self.liquidationBonus[seizeType] ?? 0.05
-            let seizeSnap = FlowCreditMarket.TokenSnapshot(
-                price: UFix128(self.priceOracle.price(ofToken: seizeType)!),
-                credit: seizeState.creditInterestIndex,
-                debit: seizeState.debitInterestIndex,
-                risk: FlowCreditMarket.RiskParams(
-                    collateralFactor: UFix128(self.collateralFactor[seizeType]!),
-                    borrowFactor: UFix128(self.borrowFactor[seizeType]!),
-                    liquidationBonus: UFix128(lbSeizeUFix)
-                )
+            let newHealth = self.positionHealth(pid: pid)
+            // TODO: sanity check health here? for auto-liquidating, we may need to perform a bounded search which could result in unbounded error in the final health
+
+            emit LiquidationExecuted(
+            	pid: pid,
+            	poolUUID: self.uuid,
+            	debtType: debtType.identifier,
+            	repayAmount: repayAmount,
+            	seizeType: seizeType.identifier,
+            	seizeAmount: seizeAmount,
+            	newHF: newHealth
             )
 
-            // Recompute effective totals and capture available true collateral for seizeType
-            var effColl: UFix128 = 0.0
-            var effDebt: UFix128 = 0.0
-            var trueCollateralSeize: UFix128 = 0.0
-            var trueDebt: UFix128 = 0.0
-            for t in view.balances.keys {
-                let b = view.balances[t]!
-                let st = self._borrowUpdatedTokenState(type: t)
-                // Resolve per-token liquidation bonus (default 5%) for token t
-                let lbTUFix = self.liquidationBonus[t] ?? 0.05
-                let snap = FlowCreditMarket.TokenSnapshot(
-                    price: UFix128(self.priceOracle.price(ofToken: t)!),
-                    credit: st.creditInterestIndex,
-                    debit: st.debitInterestIndex,
-                    risk: FlowCreditMarket.RiskParams(
-                        collateralFactor: UFix128(self.collateralFactor[t]!),
-                        borrowFactor: UFix128(self.borrowFactor[t]!),
-                        liquidationBonus: UFix128(lbTUFix)
-                    )
-                )
-                switch b.direction {
-                    case BalanceDirection.Credit:
-                        let trueBal = FlowCreditMarket.scaledBalanceToTrueBalance(
-                            b.scaledBalance,
-                            interestIndex: snap.creditIndex
-                        )
-                        if t == seizeType {
-                            trueCollateralSeize = trueBal
-                        }
-                        effColl = effColl + FlowCreditMarket.effectiveCollateral(credit: trueBal, snap: snap)
-
-                    case BalanceDirection.Debit:
-                        let trueBal = FlowCreditMarket.scaledBalanceToTrueBalance(
-                            b.scaledBalance,
-                            interestIndex: snap.debitIndex
-                        )
-                        if t == debtType {
-                            trueDebt = trueBal
-                        }
-                        effDebt = effDebt + FlowCreditMarket.effectiveDebt(debit: trueBal, snap: snap)
-                }
-            }
-
-            // Compute required effective collateral increase to reach targetHF
-            let target = self.liquidationTargetHF
-            if effDebt == 0.0 { // no debt
-                return FlowCreditMarket.LiquidationQuote(
-                    requiredRepay: 0.0,
-                    seizeType: seizeType,
-                    seizeAmount: 0.0,
-                    newHF: UFix128.max
-                )
-            }
-
-            let requiredEffColl = effDebt * target
-            if effColl >= requiredEffColl {
-                return FlowCreditMarket.LiquidationQuote(
-                    requiredRepay: 0.0,
-                    seizeType: seizeType,
-                    seizeAmount: 0.0,
-                    newHF: health
-                )
-            }
-
-            let deltaEffColl = requiredEffColl - effColl
-
-            // Paying debt reduces effectiveDebt instead of increasing collateral. Solve for repay needed in debt token terms:
-            // effDebtNew = effDebt - (repayTrue * debtSnap.price / debtSnap.risk.borrowFactor)
-            // target = effColl / effDebtNew  => effDebtNew = effColl / target
-            // So reductionNeeded = effDebt - effColl/target
-            let effDebtNew = effColl / target
-            if effDebt <= effDebtNew {
-                return FlowCreditMarket.LiquidationQuote(
-                    requiredRepay: 0.0,
-                    seizeType: seizeType,
-                    seizeAmount: 0.0,
-                    newHF: target
-                )
-            }
-
-            // Use simultaneous solve below; the approximate path is omitted
-
-            // New simultaneous solve for repayTrue (let R = repayTrue, S = seizeTrue):
-            // Target HF = (effColl - S * Pc * CF) / (effDebt - R * Pd / BF)
-            // S = (R * Pd / BF) * (1 + LB) / (Pc * CF)
-            // Solve for R such that HF = target
-            let Pd = debtSnap.price
-            let Pc = seizeSnap.price
-            let BF = debtSnap.risk.borrowFactor
-            let CF = seizeSnap.risk.collateralFactor
-            let LB = seizeSnap.risk.liquidationBonus
-
-            // Reuse previously computed effective collateral and debt
-
-            if effDebt == 0.0 || effColl / effDebt >= target {
-                return FlowCreditMarket.LiquidationQuote(
-                    requiredRepay: 0.0,
-                    seizeType: seizeType,
-                    seizeAmount: 0.0,
-                    newHF: effColl / effDebt
-                )
-            }
-
-            // Derived formula with positive denominator: u = (t * effDebt - effColl) / (t - (1 + LB) * CF)
-            let num = effDebt * target - effColl
-            let denomFactor = target - ((1.0 + LB) * CF)
-            if denomFactor <= 0.0 {
-                // Impossible target, return 0
-                return FlowCreditMarket.LiquidationQuote(
-                    requiredRepay: 0.0,
-                    seizeType: seizeType,
-                    seizeAmount: 0.0,
-                    newHF: health
-                )
-            }
-            var repayTrueU128 = (num * BF) / (Pd * denomFactor)
-            if repayTrueU128 > trueDebt {
-                repayTrueU128 = trueDebt
-            }
-            let u = (repayTrueU128 * Pd) / BF
-            var seizeTrueU128 = (u * (1.0 + LB)) / Pc
-            if seizeTrueU128 > trueCollateralSeize {
-                seizeTrueU128 = trueCollateralSeize
-                let uAllowed = (seizeTrueU128 * Pc) / (1.0 + LB)
-                repayTrueU128 = (uAllowed * BF) / Pd
-                if repayTrueU128 > trueDebt {
-                    repayTrueU128 = trueDebt
-                }
-            }
-            let repayExact = FlowCreditMarketMath.toUFix64RoundUp(repayTrueU128)
-            let seizeExact = FlowCreditMarketMath.toUFix64RoundUp(seizeTrueU128)
-            let repayEff = (repayTrueU128 * Pd) / BF
-            let seizeEff = seizeTrueU128 * (Pc * CF)
-            let newEffColl = effColl > seizeEff ? effColl - seizeEff : 0.0 as UFix128
-            let newEffDebt = effDebt > repayEff ? effDebt - repayEff : 0.0 as UFix128
-            let newHF = newEffDebt == 0.0 ? UFix128.max : (newEffColl * 1.0) / newEffDebt
-
-            // Prevent liquidation if it would worsen HF (deep insolvency case).
-            // Enhanced fallback: search for the repay/seize pair (under protocol pricing relation
-            // and available-collateral/debt caps) that maximizes HF. We discretize the search to keep costs bounded.
-            if newHF < health {
-                // Compute the maximum repay allowed by available seize collateral (Rcap), preserving R<->S pricing relation.
-                // uAllowed = seizeTrue * Pc / (1 + LB)
-                let uAllowedMax = (trueCollateralSeize * Pc) / (1.0 + LB)
-                var repayCapBySeize = (uAllowedMax * BF) / Pd
-                if repayCapBySeize > trueDebt {
-                    repayCapBySeize = trueDebt
-                }
-
-                var bestHF = health
-                var bestRepayTrue: UFix128 = 0.0
-                var bestSeizeTrue: UFix128 = 0.0
-
-                // If nothing can be repaid or seized, abort with no quote
-                if repayCapBySeize == 0.0 || trueCollateralSeize == 0.0 {
-                    return FlowCreditMarket.LiquidationQuote(
-                        requiredRepay: 0.0,
-                        seizeType: seizeType,
-                        seizeAmount: 0.0,
-                        newHF: health
-                    )
-                }
-
-                // Discrete bounded search over repay in [1..repayCapBySeize]
-                // Use up to 16 steps to balance precision and cost
-                let stepsU: UFix128 = 16.0
-                var step = repayCapBySeize / stepsU
-                if step == 0.0 {
-                    step = 1.0
-                }
-
-                var r = step
-                while r <= repayCapBySeize {
-                    // Compute S for this R under pricing relation, capped by available collateral
-                    let uForR = (r * Pd) / BF
-                    var sForR = (uForR * (1.0 + LB)) / Pc
-                    if sForR > trueCollateralSeize {
-                        sForR = trueCollateralSeize
-                    }
-
-                    // Compute resulting HF
-                    let repayEffC = (r * Pd) / BF
-                    let seizeEffC = sForR * (Pc * CF)
-                    let newEffCollC = effColl > seizeEffC ? effColl - seizeEffC : 0.0 as UFix128
-                    let newEffDebtC = effDebt > repayEffC ? effDebt - repayEffC : 0.0 as UFix128
-                    let newHFC = newEffDebtC == 0.0 ? UFix128.max : (newEffCollC * 1.0) / newEffDebtC
-
-                    if newHFC > bestHF {
-                        bestHF = newHFC
-                        bestRepayTrue = r
-                        bestSeizeTrue = sForR
-                    }
-
-                    // Advance; ensure we always reach the cap
-                    let next = r + step
-                    if next > repayCapBySeize {
-                        break
-                    }
-                    r = next
-                }
-
-                // Also evaluate at the cap explicitly (in case step didn't land exactly)
-                let rCap = repayCapBySeize
-                let uForR2 = (rCap * Pd) / BF
-                var sForR2 = (uForR2 * (1.0 + LB)) / Pc
-                if sForR2 > trueCollateralSeize {
-                    sForR2 = trueCollateralSeize
-                }
-                let repayEffC2 = (rCap * Pd) / BF
-                let seizeEffC2 = sForR2 * (Pc * CF)
-                let newEffCollC2 = effColl > seizeEffC2 ? effColl - seizeEffC2 : 0.0 as UFix128
-                let newEffDebtC2 = effDebt > repayEffC2 ? effDebt - repayEffC2 : 0.0 as UFix128
-                let newHFC2 = newEffDebtC2 == 0.0 ? UFix128.max : (newEffCollC2 * 1.0) / newEffDebtC2
-                if newHFC2 > bestHF {
-                    bestHF = newHFC2
-                    bestRepayTrue = rCap
-                    bestSeizeTrue = sForR2
-                }
-
-                if bestHF > health && bestRepayTrue > 0.0 && bestSeizeTrue > 0.0 {
-                    let repayExactBest = FlowCreditMarketMath.toUFix64RoundUp(bestRepayTrue)
-                    let seizeExactBest = FlowCreditMarketMath.toUFix64RoundUp(bestSeizeTrue)
-                    if self.debugLogging {
-                        log("[LIQ][QUOTE][FALLBACK][SEARCH] repayExact=\(repayExactBest) seizeExact=\(seizeExactBest)")
-                    }
-                    return FlowCreditMarket.LiquidationQuote(
-                        requiredRepay: repayExactBest,
-                        seizeType: seizeType,
-                        seizeAmount: seizeExactBest,
-                        newHF: bestHF
-                    )
-                }
-
-                // No improving pair found
-                return FlowCreditMarket.LiquidationQuote(
-                    requiredRepay: 0.0,
-                    seizeType: seizeType,
-                    seizeAmount: 0.0,
-                    newHF: health
-                )
-            }
-
-            if self.debugLogging {
-                log("[LIQ][QUOTE] repayExact=\(repayExact) seizeExact=\(seizeExact) trueCollateralSeize=\(FlowCreditMarketMath.toUFix64Round(trueCollateralSeize))")
-            }
-            return FlowCreditMarket.LiquidationQuote(
-                requiredRepay: repayExact,
-                seizeType: seizeType,
-                seizeAmount: seizeExact,
-                newHF: newHF
-            )
+            return <-seizedCollateral
         }
 
         /// Returns the quantity of funds of a specified token which would need to be deposited
@@ -2071,309 +1978,6 @@ access(all) contract FlowCreditMarket {
                 effectiveDebt: adjusted.effectiveDebt,
                 targetHealth: targetHealth
             )
-        }
-
-        /// Permissionless liquidation: keeper repays exactly the required amount to reach target HF
-        /// and receives seized collateral
-        access(all) fun liquidateRepayForSeize(
-            pid: UInt64,
-            debtType: Type,
-            maxRepayAmount: UFix64,
-            seizeType: Type,
-            minSeizeAmount: UFix64,
-            from: @{FungibleToken.Vault}
-        ): @LiquidationResult {
-            pre {
-                self.globalLedger[debtType] != nil:
-                    "Invalid debt type \(debtType.identifier)"
-                self.globalLedger[seizeType] != nil:
-                    "Invalid seize type \(seizeType.identifier)"
-            }
-            // Pause/warm-up checks
-            self._assertLiquidationsActive()
-
-            // Quote required repay and seize
-            let quote = self.quoteLiquidation(
-                pid: pid,
-                debtType: debtType,
-                seizeType: seizeType
-            )
-            assert(
-                quote.requiredRepay > 0.0,
-                message: "Position not liquidatable or already healthy"
-            )
-            assert(
-                maxRepayAmount >= quote.requiredRepay,
-                message: "Insufficient max repay"
-            )
-            assert(
-                quote.seizeAmount >= minSeizeAmount,
-                message: "Seize amount below minimum"
-            )
-
-            // Ensure internal reserves exist for seizeType and debtType
-            if self.reserves[seizeType] == nil {
-                self.reserves[seizeType] <-! DeFiActionsUtils.getEmptyVault(seizeType)
-            }
-            if self.reserves[debtType] == nil {
-                self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
-            }
-
-            // Move repay tokens into reserves (repay vault must exactly match requiredRepay)
-            assert(
-                from.getType() == debtType,
-                message: "Vault type mismatch for repay"
-            )
-            assert(
-                from.balance >= quote.requiredRepay,
-                message: "Repay vault balance must be at least requiredRepay"
-            )
-            let toUse <- from.withdraw(amount: quote.requiredRepay)
-            let debtReserveRef = (&self.reserves[debtType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
-            debtReserveRef.deposit(from: <-toUse)
-
-            // Reduce borrower's debt position by repayAmount
-            let position = self._borrowPosition(pid: pid)
-            let debtState = self._borrowUpdatedTokenState(type: debtType)
-            let repayUint = UFix128(quote.requiredRepay)
-            if position.balances[debtType] == nil {
-                position.balances[debtType] = InternalBalance(
-                    direction: BalanceDirection.Debit,
-                    scaledBalance: 0.0
-                )
-            }
-            position.balances[debtType]!.recordDeposit(
-                amount: repayUint,
-                tokenState: debtState
-            )
-
-            // Withdraw seized collateral from position and send to liquidator
-            let seizeState = self._borrowUpdatedTokenState(type: seizeType)
-            let seizeUint = UFix128(quote.seizeAmount)
-            if position.balances[seizeType] == nil {
-                position.balances[seizeType] = InternalBalance(
-                    direction: BalanceDirection.Credit,
-                    scaledBalance: 0.0
-                )
-            }
-            position.balances[seizeType]!.recordWithdrawal(
-                amount: seizeUint,
-                tokenState: seizeState
-            )
-            let seizeReserveRef = (&self.reserves[seizeType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
-            let payout <- seizeReserveRef.withdraw(amount: quote.seizeAmount)
-
-            let actualNewHF = self.positionHealth(pid: pid)
-            // Ensure realized HF is not materially below quoted HF (allow tiny rounding tolerance)
-            let expectedHF = quote.newHF
-            let hfTolerance: UFix128 = 0.00001
-            assert(
-                actualNewHF + hfTolerance >= expectedHF,
-                message: "Post-liquidation HF below expected"
-            )
-
-            emit LiquidationExecuted(
-                pid: pid,
-                poolUUID: self.uuid,
-                debtType: debtType.identifier,
-                repayAmount: quote.requiredRepay,
-                seizeType: seizeType.identifier,
-                seizeAmount: quote.seizeAmount,
-                newHF: actualNewHF
-            )
-
-            return <- create LiquidationResult(seized: <-payout, remainder: <-from)
-        }
-
-        /// Liquidation via DEX: seize collateral, swap via allowlisted Swapper to debt token, repay debt
-        access(all) fun liquidateViaDex(
-            pid: UInt64,
-            debtType: Type,
-            seizeType: Type,
-            maxSeizeAmount: UFix64,
-            minRepayAmount: UFix64,
-            swapper: {DeFiActions.Swapper},
-            quote: {DeFiActions.Quote}?
-        ) {
-            pre {
-                self.globalLedger[debtType] != nil:
-                    "Invalid debt type \(debtType.identifier)"
-                self.globalLedger[seizeType] != nil:
-                    "Invalid seize type \(seizeType.identifier)"
-                !self.liquidationsPaused:
-                    "Liquidations paused"
-            }
-            self._assertLiquidationsActive()
-
-            // Ensure reserve vaults exist for both tokens
-            if self.reserves[seizeType] == nil {
-                self.reserves[seizeType] <-! DeFiActionsUtils.getEmptyVault(seizeType)
-            }
-            if self.reserves[debtType] == nil {
-                self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
-            }
-
-            // Validate position is liquidatable
-            let health = self.positionHealth(pid: pid)
-            assert(
-                health < 1.0,
-                message: "Position not liquidatable"
-            )
-            assert(
-                self.isLiquidatable(pid: pid),
-                message: "Position \(pid) is not liquidatable"
-            )
-
-            // Internal quote to determine required seize (capped by max)
-            let internalQuote = self.quoteLiquidation(
-                pid: pid,
-                debtType: debtType,
-                seizeType: seizeType
-            )
-            var requiredSeize = internalQuote.seizeAmount
-            if requiredSeize > maxSeizeAmount {
-                requiredSeize = maxSeizeAmount
-            }
-            assert(
-                requiredSeize > 0.0,
-                message: "Nothing to seize"
-            )
-
-            // Allowlist/type checks
-            assert(
-                self.allowedSwapperTypes[swapper.getType()] == true,
-                message: "Swapper not allowlisted"
-            )
-            assert(
-                swapper.inType() == seizeType,
-                message: "Swapper must accept seizeType \(seizeType.identifier)"
-            )
-            assert(
-                swapper.outType() == debtType,
-                message: "Swapper must output debtType \(debtType.identifier)"
-            )
-
-            // Oracle vs DEX price deviation guard
-            let Pc = self.priceOracle.price(ofToken: seizeType)!
-            let Pd = self.priceOracle.price(ofToken: debtType)!
-            let dexQuote = quote
-                ?? swapper.quoteOut(
-                    forProvided: requiredSeize,
-                    reverse: false
-                )
-            let dexOut = dexQuote.outAmount
-            let impliedPrice = dexOut / requiredSeize
-            let oraclePrice = Pd / Pc
-            let deviation = impliedPrice > oraclePrice
-                ? impliedPrice - oraclePrice
-                : oraclePrice - impliedPrice
-            let deviationBps = UInt16((deviation / oraclePrice) * 10000.0)
-            assert(
-                deviationBps <= self.dexOracleDeviationBps,
-                message: "DEX price deviates too high"
-            )
-
-            // Seize collateral and swap
-            let seized <- self.internalSeize(
-                pid: pid,
-                tokenType: seizeType,
-                amount: requiredSeize
-            )
-            let outDebt <- swapper.swap(quote: dexQuote, inVault: <-seized)
-            assert(
-                outDebt.getType() == debtType,
-                message: "Swapper returned wrong out type"
-            )
-
-            // Slippage guard if quote provided
-            var slipBps: UInt16 = 0
-            // Slippage vs expected from oracle prices
-            let expectedOutFromOracle = requiredSeize * (Pd / Pc)
-            if expectedOutFromOracle > 0.0 {
-                let diff = outDebt.balance > expectedOutFromOracle
-                    ? outDebt.balance - expectedOutFromOracle
-                    : expectedOutFromOracle - outDebt.balance
-                let frac = diff / expectedOutFromOracle
-                let bpsU = frac * 10000.0
-                slipBps = UInt16(bpsU)
-                assert(
-                    UInt64(slipBps) <= self.dexMaxSlippageBps,
-                    message: "Swap slippage too high"
-                )
-            }
-
-            // Repay debt using swap output
-            let repaid = self.internalRepay(pid: pid, from: <-outDebt)
-            assert(
-                repaid >= minRepayAmount,
-                message: "Insufficient repay after swap - required \(minRepayAmount) but repaid \(repaid)"
-            )
-
-            // Optional safety: ensure improved health meets target
-            let postHF = self.positionHealth(pid: pid)
-            assert(
-                postHF >= self.liquidationTargetHF,
-                message: "Post-liquidation HF below target"
-            )
-
-            emit LiquidationExecutedViaDex(
-                pid: pid,
-                poolUUID: self.uuid,
-                seizeType: seizeType.identifier,
-                seized: requiredSeize,
-                debtType: debtType.identifier,
-                repaid: repaid,
-                slippageBps: slipBps,
-                newHF: self.positionHealth(pid: pid)
-            )
-        }
-
-        // Internal helpers for DEX liquidation path (resource-scoped)
-
-        access(self) fun internalSeize(pid: UInt64, tokenType: Type, amount: UFix64): @{FungibleToken.Vault} {
-            let position = self._borrowPosition(pid: pid)
-            let tokenState = self._borrowUpdatedTokenState(type: tokenType)
-            let seizeUint = UFix128(amount)
-            if position.balances[tokenType] == nil {
-                position.balances[tokenType] = InternalBalance(
-                    direction: BalanceDirection.Credit,
-                    scaledBalance: 0.0
-                )
-            }
-            position.balances[tokenType]!.recordWithdrawal(
-                amount: seizeUint,
-                tokenState: tokenState
-            )
-            if self.reserves[tokenType] == nil {
-                self.reserves[tokenType] <-! DeFiActionsUtils.getEmptyVault(tokenType)
-            }
-            let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
-            return <- reserveRef.withdraw(amount: amount)
-        }
-
-        access(self) fun internalRepay(pid: UInt64, from: @{FungibleToken.Vault}): UFix64 {
-            let debtType = from.getType()
-            if self.reserves[debtType] == nil {
-                self.reserves[debtType] <-! DeFiActionsUtils.getEmptyVault(debtType)
-            }
-            let toDeposit <- from
-            let amount = toDeposit.balance
-            let reserveRef = (&self.reserves[debtType] as &{FungibleToken.Vault}?)!
-            reserveRef.deposit(from: <-toDeposit)
-            let position = self._borrowPosition(pid: pid)
-            let debtState = self._borrowUpdatedTokenState(type: debtType)
-            let repayUint = UFix128(amount)
-            if position.balances[debtType] == nil {
-                position.balances[debtType] = InternalBalance(
-                    direction: BalanceDirection.Debit,
-                    scaledBalance: 0.0
-                )
-            }
-            position.balances[debtType]!.recordDeposit(
-                amount: repayUint,
-                tokenState: debtState
-            )
-            return amount
         }
 
         // TODO: documentation
@@ -3306,11 +2910,9 @@ access(all) contract FlowCreditMarket {
         access(EGovernance) fun setLiquidationParams(
             targetHF: UFix128?,
             warmupSec: UInt64?,
-            protocolFeeBps: UInt16?
         ) {
             var newTarget = self.liquidationTargetHF
             var newWarmup = self.liquidationWarmupSec
-            var newProtocolFee = self.protocolLiquidationFeeBps
             if let targetHF = targetHF {
                 assert(
                     targetHF > 1.0,
@@ -3323,15 +2925,11 @@ access(all) contract FlowCreditMarket {
                 self.liquidationWarmupSec = warmupSec
                 newWarmup = warmupSec
             }
-            if let protocolFeeBps = protocolFeeBps {
-                self.protocolLiquidationFeeBps = protocolFeeBps
-                newProtocolFee = protocolFeeBps
-            }
+
             emit LiquidationParamsUpdated(
                 poolUUID: self.uuid,
                 targetHF: newTarget,
                 warmupSec: newWarmup,
-                protocolFeeBps: newProtocolFee
             )
         }
 
@@ -3866,6 +3464,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Returns a position's BalanceSheet containing its effective collateral and debt as well as its current health
+        /// TODO(jord): in all cases callers already are calling _borrowPosition, more efficient to pass in PositionView?
         access(self) fun _getUpdatedBalanceSheet(pid: UInt64): BalanceSheet {
             let position = self._borrowPosition(pid: pid)
 
@@ -3958,7 +3557,7 @@ access(all) contract FlowCreditMarket {
                 ?? panic("Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool")
         }
 
-        /// Build a PositionView for the given position ID
+        /// Build a PositionView for the given position ID.
         access(all) fun buildPositionView(pid: UInt64): FlowCreditMarket.PositionView {
             let position = self._borrowPosition(pid: pid)
             let snaps: {Type: FlowCreditMarket.TokenSnapshot} = {}
@@ -4604,44 +4203,4 @@ access(all) contract FlowCreditMarket {
         )
         let factory = self.account.storage.borrow<&PoolFactory>(from: self.PoolFactoryPath)!
     }
-
-    access(all) resource LiquidationResult: Burner.Burnable {
-        access(all) var seized: @{FungibleToken.Vault}?
-        access(all) var remainder: @{FungibleToken.Vault}?
-
-        init(
-            seized: @{FungibleToken.Vault},
-            remainder: @{FungibleToken.Vault}
-        ) {
-            self.seized <- seized
-            self.remainder <- remainder
-        }
-
-        access(all) fun takeSeized(): @{FungibleToken.Vault} {
-            let s <- self.seized <- nil
-            return <- s!
-        }
-
-        access(all) fun takeRemainder(): @{FungibleToken.Vault} {
-            let r <- self.remainder <- nil
-            return <- r!
-        }
-
-        access(contract) fun burnCallback() {
-            let s <- self.seized <- nil
-            let r <- self.remainder <- nil
-            if s != nil {
-                Burner.burn(<-s)
-            } else {
-                destroy s
-            }
-            if r != nil {
-                Burner.burn(<-r)
-            } else {
-                destroy r
-            }
-        }
-    }
-
-    // (contract-level helpers removed; resource-scoped versions live in Pool)
 }

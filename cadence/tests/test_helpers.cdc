@@ -192,6 +192,17 @@ fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowCreditMarket.PositionDe
 }
 
 access(all)
+fun getPositionBalance(pid: UInt64, vaultID: String): FlowCreditMarket.PositionBalance {
+    let positionDetails = getPositionDetails(pid: pid, beFailed: false)
+    for bal in positionDetails.balances {
+        if bal.vaultType == CompositeType(vaultID) {
+            return bal
+        }
+    }
+    panic("expected to find balance for \(vaultID) in position\(pid)")
+}
+
+access(all)
 fun poolExists(address: Address): Bool {
     let res = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [address])
     Test.expect(res, Test.beSucceeded())
@@ -582,6 +593,18 @@ fun setupMoetVault(_ signer: Test.TestAccount, beFailed: Bool) {
 access(all)
 fun mintMoet(signer: Test.TestAccount, to: Address, amount: UFix64, beFailed: Bool) {
     let mintRes = _executeTransaction("../transactions/moet/mint_moet.cdc", [to, amount], signer)
+    Test.expect(mintRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun setupMockYieldTokenVault(_ signer: Test.TestAccount, beFailed: Bool) {
+    let setupRes = _executeTransaction("../transactions/mocks/yieldtoken/setup_vault.cdc", [], signer)
+    Test.expect(setupRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun mintMockYieldToken(signer: Test.TestAccount, to: Address, amount: UFix64, beFailed: Bool) {
+    let mintRes = _executeTransaction("../transactions/mocks/yieldtoken/mint.cdc", [to, amount], signer)
     Test.expect(mintRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
