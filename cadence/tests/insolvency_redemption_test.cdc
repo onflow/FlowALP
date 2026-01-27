@@ -6,7 +6,6 @@ import "MOET"
 import "FlowToken"
 import "FlowCreditMarketMath"
 
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) var snapshot: UInt64 = 0
 
 access(all)

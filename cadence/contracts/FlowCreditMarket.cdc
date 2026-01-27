@@ -120,6 +120,48 @@ access(all) contract FlowCreditMarket {
         remainingCapacity: UFix64
     )
 
+    //// Emitted each time the insurance rate is updated for a specific token in a specific pool.
+    //// The insurance rate is an annual percentage; for example a value of 0.001 indicates 0.1%.
+    access(all) event InsuranceRateUpdated(
+        poolUUID: UInt64,
+        tokenType: String,
+        insuranceRate: UFix64,
+    )
+
+    /// Emitted each time an insurance fee is collected for a specific token in a specific pool.
+    /// The insurance amount is the amount of insurance collected, denominated in MOET.
+    access(all) event InsuranceFeeCollected(
+        poolUUID: UInt64,
+        tokenType: String,
+        insuranceAmount: UFix64,
+        collectionTime: UFix64,
+    )
+
+    //// Emitted each time the stability rate is updated for a specific token in a specific pool.
+    //// The stability rate is an annual percentage; the default value is 0.05 (5%).
+    access(all) event StabilityFeeRateUpdated(
+        poolUUID: UInt64,
+        tokenType: String,
+        stabilityFeeRate: UFix64,
+    )
+
+    /// Emitted each time an stability fee is collected for a specific token in a specific pool.
+    /// The stability amount is the amount of stability collected, denominated in token type.
+    access(all) event StabilityFeeCollected(
+        poolUUID: UInt64,
+        tokenType: String,
+        stabilityAmount: UFix64,
+        collectionTime: UFix64,
+    )
+
+    /// Emitted each time funds are withdrawn from the stability fund for a specific token in a specific pool.
+    /// The amount is the quantity withdrawn, denominated in the token type.
+    access(all) event StabilityFundWithdrawn(
+        poolUUID: UInt64,
+        tokenType: String,
+        amount: UFix64,
+    )
+
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
     access(all) entitlement EPosition
@@ -248,7 +290,7 @@ access(all) contract FlowCreditMarket {
         /// amount is expressed in UFix128 for the same rationale as deposits;
         /// public withdraw APIs are UFix64 and are converted at the boundary.
         ///
-        access(all) fun recordWithdrawal(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
+        access(contract) fun recordWithdrawal(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
             switch self.direction {
                 case BalanceDirection.Debit:
                     // Withdrawing from a debit position just increases the debt amount.
@@ -633,8 +675,20 @@ access(all) contract FlowCreditMarket {
         /// The interest curve implementation used to calculate interest rate
         access(EImplementation) var interestCurve: {InterestCurve}
 
-        /// The insurance rate applied to total credit when computing credit interest (default 0.1%)
+        /// The annual insurance rate applied to total debit when computing credit interest (default 0.1%)
         access(EImplementation) var insuranceRate: UFix64
+
+        /// Timestamp of the last insurance collection for this token.
+        access(EImplementation) var lastInsuranceCollectionTime: UFix64
+
+        /// Swapper used to convert this token to MOET for insurance collection.
+        access(EImplementation) var insuranceSwapper: {DeFiActions.Swapper}?
+
+        /// The stability fee rate to calculate stability (default 0.05, 5%).
+        access(EImplementation) var stabilityFeeRate: UFix64
+
+        /// Timestamp of the last stability collection for this token.
+        access(EImplementation) var lastStabilityFeeCollectionTime: UFix64
 
         /// Per-position limit fraction of capacity (default 0.05 i.e., 5%)
         access(EImplementation) var depositLimitFraction: UFix64
@@ -672,7 +726,11 @@ access(all) contract FlowCreditMarket {
             self.currentCreditRate = 1.0
             self.currentDebitRate = 1.0
             self.interestCurve = interestCurve
-            self.insuranceRate = 0.001
+            self.insuranceRate = 0.0
+            self.lastInsuranceCollectionTime = getCurrentBlock().timestamp
+            self.insuranceSwapper = nil
+            self.stabilityFeeRate = 0.05
+            self.lastStabilityFeeCollectionTime = getCurrentBlock().timestamp
             self.depositLimitFraction = 0.05
             self.depositRate = depositRate
             self.depositCapacity = depositCapacityCap
@@ -684,6 +742,20 @@ access(all) contract FlowCreditMarket {
         /// Sets the insurance rate for this token state
         access(EImplementation) fun setInsuranceRate(_ rate: UFix64) {
             self.insuranceRate = rate
+        }
+
+        /// Sets the last insurance collection timestamp
+        access(EImplementation) fun setLastInsuranceCollectionTime(_ lastInsuranceCollectionTime: UFix64) {
+            self.lastInsuranceCollectionTime = lastInsuranceCollectionTime
+        }
+
+        /// Sets the swapper used for insurance collection (must swap from this token type to MOET)
+        access(EImplementation) fun setInsuranceSwapper(_ swapper: {DeFiActions.Swapper}?) {
+            if let swapper = swapper {
+                assert(swapper.inType() == self.tokenType, message: "Insurance swapper must accept \(self.tokenType.identifier), not \(swapper.inType().identifier)")
+                assert(swapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
+            }
+            self.insuranceSwapper = swapper
         }
 
         /// Sets the per-deposit limit fraction for this token state
@@ -708,6 +780,16 @@ access(all) contract FlowCreditMarket {
             }
             // Reset the last update timestamp to prevent regeneration based on old timestamp
             self.lastDepositCapacityUpdate = getCurrentBlock().timestamp
+        }
+
+        /// Sets the stability fee rate for this token state.
+        access(EImplementation) fun setStabilityFeeRate(_ rate: UFix64) {
+            self.stabilityFeeRate = rate
+        }
+        
+        /// Sets the last stability fee collection timestamp for this token state.
+        access(EImplementation) fun setLastStabilityFeeCollectionTime(_ lastStabilityFeeCollectionTime: UFix64) {
+            self.lastStabilityFeeCollectionTime = lastStabilityFeeCollectionTime
         }
 
         /// Calculates the per-user deposit limit cap based on depositLimitFraction * depositCapacityCap
@@ -893,36 +975,158 @@ access(all) contract FlowCreditMarket {
                 debitBalance: self.totalDebitBalance
             )
             let insuranceRate = UFix128(self.insuranceRate)
+            let stabilityFeeRate = UFix128(self.stabilityFeeRate)
 
             var creditRate: UFix128 = 0.0
+            // Total protocol cut as a percentage of debit interest income
+            let protocolFeeRate = insuranceRate + stabilityFeeRate
 
             // Two calculation paths based on curve type:
-            // 1. FixedRateInterestCurve: simple spread model (creditRate = debitRate - insuranceRate)
+            // 1. FixedRateInterestCurve: simple spread model (creditRate = debitRate * (1 - protocolFeeRate))
             //    Used for stable assets like MOET where rates are governance-controlled
             // 2. KinkInterestCurve (and others): reserve factor model
-            //    Insurance is a percentage of interest income, not a fixed spread
+            //    Insurance and stability are percentages of interest income, not a fixed spread
             // TODO(jord): seems like InterestCurve abstraction could be improved if we need to check specific types here.
             if self.interestCurve.getType() == Type<FlowCreditMarket.FixedRateInterestCurve>() {
-                // FixedRate path: creditRate = debitRate - insuranceRate
+                // FixedRate path: creditRate = debitRate * (1 - protocolFeeRate))
                 // This provides a fixed, predictable spread between borrower and lender rates
-                if debitRate > insuranceRate {
-                    creditRate = debitRate - insuranceRate
-                }
-                // else creditRate remains 0.0 (insurance exceeds debit rate)
+                creditRate = debitRate * (1.0 - protocolFeeRate) 
             } else {
                 // KinkCurve path (and any other curves): reserve factor model
-                // insuranceAmount = debitIncome * insuranceRate (percentage of income)
-                // creditRate = (debitIncome - insuranceAmount) / totalCreditBalance
+                // protocolFeeAmount = debitIncome * protocolFeeRate (percentage of income)
+                // creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
                 let debitIncome = self.totalDebitBalance * debitRate
-                let insuranceAmount = debitIncome * insuranceRate
+                let protocolFeeAmount = debitIncome * protocolFeeRate
 
                 if self.totalCreditBalance > 0.0 {
-                    creditRate = (debitIncome - insuranceAmount) / self.totalCreditBalance
+                    creditRate = (debitIncome - protocolFeeAmount) / self.totalCreditBalance
                 }
             }
 
             self.currentCreditRate = FlowCreditMarket.perSecondInterestRate(yearlyRate: creditRate)
             self.currentDebitRate = FlowCreditMarket.perSecondInterestRate(yearlyRate: debitRate)
+        }
+
+        /// Collects insurance by withdrawing from reserves and swapping to MOET.
+        /// The insurance amount is calculated based on the insurance rate applied to the total debit balance over the time elapsed.
+        /// This should be called periodically (e.g., when updateInterestRates is called) to accumulate the insurance fund.
+        /// CAUTION: This function will panic if no insuranceSwapper is provided.
+        ///
+        /// @param reserveVault: The reserve vault for this token type to withdraw insurance from
+        /// @return: A MOET vault containing the collected insurance funds, or nil if no collection occurred
+        access(EImplementation) fun collectInsurance(
+            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+        ): @MOET.Vault? {
+            let currentTime = getCurrentBlock().timestamp
+
+            // If insuranceRate is 0.0 configured, skip collection but update the last insurance collection time
+            if self.insuranceRate == 0.0 {
+                self.setLastInsuranceCollectionTime(currentTime)
+                return nil
+            }
+
+            // Calculate accrued insurance amount based on time elapsed since last collection
+            let timeElapsed = currentTime - self.lastInsuranceCollectionTime
+            
+            // If no time has elapsed, nothing to collect
+            if timeElapsed <= 0.0 {
+                return nil
+            }
+
+            // Insurance amount is a percentage of debit income
+            // debitIncome = debitBalance * (curentDebitRate ^ time_elapsed - 1.0)
+            let debitIncome = self.totalDebitBalance * (FlowCreditMarketMath.powUFix128(self.currentDebitRate, timeElapsed) - 1.0)
+            let insuranceAmount = debitIncome * UFix128(self.insuranceRate)
+            let insuranceAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(insuranceAmount)
+
+            // If calculated amount is zero, skip collection but update timestamp
+            if insuranceAmountUFix64 == 0.0 {
+                self.setLastInsuranceCollectionTime(currentTime)
+                return nil
+            }
+            
+            // Check if we have enough balance in reserves
+            if reserveVault.balance == 0.0 {
+                self.setLastInsuranceCollectionTime(currentTime)
+                return nil
+            }
+
+            // Withdraw insurance amount from reserves (use available balance if less than calculated)
+            let amountToCollect = insuranceAmountUFix64 > reserveVault.balance ? reserveVault.balance : insuranceAmountUFix64
+            var insuranceVault <- reserveVault.withdraw(amount: amountToCollect)
+
+			let insuranceSwapper = self.insuranceSwapper ?? panic("missing insurance swapper")
+
+            // Validate swapper input and output types (input and output types are already validated when swapper is set)
+            assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
+            assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
+
+            // Get quote and perform swap
+            let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
+            var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
+
+            // Update last collection time
+            self.setLastInsuranceCollectionTime(currentTime)
+
+            // Return the MOET vault for the caller to deposit
+            return <-moetVault
+        }
+
+        /// Collects stability funds by withdrawing from reserves.
+        /// The stability amount is calculated based on the stability rate applied to the total debit balance over the time elapsed.
+        /// This should be called periodically (e.g., when updateInterestRates is called) to accumulate the stability fund.
+        ///
+        /// @param reserveVault: The reserve vault for this token type to withdraw stability amount from
+        /// @return: A token type vault containing the collected stability funds, or nil if no collection occurred
+        access(EImplementation) fun collectStability(
+            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+        ): @{FungibleToken.Vault}? {
+            let currentTime = getCurrentBlock().timestamp
+
+            // If stabilityFeeRate is 0.0 configured, skip collection but update the last stability collection time
+            if self.stabilityFeeRate == 0.0 {
+                self.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            // Calculate accrued stability amount based on time elapsed since last collection
+            let timeElapsed = currentTime - self.lastStabilityFeeCollectionTime
+
+            // If no time has elapsed, nothing to collect
+            if timeElapsed <= 0.0 {
+                return nil
+            }
+
+            let stabilityFeeRate = UFix128(self.stabilityFeeRate)
+
+            // Calculate stability amount: is a percentage of debit income
+            // debitIncome = debitBalance * (curentDebitRate ^ time_elapsed - 1.0)
+            let interestIncome = self.totalDebitBalance * (FlowCreditMarketMath.powUFix128(self.currentDebitRate, timeElapsed) - 1.0)
+            let stabilityAmount = interestIncome * stabilityFeeRate
+            let stabilityAmountUFix64 = FlowCreditMarketMath.toUFix64RoundDown(stabilityAmount)
+
+            // If calculated amount is zero or negative, skip collection but update timestamp
+            if stabilityAmountUFix64 == 0.0 {
+                self.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            // Check if we have enough balance in reserves
+            if reserveVault.balance == 0.0 {
+                self.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            let reserveVaultBalance = reserveVault.balance
+            // Withdraw stability amount from reserves (use available balance if less than calculated)
+            let amountToCollect = stabilityAmountUFix64 > reserveVaultBalance ? reserveVaultBalance : stabilityAmountUFix64
+            let stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
+
+            // Update last collection time
+            self.setLastStabilityFeeCollectionTime(currentTime)
+
+            // Return the vault for the caller to deposit
+            return <-stabilityVault
         }
     }
 
@@ -1194,6 +1398,9 @@ access(all) contract FlowCreditMarket {
         /// The actual reserves of each token
         access(self) var reserves: @{Type: {FungibleToken.Vault}}
 
+        /// The insurance fund vault storing MOET tokens collected from insurance rates
+        access(self) var insuranceFund: @MOET.Vault
+
         /// Auto-incrementing position identifier counter
         access(self) var nextPositionID: UInt64
 
@@ -1225,11 +1432,13 @@ access(all) contract FlowCreditMarket {
         /// The count of positions to update per asynchronous update
         access(self) var positionsProcessedPerCallback: UInt64
 
+        /// The stability fund vaults storing tokens collected from stability fee rates.
+        access(self) var stabilityFunds: @{Type: {FungibleToken.Vault}}
+
         /// Position update queue to be processed as an asynchronous update
         access(EImplementation) var positionsNeedingUpdates: [UInt64]
 
-        /// A simple version number that is incremented whenever one or more interest indices are updated.
-        /// This is used to detect when the interest indices need to be updated in InternalPositions.
+        /// Deprecated: This field is unused and should be removed in the next contract re-deployment
         access(EImplementation) var version: UInt64
 
         /// Liquidation target health and controls (global)
@@ -1283,7 +1492,7 @@ access(all) contract FlowCreditMarket {
                     "Price oracle must return prices in terms of the default token"
             }
 
-            self.version = 0
+            self.version = 0 // deprecated
             self.debugLogging = false
             self.globalLedger = {
                 defaultToken: TokenState(
@@ -1295,6 +1504,8 @@ access(all) contract FlowCreditMarket {
             }
             self.positions <- {}
             self.reserves <- {}
+            self.insuranceFund <- MOET.createEmptyVault(vaultType: Type<@MOET.Vault>())
+            self.stabilityFunds <- {}
             self.defaultToken = defaultToken
             self.priceOracle = priceOracle
             self.collateralFactor = {defaultToken: 1.0}
@@ -1310,7 +1521,7 @@ access(all) contract FlowCreditMarket {
             self.protocolLiquidationFeeBps = 0
             self.allowedSwapperTypes = {}
             self.dex = dex
-            self.dexOracleDeviationBps = UInt16(300) // 3% default
+            self.dexOracleDeviationBps = 300 // 3% default
             self.dexMaxSlippageBps = 100
             self.dexMaxRouteHops = 3
 
@@ -1344,6 +1555,53 @@ access(all) contract FlowCreditMarket {
         /// Returns whether a given token Type is supported or not
         access(all) view fun isTokenSupported(tokenType: Type): Bool {
             return self.globalLedger[tokenType] != nil
+        } 
+
+        /// Returns the current balance of the stability fund for a given token type.
+        /// Returns nil if the token type is not supported.
+        access(all) view fun getStabilityFundBalance(tokenType: Type): UFix64? {
+            if let fundRef = &self.stabilityFunds[tokenType] as &{FungibleToken.Vault}? {
+                return fundRef.balance
+            }
+            
+            return nil
+        }
+
+        /// Returns the stability fee rate for a given token type.
+        /// Returns nil if the token type is not supported.
+        access(all) view fun getStabilityFeeRate(tokenType: Type): UFix64? {
+            if let tokenState = self.globalLedger[tokenType] {
+                return tokenState.stabilityFeeRate
+            }
+
+            return nil
+        }
+
+        /// Returns the timestamp of the last stability collection for a given token type.
+        /// Returns nil if the token type is not supported.
+        access(all) view fun getLastStabilityCollectionTime(tokenType: Type): UFix64? {
+            if let tokenState = self.globalLedger[tokenType] {
+                return tokenState.lastStabilityFeeCollectionTime
+            }
+
+            return nil
+        }
+
+        /// Returns whether an insurance swapper is configured for a given token type
+        access(all) view fun isInsuranceSwapperConfigured(tokenType: Type): Bool {
+            if let tokenState = self.globalLedger[tokenType] {
+                return tokenState.insuranceSwapper != nil
+            }
+            return false
+        }
+
+        /// Returns the timestamp of the last insurance collection for a given token type
+        /// Returns nil if the token type is not supported
+        access(all) view fun getLastInsuranceCollectionTime(tokenType: Type): UFix64? {
+            if let tokenState = self.globalLedger[tokenType] {
+                return tokenState.lastInsuranceCollectionTime
+            }
+            return nil
         }
 
         /// Returns current liquidation parameters
@@ -1381,6 +1639,20 @@ access(all) contract FlowCreditMarket {
         access(all) view fun reserveBalance(type: Type): UFix64 {
             let vaultRef = &self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
             return vaultRef?.balance ?? 0.0
+        }
+
+        /// Returns the balance of the MOET insurance fund
+        access(all) view fun insuranceFundBalance(): UFix64 {
+            return self.insuranceFund.balance
+        }
+
+        /// Returns the insurance rate for a given token type
+        access(all) view fun getInsuranceRate(tokenType: Type): UFix64? {
+            if let tokenState = self.globalLedger[tokenType] {
+                return tokenState.insuranceRate
+            }
+            
+            return nil
         }
 
         /// Returns a reference to the reserve vault for the given type, if the token type is supported.
@@ -1667,7 +1939,15 @@ access(all) contract FlowCreditMarket {
             let newHealth = self.positionHealth(pid: pid)
             // TODO: sanity check health here? for auto-liquidating, we may need to perform a bounded search which could result in unbounded error in the final health
 
-            emit LiquidationExecuted(pid: pid, poolUUID: self.uuid, debtType: debtType.identifier, repayAmount: repayAmount, seizeType: seizeType.identifier, seizeAmount: seizeAmount, newHF: newHealth)
+            emit LiquidationExecuted(
+            	pid: pid,
+            	poolUUID: self.uuid,
+            	debtType: debtType.identifier,
+            	repayAmount: repayAmount,
+            	seizeType: seizeType.identifier,
+            	seizeAmount: seizeAmount,
+            	newHF: newHealth
+            )
 
             return <-seizedCollateral
         }
@@ -2758,7 +3038,7 @@ access(all) contract FlowCreditMarket {
         /// Sets per-token liquidation bonus fraction (0.0 to 1.0). E.g., 0.05 means +5% seize bonus.
         access(EGovernance) fun setTokenLiquidationBonus(tokenType: Type, bonus: UFix64) {
             pre {
-                self.globalLedger[tokenType] != nil:
+                self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
                 bonus >= 0.0 && bonus <= 1.0:
                     "Liquidation bonus must be between 0 and 1"
@@ -2769,20 +3049,70 @@ access(all) contract FlowCreditMarket {
         /// Updates the insurance rate for a given token (fraction in [0,1])
         access(EGovernance) fun setInsuranceRate(tokenType: Type, insuranceRate: UFix64) {
             pre {
-                self.globalLedger[tokenType] != nil:
+                self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
-                insuranceRate >= 0.0 && insuranceRate <= 1.0:
-                    "insuranceRate must be between 0 and 1"
+                insuranceRate >= 0.0 && insuranceRate < 1.0:
+                    "insuranceRate must be in range [0, 1)"
+                insuranceRate + (self.getStabilityFeeRate(tokenType: tokenType) ?? 0.0) < 1.0:
+                    "insuranceRate + stabilityFeeRate must be in range [0, 1) to avoid underflow in credit rate calculation"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
+
+            // Validate constraint: non-zero rate requires swapper
+            if insuranceRate > 0.0 {
+                assert(
+                    tsRef.insuranceSwapper != nil, 
+                    message:"Cannot set non-zero insurance rate without an insurance swapper configured for \(tokenType.identifier)",
+                )
+            }
             tsRef.setInsuranceRate(insuranceRate)
+
+            emit InsuranceRateUpdated(
+                poolUUID: self.uuid,
+                tokenType: tokenType.identifier,
+                insuranceRate: insuranceRate,
+            )
+        }
+
+        /// Sets the insurance swapper for a given token type (must swap from tokenType to MOET)
+        access(EGovernance) fun setInsuranceSwapper(tokenType: Type, swapper: {DeFiActions.Swapper}?) {
+            pre {
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
+            }
+            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+                ?? panic("Invariant: token state missing")   
+
+            if let swapper = swapper {
+                // Validate swapper types match
+                assert(swapper.inType() == tokenType, message: "Swapper input type must match token type")
+                assert(swapper.outType() == Type<@MOET.Vault>(), message: "Swapper output type must be MOET")
+            
+            } else {
+                // cannot remove swapper if insurance rate > 0
+                assert(
+                    tsRef.insuranceRate == 0.0,
+                    message: "Cannot remove insurance swapper while insurance rate is non-zero for \(tokenType.identifier)"
+                )
+            }
+
+            tsRef.setInsuranceSwapper(swapper)
+        }
+
+        /// Manually triggers insurance collection for a given token type.
+        /// This is useful for governance to collect accrued insurance on-demand.
+        /// Insurance is calculated based on time elapsed since last collection.
+        access(EGovernance) fun collectInsurance(tokenType: Type) {
+            pre {
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
+            }
+            self.updateInterestRatesAndCollectInsurance(tokenType: tokenType)
         }
 
         /// Updates the per-deposit limit fraction for a given token (fraction in [0,1])
         access(EGovernance) fun setDepositLimitFraction(tokenType: Type, fraction: UFix64) {
             pre {
-                self.globalLedger[tokenType] != nil:
+                self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
                 fraction > 0.0 && fraction <= 1.0:
                     "fraction must be in (0,1]"
@@ -2795,7 +3125,7 @@ access(all) contract FlowCreditMarket {
         /// Updates the deposit rate for a given token (tokens per hour)
         access(EGovernance) fun setDepositRate(tokenType: Type, hourlyRate: UFix64) {
             pre {
-                self.globalLedger[tokenType] != nil: "Unsupported token type"
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
@@ -2805,11 +3135,72 @@ access(all) contract FlowCreditMarket {
         /// Updates the deposit capacity cap for a given token
         access(EGovernance) fun setDepositCapacityCap(tokenType: Type, cap: UFix64) {
             pre {
-                self.globalLedger[tokenType] != nil: "Unsupported token type"
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositCapacityCap(cap)
+        }
+
+        /// Updates the stability fee rate for a given token (fraction in [0,1]).
+        ///
+        /// @param tokenTypeIdentifier: The fully qualified type identifier of the token (e.g., "A.0x1.FlowToken.Vault")
+        /// @param stabilityFeeRate: The fee rate as a fraction in [0, 1]
+        ///
+        ///
+        /// Emits: StabilityFeeRateUpdated
+        access(EGovernance) fun setStabilityFeeRate(tokenType: Type, stabilityFeeRate: UFix64) {
+            pre {
+                self.isTokenSupported(tokenType: tokenType):
+                    "Unsupported token type \(tokenType.identifier)"
+                stabilityFeeRate >= 0.0 && stabilityFeeRate < 1.0:
+                    "stability fee rate must be in range [0, 1)"
+                stabilityFeeRate + (self.getInsuranceRate(tokenType: tokenType) ?? 0.0) < 1.0:
+                    "stabilityFeeRate + insuranceRate must be in range [0, 1) to avoid underflow in credit rate calculation"
+            }
+            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+                ?? panic("Invariant: token state missing")
+            tsRef.setStabilityFeeRate(stabilityFeeRate)
+            
+            emit StabilityFeeRateUpdated(
+                poolUUID: self.uuid,
+                tokenType: tokenType.identifier,
+                stabilityFeeRate: stabilityFeeRate,
+            )
+        }
+
+        /// Withdraws stability funds collected from the stability fee for a given token
+        ///
+        /// Emits: StabilityFundWithdrawn
+        access(EGovernance) fun withdrawStabilityFund(tokenType: Type, amount: UFix64, recipient: &{FungibleToken.Receiver}) {
+            pre {
+                self.stabilityFunds[tokenType] != nil: "No stability fund exists for token type \(tokenType.identifier)"
+                amount > 0.0: "Withdrawal amount must be positive"
+            }
+            let fundRef = (&self.stabilityFunds[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            assert(
+                fundRef.balance >= amount,
+                message: "Insufficient stability fund balance. Available: \(fundRef.balance), requested: \(amount)"
+            )
+            
+            let withdrawn <- fundRef.withdraw(amount: amount)
+            recipient.deposit(from: <-withdrawn)
+
+            emit StabilityFundWithdrawn(
+                poolUUID: self.uuid,
+                tokenType: tokenType.identifier,
+                amount: amount,
+            )
+        }
+
+        /// Manually triggers fee collection for a given token type.
+        /// This is useful for governance to collect accrued stability on-demand.
+        /// Fee is calculated based on time elapsed since last collection.
+        access(EGovernance) fun collectStability(tokenType: Type) {
+            pre {
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
+            }
+            self.updateInterestRatesAndCollectStability(tokenType: tokenType)
         }
 
         /// Regenerates deposit capacity for all supported token types
@@ -2834,7 +3225,7 @@ access(all) contract FlowCreditMarket {
         /// new rate, which would be incorrect.
         access(EGovernance) fun setInterestCurve(tokenType: Type, interestCurve: {InterestCurve}) {
             pre {
-                self.globalLedger[tokenType] != nil: "Unsupported token type"
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             // First, update interest indices to compound any accrued interest at the OLD rate
             // This "finalizes" all interest accrued up to this moment before switching curves
@@ -3016,6 +3407,42 @@ access(all) contract FlowCreditMarket {
             self.rebalancePosition(pid: pid, force: false)
         }
 
+        /// Updates interest rates for a token and collects stability fee.
+        /// This method should be called periodically to ensure rates are current and fee amounts are collected.
+        ///
+        /// @param tokenType: The token type to update rates for
+        access(self) fun updateInterestRatesAndCollectStability(tokenType: Type) {
+            let tokenState = self._borrowUpdatedTokenState(type: tokenType)
+            tokenState.updateInterestRates()
+
+            // Ensure reserves exist for this token type
+            if self.reserves[tokenType] == nil {
+                return
+            }
+
+            // Get reference to reserves
+            let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+
+            // Collect stability and get token vault
+            if let collectedVault <- tokenState.collectStability(reserveVault: reserveRef) {  
+                let collectedBalance = collectedVault.balance     
+                // Deposit collected token into stability fund
+                if self.stabilityFunds[tokenType] == nil {
+                    self.stabilityFunds[tokenType] <-! collectedVault
+                } else {
+                    let fundRef = (&self.stabilityFunds[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                    fundRef.deposit(from: <-collectedVault)
+                }
+                
+                emit StabilityFeeCollected(
+                    poolUUID: self.uuid,
+                    tokenType: tokenType.identifier,
+                    stabilityAmount: collectedBalance,
+                    collectionTime: tokenState.lastStabilityFeeCollectionTime
+                )
+            }
+        }
+
         ////////////////
         // INTERNAL
         ////////////////
@@ -3099,6 +3526,38 @@ access(all) contract FlowCreditMarket {
             let state = &self.globalLedger[type]! as auth(EImplementation) &TokenState
             state.updateForTimeChange()
             return state
+        }
+
+        /// Updates interest rates for a token and collects insurance if a swapper is configured for the token.
+        /// This method should be called periodically to ensure rates are current and insurance is collected.
+        ///
+        /// @param tokenType: The token type to update rates for
+        access(self) fun updateInterestRatesAndCollectInsurance(tokenType: Type) {
+            let tokenState = self._borrowUpdatedTokenState(type: tokenType)
+            tokenState.updateInterestRates()
+            
+            // Collect insurance if swapper is configured
+            // Ensure reserves exist for this token type
+            if self.reserves[tokenType] == nil {
+                return
+            }
+
+            // Get reference to reserves
+            if let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?) {
+                // Collect insurance and get MOET vault
+                if let collectedMOET <- tokenState.collectInsurance(reserveVault: reserveRef) {
+                    let collectedMOETBalance = collectedMOET.balance
+                    // Deposit collected MOET into insurance fund
+                    self.insuranceFund.deposit(from: <-collectedMOET)
+
+                    emit InsuranceFeeCollected(
+                        poolUUID: self.uuid,
+                        tokenType: tokenType.identifier,
+                        insuranceAmount: collectedMOETBalance,
+                        collectionTime: tokenState.lastInsuranceCollectionTime
+                    )
+                }
+            }
         }
 
         /// Returns an authorized reference to the requested InternalPosition or `nil` if the position does not exist
@@ -3691,8 +4150,8 @@ access(all) contract FlowCreditMarket {
     // number with 18 decimal places). The input to this function will be just the relative annual interest rate
     // (e.g. 0.05 for 5% interest), and the result will be the per-second multiplier (e.g. 1.000000000001).
     access(all) view fun perSecondInterestRate(yearlyRate: UFix128): UFix128 {
-        let secondsInYear: UFix128 = 31_536_000.0
-        let perSecondScaledValue = yearlyRate / secondsInYear
+        // TODO(FCM, #110): replace 31536000.0 to 31_557_600.0, fix tests: interest_curve_advanced_test.cdc, interest_accrual_integration_test
+        let perSecondScaledValue = yearlyRate / 31536000.0 // 365.0 * 24.0 * 60.0 * 60.0
         assert(
             perSecondScaledValue < UFix128.max,
             message: "Per-second interest rate \(perSecondScaledValue) is too high"

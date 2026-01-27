@@ -20,7 +20,6 @@ import "MockFlowCreditMarketConsumer"
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
 
 // Time constants
@@ -132,6 +131,22 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     )
     log("Set MOET interest rate to 5% APY (Phase 1)")
 
+     // set insurance swapper
+    let res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    // set insurance rate
+    let setInsRes = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.001,
+    )
+    Test.expect(setInsRes, Test.beSucceeded())
+
     // -------------------------------------------------------------------------
     // STEP 5: Create a Borrower
     // -------------------------------------------------------------------------
@@ -209,6 +224,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
         tokenTypeIdentifier: defaultTokenIdentifier,
         yearlyRate: rate2
     )
+
     log("Changed MOET interest rate to 15% APY (Phase 2)")
 
     // =========================================================================
@@ -575,12 +591,12 @@ fun test_credit_rate_changes_with_curve() {
     // 2. CREDIT interest: What lenders (LPs) earn
     //
     // This test verifies that when the interest curve changes, the credit
-    // rate paid to LPs also updates correctly. The credit rate is typically
-    // slightly less than the debit rate due to an "insurance spread" that
-    // the protocol retains for risk management.
+    // rate paid to LPs also updates correctly. The credit rate is less than
+    // the debit rate due to the protocol fee (insurance + stability fee).
     //
-    // Formula: creditRate = debitRate - insuranceSpread
-    // Example: At 8% debit rate with 0.1% insurance, credit rate = 7.9%
+    // Formula: creditRate = debitRate * (1 - protocolFeeRate)
+    // where protocolFeeRate = insuranceRate + stabilityFeeRate = 0.001 + 0.05 = 0.051
+    // Example: At 8% debit rate, credit rate = 8% * 0.949 = 7.592%
     // =========================================================================
 
     // LP's position ID (created in Test 1, first position in the pool)
@@ -646,12 +662,14 @@ fun test_credit_rate_changes_with_curve() {
     let creditGrowthRate = creditGrowth / creditBefore
 
     // Verify credit growth equals expected value
-    // Formula: creditRate = debitRate - insuranceSpread = 8% - 0.1% = 7.9% APY
-    // perSecondRate = 1 + 0.079/31536000, factor = perSecondRate^2592000
-    // Expected 30-day growth rate = factor - 1 ≈ 0.00651428
-    // Expected credit growth = creditBefore * 0.00651428 ≈ 362.54775590 MOET
-    let expectedCreditGrowthRate: UFix64 = 0.00651428
-    let expectedCreditGrowth: UFix64 = 362.54775590
+    // Formula: creditRate = debitRate * (1 - protocolFeeRate)
+    // where protocolFeeRate = insuranceRate + stabilityFeeRate = 0.001 + 0.05 = 0.051
+    // creditRate = 0.08 * (1 - 0.051) = 0.08 * 0.949 = 0.07592 APY (7.592%)
+    // perSecondRate = 1 + (0.07592/31536000), factor = perSecondRate^2592000
+    // Expected 30-day growth rate = factor - 1 ≈ 0.00625950922
+    // Expected credit growth = creditBefore * 0.00625950922 ≈ 346.82 MOET
+    let expectedCreditGrowthRate: UFix64 = 0.0062595
+    let expectedCreditGrowth: UFix64 = 346.82
     let tolerance: UFix64 = 0.0001
 
     let rateDiff = creditGrowthRate > expectedCreditGrowthRate
@@ -670,7 +688,7 @@ fun test_credit_rate_changes_with_curve() {
 
     Test.assert(
         growthDiff <= 0.01,
-        message: "Credit growth should be ~362.54775590. Actual: \(creditGrowth)"
+        message: "Credit growth should be ~346.82. Actual: \(creditGrowth)"
     )
 
     Test.assert(
