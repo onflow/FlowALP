@@ -31,12 +31,14 @@ access(all) contract MockDexSwapper {
     ///
     /// @param swapper: The swapper to set for the token pair
     access(all) fun setMockDEXSwapperForPair(swapper: Swapper) {
-        if self.swappers[swapper.inType()] == nil {
-            self.swappers[swapper.inType()] = { swapper.outType(): swapper }
+        let inType = swapper.inType()
+        let outType = swapper.outType()
+        if self.swappers[inType] == nil {
+            self.swappers[inType] = { outType: swapper }
         } else {
-            let swappersForInType = self.swappers[swapper.inType()]!
-            swappersForInType[swapper.outType()] = swapper
-            self.swappers[swapper.inType()] = swappersForInType
+            let swappersForInType = self.swappers[inType]!
+            swappersForInType[outType] = swapper
+            self.swappers[inType] = swappersForInType
         }
     }
 
