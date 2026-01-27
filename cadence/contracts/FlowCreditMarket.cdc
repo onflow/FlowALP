@@ -291,7 +291,7 @@ access(all) contract FlowCreditMarket {
         /// amount is expressed in UFix128 for the same rationale as deposits;
         /// public withdraw APIs are UFix64 and are converted at the boundary.
         ///
-        access(all) fun recordWithdrawal(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
+        access(contract) fun recordWithdrawal(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
             switch self.direction {
                 case BalanceDirection.Debit:
                     // Withdrawing from a debit position just increases the debt amount.
@@ -1388,8 +1388,7 @@ access(all) contract FlowCreditMarket {
         /// Position update queue to be processed as an asynchronous update
         access(EImplementation) var positionsNeedingUpdates: [UInt64]
 
-        /// A simple version number that is incremented whenever one or more interest indices are updated.
-        /// This is used to detect when the interest indices need to be updated in InternalPositions.
+        /// Deprecated: This field is unused and should be removed in the next contract re-deployment
         access(EImplementation) var version: UInt64
 
         /// Liquidation target health and controls (global)
@@ -1418,7 +1417,7 @@ access(all) contract FlowCreditMarket {
                     "Price oracle must return prices in terms of the default token"
             }
 
-            self.version = 0
+            self.version = 0 // deprecated
             self.debugLogging = false
             self.globalLedger = {
                 defaultToken: TokenState(
