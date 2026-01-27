@@ -20,7 +20,7 @@ Both fees are deducted from interest income to protect the protocol and fund ope
 
 #### Insurance Fund
 
-The insurance fund serves as the protocol's **reserve for covering bad debt**. A percentage of lender interest income is continuously collected and swapped to MOET, building a safety buffer that grows over time. When there are liquidations that aren't able to be covered and would normally create bad debt in the protocol, the MOET is swapped for that specific asset to cover that delta of bad debt.  These funds are  **never withdrawable** by governance and exist solely to protect lenders from losses.
+The insurance fund serves as the protocol's **reserve for covering bad debt**, acting as the liquidator of last resort. A percentage of lender interest income is continuously collected and swapped to MOET, building a safety buffer that grows over time. When there are liquidations that aren't able to be covered and would normally create bad debt in the protocol, the MOET is swapped for that specific asset to cover that delta of bad debt.  These funds are  **never withdrawable** by governance and exist solely to protect lenders from losses.
 
 #### Stability Fund
 
