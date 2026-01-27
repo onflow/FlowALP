@@ -20,7 +20,6 @@ import "MockFlowCreditMarketConsumer"
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
 
 // Time constants
@@ -132,6 +131,22 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     )
     log("Set MOET interest rate to 5% APY (Phase 1)")
 
+     // set insurance swapper
+    let res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    // set insurance rate
+    let setInsRes = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.001,
+    )
+    Test.expect(setInsRes, Test.beSucceeded())
+
     // -------------------------------------------------------------------------
     // STEP 5: Create a Borrower
     // -------------------------------------------------------------------------
@@ -209,6 +224,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
         tokenTypeIdentifier: defaultTokenIdentifier,
         yearlyRate: rate2
     )
+
     log("Changed MOET interest rate to 15% APY (Phase 2)")
 
     // =========================================================================
