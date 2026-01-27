@@ -192,6 +192,15 @@ fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowCreditMarket.PositionDe
 }
 
 access(all)
+fun getQueuedDeposits(pid: UInt64, beFailed: Bool): {Type: UFix64} {
+    let res = _executeScript("../scripts/flow-credit-market/get_queued_deposits.cdc",
+            [pid]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! {Type: UFix64}
+}
+
+access(all)
 fun poolExists(address: Address): Bool {
     let res = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [address])
     Test.expect(res, Test.beSucceeded())
