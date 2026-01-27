@@ -1509,7 +1509,7 @@ access(all) contract FlowCreditMarket {
             self.lastUnpausedAt = nil
             self.protocolLiquidationFeeBps = 0
             self.allowedSwapperTypes = {}
-            self.dexOracleDeviationBps = UInt16(300) // 3% default
+            self.dexOracleDeviationBps = 300 // 3% default
             self.dexMaxSlippageBps = 100
             self.dexMaxRouteHops = 3
 
@@ -1930,7 +1930,15 @@ access(all) contract FlowCreditMarket {
             let newHealth = self.positionHealth(pid: pid)
             // TODO: sanity check health here? for auto-liquidating, we may need to perform a bounded search which could result in unbounded error in the final health
 
-            emit LiquidationExecuted(pid: pid, poolUUID: self.uuid, debtType: debtType.identifier, repayAmount: repayAmount, seizeType: seizeType.identifier, seizeAmount: seizeAmount, newHF: newHealth)
+            emit LiquidationExecuted(
+            	pid: pid,
+            	poolUUID: self.uuid,
+            	debtType: debtType.identifier,
+            	repayAmount: repayAmount,
+            	seizeType: seizeType.identifier,
+            	seizeAmount: seizeAmount,
+            	newHF: newHealth
+            )
 
             return <-seizedCollateral
         }
