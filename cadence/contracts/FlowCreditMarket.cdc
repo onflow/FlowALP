@@ -291,7 +291,7 @@ access(all) contract FlowCreditMarket {
         /// amount is expressed in UFix128 for the same rationale as deposits;
         /// public withdraw APIs are UFix64 and are converted at the boundary.
         ///
-        access(all) fun recordWithdrawal(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
+        access(contract) fun recordWithdrawal(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
             switch self.direction {
                 case BalanceDirection.Debit:
                     // Withdrawing from a debit position just increases the debt amount.
