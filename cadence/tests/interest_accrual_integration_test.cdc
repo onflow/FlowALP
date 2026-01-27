@@ -41,7 +41,6 @@ access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 access(all) var snapshot: UInt64 = 0
 
 // Token identifiers and storage paths
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
 access(all) let wrapperStoragePath = /storage/flowCreditMarketPositionWrapper
 
@@ -185,6 +184,20 @@ fun test_moet_debit_accrues_interest() {
         yearlyRate: moetFixedRate
     )
     log("Set MOET interest rate to 4% APY (after LP deposit)")
+
+    let res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    let setInsRes = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.001,
+    )
+    Test.expect(setInsRes, Test.beSucceeded())
 
     // -------------------------------------------------------------------------
     // STEP 5: Create Borrower Position
@@ -405,6 +418,20 @@ fun test_moet_credit_accrues_interest_with_insurance() {
         yearlyRate: moetFixedRate
     )
 
+    let res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    let setInsRes = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.01,
+    )
+    Test.expect(setInsRes, Test.beSucceeded())
+
     // -------------------------------------------------------------------------
     // STEP 5: Create Borrower to Generate Utilization
     // -------------------------------------------------------------------------
@@ -578,6 +605,20 @@ fun test_flow_debit_accrues_interest() {
         slope1: flowSlope1,
         slope2: flowSlope2
     )
+
+    let res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    let setInsRes = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.01,
+    )
+    Test.expect(setInsRes, Test.beSucceeded())
 
     // -------------------------------------------------------------------------
     // STEP 5: Create Borrower Who Borrows Flow
@@ -760,6 +801,20 @@ fun test_flow_credit_accrues_interest_with_insurance() {
         slope2: flowSlope2
     )
 
+    let res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    let setInsRes = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.01,
+    )
+    Test.expect(setInsRes, Test.beSucceeded())
+
     // -------------------------------------------------------------------------
     // STEP 5: Create Borrower to Generate Utilization
     // -------------------------------------------------------------------------
@@ -930,11 +985,19 @@ fun test_insurance_deduction_verification() {
     // Insurance Rate: 1% (vs default 0.1%)
     // Debit Rate: 10% (vs default 4%)
     // Expected Credit Rate: 10% - 1% = 9%
-    setInsuranceRate(
+    let res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    let setRes = setInsuranceRate(
         signer: protocolAccount,
         tokenTypeIdentifier: defaultTokenIdentifier,
         insuranceRate: 0.01  // 1% insurance rate
     )
+    Test.expect(setRes, Test.beSucceeded())
 
     let highDebitRate: UFix128 = 0.10
     setInterestCurveFixed(
@@ -1146,6 +1209,20 @@ fun test_combined_all_interest_scenarios() {
         slope1: flowSlope1,
         slope2: flowSlope2
     )
+
+    let res = setInsuranceSwapper(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    let setInsRes = setInsuranceRate(
+        signer: protocolAccount,
+        tokenTypeIdentifier: defaultTokenIdentifier,
+        insuranceRate: 0.01,
+    )
+    Test.expect(setInsRes, Test.beSucceeded())
 
     // =========================================================================
     // STEP 6: Create Position C (Borrower1) - Flow Collateral, MOET Debt

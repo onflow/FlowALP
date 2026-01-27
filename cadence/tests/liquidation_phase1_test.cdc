@@ -7,7 +7,6 @@ import "MockYieldToken"
 import "FlowToken"
 import "FlowCreditMarketMath"
 
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) let moetIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let mockYieldTokenIdentifier = "A.0000000000000007.MockYieldToken.Vault"
 access(all) var snapshot: UInt64 = 0
