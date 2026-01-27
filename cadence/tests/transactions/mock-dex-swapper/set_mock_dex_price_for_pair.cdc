@@ -1,7 +1,11 @@
 import "FungibleToken"
 import "MockDexSwapper"
 
-/// TEST-ONLY: Adds a swapper to MockDexSwapper for a specific token pair
+/// TEST-ONLY: Sets a swapper for a specific token pair in MockDexSwapper.
+///
+/// IMPORTANT: This will overwrite any existing swapper for the same token pair.
+/// This is intended to be used in cases where we want to change the price only,
+/// without needing to remove and re-add the swapper.
 ///
 /// @param inVaultIdentifier: The input Vault's Type identifier (e.g., Type<@FlowToken.Vault>().identifier)
 /// @param outVaultIdentifier: The output Vault's Type identifier (e.g., Type<@MOET.Vault>().identifier)
@@ -38,7 +42,8 @@ transaction(
             uniqueID: nil
         )
 
-        // Add the swapper to MockDexSwapper
-        MockDexSwapper._addSwapper(swapper: swapper)
+        // Set the swapper for this token pair in MockDexSwapper
+        // This will overwrite any existing swapper for the same pair
+        MockDexSwapper.setMockDEXSwapperForPair(swapper: swapper)
     }
 }

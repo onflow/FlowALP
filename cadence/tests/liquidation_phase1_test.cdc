@@ -40,7 +40,7 @@ fun setup() {
 
     // Add DEX swapper for FLOW -> MOET pair (for liquidations)
     // priceRatio = 1.0 means 1 MOET per 1 FLOW (matches oracle prices)
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: protocolAccount,
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -111,7 +111,7 @@ fun testManualLiquidation_liquidationExceedsTargetHealth() {
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -168,7 +168,7 @@ fun testManualLiquidation_repayExceedsDebt() {
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -228,7 +228,7 @@ fun testManualLiquidation_seizeExceedsCollateral() {
     let newPrice = 0.5 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -286,7 +286,7 @@ fun testManualLiquidation_reduceHealth() {
     let newPrice = 0.5 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -350,7 +350,7 @@ fun testManualLiquidation_increaseHealthBelowTarget() {
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
 
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -409,7 +409,7 @@ fun testManualLiquidation_liquidateToTarget() {
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
 
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -473,7 +473,7 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -526,7 +526,7 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -581,7 +581,7 @@ fun testManualLiquidation_unsupportedDebtType() {
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -636,7 +636,7 @@ fun testManualLiquidation_unsupportedCollateralType() {
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -688,7 +688,7 @@ fun testManualLiquidation_supportedDebtTypeNotInPosition() {
     )
 
     // Add DEX swapper for MockYieldToken -> MOET pair
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: protocolAccount,
         inVaultIdentifier: mockYieldTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -723,7 +723,7 @@ fun testManualLiquidation_supportedDebtTypeNotInPosition() {
     let newPrice = 0.7 // $/FLOW
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: newPrice)
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: protocolAccount,
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -772,7 +772,7 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
     )
 
     // Add DEX swapper for MockYieldToken -> MOET pair
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: protocolAccount,
         inVaultIdentifier: mockYieldTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -806,7 +806,7 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
     let newPrice = 0.5 // $/FLOW
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: newPrice)
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: protocolAccount,
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -866,7 +866,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_withinThreshold() {
 
     // Set DEX price to 0.68 (2.94% divergence: (0.7-0.68)/0.68 = 0.0294 = 2.94%)
     let dexPriceRatio = 0.68
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -910,7 +910,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexBelowOracle() {
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 0.7)
 
     // Set DEX price to 0.66 (6.06% divergence: (0.7-0.66)/0.66 = 0.0606 = 6.06%)
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -947,7 +947,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexAboveOracle() {
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 0.7)
 
     // Set DEX price to 0.74 (5.71% divergence above oracle: (0.74-0.7)/0.7 = 0.0571 = 5.71%)
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -989,7 +989,7 @@ fun testManualLiquidation_liquidatorOfferWorseThanDex() {
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: newPrice)
 
     // Update DEX price to match oracle
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,
@@ -1041,7 +1041,7 @@ fun testManualLiquidation_combinedEdgeCase() {
 
     // Set DEX price to 0.64 (9.375% divergence: (0.7-0.64)/0.64 = 0.09375 = 9.375%)
     let dexPriceRatio = 0.64
-    addMockDexSwapper(
+    setMockDexPriceForPair(
         signer: Test.getAccount(0x0000000000000007),
         inVaultIdentifier: flowTokenIdentifier,
         outVaultIdentifier: moetIdentifier,

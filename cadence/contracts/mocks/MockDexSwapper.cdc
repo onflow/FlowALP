@@ -23,9 +23,14 @@ access(all) contract MockDexSwapper {
         return nil
     }
 
-    /// Used by testing code to configure the DEX with swappers.
-    /// Overwrites existing swapper with same types, if any.
-    access(all) fun _addSwapper(swapper: Swapper) {
+    /// Used by testing code to configure the DEX with swappers for a specific token pair.
+    ///
+    /// IMPORTANT: This function will overwrite any existing swapper for the same token pair.
+    /// This is intended to be used in cases where we want to change the price only, without
+    /// needing to remove and re-add the swapper.
+    ///
+    /// @param swapper: The swapper to set for the token pair
+    access(all) fun setMockDEXSwapperForPair(swapper: Swapper) {
         if self.swappers[swapper.inType()] == nil {
             self.swappers[swapper.inType()] = { swapper.outType(): swapper }
         } else {
