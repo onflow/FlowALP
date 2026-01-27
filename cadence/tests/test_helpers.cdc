@@ -4,6 +4,15 @@ import "FlowCreditMarket"
 /* --- Global test constants --- */
 
 access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
+access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
+
+// Time constant matching FlowCreditMarket.secondsInYear (365.25 days)
+// Fix64 type for use with Test.moveTime()
+access(all) let secondsInYear: Fix64 = 31_557_600.0
+
+/// Number of seconds in one day (24 hours × 60 minutes × 60 seconds)
+access(all) let secondsInDay: Fix64 = 86_400.0
+
 access(all) let defaultUFixVariance = 0.00000001
 // Variance for UFix64 comparisons
 access(all) let defaultUIntVariance: UInt128 = 1_000_000_000_000_000
@@ -228,6 +237,55 @@ fun getDepositCapacityInfo(vaultIdentifier: String): {String: UFix64} {
     return res.returnValue as! {String: UFix64}
 }
 
+access(all)
+fun getInsuranceFundBalance(): UFix64 {
+    let res = _executeScript("../scripts/flow-credit-market/get_insurance_fund_balance.cdc", [])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun getInsuranceRate(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_insurance_rate.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
+access(all)
+fun insuranceSwapperExists(tokenTypeIdentifier: String): Bool {
+    let res = _executeScript("../scripts/flow-credit-market/insurance_token_swapper_exists.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! Bool
+}
+
+access(all)
+fun getLastInsuranceCollectionTime(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_last_insurance_collection_time.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
+access(all)
+fun getStabilityFeeRate(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_stability_fee_rate.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
+access(all)
+fun getStabilityFundBalance(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_stability_fund_balance.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
+access(all)
+fun getLastStabilityCollectionTime(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_last_stability_collection_time.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
@@ -342,6 +400,16 @@ fun depositToWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStor
 }
 
 access(all)
+fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, beFailed: Bool) {
+    let borrowRes = _executeTransaction(
+        "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
+        [positionId, tokenTypeIdentifier, amount],
+        signer
+    )
+    Test.expect(borrowRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
 fun addSupportedTokenKinkCurve(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
@@ -397,14 +465,102 @@ access(all)
 fun setInsuranceRate(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
-    insuranceRate: UFix64
-) {
-    let setRes = _executeTransaction(
+    insuranceRate: UFix64,
+): Test.TransactionResult {
+    var res = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
         [ tokenTypeIdentifier, insuranceRate ],
         signer
     )
-    Test.expect(setRes, Test.beSucceeded())
+    return res
+}
+
+access(all)
+fun setInsuranceSwapper(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    priceRatio: UFix64,
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "./transactions/flow-credit-market/pool-governance/set_insurance_swapper_mock.cdc",
+        [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, defaultTokenIdentifier],
+        signer
+    )
+    return res
+}
+
+access(all)
+fun removeInsuranceSwapper(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "./transactions/flow-credit-market/pool-governance/remove_insurance_swapper.cdc",
+        [ tokenTypeIdentifier],
+        signer
+    )
+    return res
+}
+
+access(all)
+fun collectInsurance(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    beFailed: Bool
+) {
+    let collectRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/collect_insurance.cdc",
+        [ tokenTypeIdentifier ],
+        signer
+    )
+    Test.expect(collectRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+
+access(all)
+fun setStabilityFeeRate(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    stabilityFeeRate: UFix64
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_stability_fee_rate.cdc",
+        [ tokenTypeIdentifier, stabilityFeeRate ],
+        signer
+    )
+
+    return res
+}
+
+access(all)
+fun collectStability(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/collect_stability.cdc",
+        [ tokenTypeIdentifier ],
+        signer
+    )
+    
+    return res
+}
+
+access(all)
+fun withdrawStabilityFund(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    amount: UFix64,
+    recipient: Address,
+    recipientPath: PublicPath,
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/withdraw_stability_fund.cdc",
+        [tokenTypeIdentifier, amount, recipient, recipientPath],
+        signer
+    )
+    
+    return res
 }
 
 access(all)
