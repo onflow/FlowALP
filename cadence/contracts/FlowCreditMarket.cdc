@@ -2962,20 +2962,30 @@ access(all) contract FlowCreditMarket {
             }
         }
 
-        /// Pauses or unpauses liquidations; when unpausing, starts a warm-up window
-        access(EGovernance) fun pauseLiquidations(flag: Bool) {
-            if flag {
-                self.liquidationsPaused = true
-                emit LiquidationsPaused(poolUUID: self.uuid)
-            } else {
-                self.liquidationsPaused = false
-                let now = UInt64(getCurrentBlock().timestamp)
-                self.lastUnpausedAt = now
-                emit LiquidationsUnpaused(
-                    poolUUID: self.uuid,
-                    warmupEndsAt: now + self.liquidationWarmupSec
-                )
+        /// Pauses liquidations
+        access(EGovernance) fun pauseLiquidations() {
+            if self.liquidationsPaused {
+                return
             }
+            self.liquidationsPaused = true
+
+            emit LiquidationsPaused(poolUUID: self.uuid)
+        }
+
+        /// Unpauses liquidations, starting the warmup period
+        access(EGovernance) fun unpauseLiquidations() {
+            if !self.liquidationsPaused {
+                return
+            }
+            self.liquidationsPaused = false
+
+            let now = UInt64(getCurrentBlock().timestamp)
+            self.lastUnpausedAt = now
+
+            emit LiquidationsUnpaused(
+                poolUUID: self.uuid,
+                warmupEndsAt: now + self.liquidationWarmupSec
+            )
         }
 
         /// Adds a new token type to the pool with the given parameters defining borrowing limits on collateral,
