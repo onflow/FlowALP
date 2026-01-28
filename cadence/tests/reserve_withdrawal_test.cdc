@@ -19,7 +19,7 @@ fun setup() {
 access(all)
 fun testReserveWithdrawalGovernanceControlled() {
     // create pool
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     
     // Setup MOET vault for treasury account
     setupMoetVault(treasury, beFailed: false)
@@ -33,8 +33,8 @@ fun testReserveWithdrawalGovernanceControlled() {
     
     withdrawReserve(
         signer: attacker,
-        poolAddress: protocolAccount.address,
-        tokenTypeIdentifier: moetTokenIdentifier,
+        poolAddress: PROTOCOL_ACCOUNT.address,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         amount: 10.0,
         recipient: attacker.address,
         beFailed: true
@@ -42,9 +42,9 @@ fun testReserveWithdrawalGovernanceControlled() {
 
     // governance admin performs withdrawal → expect success
     withdrawReserve(
-        signer: protocolAccount,
-        poolAddress: protocolAccount.address,
-        tokenTypeIdentifier: moetTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        poolAddress: PROTOCOL_ACCOUNT.address,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         amount: 10.0,
         recipient: treasury.address,
         beFailed: false

@@ -138,7 +138,7 @@ Test.assertEqual(expectedValue, event.field)
 ### 4.1 Time Manipulation
 ```cadence
 // Advance blockchain time
-Test.moveTime(by: 86400.0) // Advance by 1 day
+Test.moveTime(by: secondsInDay)
 
 // Set specific block height
 Test.moveToBlockHeight(1000)

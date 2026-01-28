@@ -11,7 +11,7 @@ access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, consumerAccount)
+    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
 
     Test.expect(betaTxResult, Test.beSucceeded())
 
@@ -23,13 +23,13 @@ fun testRebalanceOvercollateralised() {
     // Test.reset(to: snapshot)
     let initialPrice = 1.0
     let priceIncreasePct: UFix64 = 1.2
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: moetTokenIdentifier, price: initialPrice)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: initialPrice)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: MOET_TOKEN_IDENTIFIER, price: initialPrice)
 
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -42,7 +42,7 @@ fun testRebalanceOvercollateralised() {
 
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1_000.0, flowVaultStoragePath, true],
+        [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -58,15 +58,15 @@ fun testRebalanceOvercollateralised() {
     // 615.38 MOET due to pushToDrawDownSink=true triggering auto-rebalancing
 
     // increase price
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice * priceIncreasePct)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: initialPrice * priceIncreasePct)
 
     let healthAfterPriceChange = getPositionHealth(pid: 0, beFailed: false)
 
     // After a 20% price increase, health should be at least 1.5 (=960/615.38)
-    Test.assert(healthAfterPriceChange >= intMaxHealth,
+    Test.assert(healthAfterPriceChange >= INT_MAX_HEALTH,
         message: "Expected health after price increase to be >= 1.5 but got ".concat(healthAfterPriceChange.toString()))
 
-    rebalancePosition(signer: protocolAccount, pid: 0, force: true, beFailed: false)
+    rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true, beFailed: false)
 
     let healthAfterRebalance = getPositionHealth(pid: 0, beFailed: false)
 
@@ -82,7 +82,7 @@ fun testRebalanceOvercollateralised() {
 
     var actualDebt: UFix64 = 0.0
     for bal in detailsAfterRebalance.balances {
-        if bal.vaultType.identifier == moetTokenIdentifier {
+        if bal.vaultType.identifier == MOET_TOKEN_IDENTIFIER {
             actualDebt = bal.balance
         }
     }

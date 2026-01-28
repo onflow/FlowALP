@@ -29,13 +29,13 @@ fun setup() {
 access(all)
 fun testPoolCreationSucceeds() {
     // --- act ---------------------------------------------------------------
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     // --- assert ------------------------------------------------------------
-    let exists = poolExists(address: protocolAccount.address)
+    let exists = poolExists(address: PROTOCOL_ACCOUNT.address)
     Test.assert(exists)
 
     // Reserve balance should be zero for default token
-    let reserveBal = getReserveBalance(vaultIdentifier: moetTokenIdentifier)
+    let reserveBal = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assertEqual(0.0, reserveBal)
 } 

@@ -25,11 +25,11 @@ access(all) var snapshot: UInt64 = 0
     Effective Collateral Value (MOET)
         effectiveCollateralValue = collateralBalance * collateralPrice * collateralFactor
     Borrowable Value (MOET)
-        borrowLimit = (effectiveCollateralValue / targetHealth) * borrowFactor
-        borrowLimit = collateralBalance * collateralPrice * collateralFactor / targetHealth * borrowFactor
+        borrowLimit = (effectiveCollateralValue / TARGET_HEALTH) * borrowFactor
+        borrowLimit = collateralBalance * collateralPrice * collateralFactor / TARGET_HEALTH * borrowFactor
     Current Health
-        borrowedValue = collateralBalance * collateralPrice * collateralFactor / targetHealth * borrowFactor
-        borrowedValue * targetHealth = collateralBalance * collateralPrice * collateralFactor * borrowFactor
+        borrowedValue = collateralBalance * collateralPrice * collateralFactor / TARGET_HEALTH * borrowFactor
+        borrowedValue * TARGET_HEALTH = collateralBalance * collateralPrice * collateralFactor * borrowFactor
         health = collateralBalance * collateralPrice * collateralFactor * borrowFactor / borrowedValue
         health = effectiveCollateralValue * borrowFactor / borrowedValue
 
@@ -37,7 +37,7 @@ access(all) var snapshot: UInt64 = 0
 
 access(all) let startCollateralValue = flowStartPrice * positionFundingAmount
 access(all) let startEffectiveCollateralValue = startCollateralValue * flowCollateralFactor
-access(all) let startBorrowLimitAtTarget = startEffectiveCollateralValue / targetHealth
+access(all) let startBorrowLimitAtTarget = startEffectiveCollateralValue / TARGET_HEALTH
 
 access(all)
 fun setup() {
@@ -46,18 +46,18 @@ fun setup() {
 
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, consumerAccount)
+    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
 
     Test.expect(betaTxResult, Test.beSucceeded())
 
     // price setup
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: flowStartPrice)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: flowStartPrice)
 
     // create the Pool & add FLOW as suppoorted token
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: flowCollateralFactor,
         borrowFactor: flowBorrowFactor,
         depositRate: 1_000_000.0,
@@ -84,13 +84,13 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
 
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [positionFundingAmount, flowVaultStoragePath, true],
+        [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, true],
         userAccount
     )
     Test.expect(openRes, Test.beSucceeded())
     // assert expected starting point
     let balanceAfterBorrow = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
-    let expectedBorrowAmount = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / targetHealth
+    let expectedBorrowAmount = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / TARGET_HEALTH
     Test.assert(equalWithinVariance(expectedBorrowAmount, balanceAfterBorrow),
         message: "Expected MOET balance to be ~\(expectedBorrowAmount), but got \(balanceAfterBorrow)")
 
@@ -109,8 +109,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     Test.assertEqual(FlowCreditMarket.BalanceDirection.Credit, flowPositionBalance.direction)
     Test.assertEqual(FlowCreditMarket.BalanceDirection.Debit, moetBalance.direction)
 
-    Test.assert(equalWithinVariance(intTargetHealth, health),
-        message: "Expected health to be \(intTargetHealth), but got \(health)")
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health),
+        message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)")
 
     log("[TEST] FLOW price set to \(flowStartPrice)")
 
@@ -125,14 +125,14 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
             existingFLOWCollateral: positionFundingAmount,
             currentFLOWPrice: flowStartPrice,
             depositAmount: amount,
-            withdrawIdentifier: moetTokenIdentifier,
-            depositIdentifier: flowTokenIdentifier
+            withdrawIdentifier: MOET_TOKEN_IDENTIFIER,
+            depositIdentifier: FLOW_TOKEN_IDENTIFIER
         )
 
         // minting to topUpSource Vault which should *not* affect calculation
         let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
         log("[TEST] Minting \(mintToSource) to position topUpSource and running again")
-        mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
+        mintMoet(signer: PROTOCOL_ACCOUNT, to: userAccount.address, amount: mintToSource, beFailed: false)
 
         runFundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
@@ -140,8 +140,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
             existingFLOWCollateral: positionFundingAmount,
             currentFLOWPrice: flowStartPrice,
             depositAmount: amount,
-            withdrawIdentifier: moetTokenIdentifier,
-            depositIdentifier: flowTokenIdentifier
+            withdrawIdentifier: MOET_TOKEN_IDENTIFIER,
+            depositIdentifier: FLOW_TOKEN_IDENTIFIER
         )
 
         Test.reset(to: internalSnapshot)
@@ -161,7 +161,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
 
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [positionFundingAmount, flowVaultStoragePath, false],
+        [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -181,13 +181,13 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
     Test.assertEqual(FlowCreditMarket.BalanceDirection.Credit, flowPositionBalance.direction)
 
-    Test.assertEqual(ceilingHealth, health)
+    Test.assertEqual(CEILING_HEALTH, health)
 
     log("[TEST] FLOW price set to \(flowStartPrice)")
 
     let amounts: [UFix64] = [0.0, 10.0, 100.0, 1_000.0, 10_000.0, 100_000.0, 1_000_000.0]
     var expectedExcess = 0.0 // none available above target from healthy state
-    var expectedDeficit = ((positionFundingAmount * flowCollateralFactor) / targetHealth * flowBorrowFactor) * flowStartPrice
+    var expectedDeficit = ((positionFundingAmount * flowCollateralFactor) / TARGET_HEALTH * flowBorrowFactor) * flowStartPrice
 
     let internalSnapshot = getCurrentBlockHeight()
     for i, amount in amounts {
@@ -197,14 +197,14 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
             existingFLOWCollateral: positionFundingAmount,
             currentFLOWPrice: flowStartPrice,
             depositAmount: amount,
-            withdrawIdentifier: moetTokenIdentifier,
-            depositIdentifier: flowTokenIdentifier
+            withdrawIdentifier: MOET_TOKEN_IDENTIFIER,
+            depositIdentifier: FLOW_TOKEN_IDENTIFIER
         )
 
         // minting to topUpSource Vault which should *not* affect calculation
         let mintToSource = amount < 100.0 ? 100.0 : amount * 10.0
         log("[TEST] Minting \(mintToSource) to position topUpSource and running again")
-        mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
+        mintMoet(signer: PROTOCOL_ACCOUNT, to: userAccount.address, amount: mintToSource, beFailed: false)
 
         runFundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
@@ -212,8 +212,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
             existingFLOWCollateral: positionFundingAmount,
             currentFLOWPrice: flowStartPrice,
             depositAmount: amount,
-            withdrawIdentifier: moetTokenIdentifier,
-            depositIdentifier: flowTokenIdentifier
+            withdrawIdentifier: MOET_TOKEN_IDENTIFIER,
+            depositIdentifier: FLOW_TOKEN_IDENTIFIER
         )
 
         Test.reset(to: internalSnapshot)
@@ -233,7 +233,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
 
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [positionFundingAmount, flowVaultStoragePath, false],
+        [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -257,14 +257,14 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
 
     let newCollateralValue = positionFundingAmount * newPrice
     let newEffectiveCollateralValue = newCollateralValue * flowCollateralFactor
-    let expectedAvailableAboveTarget = newEffectiveCollateralValue / targetHealth * flowBorrowFactor
+    let expectedAvailableAboveTarget = newEffectiveCollateralValue / TARGET_HEALTH * flowBorrowFactor
 
-    setMockOraclePrice(signer: protocolAccount,
-        forTokenIdentifier: flowTokenIdentifier,
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT,
+        forTokenIdentifier: FLOW_TOKEN_IDENTIFIER,
         price: newPrice
     )
     let actualHealth = getPositionHealth(pid: positionID, beFailed: false)
-    Test.assertEqual(ceilingHealth, actualHealth) // no debt should virtually infinite health, capped by UFix64 type
+    Test.assertEqual(CEILING_HEALTH, actualHealth) // no debt should virtually infinite health, capped by UFix64 type
 
     log("[TEST] FLOW price set to \(newPrice) from \(flowStartPrice)")
     log("[TEST] Position health after price increase: \(actualHealth)")
@@ -274,16 +274,16 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     // minting to topUpSource Vault which should *not* affect calculation here
     let mintToSource = 1_000.0
     log("[TEST] Minting \(mintToSource) to position topUpSource")
-    mintMoet(signer: protocolAccount, to: userAccount.address, amount: mintToSource, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: userAccount.address, amount: mintToSource, beFailed: false)
 
     log("..............................")
     var depositAmount = 0.0
-    var expectedAvailable = (positionFundingAmount + depositAmount) * newPrice * flowCollateralFactor / targetHealth * flowBorrowFactor
+    var expectedAvailable = (positionFundingAmount + depositAmount) * newPrice * flowCollateralFactor / TARGET_HEALTH * flowBorrowFactor
     var actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
-            withdrawType: moetTokenIdentifier,
-            targetHealth: intTargetHealth,
-            depositType: flowTokenIdentifier,
+            withdrawType: MOET_TOKEN_IDENTIFIER,
+            targetHealth: INT_TARGET_HEALTH,
+            depositType: FLOW_TOKEN_IDENTIFIER,
             depositAmount: depositAmount,
             beFailed: false
         )
@@ -296,12 +296,12 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     log("..............................")
 
     depositAmount = 100.0
-    expectedAvailable = expectedAvailableAboveTarget + (depositAmount * flowCollateralFactor / targetHealth * flowBorrowFactor) * newPrice
+    expectedAvailable = expectedAvailableAboveTarget + (depositAmount * flowCollateralFactor / TARGET_HEALTH * flowBorrowFactor) * newPrice
     actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
             pid: positionID,
-            withdrawType: moetTokenIdentifier,
-            targetHealth: intTargetHealth,
-            depositType: flowTokenIdentifier,
+            withdrawType: MOET_TOKEN_IDENTIFIER,
+            targetHealth: INT_TARGET_HEALTH,
+            depositType: FLOW_TOKEN_IDENTIFIER,
             depositAmount: depositAmount,
             beFailed: false
         )
@@ -331,13 +331,13 @@ fun runFundsAvailableAboveTargetHealthAfterDepositing(
     depositIdentifier: String
 ) {
     log("..............................")
-    let expectedTotalBorrowCapacity = (existingFLOWCollateral + depositAmount) * currentFLOWPrice * flowCollateralFactor / targetHealth * flowBorrowFactor
+    let expectedTotalBorrowCapacity = (existingFLOWCollateral + depositAmount) * currentFLOWPrice * flowCollateralFactor / TARGET_HEALTH * flowBorrowFactor
     let expectedAvailable = expectedTotalBorrowCapacity - existingBorrowed
 
     let actualAvailable = fundsAvailableAboveTargetHealthAfterDepositing(
             pid: pid,
             withdrawType: withdrawIdentifier,
-            targetHealth: intTargetHealth,
+            targetHealth: INT_TARGET_HEALTH,
             depositType: depositIdentifier,
             depositAmount: depositAmount,
             beFailed: false

@@ -19,13 +19,13 @@ access(all)
 fun setup() {
     deployContracts()
 
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
-    let exists = poolExists(address: protocolAccount.address)
+    let exists = poolExists(address: PROTOCOL_ACCOUNT.address)
     Test.assert(exists)
 
     // Reserve balance should be zero for default token
-    let reserveBal = getReserveBalance(vaultIdentifier: moetTokenIdentifier)
+    let reserveBal = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assertEqual(0.0, reserveBal)
 
     snapshot = getCurrentBlockHeight()
@@ -41,7 +41,7 @@ fun testPositionCreationFail() {
     let txResult = _executeTransaction(
         "../tests/transactions/flow-credit-market/pool-management/01_negative_no_eparticipant_fail.cdc",
         [],
-        protocolAccount
+        PROTOCOL_ACCOUNT
     )
     Test.expect(txResult, Test.beFailed())
 }
@@ -53,7 +53,7 @@ fun testPositionCreationSuccess() {
     let txResult = _executeTransaction(
         "../tests/transactions/flow-credit-market/pool-management/02_positive_with_eparticipant_pass.cdc",
         [],
-        protocolAccount
+        PROTOCOL_ACCOUNT
     )
 
     Test.expect(txResult, Test.beSucceeded())
@@ -63,7 +63,7 @@ access(all)
 fun testNegativeCap() {
     Test.reset(to: snapshot)
 
-    let negativeResult = _executeTransaction("../tests/transactions/flow-credit-market/pool-management/05_negative_cap.cdc", [], consumerAccount)
+    let negativeResult = _executeTransaction("../tests/transactions/flow-credit-market/pool-management/05_negative_cap.cdc", [], CONSUMER_ACCOUNT)
     Test.expect(negativeResult, Test.beFailed())
 }
 
@@ -71,11 +71,11 @@ access(all)
 fun testPublishClaimCap() {
     Test.reset(to: snapshot)
     
-    let publishCapResult = _executeTransaction("../transactions/flow-credit-market/beta/publish_beta_cap.cdc", [protocolAccount.address], protocolAccount)
+    let publishCapResult = _executeTransaction("../transactions/flow-credit-market/beta/publish_beta_cap.cdc", [PROTOCOL_ACCOUNT.address], PROTOCOL_ACCOUNT)
     Test.expect(publishCapResult, Test.beSucceeded())
 
-    let claimCapResult = _executeTransaction("../transactions/flow-credit-market/beta/claim_and_save_beta_cap.cdc", [protocolAccount.address], protocolAccount)
+    let claimCapResult = _executeTransaction("../transactions/flow-credit-market/beta/claim_and_save_beta_cap.cdc", [PROTOCOL_ACCOUNT.address], PROTOCOL_ACCOUNT)
     Test.expect(claimCapResult, Test.beSucceeded())
 
-    let createPositionResult = _executeTransaction("../tests/transactions/flow-credit-market/pool-management/04_create_position.cdc", [], protocolAccount)
+    let createPositionResult = _executeTransaction("../tests/transactions/flow-credit-market/pool-management/04_create_position.cdc", [], PROTOCOL_ACCOUNT)
 }

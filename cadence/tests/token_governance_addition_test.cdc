@@ -22,12 +22,12 @@ access(all)
 fun testAddSupportedTokenSucceedsAndDuplicateFails() {
 
     // create pool first
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     // add FLOW token support
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -36,8 +36,8 @@ fun testAddSupportedTokenSucceedsAndDuplicateFails() {
 
     // attempt duplicate addition – should fail
     let res = addSupportedTokenZeroRateCurveWithResult(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,

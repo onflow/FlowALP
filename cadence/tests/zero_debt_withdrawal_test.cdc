@@ -11,7 +11,7 @@ access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, consumerAccount)
+    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
 
     snapshot = getCurrentBlockHeight()
 }
@@ -20,14 +20,14 @@ access(all)
 fun testZeroDebtFullWithdrawalAvailable() {
     // 1. price setup
     let initialPrice = 1.0
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: moetTokenIdentifier, price: initialPrice)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: initialPrice)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: MOET_TOKEN_IDENTIFIER, price: initialPrice)
 
     // 2. pool + token support
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -42,7 +42,7 @@ fun testZeroDebtFullWithdrawalAvailable() {
     // 4. open position WITHOUT auto-borrow (pushToDrawDownSink = false)
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1_000.0, flowVaultStoragePath, false],
+        [1_000.0, FLOW_VAULT_STORAGE_PATH, false],
         user
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -52,9 +52,9 @@ fun testZeroDebtFullWithdrawalAvailable() {
 
     // 5. Ensure no debt: health should be exactly 1.0
     let health = getPositionHealth(pid: pid, beFailed: false)
-    Test.assertEqual(ceilingHealth, health)
+    Test.assertEqual(CEILING_HEALTH, health)
 
     // 6. available balance should equal original collateral (1000)
-    let available = getAvailableBalance(pid: pid, vaultIdentifier: flowTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
+    let available = getAvailableBalance(pid: pid, vaultIdentifier: FLOW_TOKEN_IDENTIFIER, pullFromTopUpSource: true, beFailed: false)
     Test.assertEqual(1_000.0, available)
 } 
