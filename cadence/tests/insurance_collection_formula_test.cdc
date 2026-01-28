@@ -104,17 +104,18 @@ fun test_collectInsurance_success_fullAmount() {
 
     // verify formula: insuranceAmount = debitIncome * insuranceRate
     // where debitIncome = totalDebitBalance * (currentDebitRate^timeElapsed - 1.0)
+    // = (1.0 + 0.1 / 31_557_600)^31_557_600 = 1.10517091665
     // debitBalance ≈ 615.38 MOET
-    // With 10% annual debit rate over 1 year: debitIncome ≈ 615.38 * (1.105246617130926037773784 - 1) ≈ 64.767
-    // Insurance = debitIncome * 0.1 ≈ 6.4767 MOET
+    // With 10% annual debit rate over 1 year: debitIncome ≈ 615.38 * (1.10517091665 - 1) ≈ 64.72
+    // Insurance = debitIncome * 0.1 ≈ 6.472 MOET
 
     // NOTE:
     // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
     // The default variance is designed for deterministic math, but insurance collection
-    // depends on block timestamps, which can differ slightly between test runs. 
+    // depends on block timestamps, which can differ slightly between test runs.
     // A larger, time-aware tolerance is required.
     let tolerance = 0.001
-    let expectedCollectedAmount = 6.476
+    let expectedCollectedAmount = 6.472
     let diff = expectedCollectedAmount > collectedAmount 
         ? expectedCollectedAmount - collectedAmount
         : collectedAmount - expectedCollectedAmount
