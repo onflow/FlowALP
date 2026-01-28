@@ -4,17 +4,13 @@ import BlockchainHelpers
 import "MOET"
 import "test_helpers.cdc"
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 access(all) var snapshot: UInt64 = 0
-
-access(all) let flowVaultStoragePath = /storage/flowTokenVault
 
 access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
+    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
 
     Test.expect(betaTxResult, Test.beSucceeded())
 
@@ -26,13 +22,13 @@ fun testRebalanceUndercollateralised() {
     // Test.reset(to: snapshot)
     let initialPrice = 1.0
     let priceDropPct: UFix64 = 0.2
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: initialPrice)
 
     // pool + token support
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -47,7 +43,7 @@ fun testRebalanceUndercollateralised() {
     // open position
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1_000.0, flowVaultStoragePath, true],
+        [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -55,12 +51,12 @@ fun testRebalanceUndercollateralised() {
     let healthBefore = getPositionHealth(pid: 0, beFailed: false)
 
     // Capture available balance before price change so we can verify directionality.
-    let availableBeforePriceChange = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
+    let availableBeforePriceChange = getAvailableBalance(pid: 0, vaultIdentifier: MOET_TOKEN_IDENTIFIER, pullFromTopUpSource: true, beFailed: false)
 
     // Apply price drop.
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice * (1.0 - priceDropPct))
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: initialPrice * (1.0 - priceDropPct))
 
-    let availableAfterPriceChange = getAvailableBalance(pid: 0, vaultIdentifier: defaultTokenIdentifier, pullFromTopUpSource: true, beFailed: false)
+    let availableAfterPriceChange = getAvailableBalance(pid: 0, vaultIdentifier: MOET_TOKEN_IDENTIFIER, pullFromTopUpSource: true, beFailed: false)
 
     // After a price drop, the position becomes less healthy so the amount that is safely withdrawable should drop.
     Test.assert(availableAfterPriceChange < availableBeforePriceChange, message: "Expected available balance to decrease after price drop (before: ".concat(availableBeforePriceChange.toString()).concat(", after: ").concat(availableAfterPriceChange.toString()).concat(")"))
@@ -70,7 +66,7 @@ fun testRebalanceUndercollateralised() {
     let userMoetBalanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     let healthAfterPriceChange = getPositionHealth(pid: 0, beFailed: false)
 
-    rebalancePosition(signer: protocolAccount, pid: 0, force: true, beFailed: false)
+    rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true, beFailed: false)
 
     let healthAfterRebalance = getPositionHealth(pid: 0, beFailed: false)
 
@@ -87,12 +83,12 @@ fun testRebalanceUndercollateralised() {
     // Calculate required pay-down to restore health to target (1.3)
     // Formula derived from: health = effectiveCollateral / effectiveDebt
     // Solving for the debt reduction needed to achieve target health
-	let requiredPaydown: UFix64 = debtBefore - effectiveCollateralAfterDrop / targetHealth
+	let requiredPaydown: UFix64 = debtBefore - effectiveCollateralAfterDrop / TARGET_HEALTH
     let expectedDebt: UFix64 = debtBefore - requiredPaydown
 
     var actualDebt: UFix64 = 0.0
     for bal in detailsAfterRebalance.balances {
-        if bal.vaultType.identifier == defaultTokenIdentifier && bal.balance > 0.0 {
+        if bal.vaultType.identifier == MOET_TOKEN_IDENTIFIER && bal.balance > 0.0 {
             actualDebt = bal.balance
         }
     }
@@ -112,6 +108,6 @@ fun testRebalanceUndercollateralised() {
     log("Actual debt: ".concat(actualDebt.toString()))
 
     // Ensure health is at least the minimum threshold (1.1)
-    Test.assert(healthAfterRebalance >= intMinHealth,
-        message: "Health after rebalance should be at least the minimum \(intMinHealth) but was ".concat(healthAfterRebalance.toString()))
+    Test.assert(healthAfterRebalance >= INT_MIN_HEALTH,
+        message: "Health after rebalance should be at least the minimum \(INT_MIN_HEALTH) but was ".concat(healthAfterRebalance.toString()))
 } 

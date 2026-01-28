@@ -20,14 +20,12 @@ access(all)
 fun setup() {
     deployContracts()
 
-    let protocolAccount = Test.getAccount(0x0000000000000007)
-
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     grantPoolCapToConsumer()
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -56,7 +54,7 @@ fun test_borrower_full_redemption_insolvency() {
     Test.expect(openRes, Test.beSucceeded())
 
     // Force insolvency (HF < 1.0)
-    setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: flowTokenIdentifier, price: 0.6)
+    setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 0.6)
     let hAfter = getPositionHealth(pid: pid, beFailed: false)
     Test.assert(FlowCreditMarketMath.toUFix64Round(hAfter) < 1.0, message: "Expected HF < 1.0 after price drop")
 
@@ -94,7 +92,7 @@ fun test_borrower_full_redemption_insolvency() {
     Test.assertEqual(0.0, postFlowColl)
 
     let hFinal = getPositionHealth(pid: pid, beFailed: false)
-    Test.assertEqual(ceilingHealth, hFinal)
+    Test.assertEqual(CEILING_HEALTH, hFinal)
 }
 
 
