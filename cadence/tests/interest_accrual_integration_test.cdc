@@ -34,15 +34,8 @@ import "MockFlowCreditMarketConsumer"
 //         (45% optimal utilization, 0% base, 4% slope1, 300% slope2)
 // =============================================================================
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
-
 // Snapshot for state reset between tests (each test starts fresh)
 access(all) var snapshot: UInt64 = 0
-
-// Token identifiers and storage paths
-access(all) let flowVaultStoragePath = /storage/flowTokenVault
-access(all) let wrapperStoragePath = /storage/flowCreditMarketPositionWrapper
 
 // =============================================================================
 // Interest Rate Parameters
@@ -81,9 +74,6 @@ access(all) let flowBaseRate: UFix128 = 0.0             // 0% base rate
 access(all) let flowSlope1: UFix128 = 0.04              // 4% slope below kink
 access(all) let flowSlope2: UFix128 = 3.0               // 300% slope above kink
 
-// Time constants for test scenarios
-access(all) let THIRTY_DAYS: Fix64 = 2592000.0  // 30 days × 86400 seconds/day
-
 // =============================================================================
 // Test Setup
 // =============================================================================
@@ -94,7 +84,7 @@ access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
+    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
     Test.expect(betaTxResult, Test.beSucceeded())
 
     // Capture snapshot AFTER deployment for clean test resets
@@ -123,11 +113,11 @@ fun test_moet_debit_accrues_interest() {
     // -------------------------------------------------------------------------
     // Set up the price oracle with 1:1 FLOW price for simple calculations.
     // This means 1,000 FLOW = $1,000 collateral value.
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
 
     // Create the lending pool that will manage all positions.
     // MOET is the default token (the primary borrowable asset).
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     // -------------------------------------------------------------------------
     // STEP 2: Configure FlowToken as Collateral
@@ -137,8 +127,8 @@ fun test_moet_debit_accrues_interest() {
     // - borrowFactor: 1.0 = no penalty on borrow value calculations
     // The KinkCurve parameters define Flow's interest rate (for Flow borrowing).
     addSupportedTokenKinkCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         optimalUtilization: flowOptimalUtilization,
@@ -157,9 +147,9 @@ fun test_moet_debit_accrues_interest() {
     // no MOET available to borrow.
     let liquidityProvider = Test.createAccount()
     setupMoetVault(liquidityProvider, beFailed: false)
-    mintMoet(signer: protocolAccount, to: liquidityProvider.address, amount: 10_000.0, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: liquidityProvider.address, amount: 10_000.0, beFailed: false)
 
-    let lpBetaRes = grantBeta(protocolAccount, liquidityProvider)
+    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, liquidityProvider)
     Test.expect(lpBetaRes, Test.beSucceeded())
 
     // Create LP's position (ID = 0) by depositing MOET.
@@ -179,22 +169,22 @@ fun test_moet_debit_accrues_interest() {
     // This rate is independent of utilization - borrowers always pay 4%.
     // Note: Interest curve must be set AFTER LP deposit to ensure credit exists.
     setInterestCurveFixed(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: moetFixedRate
     )
     log("Set MOET interest rate to 4% APY (after LP deposit)")
 
     let res = setInsuranceSwapper(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
 
     let setInsRes = setInsuranceRate(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         insuranceRate: 0.001,
     )
     Test.expect(setInsRes, Test.beSucceeded())
@@ -211,13 +201,13 @@ fun test_moet_debit_accrues_interest() {
     setupMoetVault(borrower, beFailed: false)
     mintFlow(to: borrower, amount: 1_000.0)
 
-    let borrowerBetaRes = grantBeta(protocolAccount, borrower)
+    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
     Test.expect(borrowerBetaRes, Test.beSucceeded())
 
     // Create borrower's position (ID = 1) with auto-borrow enabled (`true`).
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1_000.0, flowVaultStoragePath, true],
+        [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -251,8 +241,8 @@ fun test_moet_debit_accrues_interest() {
     // During this time, interest will accrue on the borrower's debt.
     //
     // The protocol uses per-second discrete compounding:
-    // FinalDebt = InitialDebt × (1 + r/31536000)^seconds
-    // where r is the annual rate and 31536000 is seconds per year.
+    // FinalDebt = InitialDebt × (1 + r/31_557_600)^seconds
+    // where r is the annual rate and 31_557_600 is seconds per year (365.25 days).
     Test.moveTime(by: THIRTY_DAYS)
     Test.commitBlock()
 
@@ -285,7 +275,7 @@ fun test_moet_debit_accrues_interest() {
     // Rebalance persists interest accrual to storage and may auto-repay debt
     // to restore health. We use pre-rebalance values for assertions since
     // rebalance can modify debt amounts.
-    rebalancePosition(signer: protocolAccount, pid: borrowerPid, force: true, beFailed: false)
+    rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: borrowerPid, force: true, beFailed: false)
 
     let detailsAfter = getPositionDetails(pid: borrowerPid, beFailed: false)
     let healthAfter = detailsAfter.health
@@ -320,9 +310,9 @@ fun test_moet_debit_accrues_interest() {
     // -------------------------------------------------------------------------
     // Expected Growth Calculation
     // -------------------------------------------------------------------------
-    // Per-second compounding: (1 + r/31536000)^seconds - 1
+    // Per-second compounding: (1 + r / 31_557_600) ^ seconds - 1
     // At 4% APY for 30 days (2,592,000 seconds):
-    // Growth = (1 + 0.04/31536000)^2592000 - 1 ≈ 0.329%
+    // Growth = (1 + 0.04 / 31_557_600) ^ 2_592_000 - 1 ≈ 0.328%
     //
     // We use a wide tolerance range because:
     // 1. Actual utilization affects some curve types
@@ -370,13 +360,13 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     // -------------------------------------------------------------------------
     // STEP 2: Initialize Protocol Environment
     // -------------------------------------------------------------------------
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     // Add FlowToken as collateral (needed for borrower to borrow MOET)
     addSupportedTokenKinkCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         optimalUtilization: flowOptimalUtilization,
@@ -394,9 +384,9 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     // This is the position we're testing for interest accrual.
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: lp.address, amount: 10_000.0, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10_000.0, beFailed: false)
 
-    let lpBetaRes = grantBeta(protocolAccount, lp)
+    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, lp)
     Test.expect(lpBetaRes, Test.beSucceeded())
 
     // Create LP's position (ID = 0) with MOET deposit
@@ -413,21 +403,21 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     // -------------------------------------------------------------------------
     // Set 4% APY debit rate. Credit rate will be ~3.9% after insurance deduction.
     setInterestCurveFixed(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: moetFixedRate
     )
 
     let res = setInsuranceSwapper(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
 
     let setInsRes = setInsuranceRate(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         insuranceRate: 0.01,
     )
     Test.expect(setInsRes, Test.beSucceeded())
@@ -443,14 +433,14 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     setupMoetVault(borrower, beFailed: false)
     mintFlow(to: borrower, amount: 10_000.0)
 
-    let borrowerBetaRes = grantBeta(protocolAccount, borrower)
+    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
     Test.expect(borrowerBetaRes, Test.beSucceeded())
 
     // Borrower deposits FLOW collateral and auto-borrows MOET
     // This creates utilization in the MOET pool
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [10_000.0, flowVaultStoragePath, true],
+        [10_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -553,13 +543,13 @@ fun test_flow_debit_accrues_interest() {
     // -------------------------------------------------------------------------
     // STEP 2: Initialize Protocol Environment
     // -------------------------------------------------------------------------
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     // Add FlowToken with KinkCurve parameters
     addSupportedTokenKinkCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         optimalUtilization: flowOptimalUtilization,
@@ -579,13 +569,13 @@ fun test_flow_debit_accrues_interest() {
     setupMoetVault(flowLp, beFailed: false)
     mintFlow(to: flowLp, amount: 10_000.0)
 
-    let lpBetaRes = grantBeta(protocolAccount, flowLp)
+    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, flowLp)
     Test.expect(lpBetaRes, Test.beSucceeded())
 
     // Create LP's position (ID = 0) with Flow deposit
     let createLpPosRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [10_000.0, flowVaultStoragePath, false],
+        [10_000.0, FLOW_VAULT_STORAGE_PATH, false],
         flowLp
     )
     Test.expect(createLpPosRes, Test.beSucceeded())
@@ -598,8 +588,8 @@ fun test_flow_debit_accrues_interest() {
     // utilization, with a "kink" at 45% where the slope increases dramatically.
     // Note: Must be set AFTER LP deposit (totalCreditBalance > 0 required).
     setInterestCurveKink(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         optimalUtilization: flowOptimalUtilization,
         baseRate: flowBaseRate,
         slope1: flowSlope1,
@@ -607,15 +597,15 @@ fun test_flow_debit_accrues_interest() {
     )
 
     let res = setInsuranceSwapper(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
 
     let setInsRes = setInsuranceRate(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         insuranceRate: 0.01,
     )
     Test.expect(setInsRes, Test.beSucceeded())
@@ -627,9 +617,9 @@ fun test_flow_debit_accrues_interest() {
     // borrows Flow. This is different from Test 1 where auto-borrow was used.
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
-    mintMoet(signer: protocolAccount, to: borrower.address, amount: 10_000.0, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: 10_000.0, beFailed: false)
 
-    let borrowerBetaRes = grantBeta(protocolAccount, borrower)
+    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
     Test.expect(borrowerBetaRes, Test.beSucceeded())
 
     // Step 5a: Create position with MOET collateral (no auto-borrow)
@@ -645,7 +635,7 @@ fun test_flow_debit_accrues_interest() {
     let borrowPid: UInt64 = 1
     let borrowRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
-        [borrowPid, flowTokenIdentifier, 4_000.0],
+        [borrowPid, FLOW_TOKEN_IDENTIFIER, 4_000.0],
         borrower
     )
     Test.expect(borrowRes, Test.beSucceeded())
@@ -752,13 +742,13 @@ fun test_flow_credit_accrues_interest_with_insurance() {
     // -------------------------------------------------------------------------
     // STEP 2: Initialize Protocol Environment
     // -------------------------------------------------------------------------
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     // Add FlowToken with KinkCurve
     addSupportedTokenKinkCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         optimalUtilization: flowOptimalUtilization,
@@ -777,13 +767,13 @@ fun test_flow_credit_accrues_interest_with_insurance() {
     setupMoetVault(flowLp, beFailed: false)
     mintFlow(to: flowLp, amount: 10_000.0)
 
-    let lpBetaRes = grantBeta(protocolAccount, flowLp)
+    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, flowLp)
     Test.expect(lpBetaRes, Test.beSucceeded())
 
     // Create LP's position (ID = 0) with Flow deposit
     let createLpPosRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [10_000.0, flowVaultStoragePath, false],
+        [10_000.0, FLOW_VAULT_STORAGE_PATH, false],
         flowLp
     )
     Test.expect(createLpPosRes, Test.beSucceeded())
@@ -793,8 +783,8 @@ fun test_flow_credit_accrues_interest_with_insurance() {
     // STEP 4: Configure Flow Interest Curve
     // -------------------------------------------------------------------------
     setInterestCurveKink(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         optimalUtilization: flowOptimalUtilization,
         baseRate: flowBaseRate,
         slope1: flowSlope1,
@@ -802,15 +792,15 @@ fun test_flow_credit_accrues_interest_with_insurance() {
     )
 
     let res = setInsuranceSwapper(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
 
     let setInsRes = setInsuranceRate(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         insuranceRate: 0.01,
     )
     Test.expect(setInsRes, Test.beSucceeded())
@@ -820,9 +810,9 @@ fun test_flow_credit_accrues_interest_with_insurance() {
     // -------------------------------------------------------------------------
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
-    mintMoet(signer: protocolAccount, to: borrower.address, amount: 10_000.0, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: 10_000.0, beFailed: false)
 
-    let borrowerBetaRes = grantBeta(protocolAccount, borrower)
+    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
     Test.expect(borrowerBetaRes, Test.beSucceeded())
 
     // Create position with MOET collateral
@@ -837,7 +827,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
     let borrowPid: UInt64 = 1
     let borrowRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
-        [borrowPid, flowTokenIdentifier, 4_000.0],
+        [borrowPid, FLOW_TOKEN_IDENTIFIER, 4_000.0],
         borrower
     )
     Test.expect(borrowRes, Test.beSucceeded())
@@ -942,13 +932,13 @@ fun test_insurance_deduction_verification() {
     // -------------------------------------------------------------------------
     // STEP 2: Initialize Protocol Environment
     // -------------------------------------------------------------------------
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     // Add FlowToken for collateral
     addSupportedTokenKinkCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         optimalUtilization: flowOptimalUtilization,
@@ -964,9 +954,9 @@ fun test_insurance_deduction_verification() {
     // -------------------------------------------------------------------------
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: lp.address, amount: 10_000.0, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10_000.0, beFailed: false)
 
-    let lpBetaRes = grantBeta(protocolAccount, lp)
+    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, lp)
     Test.expect(lpBetaRes, Test.beSucceeded())
 
     let createLpPosRes = executeTransaction(
@@ -986,23 +976,23 @@ fun test_insurance_deduction_verification() {
     // Debit Rate: 10% (vs default 4%)
     // Expected Credit Rate: 10% - 1% = 9%
     let res = setInsuranceSwapper(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
 
     let setRes = setInsuranceRate(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         insuranceRate: 0.01  // 1% insurance rate
     )
     Test.expect(setRes, Test.beSucceeded())
 
     let highDebitRate: UFix128 = 0.10
     setInterestCurveFixed(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: highDebitRate
     )
     log("Set MOET: 10% debit rate, 1% insurance rate")
@@ -1014,12 +1004,12 @@ fun test_insurance_deduction_verification() {
     setupMoetVault(borrower, beFailed: false)
     mintFlow(to: borrower, amount: 10_000.0)
 
-    let borrowerBetaRes = grantBeta(protocolAccount, borrower)
+    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
     Test.expect(borrowerBetaRes, Test.beSucceeded())
 
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [10_000.0, flowVaultStoragePath, true],
+        [10_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -1043,12 +1033,11 @@ fun test_insurance_deduction_verification() {
     // =========================================================================
     // STEP 7: Advance Time by 1 Full Year
     // =========================================================================
-    // Using 1 year (31,536,000 seconds) makes the percentage calculations
+    // Using 1 year (31,557,600 seconds for 365.25 days) makes the percentage calculations
     // straightforward. With per-second discrete compounding:
-    // - 10% APY → (1 + 0.10/31536000)^31536000 - 1 ≈ 10.52% effective rate
-    // - 9% APY → (1 + 0.09/31536000)^31536000 - 1 ≈ 9.42% effective rate
+    // - 10% APY → (1 + 0.10 / 31_557_600) ^ 31_557_600 - 1 ≈ 10.52% effective rate
+    // - 9% APY → (1 + 0.09 / 31_557_600) ^ 31_557_600 - 1 ≈ 9.42% effective rate
     // - Spread should be approximately 1%
-    let ONE_YEAR: Fix64 = 31536000.0
     Test.moveTime(by: ONE_YEAR)
     Test.commitBlock()
 
@@ -1136,13 +1125,13 @@ fun test_combined_all_interest_scenarios() {
     // -------------------------------------------------------------------------
     // STEP 2: Initialize Protocol Environment
     // -------------------------------------------------------------------------
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     // Add FlowToken with KinkCurve
     addSupportedTokenKinkCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         optimalUtilization: flowOptimalUtilization,
@@ -1160,8 +1149,8 @@ fun test_combined_all_interest_scenarios() {
     // This provides liquidity for Borrower1 to borrow MOET.
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 10_000.0, beFailed: false)
-    let lp1Beta = grantBeta(protocolAccount, moetLp)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: moetLp.address, amount: 10_000.0, beFailed: false)
+    let lp1Beta = grantBeta(PROTOCOL_ACCOUNT, moetLp)
     Test.expect(lp1Beta, Test.beSucceeded())
 
     let lp1Res = executeTransaction(
@@ -1180,12 +1169,12 @@ fun test_combined_all_interest_scenarios() {
     let flowLp = Test.createAccount()
     setupMoetVault(flowLp, beFailed: false)
     mintFlow(to: flowLp, amount: 5_000.0)
-    let lp2Beta = grantBeta(protocolAccount, flowLp)
+    let lp2Beta = grantBeta(PROTOCOL_ACCOUNT, flowLp)
     Test.expect(lp2Beta, Test.beSucceeded())
 
     let lp2Res = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [5_000.0, flowVaultStoragePath, false],
+        [5_000.0, FLOW_VAULT_STORAGE_PATH, false],
         flowLp
     )
     Test.expect(lp2Res, Test.beSucceeded())
@@ -1197,13 +1186,13 @@ fun test_combined_all_interest_scenarios() {
     // MOET: FixedRateInterestCurve at 4% APY (spread model)
     // Flow: KinkInterestCurve with Aave v3 Volatile One parameters
     setInterestCurveFixed(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: moetFixedRate  // 4% APY
     )
     setInterestCurveKink(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         optimalUtilization: flowOptimalUtilization,
         baseRate: flowBaseRate,
         slope1: flowSlope1,
@@ -1211,15 +1200,15 @@ fun test_combined_all_interest_scenarios() {
     )
 
     let res = setInsuranceSwapper(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
 
     let setInsRes = setInsuranceRate(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         insuranceRate: 0.01,
     )
     Test.expect(setInsRes, Test.beSucceeded())
@@ -1237,12 +1226,12 @@ fun test_combined_all_interest_scenarios() {
     let borrower1 = Test.createAccount()
     setupMoetVault(borrower1, beFailed: false)
     mintFlow(to: borrower1, amount: 2_000.0)
-    let b1Beta = grantBeta(protocolAccount, borrower1)
+    let b1Beta = grantBeta(PROTOCOL_ACCOUNT, borrower1)
     Test.expect(b1Beta, Test.beSucceeded())
 
     let b1Res = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [2_000.0, flowVaultStoragePath, true],  // auto-borrow MOET
+        [2_000.0, FLOW_VAULT_STORAGE_PATH, true],  // auto-borrow MOET
         borrower1
     )
     Test.expect(b1Res, Test.beSucceeded())
@@ -1258,8 +1247,8 @@ fun test_combined_all_interest_scenarios() {
     //   (3,000 MOET × ~3.9% > 2,000 FLOW × ~2.5% in absolute terms)
     let borrower2 = Test.createAccount()
     setupMoetVault(borrower2, beFailed: false)
-    mintMoet(signer: protocolAccount, to: borrower2.address, amount: 3_000.0, beFailed: false)
-    let b2Beta = grantBeta(protocolAccount, borrower2)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower2.address, amount: 3_000.0, beFailed: false)
+    let b2Beta = grantBeta(PROTOCOL_ACCOUNT, borrower2)
     Test.expect(b2Beta, Test.beSucceeded())
 
     let b2PosRes = executeTransaction(
@@ -1273,7 +1262,7 @@ fun test_combined_all_interest_scenarios() {
     // Flow utilization = 2,000 / (5,000 LP2 + 2,000 Borrower1) = 2,000 / 7,000 ≈ 28.6%
     let b2BorrowRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
-        [3 as UInt64, flowTokenIdentifier, 2_000.0],
+        [3 as UInt64, FLOW_TOKEN_IDENTIFIER, 2_000.0],
         borrower2
     )
     Test.expect(b2BorrowRes, Test.beSucceeded())

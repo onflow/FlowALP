@@ -3,15 +3,13 @@ import Test
 import "test_helpers.cdc"
 import "FlowCreditMarket"
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) let alice = Test.createAccount()
-
 
 access(all)
 fun setup() {
     deployContracts()
 
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 }
 
 /* --- Access Control Tests --- */
@@ -20,7 +18,7 @@ fun setup() {
 access(all) fun test_set_stability_fee_rate_without_EGovernance_entitlement() {
     let res= setStabilityFeeRate(
         signer: alice,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         stabilityFeeRate: 0.07,
     )
 
@@ -31,20 +29,20 @@ access(all) fun test_set_stability_fee_rate_without_EGovernance_entitlement() {
 // test_set_stability_fee_rate_with_EGovernance_entitlement verifies the function requires proper EGovernance entitlement can set stability fee rate.
 access(all) fun test_set_stability_fee_rate_with_EGovernance_entitlement() {
     let defaultStabilityFeeRate = 0.05
-    var actual = getStabilityFeeRate(tokenTypeIdentifier: defaultTokenIdentifier)
+    var actual = getStabilityFeeRate(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assertEqual(defaultStabilityFeeRate, actual!)
 
     let newStabilityFeeRate = 0.01
     // use protocol account with proper entitlement
     let res = setStabilityFeeRate(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         stabilityFeeRate: newStabilityFeeRate,
     )
 
     Test.expect(res, Test.beSucceeded())
 
-    actual = getStabilityFeeRate(tokenTypeIdentifier: defaultTokenIdentifier)
+    actual = getStabilityFeeRate(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assertEqual(newStabilityFeeRate, actual!)
 }
 
@@ -56,8 +54,8 @@ access(all) fun test_set_stability_fee_rate_greater_than_one_fails() {
     let invalidFeeRate = 1.01
 
     let res = setStabilityFeeRate(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         stabilityFeeRate: invalidFeeRate,
     )
     // should fail with "stability fee rate must be between 0 and 1"
@@ -73,8 +71,8 @@ access(all) fun test_set_stability_fee_rate_less_than_zero_fails() {
 
     let res = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_stability_fee_rate.cdc",
-        [defaultTokenIdentifier, invalidRate],
-        protocolAccount
+        [MOET_TOKEN_IDENTIFIER, invalidRate],
+        PROTOCOL_ACCOUNT
     )
 
     // should fail with "expected value of type UFix64"
@@ -85,9 +83,9 @@ access(all) fun test_set_stability_fee_rate_less_than_zero_fails() {
 /* --- Token Type Tests --- */
 // test_set_stability_fee_rate_invalid_token_type_fails verifies that setting stability fee rate for an unsupported token type fails.
 access(all) fun test_set_stability_fee_rate_invalid_token_type_fails() {    
-    let unsupportedTokenIdentifier = flowTokenIdentifier
+    let unsupportedTokenIdentifier = FLOW_TOKEN_IDENTIFIER
     let res = setStabilityFeeRate(
-        signer: protocolAccount,
+        signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: unsupportedTokenIdentifier,
         stabilityFeeRate: 0.05,
     )
@@ -98,7 +96,7 @@ access(all) fun test_set_stability_fee_rate_invalid_token_type_fails() {
 
 // test_get_stability_fee_rate_invalid_token_type that getStabilityFeeRate returns nil for unsupported token types.
 access(all) fun test_get_stability_fee_rate_invalid_token_type() {
-    let unsupportedTokenIdentifier = flowTokenIdentifier
+    let unsupportedTokenIdentifier = FLOW_TOKEN_IDENTIFIER
 
     let actual = getStabilityFeeRate(tokenTypeIdentifier: unsupportedTokenIdentifier)
     // should return nil for unsupported token type identifier
@@ -111,8 +109,8 @@ access(all) fun test_set_stability_fee_rate_emits_event() {
     let newRate = 0.08
 
     let res = setStabilityFeeRate(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         stabilityFeeRate: newRate,
     )
 
@@ -123,6 +121,6 @@ access(all) fun test_set_stability_fee_rate_emits_event() {
     Test.assert(events.length > 0, message: "Expected StabilityFeeRateUpdated event to be emitted")
 
     let stabilityFeeRateUpdatedEvent = events[events.length - 1] as! FlowCreditMarket.StabilityFeeRateUpdated
-    Test.assertEqual(defaultTokenIdentifier, stabilityFeeRateUpdatedEvent.tokenType)
+    Test.assertEqual(MOET_TOKEN_IDENTIFIER, stabilityFeeRateUpdatedEvent.tokenType)
     Test.assertEqual(newRate, stabilityFeeRateUpdatedEvent.stabilityFeeRate)
 }
