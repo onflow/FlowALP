@@ -97,10 +97,11 @@ fun test_collectStability_success_fullAmount() {
     Test.assertEqual(currentTimestamp, lastStabilityCollectionTime!)
 
     // verify formula: stabilityAmount = interestIncome * stabilityFeeRate
-    // where interestIncome = totalDebitBalance * (currentDebitRate^timeElapsed - 1.0)
+    // where interestIncome = totalDebitBalance * (currentDebitRate^timeElapsed - 1.0) 
+    // = (1.0 + 0.1 / 31_557_600)^31_557_600 = 1.10517091665
     // debitBalance ≈ 615.38 MOET
-    // With 10% annual debit rate over 1 year: interestIncome ≈ 615.38 * (1.105246617130926037773784 - 1) ≈ 64.767
-    // Stability = interestIncome * 0.1 ≈ 6.4767 MOET
+    // With 10% annual debit rate over 1 year: interestIncome ≈ 615.38 * (1.10517091665 - 1) ≈ 64.72
+    // Stability = interestIncome * 0.1 ≈ 6.472 MOET
     
     // NOTE:
     // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
@@ -108,7 +109,7 @@ fun test_collectStability_success_fullAmount() {
     // depends on block timestamps, which can differ slightly between test runs. 
     // A larger, time-aware tolerance is required.
     let tolerance = 0.001
-    let expectedCollectedAmount = 6.476
+    let expectedCollectedAmount = 6.472
     let diff = expectedCollectedAmount > collectedAmount 
         ? expectedCollectedAmount - collectedAmount
         : collectedAmount - expectedCollectedAmount
