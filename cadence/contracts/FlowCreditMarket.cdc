@@ -1886,7 +1886,7 @@ access(all) contract FlowCreditMarket {
             assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: post-liquidation health (\(postHealth)) is greater than target health (\(self.liquidationTargetHF))")
 
             // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
-            let swapper = self.dex.getSwapper(inType: seizeType, outType: debtType)! // TODO: will revert if pair unsupported
+            let swapper = self._getSwapperForLiquidation(seizeType: seizeType, debtType: debtType)
             // Get a quote: "how much collateral do I need to give you to get `repayAmount` debt tokens"
             let quote = swapper.quoteIn(forDesired: repayAmount, reverse: false)
             assert(seizeAmount < quote.inAmount, message: "Liquidation offer must be better than that offered by DEX")
@@ -1903,6 +1903,26 @@ access(all) contract FlowCreditMarket {
 
             // Execute the liquidation
             return <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
+        }
+
+        /// Gets a swapper from the DEX for the given token pair.
+        ///
+        /// This function is used during liquidations to compare the liquidator's offer against the DEX price.
+        /// It expects that a swapper has been configured for every supported collateral-to-debt token pair.
+        ///
+        /// Panics if:
+        /// - No swapper is configured for the given token pair (seizeType -> debtType)
+        ///
+        /// @param seizeType: The collateral token type to swap from
+        /// @param debtType: The debt token type to swap to
+        /// @return The swapper for the given token pair
+        access(self) fun _getSwapperForLiquidation(seizeType: Type, debtType: Type): {DeFiActions.Swapper} {
+            let swapper = self.dex.getSwapper(inType: seizeType, outType: debtType)
+            assert(
+                swapper != nil,
+                message: "No DEX swapper configured for liquidation pair: \(seizeType.identifier) -> \(debtType.identifier)"
+            )
+            return swapper!
         }
 
         /// Internal liquidation function which performs a liquidation.
