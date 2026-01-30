@@ -17,19 +17,19 @@ import "MOET"
 
 transaction(positionId: UInt64) {
 
-    let manager: auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.PositionManager
-    let positionId: UInt64
+    let position: auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.Position
     let receiverRef: &{FungibleToken.Receiver}
     let moetWithdrawRef: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
 
     prepare(borrower: auth(BorrowValue) &Account) {
-        // Borrow the PositionManager from constant storage path with withdraw entitlement
-        self.manager = borrower.storage.borrow<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.PositionManager>(
+        // Borrow the PositionManager from constant storage path
+        let manager = borrower.storage.borrow<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.PositionManager>(
             from: FlowCreditMarket.PositionStoragePath
         ) ?? panic("Could not find PositionManager in storage")
 
-        self.positionId = positionId
-        
+        // Borrow the position with withdraw entitlement
+        self.position = manager.borrowAuthorizedPosition(pid: positionId)
+
         // Get receiver reference for depositing withdrawn collateral
         self.receiverRef = borrower.capabilities.borrow<&{FungibleToken.Receiver}>(
             /public/flowTokenReceiver
@@ -39,22 +39,20 @@ transaction(positionId: UInt64) {
         self.moetWithdrawRef = borrower.storage.borrow<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(from: MOET.VaultStoragePath)
             ?? panic("No MOET vault in storage")
     }
-    
+
     execute {
         // Repay all MOET debt without requiring EParticipant: use a Sink and depositCapacity
         if self.moetWithdrawRef.balance > 0.0 {
-            let sink: {DeFiActions.Sink} = self.manager.createSink(pid: self.positionId, type: Type<@MOET.Vault>())
+            let sink: {DeFiActions.Sink} = self.position.createSink(type: Type<@MOET.Vault>())
             sink.depositCapacity(from: self.moetWithdrawRef)
         }
 
         // Now withdraw all available Flow collateral without top-up assistance
-        let withdrawAmount = self.manager.availableBalance(
-            pid: self.positionId,
+        let withdrawAmount = self.position.availableBalance(
             type: Type<@FlowToken.Vault>(),
             pullFromTopUpSource: false
         )
-        let withdrawnVault <- self.manager.withdrawAndPull(
-            pid: self.positionId,
+        let withdrawnVault <- self.position.withdrawAndPull(
             type: Type<@FlowToken.Vault>(),
             amount: withdrawAmount,
             pullFromTopUpSource: false

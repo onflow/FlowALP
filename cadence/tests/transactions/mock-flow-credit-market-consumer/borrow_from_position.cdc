@@ -13,19 +13,19 @@ transaction(
     tokenTypeIdentifier: String,
     amount: UFix64
 ) {
-    let manager: auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.PositionManager
-    let positionId: UInt64
+    let position: auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.Position
     let tokenType: Type
     let receiverVault: &{FungibleToken.Receiver}
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
-        // Borrow the PositionManager from constant storage path with withdraw entitlement
-        self.manager = signer.storage.borrow<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.PositionManager>(
+        // Borrow the PositionManager from constant storage path
+        let manager = signer.storage.borrow<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.PositionManager>(
                 from: FlowCreditMarket.PositionStoragePath
             )
             ?? panic("Could not find PositionManager in signer's storage")
 
-        self.positionId = positionId
+        // Borrow the position with withdraw entitlement
+        self.position = manager.borrowAuthorizedPosition(pid: positionId)
 
         // Parse the token type
         self.tokenType = CompositeType(tokenTypeIdentifier)
@@ -50,8 +50,8 @@ transaction(
     }
 
     execute {
-        // Withdraw (borrow) from the position via the manager
-        let borrowedVault <- self.manager.withdraw(pid: self.positionId, type: self.tokenType, amount: amount)
+        // Withdraw (borrow) from the position directly
+        let borrowedVault <- self.position.withdraw(type: self.tokenType, amount: amount)
 
         // Deposit the borrowed tokens to the signer's vault
         self.receiverVault.deposit(from: <-borrowedVault)
