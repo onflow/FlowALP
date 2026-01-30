@@ -69,31 +69,6 @@
 			"aliases": {
 				"testing": "0000000000000007"
 			}
-		},
-		"UniswapV2SwapConnectors": {
-			"source": "./FlowActions/cadence/contracts/connectors/evm/UniswapV2SwapConnectors.cdc",
-			"aliases": {
-				"mainnet": "6d888f175c158410",
-				"testing": "0000000000000009"
-			}
-		},
-		"TokenA": {
-			"source": "./FlowActions/cadence/tests/contracts/TokenA.cdc",
-			"aliases": {
-				"testing": "0000000000000010"
-			}
-		},
-		"TokenB": {
-			"source": "./FlowActions/cadence/tests/contracts/TokenB.cdc",
-			"aliases": {
-				"testing": "0000000000000010"
-			}
-		},
-		"EVMAbiHelpers": {
-			"source": "./FlowActions/cadence/contracts/utils/EVMAbiHelpers.cdc",
-			"aliases": {
-				"testing": "0000000000000009"
-			}
 		}
 	},
 	"dependencies": {
