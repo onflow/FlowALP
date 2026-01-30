@@ -12,12 +12,6 @@ import "MockFlowCreditMarketConsumer"
 
 access(all) var snapshot: UInt64 = 0
 
-<<<<<<< HEAD
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) let flowVaultStoragePath = /storage/flowTokenVault
-
-=======
->>>>>>> origin/main
 access(all)
 fun setup() {
     deployContracts()
@@ -85,11 +79,7 @@ fun testPositionLifecycleHappyPath() {
     let positionId: UInt64 = 0
     let repayRes = executeTransaction(
         "./transactions/flow-credit-market/pool-management/repay_and_close_position.cdc",
-<<<<<<< HEAD
         [positionId],
-=======
-        [WRAPPER_STORAGE_PATH],
->>>>>>> origin/main
         user
     )
     Test.expect(repayRes, Test.beSucceeded())

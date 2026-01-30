@@ -9,13 +9,6 @@ import "FlowCreditMarketMath"
 
 access(all) let userAccount = Test.createAccount()
 
-<<<<<<< HEAD
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) var moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
-access(all) let flowVaultStoragePath = /storage/flowTokenVault
-
-=======
->>>>>>> origin/main
 access(all) let flowCollateralFactor = 0.8
 access(all) let flowBorrowFactor = 1.0
 access(all) let flowStartPrice = 0.5
