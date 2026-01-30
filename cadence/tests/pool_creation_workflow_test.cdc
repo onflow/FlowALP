@@ -10,7 +10,6 @@ import "test_helpers.cdc"
 // Validates that a pool can be created and that essential invariants hold.
 // -----------------------------------------------------------------------------
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) var snapshot: UInt64 = 0
 
 // -----------------------------------------------------------------------------
@@ -30,13 +29,13 @@ fun setup() {
 access(all)
 fun testPoolCreationSucceeds() {
     // --- act ---------------------------------------------------------------
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     // --- assert ------------------------------------------------------------
-    let exists = poolExists(address: protocolAccount.address)
+    let exists = poolExists(address: PROTOCOL_ACCOUNT.address)
     Test.assert(exists)
 
     // Reserve balance should be zero for default token
-    let reserveBal = getReserveBalance(vaultIdentifier: defaultTokenIdentifier)
+    let reserveBal = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assertEqual(0.0, reserveBal)
 } 

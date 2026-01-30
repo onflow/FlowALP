@@ -10,18 +10,19 @@ import "MockFlowCreditMarketConsumer"
 // Position Lifecycle Happy Path Test
 // -----------------------------------------------------------------------------
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 access(all) var snapshot: UInt64 = 0
 
+<<<<<<< HEAD
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
 
+=======
+>>>>>>> origin/main
 access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
+    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
 
     Test.expect(betaTxResult, Test.beSucceeded())
 
@@ -34,13 +35,13 @@ fun testPositionLifecycleHappyPath() {
     // Test.reset(to: snapshot)
 
     // price setup
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
 
     // create pool & enable token
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -58,7 +59,7 @@ fun testPositionLifecycleHappyPath() {
     // open wrapped position (pushToDrawDownSink)
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1_000.0, flowVaultStoragePath, true],
+        [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -84,7 +85,11 @@ fun testPositionLifecycleHappyPath() {
     let positionId: UInt64 = 0
     let repayRes = executeTransaction(
         "./transactions/flow-credit-market/pool-management/repay_and_close_position.cdc",
+<<<<<<< HEAD
         [positionId],
+=======
+        [WRAPPER_STORAGE_PATH],
+>>>>>>> origin/main
         user
     )
     Test.expect(repayRes, Test.beSucceeded())
