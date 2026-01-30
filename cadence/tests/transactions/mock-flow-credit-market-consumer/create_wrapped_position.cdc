@@ -63,7 +63,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     }
 
     execute {
-        // Create and store the position directly in the user's account
+        // Create and store the position in the PositionManager
         let pid = MockFlowCreditMarketConsumer.createAndStorePosition(
             account: self.account,
             collateral: <-self.collateral,
@@ -71,7 +71,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
             repaymentSource: self.source,
             pushToDrawDownSink: pushToDrawDownSink
         )
-        // Position is now stored at FlowCreditMarket.getPositionStoragePath(pid: pid)
+        // Position is now stored in PositionManager at FlowCreditMarket.PositionStoragePath
         log("Created and stored Position with ID: ".concat(pid.toString()))
     }
 }

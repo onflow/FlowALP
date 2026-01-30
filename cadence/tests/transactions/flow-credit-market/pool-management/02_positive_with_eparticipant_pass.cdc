@@ -16,12 +16,14 @@ transaction {
 
         // Call EParticipant-gated methods
         let zero1 <- DeFiActionsUtils.getEmptyVault(Type<@MOET.Vault>())
-        let pid = pool.createPosition(
+        let position <- pool.createPosition(
             funds: <- zero1,
             issuanceSink: DummyConnectors.DummySink(),
             repaymentSource: nil,
             pushToDrawDownSink: false
         )
+        let pid = position.id
+        destroy position
 
         // Also allowed with EParticipant:
         let zero2 <- DeFiActionsUtils.getEmptyVault(Type<@MOET.Vault>())

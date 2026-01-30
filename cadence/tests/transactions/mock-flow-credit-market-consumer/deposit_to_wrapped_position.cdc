@@ -14,24 +14,25 @@ transaction(positionId: UInt64, amount: UFix64, vaultStoragePath: StoragePath, p
 
     // the funds that will be used as collateral for a FlowCreditMarket loan
     let collateral: @{FungibleToken.Vault}
-    // the position to deposit to (requires EPositionDeposit entitlement for deposit)
-    let position: auth(FlowCreditMarket.EPositionDeposit) &FlowCreditMarket.Position
+    // the manager to access the position (requires EPositionDeposit entitlement for deposit)
+    let manager: auth(FlowCreditMarket.EPositionDeposit) &FlowCreditMarket.PositionManager
+    let positionId: UInt64
 
     prepare(signer: auth(BorrowValue) &Account) {
         // withdraw the collateral from the signer's stored Vault
         let collateralSource = signer.storage.borrow<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(from: vaultStoragePath)
             ?? panic("Could not borrow reference to Vault from \(vaultStoragePath)")
         self.collateral <- collateralSource.withdraw(amount: amount)
-        // Borrow the Position resource directly from storage with deposit entitlement
-        let storagePath = FlowCreditMarket.getPositionStoragePath(pid: positionId)
-        self.position = signer.storage.borrow<auth(FlowCreditMarket.EPositionDeposit) &FlowCreditMarket.Position>(
-                from: storagePath
+        // Borrow the PositionManager from constant storage path with deposit entitlement
+        self.manager = signer.storage.borrow<auth(FlowCreditMarket.EPositionDeposit) &FlowCreditMarket.PositionManager>(
+                from: FlowCreditMarket.PositionStoragePath
             )
-            ?? panic("Could not find Position with ID \(positionId) in signer's storage at \(storagePath.toString())")
+            ?? panic("Could not find PositionManager in signer's storage")
+        self.positionId = positionId
     }
 
     execute {
-        // deposit to the position
-        self.position.depositAndPush(from: <-self.collateral, pushToDrawDownSink: pushToDrawDownSink)
+        // deposit to the position via the manager
+        self.manager.depositAndPush(pid: self.positionId, from: <-self.collateral, pushToDrawDownSink: pushToDrawDownSink)
     }
 }

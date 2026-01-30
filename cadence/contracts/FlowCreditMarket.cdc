@@ -26,23 +26,11 @@ access(all) contract FlowCreditMarket {
 
     access(all) let PoolCapStoragePath: StoragePath
 
-    /// Storage path prefix for Position resources
-    access(all) let PositionStoragePathPrefix: String
+    /// The canonical StoragePath where PositionManager resources are stored
+    access(all) let PositionStoragePath: StoragePath
 
-    /// Public path prefix for Position resources
-    access(all) let PositionPublicPathPrefix: String
-
-    /// Helper function to generate a storage path for a specific position ID
-    access(all) fun getPositionStoragePath(pid: UInt64): StoragePath {
-        let identifier = self.PositionStoragePathPrefix.concat(pid.toString())
-        return StoragePath(identifier: identifier)!
-    }
-
-    /// Helper function to generate a public path for a specific position ID
-    access(all) fun getPositionPublicPath(pid: UInt64): PublicPath {
-        let identifier = self.PositionPublicPathPrefix.concat(pid.toString())
-        return PublicPath(identifier: identifier)!
-    }
+    /// The canonical PublicPath where PositionManager can be accessed publicly
+    access(all) let PositionPublicPath: PublicPath
 
     /* --- EVENTS ---- */
 
@@ -190,8 +178,8 @@ access(all) contract FlowCreditMarket {
     // Position-specific entitlements for fine-grained access control
     access(all) entitlement EPositionDeposit
     access(all) entitlement EPositionWithdraw
-    access(all) entitlement EPositionConfigure
     access(all) entitlement EPositionManage
+    access(all) entitlement EpositionAdmin
 
     /* --- NUMERIC TYPES POLICY ---
         - External/public APIs (Vault amounts, deposits/withdrawals, events) use UFix64.
@@ -2577,7 +2565,8 @@ access(all) contract FlowCreditMarket {
             )
 
             // Create a capability to the Pool for the Position resource
-            let poolCap = self.account.capabilities.storage.issue<auth(EPosition) &Pool>(
+            // The Pool is stored in the FlowCreditMarket contract account
+            let poolCap = FlowCreditMarket.account.capabilities.storage.issue<auth(EPosition) &Pool>(
                 FlowCreditMarket.PoolStoragePath
             )
 
@@ -3728,7 +3717,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Sets the target health of the Position
-        access(EPositionConfigure) fun setTargetHealth(targetHealth: UFix64) {
+        access(EPositionManage) fun setTargetHealth(targetHealth: UFix64) {
             let pool = self.pool.borrow()!
             let uint = UFix128(targetHealth)
             pool.writeTargetHealth(pid: self.id, targetHealth: uint)
@@ -3742,7 +3731,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Sets the minimum health of the Position
-        access(EPositionConfigure) fun setMinHealth(minHealth: UFix64) {
+        access(EPositionManage) fun setMinHealth(minHealth: UFix64) {
             let pool = self.pool.borrow()!
             let uint = UFix128(minHealth)
             pool.writeMinHealth(pid: self.id, minHealth: uint)
@@ -3756,7 +3745,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Sets the maximum health of the position
-        access(EPositionConfigure) fun setMaxHealth(maxHealth: UFix64) {
+        access(EPositionManage) fun setMaxHealth(maxHealth: UFix64) {
             let pool = self.pool.borrow()!
             let uint = UFix128(maxHealth)
             pool.writeMaxHealth(pid: self.id, maxHealth: uint)
@@ -3906,6 +3895,62 @@ access(all) contract FlowCreditMarket {
             let pool = self.pool.borrow()!
             pool.provideTopUpSource(pid: self.id, source: source)
         }
+    }
+
+    /// PositionManager
+    ///
+    /// A collection resource that manages multiple Position resources for an account.
+    /// This allows users to have multiple positions while using a single, constant storage path.
+    ///
+    access(all) resource PositionManager {
+
+        /// Dictionary storing all positions owned by this manager, keyed by position ID
+        access(self) let positions: @{UInt64: Position}
+
+        init() {
+            self.positions <- {}
+        }
+
+        /// Adds a new position to the manager
+        access(all) fun addPosition(position: @Position) {
+            let pid = position.id
+            let old <- self.positions[pid] <- position
+            if old != nil {
+                panic("Cannot add position with same pid (\(pid)) as existing position: must explicitly remove existing position first")
+            }
+            destroy old
+        }
+
+        /// Removes and returns a position from the manager
+        access(all) fun removePosition(pid: UInt64): @Position {
+            if let position <- self.positions.remove(key: pid) {
+                return <-position
+            }
+            panic("Position with pid=\(pid) not found in PositionManager")
+        }
+
+        /// Returns a public reference to a position with no entitlements.
+        access(all) fun borrowPosition(pid: UInt64): &Position {
+            return (&self.positions[pid] as &Position?)
+                ?? panic("Position with pid=\(pid) not found in PositionManager")
+        }
+
+        /// Internal method that returns a reference to a position authorized with all entitlements.
+        /// Callers who wish to provide a partially authorized reference can downcast the result as needed.
+        access(all) fun borrowAuthorizedPosition(pid: UInt64): auth(EPositionDeposit, EPositionWithdraw, EPositionManage) &Position {
+            return (&self.positions[pid] as auth(EPositionDeposit, EPositionWithdraw, EPositionManage) &Position?)
+                ?? panic("Position with pid=\(pid) not found in PositionManager")
+        }
+
+        /// Returns the IDs of all positions in this manager
+        access(all) fun getPositionIDs(): [UInt64] {
+            return self.positions.keys
+        }
+    }
+
+    /// Creates and returns a new PositionManager resource
+    access(all) fun createPositionManager(): @PositionManager {
+        return <- create PositionManager()
     }
 
     /// PositionSink
@@ -4230,9 +4275,9 @@ access(all) contract FlowCreditMarket {
         self.PoolPublicPath = PublicPath(identifier: "flowCreditMarketPool_\(self.account.address)")!
         self.PoolCapStoragePath = StoragePath(identifier: "flowCreditMarketPoolCap_\(self.account.address)")!
 
-        // Position resource storage paths
-        self.PositionStoragePathPrefix = "flowCreditMarketPosition_"
-        self.PositionPublicPathPrefix = "flowCreditMarketPositionPublic_"
+        // PositionManager storage paths (CamelCase, no pid)
+        self.PositionStoragePath = /storage/FlowCreditMarketPosition
+        self.PositionPublicPath = /public/FlowCreditMarketPositionPublic
 
         // save PoolFactory in storage
         self.account.storage.save(

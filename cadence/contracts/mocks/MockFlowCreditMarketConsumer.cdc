@@ -11,7 +11,7 @@ import "FlowCreditMarket"
 ///
 access(all) contract MockFlowCreditMarketConsumer {
 
-    /// Opens a FlowCreditMarket Position and stores it directly in the account
+    /// Opens a FlowCreditMarket Position and stores it in a PositionManager
     /// Returns the position ID for reference
     ///
     access(all)
@@ -28,7 +28,7 @@ access(all) contract MockFlowCreditMarketConsumer {
 
         let poolRef = poolCap.borrow() ?? panic("Invalid Pool Cap")
 
-        // Create position - now returns a Position resource
+        // Create position - returns a Position resource
         let position <- poolRef.createPosition(
             funds: <-collateral,
             issuanceSink: issuanceSink,
@@ -38,20 +38,26 @@ access(all) contract MockFlowCreditMarketConsumer {
 
         let pid = position.id
 
-        // Store the Position resource in the user's account
-        let storagePath = FlowCreditMarket.getPositionStoragePath(pid: pid)
-        account.storage.save(<-position, to: storagePath)
+        // Get or create PositionManager at constant path
+        if account.storage.borrow<&FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath) == nil {
+            // Create new PositionManager if it doesn't exist
+            let manager <- FlowCreditMarket.createPositionManager()
+            account.storage.save(<-manager, to: FlowCreditMarket.PositionStoragePath)
 
-        // Issue and publish capabilities for the Position
-        let depositCap = account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionDeposit) &FlowCreditMarket.Position>(storagePath)
-        let withdrawCap = account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.Position>(storagePath)
-        let configureCap = account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionConfigure) &FlowCreditMarket.Position>(storagePath)
-        let manageCap = account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionManage) &FlowCreditMarket.Position>(storagePath)
-        let readCap = account.capabilities.storage.issue<&FlowCreditMarket.Position>(storagePath)
+            // Issue and publish capabilities for the PositionManager
+            let depositCap = account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionDeposit) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
+            let withdrawCap = account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
+            let manageCap = account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionManage) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
+            let readCap = account.capabilities.storage.issue<&FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
 
-        // Publish read-only capability publicly
-        let publicPath = FlowCreditMarket.getPositionPublicPath(pid: pid)
-        account.capabilities.publish(readCap, at: publicPath)
+            // Publish read-only capability publicly
+            account.capabilities.publish(readCap, at: FlowCreditMarket.PositionPublicPath)
+        }
+
+        // Add position to the manager
+        let manager = account.storage.borrow<&FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath)
+            ?? panic("PositionManager not found")
+        manager.addPosition(position: <-position)
 
         // Store the pool capability back
         self.account.storage.save(poolCap, to: FlowCreditMarket.PoolCapStoragePath)
@@ -60,6 +66,6 @@ access(all) contract MockFlowCreditMarketConsumer {
     }
 
     init() {
-        // No storage paths needed since Positions are stored directly using FlowCreditMarket helper functions
+        // No storage paths needed since Positions are stored in PositionManager using constant paths
     }
 }
