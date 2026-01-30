@@ -3,22 +3,35 @@ import "FlowCreditMarket"
 
 /* --- Global test constants --- */
 
-access(all) let defaultTokenIdentifier = "A.0000000000000007.MOET.Vault"
-access(all) let defaultUFixVariance = 0.00000001
+access(all) let MOET_TOKEN_IDENTIFIER = "A.0000000000000007.MOET.Vault"
+access(all) let FLOW_TOKEN_IDENTIFIER = "A.0000000000000003.FlowToken.Vault"
+access(all) let FLOW_VAULT_STORAGE_PATH = /storage/flowTokenVault
+access(all) let WRAPPER_STORAGE_PATH = /storage/flowCreditMarketPositionWrapper
+
+access(all) let PROTOCOL_ACCOUNT = Test.getAccount(0x0000000000000007)
+access(all) let CONSUMER_ACCOUNT = Test.getAccount(0x0000000000000008)
+
 // Variance for UFix64 comparisons
-access(all) let defaultUIntVariance: UInt128 = 1_000_000_000_000_000
+access(all) let DEFAULT_UFIX_VARIANCE = 0.00000001
 // Variance for UFix128 comparisons
-access(all) let defaultUFix128Variance: UFix128 = 0.00000001
+access(all) let DEFAULT_UFIX128_VARIANCE: UFix128 = 0.00000001
 
 // Health values
-access(all) let minHealth = 1.1
-access(all) let targetHealth = 1.3
-access(all) let maxHealth = 1.5
-// UFix128 equivalents (kept same variable names for minimal test churn)
-access(all) var intMinHealth: UFix128 = 1.1
-access(all) var intTargetHealth: UFix128 = 1.3
-access(all) var intMaxHealth: UFix128 = 1.5
-access(all) let ceilingHealth: UFix128 = UFix128.max      // infinite health when debt ~ 0.0
+access(all) let MIN_HEALTH = 1.1
+access(all) let TARGET_HEALTH = 1.3
+access(all) let MAX_HEALTH = 1.5
+// UFix128 equivalents
+access(all) let INT_MIN_HEALTH: UFix128 = 1.1
+access(all) let INT_TARGET_HEALTH: UFix128 = 1.3
+access(all) let INT_MAX_HEALTH: UFix128 = 1.5
+access(all) let CEILING_HEALTH: UFix128 = UFix128.max      // infinite health when debt ~ 0.0
+
+// Time constants
+access(all) let DAY: Fix64 = 86_400.0
+access(all) let TEN_DAYS: Fix64 = 864_000.0
+access(all) let THIRTY_DAYS: Fix64 = 2_592_000.0   // 30 * 86400
+access(all) let ONE_YEAR: Fix64 = 31_557_600.0     // 365.25 * 86400
+
 
 /* --- Test execution helpers --- */
 
@@ -104,7 +117,7 @@ fun deployContracts() {
     err = Test.deployContract(
         name: "MockOracle",
         path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [defaultTokenIdentifier]
+        arguments: [MOET_TOKEN_IDENTIFIER]
     )
     Test.expect(err, Test.beNil())
 
@@ -183,6 +196,17 @@ fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowCreditMarket.PositionDe
 }
 
 access(all)
+fun getPositionBalance(pid: UInt64, vaultID: String): FlowCreditMarket.PositionBalance {
+    let positionDetails = getPositionDetails(pid: pid, beFailed: false)
+    for bal in positionDetails.balances {
+        if bal.vaultType == CompositeType(vaultID) {
+            return bal
+        }
+    }
+    panic("expected to find balance for \(vaultID) in position\(pid)")
+}
+
+access(all)
 fun poolExists(address: Address): Bool {
     let res = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [address])
     Test.expect(res, Test.beSucceeded())
@@ -226,6 +250,55 @@ fun getDepositCapacityInfo(vaultIdentifier: String): {String: UFix64} {
     let res = _executeScript("../scripts/flow-credit-market/get_deposit_capacity.cdc", [vaultIdentifier])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as! {String: UFix64}
+}
+
+access(all)
+fun getInsuranceFundBalance(): UFix64 {
+    let res = _executeScript("../scripts/flow-credit-market/get_insurance_fund_balance.cdc", [])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun getInsuranceRate(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_insurance_rate.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
+access(all)
+fun insuranceSwapperExists(tokenTypeIdentifier: String): Bool {
+    let res = _executeScript("../scripts/flow-credit-market/insurance_token_swapper_exists.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! Bool
+}
+
+access(all)
+fun getLastInsuranceCollectionTime(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_last_insurance_collection_time.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
+access(all)
+fun getStabilityFeeRate(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_stability_fee_rate.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
+access(all)
+fun getStabilityFundBalance(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_stability_fund_balance.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
+}
+
+access(all)
+fun getLastStabilityCollectionTime(tokenTypeIdentifier: String): UFix64? {
+    let res = _executeScript("../scripts/flow-credit-market/get_last_stability_collection_time.cdc", [tokenTypeIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as? UFix64
 }
 
 /* --- Transaction Helpers --- */
@@ -342,6 +415,16 @@ fun depositToWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStor
 }
 
 access(all)
+fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, beFailed: Bool) {
+    let borrowRes = _executeTransaction(
+        "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
+        [positionId, tokenTypeIdentifier, amount],
+        signer
+    )
+    Test.expect(borrowRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
 fun addSupportedTokenKinkCurve(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
@@ -397,14 +480,102 @@ access(all)
 fun setInsuranceRate(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,
-    insuranceRate: UFix64
-) {
-    let setRes = _executeTransaction(
+    insuranceRate: UFix64,
+): Test.TransactionResult {
+    var res = _executeTransaction(
         "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
         [ tokenTypeIdentifier, insuranceRate ],
         signer
     )
-    Test.expect(setRes, Test.beSucceeded())
+    return res
+}
+
+access(all)
+fun setInsuranceSwapper(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    priceRatio: UFix64,
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "./transactions/flow-credit-market/pool-governance/set_insurance_swapper_mock.cdc",
+        [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, MOET_TOKEN_IDENTIFIER],
+        signer
+    )
+    return res
+}
+
+access(all)
+fun removeInsuranceSwapper(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "./transactions/flow-credit-market/pool-governance/remove_insurance_swapper.cdc",
+        [ tokenTypeIdentifier],
+        signer
+    )
+    return res
+}
+
+access(all)
+fun collectInsurance(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    beFailed: Bool
+) {
+    let collectRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/collect_insurance.cdc",
+        [ tokenTypeIdentifier ],
+        signer
+    )
+    Test.expect(collectRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+
+access(all)
+fun setStabilityFeeRate(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    stabilityFeeRate: UFix64
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_stability_fee_rate.cdc",
+        [ tokenTypeIdentifier, stabilityFeeRate ],
+        signer
+    )
+
+    return res
+}
+
+access(all)
+fun collectStability(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/collect_stability.cdc",
+        [ tokenTypeIdentifier ],
+        signer
+    )
+    
+    return res
+}
+
+access(all)
+fun withdrawStabilityFund(
+    signer: Test.TestAccount,
+    tokenTypeIdentifier: String,
+    amount: UFix64,
+    recipient: Address,
+    recipientPath: PublicPath,
+): Test.TransactionResult {
+    let res = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/withdraw_stability_fund.cdc",
+        [tokenTypeIdentifier, amount, recipient, recipientPath],
+        signer
+    )
+    
+    return res
 }
 
 access(all)
@@ -426,6 +597,18 @@ fun setupMoetVault(_ signer: Test.TestAccount, beFailed: Bool) {
 access(all)
 fun mintMoet(signer: Test.TestAccount, to: Address, amount: UFix64, beFailed: Bool) {
     let mintRes = _executeTransaction("../transactions/moet/mint_moet.cdc", [to, amount], signer)
+    Test.expect(mintRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun setupMockYieldTokenVault(_ signer: Test.TestAccount, beFailed: Bool) {
+    let setupRes = _executeTransaction("../transactions/mocks/yieldtoken/setup_vault.cdc", [], signer)
+    Test.expect(setupRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun mintMockYieldToken(signer: Test.TestAccount, to: Address, amount: UFix64, beFailed: Bool) {
+    let mintRes = _executeTransaction("../transactions/mocks/yieldtoken/mint.cdc", [to, amount], signer)
     Test.expect(mintRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
@@ -473,17 +656,15 @@ fun withdrawReserve(
 // Must be called AFTER the pool is created and stored, otherwise publishing will fail the capability check.
 access(all)
 fun grantPoolCapToConsumer() {
-    let protocolAccount = Test.getAccount(0x0000000000000007)
-    let consumerAccount = Test.getAccount(0x0000000000000008)
     // Check pool exists (defensively handle CI ordering). If not, no-op.
-    let existsRes = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [protocolAccount.address])
+    let existsRes = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [PROTOCOL_ACCOUNT.address])
     Test.expect(existsRes, Test.beSucceeded())
     if !(existsRes.returnValue as! Bool) {
         return
     }
 
     // Use in-repo grant transaction that issues EParticipant+EPosition and saves to PoolCapStoragePath
-    let grantRes = grantBeta(protocolAccount, consumerAccount)
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
     Test.expect(grantRes, Test.beSucceeded())
 }
 /* --- Assertion Helpers --- */
@@ -500,16 +681,16 @@ access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct):
 }
 
 access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64): Bool {
-    // return true if expected is within defaultUFixVariance of actual, false otherwise and protect for underflow`
+    // return true if expected is within DEFAULT_UFIX_VARIANCE of actual, false otherwise and protect for underflow`
     let diff = Fix64(expected) - Fix64(actual)
     // take the absolute value of the difference without relying on .abs()
     let absDiff: UFix64 = diff < 0.0 ? UFix64(-1.0 * diff) : UFix64(diff)
-    return absDiff <= defaultUFixVariance
+    return absDiff <= DEFAULT_UFIX_VARIANCE
 }
 
 access(all) fun ufix128EqualWithinVariance(_ expected: UFix128, _ actual: UFix128): Bool {
     let absDiff: UFix128 = expected >= actual ? expected - actual : actual - expected
-    return absDiff <= defaultUFix128Variance
+    return absDiff <= DEFAULT_UFIX128_VARIANCE
 }
 
 /* --- Balance & Timestamp Helpers --- */
