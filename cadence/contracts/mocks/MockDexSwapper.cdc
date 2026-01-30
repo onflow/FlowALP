@@ -33,12 +33,12 @@ access(all) contract MockDexSwapper {
     access(all) fun setMockDEXSwapperForPair(swapper: Swapper) {
         let inType = swapper.inType()
         let outType = swapper.outType()
-        if self.swappers[inType] == nil {
-            self.swappers[inType] = { outType: swapper }
+        let swappersRef = &self.swappers as auth(Mutate) &{Type: {Type: Swapper}}
+        if swappersRef[inType] == nil {
+            swappersRef[inType] = { outType: swapper }
         } else {
-            let swappersForInType = self.swappers[inType]!
+            let swappersForInType = swappersRef[inType]! as! auth(Mutate) &{Type: Swapper}
             swappersForInType[outType] = swapper
-            self.swappers[inType] = swappersForInType
         }
     }
 
