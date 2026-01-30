@@ -107,12 +107,6 @@ fun deployContracts() {
     // grantPoolCapToConsumer() after creating the pool.
 
     // Deploy MockFlowCreditMarketConsumer
-    err = Test.deployContract(
-        name: "MockFlowCreditMarketConsumer",
-        path: "../contracts/mocks/MockFlowCreditMarketConsumer.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
         name: "MockOracle",
@@ -147,6 +141,34 @@ fun deployContracts() {
     err = Test.deployContract(
         name: "MockDexSwapper",
         path: "../contracts/mocks/MockDexSwapper.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowCreditMarketRebalancerV1",
+        path: "../contracts/FlowCreditMarketRebalancerV1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "MockFlowCreditMarketConsumer",
+        path: "../contracts/mocks/MockFlowCreditMarketConsumer.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowCreditMarketRebalancerPaidV1",
+        path: "../contracts/FlowCreditMarketRebalancerPaidV1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+        err = Test.deployContract(
+        name: "SimpleSinkSource",
+        path: "../contracts/mocks/SimpleSinkSource.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -620,6 +642,18 @@ fun transferFlowTokens(to: Test.TestAccount, amount: UFix64) {
         code: Test.readFile("../transactions/flowtoken/transfer_flowtoken.cdc"),
         authorizers: [Test.serviceAccount().address],
         signers: [Test.serviceAccount()],
+        arguments: [to.address, amount]
+    )
+    let res = Test.executeTransaction(transferTx)
+    Test.expect(res, Test.beSucceeded())
+}
+
+access(all)
+fun actuallyTransferFlowTokens(from: Test.TestAccount, to: Test.TestAccount, amount: UFix64) {
+    let transferTx = Test.Transaction(
+        code: Test.readFile("../transactions/flowtoken/transfer_flowtoken.cdc"),
+        authorizers: [from.address],
+        signers: [from],
         arguments: [to.address, amount]
     )
     let res = Test.executeTransaction(transferTx)

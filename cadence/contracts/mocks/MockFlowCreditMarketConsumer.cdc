@@ -2,6 +2,7 @@ import "FungibleToken"
 
 import "DeFiActions"
 import "FlowCreditMarket"
+import "FlowCreditMarketRebalancerV1"
 
 /// THIS CONTRACT IS NOT SAFE FOR PRODUCTION - FOR TEST USE ONLY
 /// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -23,7 +24,7 @@ access(all) contract MockFlowCreditMarketConsumer {
         repaymentSource: {DeFiActions.Source}?,
         pushToDrawDownSink: Bool
     ): @PositionWrapper {
-        let poolCap = self.account.storage.load<Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>>(
+        let poolCap = self.account.storage.load<Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition, FlowCreditMarket.Rebalance) &FlowCreditMarket.Pool>>(
             from: FlowCreditMarket.PoolCapStoragePath
         ) ?? panic("Missing pool capability")
 
@@ -43,7 +44,7 @@ access(all) contract MockFlowCreditMarketConsumer {
     }
 
     /// A simple resource encapsulating a FlowCreditMarket Position
-    access(all) resource PositionWrapper {
+    access(all) resource PositionWrapper : FlowCreditMarketRebalancerV1.Rebalancable {
 
         access(self) let position: FlowCreditMarket.Position
 
@@ -67,6 +68,10 @@ access(all) contract MockFlowCreditMarketConsumer {
 
         access(all) fun borrowPositionForWithdraw(): auth(FungibleToken.Withdraw) &FlowCreditMarket.Position {
             return &self.position
+        }
+
+        access(FlowCreditMarket.Rebalance) fun rebalance(force: Bool) {
+            self.position.rebalance(force: force)
         }
     }
 

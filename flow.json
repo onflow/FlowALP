@@ -28,8 +28,26 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"FlowCreditMarketRebalancerV1": {
+			"source": "./cadence/contracts/FlowCreditMarketRebalancerV1.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"FlowCreditMarketRebalancerPaidV1": {
+			"source": "./cadence/contracts/FlowCreditMarketRebalancerPaidV1.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"FlowCreditMarketMath": {
 			"source": "./cadence/lib/FlowCreditMarketMath.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"SimpleSinkSource": {
+			"source": "./cadence/contracts/mocks/SimpleSinkSource.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
