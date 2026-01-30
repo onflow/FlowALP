@@ -1486,7 +1486,11 @@ access(all) contract FlowCreditMarket {
         /// TODO: unused! To remove, must re-deploy existing contracts
         access(self) var dexMaxRouteHops: UInt64
 
-        init(defaultToken: Type, priceOracle: {DeFiActions.PriceOracle}, dex: {DeFiActions.SwapperProvider}) {
+        init(
+        	defaultToken: Type,
+        	priceOracle: {DeFiActions.PriceOracle},
+        	dex: {DeFiActions.SwapperProvider}
+        ) {
             pre {
                 priceOracle.unitOfAccount() == defaultToken:
                     "Price oracle must return prices in terms of the default token"
@@ -1917,12 +1921,8 @@ access(all) contract FlowCreditMarket {
         /// @param debtType: The debt token type to swap to
         /// @return The swapper for the given token pair
         access(self) fun _getSwapperForLiquidation(seizeType: Type, debtType: Type): {DeFiActions.Swapper} {
-            let swapper = self.dex.getSwapper(inType: seizeType, outType: debtType)
-            assert(
-                swapper != nil,
-                message: "No DEX swapper configured for liquidation pair: \(seizeType.identifier) -> \(debtType.identifier)"
-            )
-            return swapper!
+            return self.dex.getSwapper(inType: seizeType, outType: debtType)
+                ?? panic("No DEX swapper configured for liquidation pair: \(seizeType.identifier) -> \(debtType.identifier)")
         }
 
         /// Internal liquidation function which performs a liquidation.
@@ -3653,12 +3653,20 @@ access(all) contract FlowCreditMarket {
     ///
     access(all) resource PoolFactory {
         /// Creates the contract-managed Pool and saves it to the canonical path, reverting if one is already stored
-        access(all) fun createPool(defaultToken: Type, priceOracle: {DeFiActions.PriceOracle}, dex: {DeFiActions.SwapperProvider}) {
+        access(all) fun createPool(
+        	defaultToken: Type,
+        	priceOracle: {DeFiActions.PriceOracle},
+        	dex: {DeFiActions.SwapperProvider}
+        ) {
             pre {
                 FlowCreditMarket.account.storage.type(at: FlowCreditMarket.PoolStoragePath) == nil:
                     "Storage collision - Pool has already been created & saved to \(FlowCreditMarket.PoolStoragePath)"
             }
-            let pool <- create Pool(defaultToken: defaultToken, priceOracle: priceOracle, dex: dex)
+            let pool <- create Pool(
+            	defaultToken: defaultToken,
+            	priceOracle: priceOracle,
+            	dex: dex
+            )
             FlowCreditMarket.account.storage.save(<-pool, to: FlowCreditMarket.PoolStoragePath)
             let cap = FlowCreditMarket.account.capabilities.storage.issue<&Pool>(FlowCreditMarket.PoolStoragePath)
             FlowCreditMarket.account.capabilities.unpublish(FlowCreditMarket.PoolPublicPath)
