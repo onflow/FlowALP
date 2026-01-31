@@ -8,7 +8,7 @@ import "FlowCreditMarket"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
-/// Opens a Position using the public participant capability (no beta grant required)
+/// Opens a Position using the public participant capability
 /// and stores it directly in the user's PositionManager
 ///
 transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
@@ -62,14 +62,14 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     }
 
     execute {
-        // Borrow public Pool reference (no beta grant required)
+        // Borrow public Pool reference
         let protocolAddress = Type<@FlowCreditMarket.Pool>().address!
         let poolRef = getAccount(protocolAddress)
             .capabilities.borrow<&FlowCreditMarket.Pool>(
                 FlowCreditMarket.PoolPublicPath
             ) ?? panic("Could not borrow Pool public capability")
 
-        // Create position - createPosition is now access(all) so can be called through public capability
+        // Create position
         let position <- poolRef.createPosition(
             funds: <-self.collateral,
             issuanceSink: self.sink,
@@ -86,8 +86,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
             self.account.storage.save(<-manager, to: FlowCreditMarket.PositionStoragePath)
 
             // Issue and publish capabilities for the PositionManager
-            let depositCap = self.account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionDeposit) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
-            let withdrawCap = self.account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
+            let withdrawCap = self.account.capabilities.storage.issue<auth(FungibleToken.Withdraw) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
             let manageCap = self.account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionManage) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
             let readCap = self.account.capabilities.storage.issue<&FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
 

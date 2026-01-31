@@ -175,11 +175,9 @@ access(all) contract FlowCreditMarket {
     access(all) entitlement EImplementation
     access(all) entitlement EParticipant
 
-    // Position-specific entitlements for fine-grained access control
-    access(all) entitlement EPositionDeposit
-    access(all) entitlement EPositionWithdraw
+    /// Grants access to configure drawdown sinks, top-up sources, and other position settings, for the Position resource.
+    /// Withdrawal access is provided using FungibleToken.Withdraw.
     access(all) entitlement EPositionManage
-    access(all) entitlement EpositionAdmin
 
     /* --- NUMERIC TYPES POLICY ---
         - External/public APIs (Vault amounts, deposits/withdrawals, events) use UFix64.
@@ -2528,8 +2526,6 @@ access(all) contract FlowCreditMarket {
         ///
         /// Returns a Position resource that provides fine-grained access control through entitlements.
         /// The caller must store the Position resource in their account and manage it appropriately.
-        ///
-        /// This function is publicly accessible, allowing anyone to create positions without beta grants.
         access(all) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DeFiActions.Sink},
@@ -3759,9 +3755,9 @@ access(all) contract FlowCreditMarket {
             return UFix64.max
         }
 
-        /// Deposits funds to the Position without pushing to the drawDownSink
-        /// if the deposit puts the Position above its maximum health
-        access(EPositionDeposit) fun deposit(from: @{FungibleToken.Vault}) {
+        /// Deposits funds to the Position without immediately pushing to the drawDownSink if the deposit puts the Position above its maximum health.
+        /// NOTE: Anyone is allowed to deposit to any position.
+        access(all) fun deposit(from: @{FungibleToken.Vault}) {
             self.depositAndPush(
                 from: <-from,
                 pushToDrawDownSink: false
@@ -3770,7 +3766,8 @@ access(all) contract FlowCreditMarket {
 
         /// Deposits funds to the Position enabling the caller to configure whether excess value
         /// should be pushed to the drawDownSink if the deposit puts the Position above its maximum health
-        access(EPositionDeposit) fun depositAndPush(
+        /// NOTE: Anyone is allowed to deposit to any position.
+        access(all) fun depositAndPush(
             from: @{FungibleToken.Vault},
             pushToDrawDownSink: Bool
         ) {
@@ -3784,7 +3781,7 @@ access(all) contract FlowCreditMarket {
 
         /// Withdraws funds from the Position without pulling from the topUpSource
         /// if the deposit puts the Position below its minimum health
-        access(EPositionWithdraw) fun withdraw(type: Type, amount: UFix64): @{FungibleToken.Vault} {
+        access(FungibleToken.Withdraw) fun withdraw(type: Type, amount: UFix64): @{FungibleToken.Vault} {
             return <- self.withdrawAndPull(
                 type: type,
                 amount: amount,
@@ -3794,7 +3791,7 @@ access(all) contract FlowCreditMarket {
 
         /// Withdraws funds from the Position enabling the caller to configure whether insufficient value
         /// should be pulled from the topUpSource if the deposit puts the Position below its minimum health
-        access(EPositionWithdraw) fun withdrawAndPull(
+        access(FungibleToken.Withdraw) fun withdrawAndPull(
             type: Type,
             amount: UFix64,
             pullFromTopUpSource: Bool
@@ -3844,7 +3841,7 @@ access(all) contract FlowCreditMarket {
         ///
         /// Note that calling this method multiple times will create multiple sources,
         /// each of which will continue to work regardless of how many other sources have been created.
-        access(EPositionWithdraw) fun createSource(type: Type): {DeFiActions.Source} {
+        access(FungibleToken.Withdraw) fun createSource(type: Type): {DeFiActions.Source} {
             // Create enhanced source with pullFromTopUpSource = true
             return self.createSourceWithOptions(
                 type: type,
@@ -3857,7 +3854,7 @@ access(all) contract FlowCreditMarket {
         ///
         /// Note that calling this method multiple times will create multiple sources,
         /// each of which will continue to work regardless of how many other sources have been created.
-        access(EPositionWithdraw) fun createSourceWithOptions(
+        access(FungibleToken.Withdraw) fun createSourceWithOptions(
             type: Type,
             pullFromTopUpSource: Bool
         ): {DeFiActions.Source} {
@@ -3939,8 +3936,8 @@ access(all) contract FlowCreditMarket {
 
         /// Internal method that returns a reference to a position authorized with all entitlements.
         /// Callers who wish to provide a partially authorized reference can downcast the result as needed.
-        access(all) fun borrowAuthorizedPosition(pid: UInt64): auth(EPositionDeposit, EPositionWithdraw, EPositionManage) &Position {
-            return (&self.positions[pid] as auth(EPositionDeposit, EPositionWithdraw, EPositionManage) &Position?)
+        access(all) fun borrowAuthorizedPosition(pid: UInt64): auth(FungibleToken.Withdraw, EPositionManage) &Position {
+            return (&self.positions[pid] as auth(FungibleToken.Withdraw, EPositionManage) &Position?)
                 ?? panic("Position with pid=\(pid) not found in PositionManager")
         }
 
@@ -4277,9 +4274,8 @@ access(all) contract FlowCreditMarket {
         self.PoolPublicPath = PublicPath(identifier: "flowCreditMarketPool_\(self.account.address)")!
         self.PoolCapStoragePath = StoragePath(identifier: "flowCreditMarketPoolCap_\(self.account.address)")!
 
-        // PositionManager storage paths (CamelCase, no pid)
-        self.PositionStoragePath = /storage/FlowCreditMarketPosition
-        self.PositionPublicPath = /public/FlowCreditMarketPositionPublic
+        self.PositionStoragePath = StoragePath(identifier: "flowCreditMarketPosition_\(self.account.address)")!
+        self.PositionPublicPath = PublicPath(identifier: "flowCreditMarketPosition_\(self.account.address)")!
 
         // save PoolFactory in storage
         self.account.storage.save(

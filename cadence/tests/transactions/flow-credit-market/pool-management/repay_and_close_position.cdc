@@ -17,13 +17,13 @@ import "MOET"
 
 transaction(positionId: UInt64) {
 
-    let position: auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.Position
+    let position: auth(FungibleToken.Withdraw) &FlowCreditMarket.Position
     let receiverRef: &{FungibleToken.Receiver}
     let moetWithdrawRef: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
 
     prepare(borrower: auth(BorrowValue) &Account) {
         // Borrow the PositionManager from constant storage path
-        let manager = borrower.storage.borrow<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.PositionManager>(
+        let manager = borrower.storage.borrow<auth(FungibleToken.Withdraw) &FlowCreditMarket.PositionManager>(
             from: FlowCreditMarket.PositionStoragePath
         ) ?? panic("Could not find PositionManager in storage")
 

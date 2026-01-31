@@ -12,13 +12,13 @@ transaction(
     tokenTypeIdentifier: String,
     amount: UFix64
 ) {
-    let position: auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.Position
+    let position: auth(FungibleToken.Withdraw) &FlowCreditMarket.Position
     let tokenType: Type
     let receiverVault: &{FungibleToken.Receiver}
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
         // Borrow the PositionManager from constant storage path
-        let manager = signer.storage.borrow<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.PositionManager>(
+        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw) &FlowCreditMarket.PositionManager>(
                 from: FlowCreditMarket.PositionStoragePath
             )
             ?? panic("Could not find PositionManager in signer's storage")

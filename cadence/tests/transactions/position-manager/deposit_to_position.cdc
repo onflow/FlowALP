@@ -13,8 +13,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
 
     // the funds that will be used as collateral for a FlowCreditMarket loan
     let collateral: @{FungibleToken.Vault}
-    // the position to deposit to (requires EPositionDeposit entitlement)
-    let position: auth(FlowCreditMarket.EPositionDeposit) &FlowCreditMarket.Position
+    let position: &FlowCreditMarket.Position
     let pushToDrawDownSink: Bool
 
     prepare(signer: auth(BorrowValue) &Account) {
@@ -24,7 +23,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         self.collateral <- collateralSource.withdraw(amount: amount)
 
         // Borrow the PositionManager from constant storage path
-        let manager = signer.storage.borrow<auth(FlowCreditMarket.EPositionDeposit) &FlowCreditMarket.PositionManager>(
+        let manager = signer.storage.borrow<&FlowCreditMarket.PositionManager>(
                 from: FlowCreditMarket.PositionStoragePath
             )
             ?? panic("Could not find PositionManager in signer's storage")
@@ -36,8 +35,8 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         }
         let positionId = positionIDs[0]
 
-        // Borrow the position with deposit entitlement
-        self.position = manager.borrowAuthorizedPosition(pid: positionId)
+        // Borrow the position
+        self.position = manager.borrowPosition(pid: positionId)
         self.pushToDrawDownSink = pushToDrawDownSink
     }
 
