@@ -2528,7 +2528,9 @@ access(all) contract FlowCreditMarket {
         ///
         /// Returns a Position resource that provides fine-grained access control through entitlements.
         /// The caller must store the Position resource in their account and manage it appropriately.
-        access(EParticipant) fun createPosition(
+        ///
+        /// This function is publicly accessible, allowing anyone to create positions without beta grants.
+        access(all) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DeFiActions.Sink},
             repaymentSource: {DeFiActions.Source}?,
@@ -2572,22 +2574,6 @@ access(all) contract FlowCreditMarket {
 
             // Create and return the Position resource
             return <- create Position(id: id, pool: poolCap)
-        }
-
-        /// Public wrapper for createPosition that allows anyone to create a position.
-        /// This provides public access to position creation without requiring beta grants.
-        access(all) fun createPositionPublic(
-            funds: @{FungibleToken.Vault},
-            issuanceSink: {DeFiActions.Sink},
-            repaymentSource: {DeFiActions.Source}?,
-            pushToDrawDownSink: Bool
-        ): @Position {
-            return <- self.createPosition(
-                funds: <-funds,
-                issuanceSink: issuanceSink,
-                repaymentSource: repaymentSource,
-                pushToDrawDownSink: pushToDrawDownSink
-            )
         }
 
         /// Allows anyone to deposit funds into any position.

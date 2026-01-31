@@ -69,8 +69,8 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
                 FlowCreditMarket.PoolPublicPath
             ) ?? panic("Could not borrow Pool public capability")
 
-        // Create position using public wrapper function
-        let position <- poolRef.createPositionPublic(
+        // Create position - createPosition is now access(all) so can be called through public capability
+        let position <- poolRef.createPosition(
             funds: <-self.collateral,
             issuanceSink: self.sink,
             repaymentSource: self.source,
