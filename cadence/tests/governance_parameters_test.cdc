@@ -37,9 +37,8 @@ fun test_setGovernanceParams_and_exercise_paths() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 200.0, beFailed: false)
 
     // Open minimal position and deposit to ensure token has credit balance
-    grantPoolCapToConsumer()
     let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
         [50.0, MOET.VaultStoragePath, false],
         user
     )
@@ -60,7 +59,7 @@ fun test_setGovernanceParams_and_exercise_paths() {
     // Deposit a large amount to force queuing path
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 1000.0, beFailed: false)
     let depositRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/deposit_to_wrapped_position.cdc",
+        "./transactions/position-manager/deposit_to_position.cdc",
         [500.0, MOET.VaultStoragePath, false],
         user
     )

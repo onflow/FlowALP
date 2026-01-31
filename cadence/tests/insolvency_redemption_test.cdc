@@ -22,7 +22,6 @@ fun setup() {
 
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
     createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
-    grantPoolCapToConsumer()
     addSupportedTokenZeroRateCurve(
         signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
@@ -47,7 +46,7 @@ fun test_borrower_full_redemption_insolvency() {
 
     // Open wrapped position and deposit Flow as collateral
     let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
         [1000.0, /storage/flowTokenVault, true],
         borrower
     )

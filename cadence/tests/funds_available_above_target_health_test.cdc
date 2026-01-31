@@ -83,7 +83,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, true],
         userAccount
     )
@@ -160,7 +160,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
@@ -232,7 +232,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )

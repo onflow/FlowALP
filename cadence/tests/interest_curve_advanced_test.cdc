@@ -6,7 +6,6 @@ import "FlowToken"
 import "FlowCreditMarket"
 import "FlowCreditMarketMath"
 import "test_helpers.cdc"
-import "MockFlowCreditMarketConsumer"
 
 // =============================================================================
 // Advanced Interest Curve Tests
@@ -26,9 +25,6 @@ access(all) var snapshotAfterTest1: UInt64 = 0
 access(all)
 fun setup() {
     deployContracts()
-
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-    Test.expect(betaTxResult, Test.beSucceeded())
 
     snapshot = getCurrentBlockHeight()
 }
@@ -100,7 +96,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // The `false` parameter = not auto-borrowing, just supplying liquidity.
     // This creates position ID 0 (first position in the pool).
     let createLpPosRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
         [100_000.0, MOET.VaultStoragePath, false],
         lp
     )
@@ -154,7 +150,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // With 10,000 FLOW × 0.8 collateralFactor / 1.3 healthFactor ≈ 6153.85 MOET borrowed.
     // This creates position ID 1 (second position in the pool).
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
         [10_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )

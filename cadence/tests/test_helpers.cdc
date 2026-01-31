@@ -104,15 +104,6 @@ fun deployContracts() {
 
     // NOTE: Do not publish beta capability here; some tests create the Pool later and
     // publishing before pool creation will fail. Tests that need the cap should call
-    // grantPoolCapToConsumer() after creating the pool.
-
-    // Deploy MockFlowCreditMarketConsumer
-    err = Test.deployContract(
-        name: "MockFlowCreditMarketConsumer",
-        path: "../contracts/mocks/MockFlowCreditMarketConsumer.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
         name: "MockOracle",
@@ -397,7 +388,7 @@ fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: Strin
 access(all)
 fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
         [amount, vaultStoragePath, pushToDrawDownSink],
         signer
     )
@@ -407,7 +398,7 @@ fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStorage
 access(all)
 fun depositToWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     let depositRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/deposit_to_wrapped_position.cdc",
+        "./transactions/position-manager/deposit_to_position.cdc",
         [amount, vaultStoragePath, pushToDrawDownSink],
         signer
     )
@@ -417,7 +408,7 @@ fun depositToWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStor
 access(all)
 fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, beFailed: Bool) {
     let borrowRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
+        "./transactions/position-manager/borrow_from_position.cdc",
         [positionId, tokenTypeIdentifier, amount],
         signer
     )
@@ -650,23 +641,6 @@ fun withdrawReserve(
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
-/* --- Capability Helpers --- */
-
-// Grants the Pool capability with EParticipant and EPosition entitlements to the MockFlowCreditMarketConsumer account (0x8)
-// Must be called AFTER the pool is created and stored, otherwise publishing will fail the capability check.
-access(all)
-fun grantPoolCapToConsumer() {
-    // Check pool exists (defensively handle CI ordering). If not, no-op.
-    let existsRes = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [PROTOCOL_ACCOUNT.address])
-    Test.expect(existsRes, Test.beSucceeded())
-    if !(existsRes.returnValue as! Bool) {
-        return
-    }
-
-    // Use in-repo grant transaction that issues EParticipant+EPosition and saves to PoolCapStoragePath
-    let grantRes = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-    Test.expect(grantRes, Test.beSucceeded())
-}
 /* --- Assertion Helpers --- */
 
 access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct): Bool {

@@ -41,7 +41,7 @@ fun testZeroDebtFullWithdrawalAvailable() {
 
     // 4. open position WITHOUT auto-borrow (pushToDrawDownSink = false)
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, false],
         user
     )

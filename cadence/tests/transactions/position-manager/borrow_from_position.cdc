@@ -1,7 +1,6 @@
 import "FungibleToken"
 import "FlowToken"
 import "FlowCreditMarket"
-import "MockFlowCreditMarketConsumer"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///

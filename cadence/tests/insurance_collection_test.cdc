@@ -47,7 +47,6 @@ fun test_collectInsurance_noInsuranceRate_returnsNil() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 1000.0, beFailed: false)
 
     // create position
-    grantPoolCapToConsumer()
     createWrappedPosition(signer: user, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // verify no swapper
@@ -110,7 +109,6 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 1000.0, beFailed: false)
-    grantPoolCapToConsumer()
 
     // LP deposits 1000 MOET (creates credit balance, provides borrowing liquidity)
     createWrappedPosition(signer: lp, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
@@ -174,7 +172,6 @@ fun test_collectInsurance_tinyAmount_roundsToZero_returnsNil() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 1.0, beFailed: false)
 
     // create position with tiny deposit
-    grantPoolCapToConsumer()
     createWrappedPosition(signer: user, amount: 0.00000001, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup protocol account with MOET vault for the swapper
@@ -216,7 +213,6 @@ fun test_collectInsurance_success_fullAmount() {
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10000.0, beFailed: false)
 
-    grantPoolCapToConsumer()
     // LP deposits MOET (creates credit balance, provides borrowing liquidity)
     createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
@@ -285,7 +281,6 @@ fun test_collectInsurance_multipleTokens() {
     setupMoetVault(moetLp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: moetLp.address, amount: 10000.0, beFailed: false)
 
-    grantPoolCapToConsumer()
     // MOET LP deposits MOET (creates MOET credit balance)
     createWrappedPosition(signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 

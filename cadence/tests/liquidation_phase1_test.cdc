@@ -24,7 +24,6 @@ fun setup() {
 
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
     createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
-    grantPoolCapToConsumer()
     addSupportedTokenZeroRateCurve(
         signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,

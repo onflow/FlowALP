@@ -4,7 +4,6 @@ import "FungibleTokenConnectors"
 
 import "MOET"
 import "FlowCreditMarket"
-import "MockFlowCreditMarketConsumer"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///

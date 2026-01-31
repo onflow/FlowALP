@@ -4,7 +4,6 @@ import BlockchainHelpers
 import "MOET"
 import "FlowCreditMarket"
 import "test_helpers.cdc"
-import "MockFlowCreditMarketConsumer"
 
 // -----------------------------------------------------------------------------
 // Position Lifecycle Happy Path Test
@@ -15,10 +14,6 @@ access(all) var snapshot: UInt64 = 0
 access(all)
 fun setup() {
     deployContracts()
-
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-
-    Test.expect(betaTxResult, Test.beSucceeded())
 
     snapshot = getCurrentBlockHeight()
 }
@@ -52,7 +47,7 @@ fun testPositionLifecycleHappyPath() {
 
     // open wrapped position (pushToDrawDownSink)
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )

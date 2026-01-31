@@ -4,13 +4,12 @@ import "DeFiActions"
 import "FungibleTokenConnectors"
 
 import "MOET"
-import "MockFlowCreditMarketConsumer"
 import "FlowCreditMarket"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
-/// Opens a Position with the amount of funds sourced from the Vault at the provided StoragePath
-/// and stores it directly in the user's account
+/// Opens a Position using the public participant capability (no beta grant required)
+/// and stores it directly in the user's PositionManager
 ///
 transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
 
@@ -63,14 +62,44 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     }
 
     execute {
-        // Create and store the position in the PositionManager
-        let pid = MockFlowCreditMarketConsumer.createAndStorePosition(
-            account: self.account,
-            collateral: <-self.collateral,
+        // Borrow public Pool reference (no beta grant required)
+        let protocolAddress = Type<@FlowCreditMarket.Pool>().address!
+        let poolRef = getAccount(protocolAddress)
+            .capabilities.borrow<&FlowCreditMarket.Pool>(
+                FlowCreditMarket.PoolPublicPath
+            ) ?? panic("Could not borrow Pool public capability")
+
+        // Create position using public wrapper function
+        let position <- poolRef.createPositionPublic(
+            funds: <-self.collateral,
             issuanceSink: self.sink,
             repaymentSource: self.source,
             pushToDrawDownSink: pushToDrawDownSink
         )
+
+        let pid = position.id
+
+        // Get or create PositionManager at constant path
+        if self.account.storage.borrow<&FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath) == nil {
+            // Create new PositionManager if it doesn't exist
+            let manager <- FlowCreditMarket.createPositionManager()
+            self.account.storage.save(<-manager, to: FlowCreditMarket.PositionStoragePath)
+
+            // Issue and publish capabilities for the PositionManager
+            let depositCap = self.account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionDeposit) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
+            let withdrawCap = self.account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionWithdraw) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
+            let manageCap = self.account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionManage) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
+            let readCap = self.account.capabilities.storage.issue<&FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
+
+            // Publish read-only capability publicly
+            self.account.capabilities.publish(readCap, at: FlowCreditMarket.PositionPublicPath)
+        }
+
+        // Add position to the manager
+        let manager = self.account.storage.borrow<&FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath)
+            ?? panic("PositionManager not found")
+        manager.addPosition(position: <-position)
+
         // Position is now stored in PositionManager at FlowCreditMarket.PositionStoragePath
         log("Created and stored Position with ID: ".concat(pid.toString()))
     }
