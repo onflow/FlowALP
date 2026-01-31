@@ -1,4 +1,5 @@
 import Test
+import "FlowToken"
 import "FlowCreditMarket"
 import "FlowCreditMarketMath"
 import "test_helpers.cdc"
@@ -152,6 +153,7 @@ fun test_TokenState_with_FixedRateInterestCurve() {
     // Create a TokenState with a fixed rate curve
     let fixedCurve = FlowCreditMarket.FixedRateInterestCurve(yearlyRate: 0.10)
     var tokenState = FlowCreditMarket.TokenState(
+        tokenType: Type<@FlowToken.Vault>(),
         interestCurve: fixedCurve,
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
@@ -167,11 +169,12 @@ fun test_TokenState_with_FixedRateInterestCurve() {
     Test.assertEqual(expectedDebitRate, tokenState.currentDebitRate)
 
     // For FixedRateInterestCurve, credit rate uses the SPREAD MODEL:
-    // creditRate = debitRate - insuranceRate (independent of utilization)
-    let debitRate: UFix128 = 0.10
-    let insuranceRate = UFix128(tokenState.insuranceRate)
-    let expectedCreditYearly = debitRate - insuranceRate  // 0.10 - 0.001 = 0.099
-    let expectedCreditRate = FlowCreditMarket.perSecondInterestRate(yearlyRate: expectedCreditYearly)
+    // creditRate = debitRate * (1 - protocolFeeRate)
+    // where protocolFeeRate = insuranceRate + stabilityFeeRate
+    // debitRate = 0.10
+    // protocolFeeRate = 0.0 + 0.05 = 0.05 (default insuranceRate = 0.0, default stabilityFeeRate = 0.05)
+    // creditYearly = 0.10 * (1 - 0.05) = 0.095
+    let expectedCreditRate = FlowCreditMarket.perSecondInterestRate(yearlyRate: 0.095)
     Test.assertEqual(expectedCreditRate, tokenState.currentCreditRate)
 }
 
@@ -185,6 +188,7 @@ fun test_TokenState_with_KinkInterestCurve() {
         slope2: 0.50
     )
     var tokenState = FlowCreditMarket.TokenState(
+        tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
@@ -214,6 +218,7 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
         slope2: 0.50
     )
     var tokenState = FlowCreditMarket.TokenState(
+        tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
         depositCapacityCap: 1_000.0

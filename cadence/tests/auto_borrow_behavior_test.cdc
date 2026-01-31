@@ -5,17 +5,11 @@ import "MOET"
 import "FlowCreditMarket"
 import "test_helpers.cdc"
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) let moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
-access(all) let flowVaultStoragePath = /storage/flowTokenVault
-
 access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
+    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
 
     Test.expect(betaTxResult, Test.beSucceeded())
 }
@@ -27,15 +21,15 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     // the system should automatically borrow ~615.38 MOET
     
     let initialPrice = 1.0
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: initialPrice)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: moetTokenIdentifier, price: initialPrice)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: initialPrice)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: MOET_TOKEN_IDENTIFIER, price: initialPrice)
 
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     
     // Add Flow token support with collateralFactor=0.8
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,  // This means only 80% of Flow value can be used as collateral
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -52,7 +46,7 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     // Create position with pushToDrawDownSink=true to trigger auto-rebalancing
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1_000.0, flowVaultStoragePath, true],  // pushToDrawDownSink=true triggers auto-borrow
+        [1_000.0, FLOW_VAULT_STORAGE_PATH, true],  // pushToDrawDownSink=true triggers auto-borrow
         user
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -86,8 +80,8 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     
     // Verify position health is at target
     let health = getPositionHealth(pid: 0, beFailed: false)
-    Test.assert(equalWithinVariance(intTargetHealth, health),
-        message: "Expected health to be \(intTargetHealth), but got \(health)")
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health),
+        message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)")
 
     // Verify the user actually received the borrowed MOET in their Vault (draw-down sink)
     let userMoetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
@@ -113,7 +107,7 @@ fun testNoAutoBorrowWhenPushToDrawDownSinkFalse() {
     // Create position with pushToDrawDownSink=false to prevent auto-rebalancing
     let openRes = executeTransaction(
         "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1_000.0, flowVaultStoragePath, false],  // pushToDrawDownSink=false prevents auto-borrow
+        [1_000.0, FLOW_VAULT_STORAGE_PATH, false],  // pushToDrawDownSink=false prevents auto-borrow
         user
     )
     Test.expect(openRes, Test.beSucceeded())
