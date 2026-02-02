@@ -388,7 +388,7 @@ fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: Strin
 access(all)
 fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     let openRes = _executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [amount, vaultStoragePath, pushToDrawDownSink],
         signer
     )

@@ -45,7 +45,7 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
 
     // Create position with pushToDrawDownSink=true to trigger auto-rebalancing
     let openRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],  // pushToDrawDownSink=true triggers auto-borrow
         user
     )
@@ -106,7 +106,7 @@ fun testNoAutoBorrowWhenPushToDrawDownSinkFalse() {
 
     // Create position with pushToDrawDownSink=false to prevent auto-rebalancing
     let openRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, false],  // pushToDrawDownSink=false prevents auto-borrow
         user
     )

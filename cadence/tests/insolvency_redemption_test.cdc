@@ -46,7 +46,7 @@ fun test_borrower_full_redemption_insolvency() {
 
     // Open wrapped position and deposit Flow as collateral
     let openRes = _executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [1000.0, /storage/flowTokenVault, true],
         borrower
     )
@@ -73,7 +73,7 @@ fun test_borrower_full_redemption_insolvency() {
     // Execute borrower redemption: repay MOET (pulled from topUpSource) and withdraw Flow up to availableBalance
     // Note: use the helper tx which withdraws availableBalance with pullFromTopUpSource=true
     let closeRes = _executeTransaction(
-        "./transactions/flow-credit-market/pool-management/repay_and_close_position.cdc",
+        "../transactions/flow-credit-market/position/repay_and_close_position.cdc",
         [pid],
         borrower
     )

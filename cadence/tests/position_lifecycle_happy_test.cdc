@@ -47,7 +47,7 @@ fun testPositionLifecycleHappyPath() {
 
     // open wrapped position (pushToDrawDownSink)
     let openRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
@@ -73,7 +73,7 @@ fun testPositionLifecycleHappyPath() {
     // The first position created has ID 0
     let positionId: UInt64 = 0
     let repayRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/repay_and_close_position.cdc",
+        "../transactions/flow-credit-market/position/repay_and_close_position.cdc",
         [positionId],
         user
     )

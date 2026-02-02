@@ -154,7 +154,7 @@ fun test_moet_debit_accrues_interest() {
     // Create LP's position (ID = 0) by depositing MOET.
     // The `false` parameter means no auto-borrow - LP is just supplying liquidity.
     let createLpPosRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         liquidityProvider
     )
@@ -205,7 +205,7 @@ fun test_moet_debit_accrues_interest() {
 
     // Create borrower's position (ID = 1) with auto-borrow enabled (`true`).
     let openRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )
@@ -390,7 +390,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
 
     // Create LP's position (ID = 0) with MOET deposit
     let createLpPosRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         lp
     )
@@ -438,7 +438,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     // Borrower deposits FLOW collateral and auto-borrows MOET
     // This creates utilization in the MOET pool
     let openRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [10_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )
@@ -573,7 +573,7 @@ fun test_flow_debit_accrues_interest() {
 
     // Create LP's position (ID = 0) with Flow deposit
     let createLpPosRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [10_000.0, FLOW_VAULT_STORAGE_PATH, false],
         flowLp
     )
@@ -623,7 +623,7 @@ fun test_flow_debit_accrues_interest() {
 
     // Step 5a: Create position with MOET collateral (no auto-borrow)
     let createPosRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         borrower
     )
@@ -771,7 +771,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
 
     // Create LP's position (ID = 0) with Flow deposit
     let createLpPosRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [10_000.0, FLOW_VAULT_STORAGE_PATH, false],
         flowLp
     )
@@ -816,7 +816,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
 
     // Create position with MOET collateral
     let createPosRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         borrower
     )
@@ -959,7 +959,7 @@ fun test_insurance_deduction_verification() {
     Test.expect(lpBetaRes, Test.beSucceeded())
 
     let createLpPosRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         lp
     )
@@ -1007,7 +1007,7 @@ fun test_insurance_deduction_verification() {
     Test.expect(borrowerBetaRes, Test.beSucceeded())
 
     let openRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [10_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )
@@ -1153,7 +1153,7 @@ fun test_combined_all_interest_scenarios() {
     Test.expect(lp1Beta, Test.beSucceeded())
 
     let lp1Res = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         moetLp
     )
@@ -1172,7 +1172,7 @@ fun test_combined_all_interest_scenarios() {
     Test.expect(lp2Beta, Test.beSucceeded())
 
     let lp2Res = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [5_000.0, FLOW_VAULT_STORAGE_PATH, false],
         flowLp
     )
@@ -1229,7 +1229,7 @@ fun test_combined_all_interest_scenarios() {
     Test.expect(b1Beta, Test.beSucceeded())
 
     let b1Res = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [2_000.0, FLOW_VAULT_STORAGE_PATH, true],  // auto-borrow MOET
         borrower1
     )
@@ -1251,7 +1251,7 @@ fun test_combined_all_interest_scenarios() {
     Test.expect(b2Beta, Test.beSucceeded())
 
     let b2PosRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [3_000.0, MOET.VaultStoragePath, false],
         borrower2
     )

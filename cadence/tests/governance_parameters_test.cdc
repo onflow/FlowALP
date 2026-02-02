@@ -38,7 +38,7 @@ fun test_setGovernanceParams_and_exercise_paths() {
 
     // Open minimal position and deposit to ensure token has credit balance
     let openRes = _executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [50.0, MOET.VaultStoragePath, false],
         user
     )

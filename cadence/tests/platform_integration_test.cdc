@@ -71,7 +71,7 @@ fun testCreateUserPositionSucceeds() {
     getAvailableBalance(pid: 0, vaultIdentifier: MOET_TOKEN_IDENTIFIER, pullFromTopUpSource: false, beFailed: true)
     
     // open the position & push to drawDownSink - forces MOET to downstream test sink which is user's MOET Vault
-    let res = executeTransaction("./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+    let res = executeTransaction("../transactions/flow-credit-market/position/create_position.cdc",
             [collateralAmount, FLOW_VAULT_STORAGE_PATH, true], // amount, vaultStoragePath, pushToDrawDownSink
             user
         )
@@ -115,7 +115,7 @@ fun testUndercollateralizedPositionRebalanceSucceeds() {
     mintFlow(to: user, amount: collateralAmount)
 
     // open the position & push to drawDownSink - forces MOET to downstream test sink which is user's MOET Vault
-    let res = executeTransaction("./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+    let res = executeTransaction("../transactions/flow-credit-market/position/create_position.cdc",
             [collateralAmount, FLOW_VAULT_STORAGE_PATH, true], // amount, vaultStoragePath, pushToDrawDownSink
             user
         )
@@ -179,7 +179,7 @@ fun testOvercollateralizedPositionRebalanceSucceeds() {
     mintFlow(to: user, amount: collateralAmount)
 
     // open the position & push to drawDownSink - forces MOET to downstream test sink which is user's MOET Vault
-    let res = executeTransaction("./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+    let res = executeTransaction("../transactions/flow-credit-market/position/create_position.cdc",
             [collateralAmount, FLOW_VAULT_STORAGE_PATH, true], // amount, vaultStoragePath, pushToDrawDownSink
             user
         )

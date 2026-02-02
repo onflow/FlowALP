@@ -41,7 +41,7 @@ fun testRebalanceOvercollateralised() {
     mintFlow(to: user, amount: 1_000.0)
 
     let openRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/create_position_public.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
