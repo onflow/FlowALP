@@ -3914,7 +3914,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Adds a new position to the manager.
-        access(all) fun addPosition(position: @Position) {
+        access(EPositionManage) fun addPosition(position: @Position) {
             let pid = position.id
             let old <- self.positions[pid] <- position
             if old != nil {
@@ -3924,23 +3924,23 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Removes and returns a position from the manager.
-        access(all) fun removePosition(pid: UInt64): @Position {
+        access(EPositionManage) fun removePosition(pid: UInt64): @Position {
             if let position <- self.positions.remove(key: pid) {
                 return <-position
             }
             panic("Position with pid=\(pid) not found in PositionManager")
         }
 
-        /// Returns a public reference to a position with no entitlements.
-        access(all) fun borrowPosition(pid: UInt64): &Position {
-            return (&self.positions[pid] as &Position?)
+        /// Internal method that returns a reference to a position authorized with all entitlements.
+        /// Callers who wish to provide a partially authorized reference can downcast the result as needed.
+        access(EPositionManage) fun borrowAuthorizedPosition(pid: UInt64): auth(FungibleToken.Withdraw, EPositionManage) &Position {
+            return (&self.positions[pid] as auth(FungibleToken.Withdraw, EPositionManage) &Position?)
                 ?? panic("Position with pid=\(pid) not found in PositionManager")
         }
 
-        /// Internal method that returns a reference to a position authorized with all entitlements.
-        /// Callers who wish to provide a partially authorized reference can downcast the result as needed.
-        access(all) fun borrowAuthorizedPosition(pid: UInt64): auth(FungibleToken.Withdraw, EPositionManage) &Position {
-            return (&self.positions[pid] as auth(FungibleToken.Withdraw, EPositionManage) &Position?)
+        /// Returns a public reference to a position with no entitlements.
+        access(all) fun borrowPosition(pid: UInt64): &Position {
+            return (&self.positions[pid] as &Position?)
                 ?? panic("Position with pid=\(pid) not found in PositionManager")
         }
 

@@ -98,8 +98,5 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         let manager = self.account.storage.borrow<&FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath)
             ?? panic("PositionManager not found")
         manager.addPosition(position: <-position)
-
-        // Position is now stored in PositionManager at FlowCreditMarket.PositionStoragePath
-        log("Created and stored Position with ID: ".concat(pid.toString()))
     }
 }
