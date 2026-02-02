@@ -1,4 +1,5 @@
 import Test
+import "FlowCreditMarketRebalancerV1"
 
 access(self)
 fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.TestAccount): Test.TransactionResult {
@@ -36,11 +37,39 @@ fun addPaidRebalancerToWrappedPosition(
 }
 
 access(all)
-fun unstuck(
+fun fixPaidReschedule(
     signer: Test.TestAccount
 ) {
     let setRes = _executeTransaction(
-        "./transactions/rebalancer/unstuck.cdc",
+        "./transactions/rebalancer/fix_paid_reschedule.cdc",
+        [],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun changePaidInterval(
+    signer: Test.TestAccount,
+    uuid: UInt64,
+    interval: UInt64,
+    expectFailure: Bool
+) {
+    let setRes = _executeTransaction(
+        "./transactions/rebalancer/change_paid_interval.cdc",
+        [uuid, interval],
+        signer
+    )
+    Test.expect(setRes, expectFailure ? Test.beFailed() : Test.beSucceeded())
+}
+
+
+access(all)
+fun deletePaidRebalancer(
+    signer: Test.TestAccount,
+) {
+    let setRes = _executeTransaction(
+        "./transactions/rebalancer/delete_paid_rebalancer.cdc",
         [],
         signer
     )

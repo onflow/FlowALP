@@ -14,12 +14,7 @@ import "FlowTransactionScheduler"
 access(all) contract FlowCreditMarketRebalancerPaidV1 {
 
     access(all) var defaultRecurringConfig: FlowCreditMarketRebalancerV1.RecurringConfig?
-
-    access(all) fun fixReschedule(
-        uuid: UInt64,
-    ) {
-        self.borrowRebalancer(uuid: uuid)!.fixReschedule()
-    }
+    access(all) var storageAdminPath: StoragePath
 
     access(all) fun createPaidRebalancer(
         positionRebalanceCapability: Capability<auth(FlowCreditMarket.Rebalance) &{FlowCreditMarketRebalancerV1.Rebalancable}>,
@@ -39,6 +34,12 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
     access(all) resource Admin {
         access(all) fun updateDefaultRecurringConfig(recurringConfig: FlowCreditMarketRebalancerV1.RecurringConfig) {
             FlowCreditMarketRebalancerPaidV1.defaultRecurringConfig = recurringConfig
+        }
+
+        access(all) fun borrowRebalancer(
+            uuid: UInt64,
+        ): auth(FlowCreditMarket.Rebalance, FlowCreditMarketRebalancerV1.Rebalancer.Configure) &FlowCreditMarketRebalancerV1.Rebalancer? {
+            return FlowCreditMarketRebalancerPaidV1.borrowRebalancer(uuid: uuid)
         }
 
         access(all) fun updateRecurringConfig(
@@ -64,10 +65,25 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
         access(all) fun delete() {
             FlowCreditMarketRebalancerPaidV1.removePaidRebalancer(uuid: self.rebalancerUUID)
         }
+
+        access(all) fun fixReschedule(
+            uuid: UInt64,
+        ) {
+            let rebalancer = FlowCreditMarketRebalancerPaidV1.borrowRebalancer(uuid: uuid)!
+            rebalancer.fixReschedule()
+        }
+    }
+
+    access(self) fun borrowRebalancer(
+        uuid: UInt64,
+    ): auth(FlowCreditMarket.Rebalance, FlowCreditMarketRebalancerV1.Rebalancer.Configure) &FlowCreditMarketRebalancerV1.Rebalancer? {
+        return self.account.storage.borrow<auth(FlowCreditMarket.Rebalance, FlowCreditMarketRebalancerV1.Rebalancer.Configure) &FlowCreditMarketRebalancerV1.Rebalancer>(from: self.getPath(uuid: uuid))
     }
 
     access(self) fun removePaidRebalancer(uuid: UInt64) {
-        destroy <- self.account.storage.load<@FlowCreditMarketRebalancerV1.Rebalancer>(from: self.getPath(uuid: uuid))
+        let rebalancer <- self.account.storage.load<@FlowCreditMarketRebalancerV1.Rebalancer>(from: self.getPath(uuid: uuid))
+        rebalancer?.cancelAllScheduledTransactions()
+        destroy <- rebalancer
     }
 
     access(self) fun storeRebalancer(
@@ -75,12 +91,6 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
     ) {
         let path = self.getPath(uuid: rebalancer.uuid)
         self.account.storage.save(<-rebalancer, to: path)
-    }
-
-    access(self) fun borrowRebalancer(
-        uuid: UInt64,
-    ): auth(FlowCreditMarket.Rebalance, FlowCreditMarketRebalancerV1.Rebalancer.Configure) &FlowCreditMarketRebalancerV1.Rebalancer? {
-        return self.account.storage.borrow<auth(FlowCreditMarket.Rebalance, FlowCreditMarketRebalancerV1.Rebalancer.Configure) &FlowCreditMarketRebalancerV1.Rebalancer>(from: self.getPath(uuid: uuid))
     }
 
     access(self) fun setSelfCapability(
@@ -95,8 +105,9 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
     }
 
     init() {
+        self.storageAdminPath = /storage/flowCreditMarketRebalancerPaidV1Admin
         self.defaultRecurringConfig = nil
         let admin <- create Admin()
-        self.account.storage.save(<-admin, to: /storage/flowCreditMarketRebalancerPaidV1Admin)
+        self.account.storage.save(<-admin, to: self.storageAdminPath)
     }
 }

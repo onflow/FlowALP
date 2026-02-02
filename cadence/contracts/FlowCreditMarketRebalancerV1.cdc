@@ -18,11 +18,11 @@ import "FungibleToken"
 access(all) contract FlowCreditMarketRebalancerV1 {
 
     access(all) event Rebalanced(uuid: UInt64)
-    access(all) event Unstuck(uuid: UInt64)
+    access(all) event FixReschedule(uuid: UInt64)
     access(all) event CreatedRebalancer(uuid: UInt64)
     access(all) event FailedRecurringSchedule(
+        uuid: UInt64,
         whileExecuting: UInt64,
-        balancerUUID: UInt64,
         address: Address?,
         error: String,
     )
@@ -79,12 +79,13 @@ access(all) contract FlowCreditMarketRebalancerV1 {
 
     access(all) resource Rebalancer : FlowTransactionScheduler.TransactionHandler {
             
-        access(self) var _selfCapability: Capability<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>?
-        access(self) var _positionRebalanceCapability: Capability<auth(FlowCreditMarket.Rebalance) &{Rebalancable}>
         access(all) var lastRebalanceTimestamp: UFix64
         access(all) var nextScheduledRebalanceTimestamp: UFix64?
         access(all) var recurringConfig: RecurringConfig
-        access(all) var scheduledTransactions: @{UInt64: FlowTransactionScheduler.ScheduledTransaction}
+
+        access(self) var _selfCapability: Capability<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>?
+        access(self) var _positionRebalanceCapability: Capability<auth(FlowCreditMarket.Rebalance) &{Rebalancable}>
+        access(self) var scheduledTransactions: @{UInt64: FlowTransactionScheduler.ScheduledTransaction}
 
         access(all) entitlement Configure
 
@@ -130,8 +131,8 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             let err = self.scheduleNextRebalance()
             if err != nil {
                 emit FailedRecurringSchedule(
+                    uuid: self.uuid,
                     whileExecuting: id,
-                    balancerUUID: self.uuid,
                     address: self.owner?.address,
                     error: err!,
                 )
@@ -187,49 +188,22 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             }
         }
 
-        /// Attempts to restore the rebalancer's transaction schedule to a clean, valid state.
-        ///
-        /// Idempotent.
+        /// Idempotent, schedules a new transaction if there is no scheduled transaction.
         /// 
-        /// - Ensures there is exactly one scheduled transaction at the correct future time for the next rebalance.
-        /// - Cancels any incorrectly scheduled or duplicate transactions as needed.
-        /// - If *no* valid transaction exists, schedules a new one.
-        /// - Emits an `Unstuck` event if any corrective action is taken (i.e. cleanup or scheduling occurs).
-        ///
         /// This function is designed to be safely callable by any account, including an off-chain supervisor,
         /// to help recover from issues where the scheduled transactions are incorrect or stuck.
         access(all) fun fixReschedule() {
             self.removeAllNonScheduledTransactions()
-            var work = false
-            // remove all wrongly scheduled transactions
-            // should not be necessary but just in case
-            for id in self.scheduledTransactions.keys {
-                let txn = self.borrowScheduledTransaction(id: id)!
-                if txn.timestamp != self.nextScheduledRebalanceTimestamp {
-                    self.cancelScheduledTransaction(id: id)
-                    work = true
-                }
-            }
-            // if there are multiple scheduled transactions at the correct time, remove them
-            // should in theory not be necessary but just in case
-            while self.scheduledTransactions.keys.length > 1 {
-                self.cancelScheduledTransaction(id: self.scheduledTransactions.keys[0])
-                work = true
-            }
-            // if there is no correct transaction, schedule one
+           
             if self.scheduledTransactions.keys.length == 0 {
                 self.scheduleNextRebalance()
-                work = true
-            }
-
-            if work {
-                emit Unstuck(
+                emit FixReschedule(
                     uuid: self.uuid
                 )
             }
         }
 
-        access(all) view fun borrowScheduledTransaction(id: UInt64): &FlowTransactionScheduler.ScheduledTransaction? {
+        access(self) view fun borrowScheduledTransaction(id: UInt64): &FlowTransactionScheduler.ScheduledTransaction? {
             return &self.scheduledTransactions[id]
         }
 
@@ -250,12 +224,16 @@ access(all) contract FlowCreditMarketRebalancerV1 {
 
         access(Configure) fun setRecurringConfig(_ config: RecurringConfig) {
             self.recurringConfig = config
-            while self.scheduledTransactions.keys.length > 0 {
-                self.cancelScheduledTransaction(id: self.scheduledTransactions.keys[0])
-            }
+            self.cancelAllScheduledTransactions()
             let err = self.scheduleNextRebalance()
             if err != nil {
-                panic("Failed to schedule next rebalance: \(err!)")
+                panic("Failed to schedule next rebalance after setting recurring config: \(err!)")
+            }
+        }
+
+        access(FlowTransactionScheduler.Cancel) fun cancelAllScheduledTransactions() {
+            while self.scheduledTransactions.keys.length > 0 {
+                self.cancelScheduledTransaction(id: self.scheduledTransactions.keys[0])
             }
         }
 

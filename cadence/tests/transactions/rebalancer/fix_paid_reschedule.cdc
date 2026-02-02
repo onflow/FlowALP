@@ -20,6 +20,6 @@ transaction() {
 
     execute {
         let uuid = self.paidRebalancerCap.borrow()!.rebalancerUUID
-        FlowCreditMarketRebalancerPaidV1.fixReschedule(uuid: uuid)
+        self.paidRebalancerCap.borrow()!.fixReschedule(uuid: uuid)
     }
 }

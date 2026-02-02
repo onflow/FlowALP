@@ -10,6 +10,19 @@ The **Supervisor** is currently in the design phase (not yet implemented).
 * **Least Privilege:** The Rebalancer can *only* trigger the `rebalance` function.
 * **Resilience:** The `fixReschedule()` call is idempotent and permissionless, ensuring the system can recover without complex auth.
 
+### Rebalancer variants
+
+There are two rebalancer types; they behave the same for triggering rebalances.
+
+| | **Standard Rebalancer** | **Paid Rebalancer** |
+|---|---|---|
+| **Who pays** | User pays | Admin pays |
+| **Configuration** | User can set it | Admin sets it |
+| **Use case** | User wants full autonomy | Admin retains autonomy |
+| **Who can withdraw** | Only user | Only user |
+
+The paid rebalancer is otherwise the same: it holds a rebalance capability and runs on the same schedule/trigger model; only who pays and who controls config differ.
+
 ### creating a position
 ```mermaid
 sequenceDiagram
@@ -18,7 +31,7 @@ sequenceDiagram
     participant FCM
     participant AB as Rebalancer
     participant Supervisor
-    anyone->>FCMHelper: createPositon()
+    anyone->>FCMHelper: createPosition()
     FCMHelper->>FCM: createPosition()
     FCMHelper->>AB: createRebalancer(rebalanceCapability)
     FCMHelper->>Supervisor: supervise(publicCapability)
