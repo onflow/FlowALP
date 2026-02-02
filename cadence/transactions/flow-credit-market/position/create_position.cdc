@@ -86,8 +86,6 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
             self.account.storage.save(<-manager, to: FlowCreditMarket.PositionStoragePath)
 
             // Issue and publish capabilities for the PositionManager
-            let withdrawCap = self.account.capabilities.storage.issue<auth(FungibleToken.Withdraw) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
-            let manageCap = self.account.capabilities.storage.issue<auth(FlowCreditMarket.EPositionManage) &FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
             let readCap = self.account.capabilities.storage.issue<&FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
 
             // Publish read-only capability publicly
