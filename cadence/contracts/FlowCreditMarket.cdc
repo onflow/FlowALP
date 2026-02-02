@@ -2525,7 +2525,8 @@ access(all) contract FlowCreditMarket {
         /// when the loan becomes undercollateralized, preferring repayment to outright liquidation.
         ///
         /// Returns a Position resource that provides fine-grained access control through entitlements.
-        /// The caller must store the Position resource in their account and manage it appropriately.
+        /// The caller must store the Position resource in their account and manage access to it.
+        /// Clients are recommended to use the PositionManager collection type to manage their Positions.
         access(all) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DeFiActions.Sink},
@@ -3659,19 +3660,21 @@ access(all) contract FlowCreditMarket {
 
     /// Position
     ///
-    /// A Position is a resource representing ownership of value deposited to the protocol. From a Position, an
-    /// actor can deposit and withdraw funds as well as construct DeFiActions components enabling value flows in and out
-    /// of the Position from within the context of DeFiActions stacks.
+    /// A Position is a resource representing ownership of value deposited to the protocol.
+    /// From a Position, a user can deposit and withdraw funds as well as construct DeFiActions components enabling
+    /// value flows in and out of the Position from within the context of DeFiActions stacks.
+    /// Unauthorized Position references allow depositing only, and are considered safe to publish.
+    /// The EPositionManage entitlement protects sensitive withdrawal and configuration methods.
     ///
-    /// Position resources are held in user accounts and provide fine-grained access control through entitlements.
-    /// Each Position resource is scoped to a single position ID, ensuring proper ownership and access control.
+    /// Position resources are held in user accounts and provide access to one position (by pid).
+    /// Clients are recommended to use PositionManager to manage access to Positions.
     ///
     access(all) resource Position {
 
         /// The unique ID of the Position used to track deposits and withdrawals to the Pool
         access(all) let id: UInt64
 
-        /// An authorized Capability to the Pool for which this Position was opened
+        /// An authorized Capability to the Pool for which this Position was opened.
         access(self) let pool: Capability<auth(EPosition) &Pool>
 
         init(
@@ -3910,7 +3913,7 @@ access(all) contract FlowCreditMarket {
             self.positions <- {}
         }
 
-        /// Adds a new position to the manager
+        /// Adds a new position to the manager.
         access(all) fun addPosition(position: @Position) {
             let pid = position.id
             let old <- self.positions[pid] <- position
@@ -3920,7 +3923,7 @@ access(all) contract FlowCreditMarket {
             destroy old
         }
 
-        /// Removes and returns a position from the manager
+        /// Removes and returns a position from the manager.
         access(all) fun removePosition(pid: UInt64): @Position {
             if let position <- self.positions.remove(key: pid) {
                 return <-position
