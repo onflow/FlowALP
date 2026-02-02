@@ -22,14 +22,14 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowCreditMarket": {
-			"source": "./cadence/contracts/FlowCreditMarket.cdc",
+		"FlowALPv1": {
+			"source": "./cadence/contracts/FlowALPv1.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowCreditMarketMath": {
-			"source": "./cadence/lib/FlowCreditMarketMath.cdc",
+		"FlowALPMath": {
+			"source": "./cadence/lib/FlowALPMath.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
@@ -52,8 +52,8 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"MockFlowCreditMarketConsumer": {
-			"source": "./cadence/contracts/mocks/MockFlowCreditMarketConsumer.cdc",
+		"MockFlowALPv1Consumer": {
+			"source": "./cadence/contracts/mocks/MockFlowALPv1Consumer.cdc",
 			"aliases": {
 				"testing": "0000000000000008"
 			}
@@ -199,7 +199,7 @@
 			"emulator-account": [
 				"DeFiActionsUtils",
 				"DeFiActions",
-				"FlowCreditMarketMath",
+				"FlowALPMath",
 				{
 					"name": "MOET",
 					"args": [
@@ -209,12 +209,12 @@
 						}
 					]
 				},
-				"FlowCreditMarket"
+				"FlowALPv1"
 			]
 		},
 		"mainnet": {
 			"mainnet-deployer": [
-				"FlowCreditMarketMath",
+				"FlowALPMath",
 				{
 					"name": "MOET",
 					"args": [
@@ -224,12 +224,12 @@
 						}
 					]
 				},
-				"FlowCreditMarket"
+				"FlowALPv1"
 			]
 		},
 		"testnet": {
 			"testnet-deployer": [
-				"FlowCreditMarketMath",
+				"FlowALPMath",
 				{
 					"name": "MOET",
 					"args": [
@@ -239,7 +239,7 @@
 						}
 					]
 				},
-				"FlowCreditMarket"
+				"FlowALPv1"
 			]
 		}
 	}

@@ -2,9 +2,9 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-import "FlowCreditMarket"
+import "FlowALPv1"
 import "test_helpers.cdc"
-import "MockFlowCreditMarketConsumer"
+import "MockFlowALPv1Consumer"
 
 // -----------------------------------------------------------------------------
 // Position Lifecycle Happy Path Test
@@ -52,7 +52,7 @@ fun testPositionLifecycleHappyPath() {
 
     // open wrapped position (pushToDrawDownSink)
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
@@ -76,7 +76,7 @@ fun testPositionLifecycleHappyPath() {
 
     // repay MOET and close position
     let repayRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/repay_and_close_position.cdc",
+        "./transactions/flow-alp/pool-management/repay_and_close_position.cdc",
         [WRAPPER_STORAGE_PATH],
         user
     )

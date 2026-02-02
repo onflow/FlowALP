@@ -1,6 +1,6 @@
-# FlowCreditMarket Future Features and Tests
+# FlowALPv1 Future Features and Tests
 
-This document lists features that are not yet implemented in the FlowCreditMarket contract, organized by FlowVaults milestone phases with priority indicators:
+This document lists features that are not yet implemented in the FlowALPv1 contract, organized by FlowVaults milestone phases with priority indicators:
 
 - ✅ **Must Have** - Critical features required for launch
 - 💛 **Should Have** - Important features that significantly enhance the product

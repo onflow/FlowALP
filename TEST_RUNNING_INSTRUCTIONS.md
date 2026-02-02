@@ -1,4 +1,4 @@
-# Test Running Instructions for FlowCreditMarket
+# Test Running Instructions for FlowALPv1
 
 ## Context
 The Flow test framework has a known limitation where contracts persist between test runs, causing "cannot overwrite existing contract" errors. We've implemented fixes and workarounds to address this issue.
@@ -57,9 +57,9 @@ Note: This may still fail due to contract deployment conflicts between test file
 
 ### Tests with known issues:
 - ⚠️ `platform_integration_test.cdc` - has some failing test cases due to MockOracle issues
-- ⚠️ `position_lifecycle_happy_test.cdc` - MockFlowCreditMarketConsumer deployment conflict
-- ⚠️ `rebalance_overcollateralised_test.cdc` - MockFlowCreditMarketConsumer deployment conflict
-- ⚠️ `rebalance_undercollateralised_test.cdc` - MockFlowCreditMarketConsumer deployment conflict
+- ⚠️ `position_lifecycle_happy_test.cdc` - MockFlowALPv1Consumer deployment conflict
+- ⚠️ `rebalance_overcollateralised_test.cdc` - MockFlowALPv1Consumer deployment conflict
+- ⚠️ `rebalance_undercollateralised_test.cdc` - MockFlowALPv1Consumer deployment conflict
 - ⚠️ `token_governance_addition_test.cdc` - contract import issues
 
 ## Understanding Test.reset() Usage

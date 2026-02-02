@@ -1,6 +1,6 @@
 # Deposit Capacity Mechanism
 
-This document describes the deposit capacity limiting system in the FlowCreditMarket contract, including how deposit rates, capacity caps, and per-user limits work together to control deposit throughput.
+This document describes the deposit capacity limiting system in the FlowALPv1 contract, including how deposit rates, capacity caps, and per-user limits work together to control deposit throughput.
 
 ## Overview
 

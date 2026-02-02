@@ -39,7 +39,7 @@ fun test_setGovernanceParams_and_exercise_paths() {
     // Open minimal position and deposit to ensure token has credit balance
     grantPoolCapToConsumer()
     let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [50.0, MOET.VaultStoragePath, false],
         user
     )
@@ -51,7 +51,7 @@ fun test_setGovernanceParams_and_exercise_paths() {
     // 3) Exercise depositLimitFraction and queue branch
     // Set fraction small so a single deposit exceeds the per-deposit limit
     let setFracRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_deposit_limit_fraction.cdc",
+        "../transactions/flow-alp/pool-governance/set_deposit_limit_fraction.cdc",
         [ MOET_TOKEN_IDENTIFIER, 0.05 ],
         PROTOCOL_ACCOUNT
     )
@@ -60,14 +60,14 @@ fun test_setGovernanceParams_and_exercise_paths() {
     // Deposit a large amount to force queuing path
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 1000.0, beFailed: false)
     let depositRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/deposit_to_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/deposit_to_wrapped_position.cdc",
         [500.0, MOET.VaultStoragePath, false],
         user
     )
     Test.expect(depositRes, Test.beSucceeded())
 
     // 4) Exercise health accessors write/read
-    let poolExistsRes = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [PROTOCOL_ACCOUNT.address])
+    let poolExistsRes = _executeScript("../scripts/flow-alp/pool_exists.cdc", [PROTOCOL_ACCOUNT.address])
     Test.expect(poolExistsRes, Test.beSucceeded())
 
     // Use Position details to verify health is populated

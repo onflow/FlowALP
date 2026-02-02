@@ -1,12 +1,12 @@
 import Test
-import "FlowCreditMarket"
+import "FlowALPv1"
 
 /* --- Global test constants --- */
 
 access(all) let MOET_TOKEN_IDENTIFIER = "A.0000000000000007.MOET.Vault"
 access(all) let FLOW_TOKEN_IDENTIFIER = "A.0000000000000003.FlowToken.Vault"
 access(all) let FLOW_VAULT_STORAGE_PATH = /storage/flowTokenVault
-access(all) let WRAPPER_STORAGE_PATH = /storage/flowCreditMarketPositionWrapper
+access(all) let WRAPPER_STORAGE_PATH = /storage/flowALPv1PositionWrapper
 
 access(all) let PROTOCOL_ACCOUNT = Test.getAccount(0x0000000000000007)
 access(all) let CONSUMER_ACCOUNT = Test.getAccount(0x0000000000000008)
@@ -55,7 +55,7 @@ access(all)
 fun grantBeta(_ admin: Test.TestAccount, _ grantee: Test.TestAccount): Test.TransactionResult {
     let signers = admin.address == grantee.address ? [admin] : [admin, grantee]
     let betaTxn = Test.Transaction(
-        code: Test.readFile("./transactions/flow-credit-market/pool-management/03_grant_beta.cdc"),
+        code: Test.readFile("./transactions/flow-alp/pool-management/03_grant_beta.cdc"),
         authorizers: [admin.address, grantee.address],
         signers: signers,
         arguments: []
@@ -73,10 +73,10 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
-    // Deploy FlowCreditMarketMath before FlowCreditMarket
+    // Deploy FlowALPMath before FlowALPv1
     err = Test.deployContract(
-        name: "FlowCreditMarketMath",
-        path: "../lib/FlowCreditMarketMath.cdc",
+        name: "FlowALPMath",
+        path: "../lib/FlowALPMath.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -96,8 +96,8 @@ fun deployContracts() {
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
-        name: "FlowCreditMarket",
-        path: "../contracts/FlowCreditMarket.cdc",
+        name: "FlowALPv1",
+        path: "../contracts/FlowALPv1.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -106,10 +106,10 @@ fun deployContracts() {
     // publishing before pool creation will fail. Tests that need the cap should call
     // grantPoolCapToConsumer() after creating the pool.
 
-    // Deploy MockFlowCreditMarketConsumer
+    // Deploy MockFlowALPv1Consumer
     err = Test.deployContract(
-        name: "MockFlowCreditMarketConsumer",
-        path: "../contracts/mocks/MockFlowCreditMarketConsumer.cdc",
+        name: "MockFlowALPv1Consumer",
+        path: "../contracts/mocks/MockFlowALPv1Consumer.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -163,14 +163,14 @@ fun getBalance(address: Address, vaultPublicPath: PublicPath): UFix64? {
 
 access(all)
 fun getReserveBalance(vaultIdentifier: String): UFix64 {
-    let res = _executeScript("../scripts/flow-credit-market/get_reserve_balance_for_type.cdc", [vaultIdentifier])
+    let res = _executeScript("../scripts/flow-alp/get_reserve_balance_for_type.cdc", [vaultIdentifier])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as! UFix64
 }
 
 access(all)
 fun getAvailableBalance(pid: UInt64, vaultIdentifier: String, pullFromTopUpSource: Bool, beFailed: Bool): UFix64 {
-    let res = _executeScript("../scripts/flow-credit-market/get_available_balance.cdc",
+    let res = _executeScript("../scripts/flow-alp/get_available_balance.cdc",
             [pid, vaultIdentifier, pullFromTopUpSource]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -179,7 +179,7 @@ fun getAvailableBalance(pid: UInt64, vaultIdentifier: String, pullFromTopUpSourc
 
 access(all)
 fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix128 {
-    let res = _executeScript("../scripts/flow-credit-market/position_health.cdc",
+    let res = _executeScript("../scripts/flow-alp/position_health.cdc",
             [pid]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -187,16 +187,16 @@ fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix128 {
 }
 
 access(all)
-fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowCreditMarket.PositionDetails {
-    let res = _executeScript("../scripts/flow-credit-market/position_details.cdc",
+fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALPv1.PositionDetails {
+    let res = _executeScript("../scripts/flow-alp/position_details.cdc",
             [pid]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-    return res.returnValue as! FlowCreditMarket.PositionDetails
+    return res.returnValue as! FlowALPv1.PositionDetails
 }
 
 access(all)
-fun getPositionBalance(pid: UInt64, vaultID: String): FlowCreditMarket.PositionBalance {
+fun getPositionBalance(pid: UInt64, vaultID: String): FlowALPv1.PositionBalance {
     let positionDetails = getPositionDetails(pid: pid, beFailed: false)
     for bal in positionDetails.balances {
         if bal.vaultType == CompositeType(vaultID) {
@@ -208,7 +208,7 @@ fun getPositionBalance(pid: UInt64, vaultID: String): FlowCreditMarket.PositionB
 
 access(all)
 fun poolExists(address: Address): Bool {
-    let res = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [address])
+    let res = _executeScript("../scripts/flow-alp/pool_exists.cdc", [address])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as! Bool
 }
@@ -222,7 +222,7 @@ fun fundsAvailableAboveTargetHealthAfterDepositing(
     depositAmount: UFix64,
     beFailed: Bool
 ): UFix64 {
-    let res = _executeScript("../scripts/flow-credit-market/funds_avail_above_target_health_after_deposit.cdc",
+    let res = _executeScript("../scripts/flow-alp/funds_avail_above_target_health_after_deposit.cdc",
             [pid, withdrawType, targetHealth, depositType, depositAmount]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -238,7 +238,7 @@ fun fundsRequiredForTargetHealthAfterWithdrawing(
     withdrawAmount: UFix64,
     beFailed: Bool
 ): UFix64 {
-    let res = _executeScript("../scripts/flow-credit-market/funds_req_for_target_health_after_withdraw.cdc",
+    let res = _executeScript("../scripts/flow-alp/funds_req_for_target_health_after_withdraw.cdc",
             [pid, depositType, targetHealth, withdrawType, withdrawAmount]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -247,56 +247,56 @@ fun fundsRequiredForTargetHealthAfterWithdrawing(
 
 access(all)
 fun getDepositCapacityInfo(vaultIdentifier: String): {String: UFix64} {
-    let res = _executeScript("../scripts/flow-credit-market/get_deposit_capacity.cdc", [vaultIdentifier])
+    let res = _executeScript("../scripts/flow-alp/get_deposit_capacity.cdc", [vaultIdentifier])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as! {String: UFix64}
 }
 
 access(all)
 fun getInsuranceFundBalance(): UFix64 {
-    let res = _executeScript("../scripts/flow-credit-market/get_insurance_fund_balance.cdc", [])
+    let res = _executeScript("../scripts/flow-alp/get_insurance_fund_balance.cdc", [])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as! UFix64
 }
 
 access(all)
 fun getInsuranceRate(tokenTypeIdentifier: String): UFix64? {
-    let res = _executeScript("../scripts/flow-credit-market/get_insurance_rate.cdc", [tokenTypeIdentifier])
+    let res = _executeScript("../scripts/flow-alp/get_insurance_rate.cdc", [tokenTypeIdentifier])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as? UFix64
 }
 
 access(all)
 fun insuranceSwapperExists(tokenTypeIdentifier: String): Bool {
-    let res = _executeScript("../scripts/flow-credit-market/insurance_token_swapper_exists.cdc", [tokenTypeIdentifier])
+    let res = _executeScript("../scripts/flow-alp/insurance_token_swapper_exists.cdc", [tokenTypeIdentifier])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as! Bool
 }
 
 access(all)
 fun getLastInsuranceCollectionTime(tokenTypeIdentifier: String): UFix64? {
-    let res = _executeScript("../scripts/flow-credit-market/get_last_insurance_collection_time.cdc", [tokenTypeIdentifier])
+    let res = _executeScript("../scripts/flow-alp/get_last_insurance_collection_time.cdc", [tokenTypeIdentifier])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as? UFix64
 }
 
 access(all)
 fun getStabilityFeeRate(tokenTypeIdentifier: String): UFix64? {
-    let res = _executeScript("../scripts/flow-credit-market/get_stability_fee_rate.cdc", [tokenTypeIdentifier])
+    let res = _executeScript("../scripts/flow-alp/get_stability_fee_rate.cdc", [tokenTypeIdentifier])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as? UFix64
 }
 
 access(all)
 fun getStabilityFundBalance(tokenTypeIdentifier: String): UFix64? {
-    let res = _executeScript("../scripts/flow-credit-market/get_stability_fund_balance.cdc", [tokenTypeIdentifier])
+    let res = _executeScript("../scripts/flow-alp/get_stability_fund_balance.cdc", [tokenTypeIdentifier])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as? UFix64
 }
 
 access(all)
 fun getLastStabilityCollectionTime(tokenTypeIdentifier: String): UFix64? {
-    let res = _executeScript("../scripts/flow-credit-market/get_last_stability_collection_time.cdc", [tokenTypeIdentifier])
+    let res = _executeScript("../scripts/flow-alp/get_last_stability_collection_time.cdc", [tokenTypeIdentifier])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as? UFix64
 }
@@ -306,7 +306,7 @@ fun getLastStabilityCollectionTime(tokenTypeIdentifier: String): UFix64? {
 access(all)
 fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String, beFailed: Bool) {
     let createRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-factory/create_and_store_pool.cdc",
+        "../transactions/flow-alp/pool-factory/create_and_store_pool.cdc",
         [defaultTokenIdentifier],
         signer
     )
@@ -314,7 +314,7 @@ fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String,
 
     // Enable debug logs for tests to aid diagnostics
     let debugRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_debug_logging.cdc",
+        "../transactions/flow-alp/pool-governance/set_debug_logging.cdc",
         [true],
         signer
     )
@@ -341,7 +341,7 @@ fun addSupportedTokenZeroRateCurve(
     depositCapacityCap: UFix64
 ) {
     let additionRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/add_supported_token_zero_rate_curve.cdc",
+        "../transactions/flow-alp/pool-governance/add_supported_token_zero_rate_curve.cdc",
         [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
         signer
     )
@@ -358,7 +358,7 @@ fun addSupportedTokenZeroRateCurveWithResult(
     depositCapacityCap: UFix64
 ): Test.TransactionResult {
     return _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/add_supported_token_zero_rate_curve.cdc",
+        "../transactions/flow-alp/pool-governance/add_supported_token_zero_rate_curve.cdc",
         [ tokenTypeIdentifier, collateralFactor, borrowFactor, depositRate, depositCapacityCap ],
         signer
     )
@@ -367,7 +367,7 @@ fun addSupportedTokenZeroRateCurveWithResult(
 access(all)
 fun setDepositRate(signer: Test.TestAccount, tokenTypeIdentifier: String, hourlyRate: UFix64) {
     let setRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_deposit_rate.cdc",
+        "../transactions/flow-alp/pool-governance/set_deposit_rate.cdc",
         [tokenTypeIdentifier, hourlyRate],
         signer
     )
@@ -377,7 +377,7 @@ fun setDepositRate(signer: Test.TestAccount, tokenTypeIdentifier: String, hourly
 access(all)
 fun setDepositCapacityCap(signer: Test.TestAccount, tokenTypeIdentifier: String, cap: UFix64) {
     let setRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_deposit_capacity_cap.cdc",
+        "../transactions/flow-alp/pool-governance/set_deposit_capacity_cap.cdc",
         [tokenTypeIdentifier, cap],
         signer
     )
@@ -387,7 +387,7 @@ fun setDepositCapacityCap(signer: Test.TestAccount, tokenTypeIdentifier: String,
 access(all)
 fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: String, fraction: UFix64) {
     let setRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_deposit_limit_fraction.cdc",
+        "../transactions/flow-alp/pool-governance/set_deposit_limit_fraction.cdc",
         [tokenTypeIdentifier, fraction],
         signer
     )
@@ -397,7 +397,7 @@ fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: Strin
 access(all)
 fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [amount, vaultStoragePath, pushToDrawDownSink],
         signer
     )
@@ -407,7 +407,7 @@ fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStorage
 access(all)
 fun depositToWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     let depositRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/deposit_to_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/deposit_to_wrapped_position.cdc",
         [amount, vaultStoragePath, pushToDrawDownSink],
         signer
     )
@@ -417,7 +417,7 @@ fun depositToWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStor
 access(all)
 fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, beFailed: Bool) {
     let borrowRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
+        "./transactions/mock-flow-alp-consumer/borrow_from_position.cdc",
         [positionId, tokenTypeIdentifier, amount],
         signer
     )
@@ -438,7 +438,7 @@ fun addSupportedTokenKinkCurve(
     depositCapacityCap: UFix64
 ) {
     let additionRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/add_supported_token_kink_curve.cdc",
+        "../transactions/flow-alp/pool-governance/add_supported_token_kink_curve.cdc",
         [ tokenTypeIdentifier, collateralFactor, borrowFactor, optimalUtilization, baseRate, slope1, slope2, depositRate, depositCapacityCap ],
         signer
     )
@@ -455,7 +455,7 @@ fun setInterestCurveKink(
     slope2: UFix128
 ) {
     let setRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_interest_curve_kink.cdc",
+        "../transactions/flow-alp/pool-governance/set_interest_curve_kink.cdc",
         [ tokenTypeIdentifier, optimalUtilization, baseRate, slope1, slope2 ],
         signer
     )
@@ -469,7 +469,7 @@ fun setInterestCurveFixed(
     yearlyRate: UFix128
 ) {
     let setRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_interest_curve_fixed.cdc",
+        "../transactions/flow-alp/pool-governance/set_interest_curve_fixed.cdc",
         [ tokenTypeIdentifier, yearlyRate ],
         signer
     )
@@ -483,7 +483,7 @@ fun setInsuranceRate(
     insuranceRate: UFix64,
 ): Test.TransactionResult {
     var res = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
+        "../transactions/flow-alp/pool-governance/set_insurance_rate.cdc",
         [ tokenTypeIdentifier, insuranceRate ],
         signer
     )
@@ -497,7 +497,7 @@ fun setInsuranceSwapper(
     priceRatio: UFix64,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-credit-market/pool-governance/set_insurance_swapper_mock.cdc",
+        "./transactions/flow-alp/pool-governance/set_insurance_swapper_mock.cdc",
         [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, MOET_TOKEN_IDENTIFIER],
         signer
     )
@@ -510,7 +510,7 @@ fun removeInsuranceSwapper(
     tokenTypeIdentifier: String,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-credit-market/pool-governance/remove_insurance_swapper.cdc",
+        "./transactions/flow-alp/pool-governance/remove_insurance_swapper.cdc",
         [ tokenTypeIdentifier],
         signer
     )
@@ -524,7 +524,7 @@ fun collectInsurance(
     beFailed: Bool
 ) {
     let collectRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/collect_insurance.cdc",
+        "../transactions/flow-alp/pool-governance/collect_insurance.cdc",
         [ tokenTypeIdentifier ],
         signer
     )
@@ -539,7 +539,7 @@ fun setStabilityFeeRate(
     stabilityFeeRate: UFix64
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_stability_fee_rate.cdc",
+        "../transactions/flow-alp/pool-governance/set_stability_fee_rate.cdc",
         [ tokenTypeIdentifier, stabilityFeeRate ],
         signer
     )
@@ -553,7 +553,7 @@ fun collectStability(
     tokenTypeIdentifier: String,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/collect_stability.cdc",
+        "../transactions/flow-alp/pool-governance/collect_stability.cdc",
         [ tokenTypeIdentifier ],
         signer
     )
@@ -570,7 +570,7 @@ fun withdrawStabilityFund(
     recipientPath: PublicPath,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/withdraw_stability_fund.cdc",
+        "../transactions/flow-alp/pool-governance/withdraw_stability_fund.cdc",
         [tokenTypeIdentifier, amount, recipient, recipientPath],
         signer
     )
@@ -581,7 +581,7 @@ fun withdrawStabilityFund(
 access(all)
 fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFailed: Bool) {
     let rebalanceRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-management/rebalance_position.cdc",
+        "../transactions/flow-alp/pool-management/rebalance_position.cdc",
         [ pid, force ],
         signer
     )
@@ -643,7 +643,7 @@ fun withdrawReserve(
     beFailed: Bool
 ) {
     let txRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/withdraw_reserve.cdc",
+        "../transactions/flow-alp/pool-governance/withdraw_reserve.cdc",
         [poolAddress, tokenTypeIdentifier, amount, recipient],
         signer
     )
@@ -652,12 +652,12 @@ fun withdrawReserve(
 
 /* --- Capability Helpers --- */
 
-// Grants the Pool capability with EParticipant and EPosition entitlements to the MockFlowCreditMarketConsumer account (0x8)
+// Grants the Pool capability with EParticipant and EPosition entitlements to the MockFlowALPv1Consumer account (0x8)
 // Must be called AFTER the pool is created and stored, otherwise publishing will fail the capability check.
 access(all)
 fun grantPoolCapToConsumer() {
     // Check pool exists (defensively handle CI ordering). If not, no-op.
-    let existsRes = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [PROTOCOL_ACCOUNT.address])
+    let existsRes = _executeScript("../scripts/flow-alp/pool_exists.cdc", [PROTOCOL_ACCOUNT.address])
     Test.expect(existsRes, Test.beSucceeded())
     if !(existsRes.returnValue as! Bool) {
         return
@@ -697,15 +697,15 @@ access(all) fun ufix128EqualWithinVariance(_ expected: UFix128, _ actual: UFix12
 
 access(all)
 fun getBlockTimestamp(): UFix64 {
-    let res = _executeScript("../scripts/flow-credit-market/get_block_timestamp.cdc", [])
+    let res = _executeScript("../scripts/flow-alp/get_block_timestamp.cdc", [])
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as! UFix64
 }
 
 access(all)
-fun getDebitBalanceForType(details: FlowCreditMarket.PositionDetails, vaultType: Type): UFix64 {
+fun getDebitBalanceForType(details: FlowALPv1.PositionDetails, vaultType: Type): UFix64 {
     for balance in details.balances {
-        if balance.vaultType == vaultType && balance.direction == FlowCreditMarket.BalanceDirection.Debit {
+        if balance.vaultType == vaultType && balance.direction == FlowALPv1.BalanceDirection.Debit {
             return balance.balance
         }
     }
@@ -713,9 +713,9 @@ fun getDebitBalanceForType(details: FlowCreditMarket.PositionDetails, vaultType:
 }
 
 access(all)
-fun getCreditBalanceForType(details: FlowCreditMarket.PositionDetails, vaultType: Type): UFix64 {
+fun getCreditBalanceForType(details: FlowALPv1.PositionDetails, vaultType: Type): UFix64 {
     for balance in details.balances {
-        if balance.vaultType == vaultType && balance.direction == FlowCreditMarket.BalanceDirection.Credit {
+        if balance.vaultType == vaultType && balance.direction == FlowALPv1.BalanceDirection.Credit {
             return balance.balance
         }
     }

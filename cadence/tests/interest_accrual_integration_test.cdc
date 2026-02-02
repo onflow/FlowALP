@@ -3,10 +3,10 @@ import BlockchainHelpers
 
 import "MOET"
 import "FlowToken"
-import "FlowCreditMarket"
-import "FlowCreditMarketMath"
+import "FlowALPv1"
+import "FlowALPMath"
 import "test_helpers.cdc"
-import "MockFlowCreditMarketConsumer"
+import "MockFlowALPv1Consumer"
 
 // =============================================================================
 // Interest Accrual Integration Tests
@@ -155,7 +155,7 @@ fun test_moet_debit_accrues_interest() {
     // Create LP's position (ID = 0) by depositing MOET.
     // The `false` parameter means no auto-borrow - LP is just supplying liquidity.
     let createLpPosRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         liquidityProvider
     )
@@ -206,7 +206,7 @@ fun test_moet_debit_accrues_interest() {
 
     // Create borrower's position (ID = 1) with auto-borrow enabled (`true`).
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )
@@ -391,7 +391,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
 
     // Create LP's position (ID = 0) with MOET deposit
     let createLpPosRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         lp
     )
@@ -439,7 +439,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     // Borrower deposits FLOW collateral and auto-borrows MOET
     // This creates utilization in the MOET pool
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [10_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )
@@ -574,7 +574,7 @@ fun test_flow_debit_accrues_interest() {
 
     // Create LP's position (ID = 0) with Flow deposit
     let createLpPosRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [10_000.0, FLOW_VAULT_STORAGE_PATH, false],
         flowLp
     )
@@ -624,7 +624,7 @@ fun test_flow_debit_accrues_interest() {
 
     // Step 5a: Create position with MOET collateral (no auto-borrow)
     let createPosRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         borrower
     )
@@ -634,7 +634,7 @@ fun test_flow_debit_accrues_interest() {
     // Borrowing 4,000 FLOW from 10,000 FLOW pool = 40% utilization
     let borrowPid: UInt64 = 1
     let borrowRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
+        "./transactions/mock-flow-alp-consumer/borrow_from_position.cdc",
         [borrowPid, FLOW_TOKEN_IDENTIFIER, 4_000.0],
         borrower
     )
@@ -772,7 +772,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
 
     // Create LP's position (ID = 0) with Flow deposit
     let createLpPosRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [10_000.0, FLOW_VAULT_STORAGE_PATH, false],
         flowLp
     )
@@ -817,7 +817,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
 
     // Create position with MOET collateral
     let createPosRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         borrower
     )
@@ -826,7 +826,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
     // Borrow 4,000 Flow (40% utilization)
     let borrowPid: UInt64 = 1
     let borrowRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
+        "./transactions/mock-flow-alp-consumer/borrow_from_position.cdc",
         [borrowPid, FLOW_TOKEN_IDENTIFIER, 4_000.0],
         borrower
     )
@@ -960,7 +960,7 @@ fun test_insurance_deduction_verification() {
     Test.expect(lpBetaRes, Test.beSucceeded())
 
     let createLpPosRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         lp
     )
@@ -1008,7 +1008,7 @@ fun test_insurance_deduction_verification() {
     Test.expect(borrowerBetaRes, Test.beSucceeded())
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [10_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )
@@ -1154,7 +1154,7 @@ fun test_combined_all_interest_scenarios() {
     Test.expect(lp1Beta, Test.beSucceeded())
 
     let lp1Res = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [10_000.0, MOET.VaultStoragePath, false],
         moetLp
     )
@@ -1173,7 +1173,7 @@ fun test_combined_all_interest_scenarios() {
     Test.expect(lp2Beta, Test.beSucceeded())
 
     let lp2Res = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [5_000.0, FLOW_VAULT_STORAGE_PATH, false],
         flowLp
     )
@@ -1230,7 +1230,7 @@ fun test_combined_all_interest_scenarios() {
     Test.expect(b1Beta, Test.beSucceeded())
 
     let b1Res = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [2_000.0, FLOW_VAULT_STORAGE_PATH, true],  // auto-borrow MOET
         borrower1
     )
@@ -1252,7 +1252,7 @@ fun test_combined_all_interest_scenarios() {
     Test.expect(b2Beta, Test.beSucceeded())
 
     let b2PosRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
         [3_000.0, MOET.VaultStoragePath, false],
         borrower2
     )
@@ -1261,7 +1261,7 @@ fun test_combined_all_interest_scenarios() {
     // Explicitly borrow 2,000 Flow
     // Flow utilization = 2,000 / (5,000 LP2 + 2,000 Borrower1) = 2,000 / 7,000 ≈ 28.6%
     let b2BorrowRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
+        "./transactions/mock-flow-alp-consumer/borrow_from_position.cdc",
         [3 as UInt64, FLOW_TOKEN_IDENTIFIER, 2_000.0],
         borrower2
     )

@@ -1,12 +1,12 @@
-# FlowCreditMarket Auto-Borrowing Guide
+# FlowALPv1 Auto-Borrowing Guide
 
 ## Overview
 
-FlowCreditMarket includes an auto-borrowing feature that automatically optimizes your position's capital efficiency when creating a new position. This guide explains how it works and when to use it.
+FlowALPv1 includes an auto-borrowing feature that automatically optimizes your position's capital efficiency when creating a new position. This guide explains how it works and when to use it.
 
 ## What is Auto-Borrowing?
 
-When you deposit collateral into FlowCreditMarket, the system can automatically borrow against that collateral to achieve a target health ratio. This maximizes capital efficiency by ensuring your position is neither too risky nor too conservative.
+When you deposit collateral into FlowALPv1, the system can automatically borrow against that collateral to achieve a target health ratio. This maximizes capital efficiency by ensuring your position is neither too risky nor too conservative.
 
 ### Example
 - You deposit 1000 Flow tokens as collateral
@@ -25,7 +25,7 @@ When you deposit collateral into FlowCreditMarket, the system can automatically 
 
 ### Example:
 ```cadence
-let position = FlowCreditMarket.openPosition(
+let position = FlowALPv1.openPosition(
     collateral: <-myFlowVault,
     issuanceSink: mySink,
     repaymentSource: mySource,
@@ -44,7 +44,7 @@ let position = FlowCreditMarket.openPosition(
 ### Example:
 ```cadence
 // Use openPosition with pushToDrawDownSink=false to disable auto-borrowing
-let position = FlowCreditMarket.openPosition(
+let position = FlowALPv1.openPosition(
     collateral: <-myFlowVault,
     issuanceSink: mySink,
     repaymentSource: mySource,
