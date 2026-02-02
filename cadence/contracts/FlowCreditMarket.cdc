@@ -1917,7 +1917,7 @@ access(all) contract FlowCreditMarket {
             // Execute the liquidation
             let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
             
-            self._lockPosition(pid)
+            self._unlockPosition(pid)
             
             return <- seizedCollateral
         }
