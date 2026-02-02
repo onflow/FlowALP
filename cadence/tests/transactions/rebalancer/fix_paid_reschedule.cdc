@@ -8,18 +8,23 @@ import "MockFlowCreditMarketConsumer"
 import "FlowCreditMarketRebalancerV1"
 import "FlowCreditMarketRebalancerPaidV1"
 
-transaction() {
-    let paidRebalancerCap: Capability<&FlowCreditMarketRebalancerPaidV1.RebalancerPaid>
+transaction(uuid: UInt64?) {
+    let rebalancerUUID: UInt64
+    // let paidRebalancerCap: Capability<&FlowCreditMarketRebalancerPaidV1.RebalancerPaid>
 
     prepare(signer: auth(IssueStorageCapabilityController) &Account) {
-        self.paidRebalancerCap = signer.capabilities.storage.issue<&FlowCreditMarketRebalancerPaidV1.RebalancerPaid>(
-            StoragePath(identifier: "FCM.PaidRebalancer")!
-        )
-        assert(self.paidRebalancerCap.check(), message: "Invalid paid rebalancer capability")
+        if uuid != nil {
+            self.rebalancerUUID = uuid!
+        } else {
+            let paidRebalancerCap = signer.capabilities.storage.issue<&FlowCreditMarketRebalancerPaidV1.RebalancerPaid>(
+                StoragePath(identifier: "FCM.PaidRebalancer")!
+            )
+            assert(paidRebalancerCap.check(), message: "Invalid paid rebalancer capability")
+            self.rebalancerUUID = paidRebalancerCap.borrow()!.rebalancerUUID
+        }
     }
 
     execute {
-        let uuid = self.paidRebalancerCap.borrow()!.rebalancerUUID
-        self.paidRebalancerCap.borrow()!.fixReschedule(uuid: uuid)
+        FlowCreditMarketRebalancerPaidV1.fixReschedule(uuid: self.rebalancerUUID)
     }
 }

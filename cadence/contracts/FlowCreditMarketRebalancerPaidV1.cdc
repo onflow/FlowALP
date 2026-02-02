@@ -74,6 +74,13 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
         }
     }
 
+    access(all) fun fixReschedule(
+        uuid: UInt64,
+    ) {
+        let rebalancer = FlowCreditMarketRebalancerPaidV1.borrowRebalancer(uuid: uuid)!
+        rebalancer.fixReschedule()
+    }
+
     access(self) fun borrowRebalancer(
         uuid: UInt64,
     ): auth(FlowCreditMarket.Rebalance, FlowCreditMarketRebalancerV1.Rebalancer.Configure) &FlowCreditMarketRebalancerV1.Rebalancer? {

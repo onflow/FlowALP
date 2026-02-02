@@ -106,19 +106,19 @@ access(all) fun test_fix_reschedule_idempotent() {
     var evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.FixReschedule>())
     Test.assertEqual(1, evts.length)
 
-    fixPaidReschedule(signer: userAccount)
-    fixPaidReschedule(signer: userAccount)
+    fixPaidReschedule(signer: userAccount, uuid: nil)
+    fixPaidReschedule(signer: userAccount, uuid: nil)
 
     Test.moveTime(by: 10.0)
     Test.commitBlock()
 
-    fixPaidReschedule(signer: userAccount)
+    fixPaidReschedule(signer: userAccount, uuid: nil)
 
     Test.moveTime(by: 1000.0)
     Test.commitBlock()
 
-    fixPaidReschedule(signer: userAccount)
-    fixPaidReschedule(signer: userAccount)
+    fixPaidReschedule(signer: userAccount, uuid: nil)
+    fixPaidReschedule(signer: userAccount, uuid: nil)
 
     evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.FixReschedule>())
     Test.assertEqual(1, evts.length)
@@ -151,7 +151,7 @@ access(all) fun test_fix_reschedule_no_funds() {
 
     // now we fix the missing funds and call fix reschedule
     mintFlow(to: protocolAccount, amount: 1000.0)
-    fixPaidReschedule(signer: userAccount)
+    fixPaidReschedule(signer: userAccount, uuid: nil)
     Test.moveTime(by: 1.0)
     Test.commitBlock()
 
@@ -184,13 +184,13 @@ access(all) fun test_change_recurring_config() {
 
     changePaidInterval(signer: protocolAccount, uuid: e.uuid, interval: 1000, expectFailure: false)
 
-    Test.moveTime(by: 990.0)
+    Test.moveTime(by: 980.0)
     Test.commitBlock()
 
     evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
     Test.assertEqual(1, evts.length)
 
-    Test.moveTime(by: 10.0)
+    Test.moveTime(by: 20.0)
     Test.commitBlock()
 
     evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
@@ -198,13 +198,13 @@ access(all) fun test_change_recurring_config() {
 
     changePaidInterval(signer: protocolAccount, uuid: e.uuid, interval: 50, expectFailure: false)
 
-    Test.moveTime(by: 49.0)
+    Test.moveTime(by: 45.0)
     Test.commitBlock()
 
     evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
     Test.assertEqual(2, evts.length)
 
-    Test.moveTime(by: 1.0)
+    Test.moveTime(by: 5.0)
     Test.commitBlock()
 
     evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
@@ -227,4 +227,19 @@ access(all) fun test_delete_rebalancer() {
 
     evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
     Test.assertEqual(1, evts.length)
+}
+
+access(all) fun test_public_fix_reschedule() {
+    safeReset()
+
+    Test.moveTime(by: 100.0)
+    Test.commitBlock()
+
+    var evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
+    Test.assertEqual(1, evts.length)
+    let e = evts[0] as! FlowCreditMarketRebalancerV1.Rebalanced
+    let publicPath = PublicPath(identifier: "paidRebalancerV1\(e.uuid)")!
+
+    let randomAccount = Test.createAccount()
+    fixPaidReschedule(signer: randomAccount, uuid: e.uuid)
 }

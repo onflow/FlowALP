@@ -38,11 +38,12 @@ fun addPaidRebalancerToWrappedPosition(
 
 access(all)
 fun fixPaidReschedule(
-    signer: Test.TestAccount
+    signer: Test.TestAccount,
+    uuid: UInt64?
 ) {
     let setRes = _executeTransaction(
         "./transactions/rebalancer/fix_paid_reschedule.cdc",
-        [],
+        [uuid],
         signer
     )
     Test.expect(setRes, Test.beSucceeded())
