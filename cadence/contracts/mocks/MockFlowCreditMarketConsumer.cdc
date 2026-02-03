@@ -38,16 +38,31 @@ access(all) contract MockFlowCreditMarketConsumer {
         let position = FlowCreditMarket.Position(id: pid, pool: poolCap)
         self.account.storage.save(poolCap, to: FlowCreditMarket.PoolCapStoragePath)
         return <- create PositionWrapper(
+            pid: pid,
             position: position
         )
+    }
+
+    access(all)
+    fun getPoolCapability():
+        Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) & FlowCreditMarket.Pool> {
+
+        let poolCapCopy = self.account.storage.copy<
+            Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) & FlowCreditMarket.Pool>
+        >(from: FlowCreditMarket.PoolCapStoragePath)
+            ?? panic("Missing pool capability")
+
+        return poolCapCopy
     }
 
     /// A simple resource encapsulating a FlowCreditMarket Position
     access(all) resource PositionWrapper {
 
         access(self) let position: FlowCreditMarket.Position
+        access(all) let positionID: UInt64
 
-        init(position: FlowCreditMarket.Position) {
+        init(pid: UInt64, position: FlowCreditMarket.Position) {
+            self.positionID = pid
             self.position = position
         }
 
