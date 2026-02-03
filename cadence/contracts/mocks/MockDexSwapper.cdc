@@ -37,8 +37,8 @@ access(all) contract MockDexSwapper {
         if swappersRef[inType] == nil {
             swappersRef[inType] = { outType: swapper }
         } else {
-            let swappersForInType = swappersRef[inType]! as! auth(Mutate) &{Type: Swapper}
-            swappersForInType[outType] = swapper
+            let swappersForInTypeRef = &self.swappers[inType]! as auth(Mutate) &{Type: Swapper}
+            swappersForInTypeRef[outType] = swapper
         }
     }
 
