@@ -3413,8 +3413,10 @@ access(all) contract FlowCreditMarket {
             self._lockPosition(pid)
             let position = self._borrowPosition(pid: pid)
 
+            // store types to avoid iterating while mutating
+            let depositTypes = position.queuedDeposits.keys
             // First check queued deposits, their addition could affect the rebalance we attempt later
-            for depositType in position.queuedDeposits.keys {
+            for depositType in depositTypes {
                 let queuedVault <- position.queuedDeposits.remove(key: depositType)!
                 let queuedAmount = queuedVault.balance
                 let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
@@ -3431,7 +3433,12 @@ access(all) contract FlowCreditMarket {
                     self._depositEffectsOnly(pid: pid, from: <-depositVault)
 
                     // We need to update the queued vault to reflect the amount we used up
-                    position.queuedDeposits[depositType] <-! queuedVault
+                    if let existing <- position.queuedDeposits.remove(key: depositType) {
+                        existing.deposit(from: <-queuedVault)
+                        position.queuedDeposits[depositType] <-! existing
+                    } else {
+                        position.queuedDeposits[depositType] <-! queuedVault
+                    }
                 }
             }
 
