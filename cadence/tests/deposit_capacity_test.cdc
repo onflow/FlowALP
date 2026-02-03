@@ -69,7 +69,7 @@ fun test_deposit_capacity_consumption() {
     
     // Make a deposit
     let depositAmount = 2000.0
-    depositToWrappedPosition(signer: user, amount: depositAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    depositToWrappedPosition(signer: user, positionID: 0, amount: depositAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Check that capacity decreased by exactly depositAmount (no regeneration should occur)
     capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
@@ -80,7 +80,7 @@ fun test_deposit_capacity_consumption() {
     
     // Make another deposit
     let depositAmount2 = 1500.0
-    depositToWrappedPosition(signer: user, amount: depositAmount2, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    depositToWrappedPosition(signer: user, positionID: 0, amount: depositAmount2, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Check that capacity decreased further
     capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
@@ -123,16 +123,16 @@ fun test_per_user_deposit_limits() {
     
     // User 1 deposits more (should be accepted up to limit)
     let user1Deposit1 = 300.0 // After this: usage = 400 (out of 500 limit)
-    depositToWrappedPosition(signer: user1, amount: user1Deposit1, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    depositToWrappedPosition(signer: user1, positionID: 0, amount: user1Deposit1, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // User 1 deposits more (should be partially accepted, partially queued)
     let user1Deposit2 = 200.0 // Only 100 more can be accepted to reach limit of 500, 100 will be queued
-    depositToWrappedPosition(signer: user1, amount: user1Deposit2, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    depositToWrappedPosition(signer: user1, positionID: 0, amount: user1Deposit2, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     // After this: usage = 500 (at limit), 100 queued
     
     // User 1 tries to deposit more (should be queued due to per-user limit)
     let user1Deposit3 = 100.0 // This should be queued (user already at limit)
-    depositToWrappedPosition(signer: user1, amount: user1Deposit3, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false) // Transaction succeeds but deposit is queued
+    depositToWrappedPosition(signer: user1, positionID: 0, amount: user1Deposit3, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false) // Transaction succeeds but deposit is queued
     
     // Setup user 2 - they should have their own independent limit
     let user2 = Test.createAccount()
@@ -145,7 +145,7 @@ fun test_per_user_deposit_limits() {
     
     // User 2 should be able to deposit up to their own limit (500 total, so 400 more)
     let user2Deposit = 400.0
-    depositToWrappedPosition(signer: user2, amount: user2Deposit, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    depositToWrappedPosition(signer: user2, positionID: 1, amount: user2Deposit, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     // After this: usage = 500 (at limit)
     
     // Verify that both users have independent limits by checking capacity
@@ -212,7 +212,7 @@ fun test_capacity_regeneration() {
     let depositAmount = userLimit - initialDepositAmount
 
     
-    depositToWrappedPosition(signer: user, amount: depositAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    depositToWrappedPosition(signer: user, positionID: 0, amount: depositAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Verify capacity decreased by the accepted amount
     capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
@@ -229,7 +229,7 @@ fun test_capacity_regeneration() {
     
     // Trigger regeneration by making a small deposit (this calls updateForTimeChange)
     let smallDeposit = 1.0
-    depositToWrappedPosition(signer: user, amount: smallDeposit, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    depositToWrappedPosition(signer: user, positionID: 0, amount: smallDeposit, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Check that capacity cap increased and capacity was reset to new cap
     capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
@@ -281,19 +281,19 @@ fun test_user_usage_reset_on_regeneration() {
     // User deposits more to reach their limit (500 total, so 400 more)
     let userLimit = initialCap * depositLimitFraction // 500
     let additionalDeposit = userLimit - initialDepositAmount // 400
-    depositToWrappedPosition(signer: user, amount: additionalDeposit, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    depositToWrappedPosition(signer: user, positionID: 0, amount: additionalDeposit, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     // After this: usage = 500 (at limit)
     
     // Try to deposit more - should be queued
     let excessDeposit = 100.0
-    depositToWrappedPosition(signer: user, amount: excessDeposit, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false) // Transaction succeeds but deposit is queued
+    depositToWrappedPosition(signer: user, positionID: 0, amount: excessDeposit, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false) // Transaction succeeds but deposit is queued
     
     // Advance time by 1 hour + 1 second to trigger regeneration
     let timeMoved = hourInSeconds + 1.0
     Test.moveTime(by: Fix64(timeMoved))
     
     // Trigger regeneration
-    depositToWrappedPosition(signer: user, amount: 1.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    depositToWrappedPosition(signer: user, positionID: 0, amount: 1.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // After regeneration, user's usage should be reset, so they should be able to deposit again
     // Get the actual cap to calculate the actual multiplier used
@@ -309,7 +309,7 @@ fun test_user_usage_reset_on_regeneration() {
     // They already have initialDepositAmount (100) from before regeneration, but usage was reset
     // So they can deposit the full newUserLimit
     let depositAfterRegen = newUserLimit - 1.0 // Deposit just under the new limit
-    depositToWrappedPosition(signer: user, amount: depositAfterRegen, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    depositToWrappedPosition(signer: user, positionID: 0, amount: depositAfterRegen, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Verify capacity info
     // Note: The cap may have regenerated slightly, so we check it's at least the expected value
@@ -350,7 +350,7 @@ fun test_multiple_hours_regeneration() {
     // The initial deposit consumes capacity, but we're checking the cap regeneration, not capacity
     
     // Make a small deposit to trigger regeneration
-    depositToWrappedPosition(signer: user, amount: 1.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    depositToWrappedPosition(signer: user, positionID: 0, amount: 1.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // Get the actual cap and calculate the actual multiplier used
     var capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)

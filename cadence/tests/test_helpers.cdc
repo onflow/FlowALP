@@ -396,10 +396,10 @@ fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStorage
 }
 
 access(all)
-fun depositToWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+fun depositToWrappedPosition(signer: Test.TestAccount, positionID: UInt64, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     let depositRes = _executeTransaction(
         "./transactions/position-manager/deposit_to_position.cdc",
-        [amount, vaultStoragePath, pushToDrawDownSink],
+        [positionID, amount, vaultStoragePath, pushToDrawDownSink],
         signer
     )
     Test.expect(depositRes, Test.beSucceeded())

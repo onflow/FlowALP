@@ -9,7 +9,7 @@ import "FlowCreditMarket"
 ///
 /// Deposits the amount of the Vault at the signer's StoragePath to the position
 ///
-transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+transaction(positionID: UInt64, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
 
     // the funds that will be used as collateral for a FlowCreditMarket loan
     let collateral: @{FungibleToken.Vault}
@@ -28,15 +28,8 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
             )
             ?? panic("Could not find PositionManager in signer's storage")
 
-        // Get the first (and typically only) position ID
-        let positionIDs = manager.getPositionIDs()
-        if positionIDs.length == 0 {
-            panic("No positions found in PositionManager")
-        }
-        let positionId = positionIDs[0]
-
-        // Borrow the position
-        self.position = manager.borrowPosition(pid: positionId)
+        // Borrow the specified position
+        self.position = manager.borrowPosition(pid: positionID)
         self.pushToDrawDownSink = pushToDrawDownSink
     }
 
