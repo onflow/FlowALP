@@ -64,7 +64,6 @@ fun changePaidInterval(
     Test.expect(setRes, expectFailure ? Test.beFailed() : Test.beSucceeded())
 }
 
-
 access(all)
 fun deletePaidRebalancer(
     signer: Test.TestAccount,
@@ -72,6 +71,35 @@ fun deletePaidRebalancer(
     let setRes = _executeTransaction(
         "./transactions/rebalancer/delete_paid_rebalancer.cdc",
         [],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun createSupervisor(
+    signer: Test.TestAccount,
+    cronExpression: String,
+    cronHandlerStoragePath: StoragePath,
+    keeperExecutionEffort: UInt64,
+    executorExecutionEffort: UInt64
+) {
+    let setRes = _executeTransaction(
+        "./transactions/rebalancer/create_supervisor.cdc",
+        [cronExpression, cronHandlerStoragePath, keeperExecutionEffort, executorExecutionEffort],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun addPaidRebalancerToSupervisor(
+    signer: Test.TestAccount,
+    uuid: UInt64
+) {
+    let setRes = _executeTransaction(
+        "./transactions/rebalancer/add_rebalancer_to_supervisor.cdc",
+        [uuid],
         signer
     )
     Test.expect(setRes, Test.beSucceeded())

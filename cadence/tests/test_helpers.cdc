@@ -166,9 +166,30 @@ fun deployContracts() {
     )
     Test.expect(err, Test.beNil())
 
-        err = Test.deployContract(
+    err = Test.deployContract(
         name: "SimpleSinkSource",
         path: "../contracts/mocks/SimpleSinkSource.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowCronUtils",
+        path: "../../imports/6dec6e64a13b881e/FlowCronUtils.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowCron",
+        path: "../../imports/6dec6e64a13b881e/FlowCron.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowCreditMarketSupervisorV1",
+        path: "../contracts/FlowCreditMarketSupervisorV1.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())

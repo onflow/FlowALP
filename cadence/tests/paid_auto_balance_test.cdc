@@ -6,6 +6,7 @@ import "test_helpers_rebalance.cdc"
 import "FlowCreditMarketRebalancerV1"
 import "FlowTransactionScheduler"
 import "MOET"
+import "FlowCreditMarketSupervisorV1"
 
 access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
 access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
@@ -47,6 +48,13 @@ access(all) fun setup() {
     createWrappedPosition(signer: userAccount, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
     depositToWrappedPosition(signer: userAccount, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
     addPaidRebalancerToWrappedPosition(signer: userAccount)
+    createSupervisor(
+        signer: userAccount, 
+        cronExpression: "0 * * * *",
+        cronHandlerStoragePath: /storage/myRecurringTaskHandler,
+        keeperExecutionEffort: 1000,
+        executorExecutionEffort: 1000
+    )
     
     snapshot = getCurrentBlockHeight()
 }
@@ -238,8 +246,74 @@ access(all) fun test_public_fix_reschedule() {
     var evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
     Test.assertEqual(1, evts.length)
     let e = evts[0] as! FlowCreditMarketRebalancerV1.Rebalanced
-    let publicPath = PublicPath(identifier: "paidRebalancerV1\(e.uuid)")!
 
     let randomAccount = Test.createAccount()
     fixPaidReschedule(signer: randomAccount, uuid: e.uuid)
+}
+
+access(all) fun test_supervisor_executed() {
+    safeReset()
+
+    Test.moveTime(by: 100.0)
+    Test.commitBlock()
+
+    var evts = Test.eventsOfType(Type<FlowCreditMarketSupervisorV1.Executed>())
+    Test.assertEqual(1, evts.length)
+
+    Test.moveTime(by: 60.0 * 60.0)
+    Test.commitBlock()
+
+    evts = Test.eventsOfType(Type<FlowCreditMarketSupervisorV1.Executed>())
+    Test.assertEqual(2, evts.length)
+}
+
+access(all) fun test_supervisor() {
+    safeReset()
+
+    Test.moveTime(by: 100.0)
+    Test.commitBlock()
+
+    var evts = Test.eventsOfType(Type<FlowCreditMarketSupervisorV1.Executed>())
+    Test.assertEqual(1, evts.length)
+
+    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
+    Test.assertEqual(1, evts.length)
+    let e = evts[0] as! FlowCreditMarketRebalancerV1.Rebalanced
+
+    addPaidRebalancerToSupervisor(signer: userAccount, uuid: e.uuid)
+
+    // drain the funding contract so the transaction reverts
+    let balance = getBalance(address: protocolAccount.address, vaultPublicPath: /public/flowTokenBalance)!
+    actuallyTransferFlowTokens(from: protocolAccount, to: userAccount, amount: balance)
+
+    Test.moveTime(by: 100.0)
+    Test.commitBlock()
+
+    // it still executed once but should have no transaction scheduled
+    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
+    Test.assertEqual(2, evts.length)
+
+    Test.moveTime(by: 1000.0)
+    Test.commitBlock()
+    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
+    Test.assertEqual(2, evts.length)
+
+    // now we fix the missing funds and call fix reschedule
+    mintFlow(to: protocolAccount, amount: 1000.0)
+    Test.moveTime(by: 60.0* 100.0)
+    Test.commitBlock()
+
+    // now supervisor will fix the rebalancer
+    evts = Test.eventsOfType(Type<FlowCreditMarketSupervisorV1.Executed>())
+    Test.assertEqual(2, evts.length)
+
+    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.FixReschedule>())
+    Test.assertEqual(2, evts.length)
+
+    Test.moveTime(by: 10.0)
+    Test.commitBlock()
+
+    // now rebalancer could run the transaction again
+    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
+    Test.assertEqual(3, evts.length)
 }

@@ -2,8 +2,6 @@
 
 The core philosophy is **decoupling**: each component operates independently with the least privilege necessary.
 
-The **Supervisor** is currently in the design phase (not yet implemented).
-
 ### Key Principles
 
 * **Isolation:** FCM, Rebalancer, and Supervisor are fully independent.
@@ -34,7 +32,7 @@ sequenceDiagram
     anyone->>FCMHelper: createPosition()
     FCMHelper->>FCM: createPosition()
     FCMHelper->>AB: createRebalancer(rebalanceCapability)
-    FCMHelper->>Supervisor: supervise(publicCapability)
+    FCMHelper->>Supervisor: addRebalancer(uuid)
 ```
 
 ### while running
