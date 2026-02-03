@@ -22,13 +22,13 @@ transaction(positionId: UInt64) {
     let moetWithdrawRef: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
 
     prepare(borrower: auth(BorrowValue) &Account) {
-        // Borrow the PositionManager from constant storage path
-        let manager = borrower.storage.borrow<auth(FungibleToken.Withdraw) &FlowCreditMarket.PositionManager>(
+        // Borrow the PositionManager from constant storage path with both required entitlements
+        let manager = borrower.storage.borrow<auth(FungibleToken.Withdraw, FlowCreditMarket.EPositionManage) &FlowCreditMarket.PositionManager>(
             from: FlowCreditMarket.PositionStoragePath
         ) ?? panic("Could not find PositionManager in storage")
 
         // Borrow the position with withdraw entitlement
-        self.position = manager.borrowAuthorizedPosition(pid: positionId)
+        self.position = manager.borrowAuthorizedPosition(pid: positionId) as! auth(FungibleToken.Withdraw) &FlowCreditMarket.Position
 
         // Get receiver reference for depositing withdrawn collateral
         self.receiverRef = borrower.capabilities.borrow<&{FungibleToken.Receiver}>(
