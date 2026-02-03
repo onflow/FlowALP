@@ -2776,7 +2776,6 @@ access(all) contract FlowCreditMarket {
             )
 
             var canWithdraw = false
-            var usedTopUp = false
 
             if requiredDeposit == 0.0 {
                 // We can service this withdrawal without any top up
@@ -2807,7 +2806,6 @@ access(all) contract FlowCreditMarket {
                             pid: pid,
                             from: <-pulledVault
                         )
-                        usedTopUp = pulledAmount > 0.0
                         canWithdraw = true
                     } else {
                         // We can't get the funds required to service this withdrawal, so we need to redeposit what we got
@@ -2815,7 +2813,6 @@ access(all) contract FlowCreditMarket {
                             pid: pid,
                             from: <-pulledVault
                         )
-                        usedTopUp = pulledAmount > 0.0
                     }
                 }
             }
@@ -3425,20 +3422,13 @@ access(all) contract FlowCreditMarket {
 
                 if maxDeposit >= queuedAmount {
                     // We can deposit all of the queued deposit, so just do it and remove it from the queue
-                    self.depositAndPush(
-                        pid: pid,
-                        from: <-queuedVault,
-                        pushToDrawDownSink: false
-                    )
+
+                    self._depositEffectsOnly(pid: pid, from: <-queuedVault)
                 } else {
                     // We can only deposit part of the queued deposit, so do that and leave the rest in the queue
                     // for the next time we run.
                     let depositVault <- queuedVault.withdraw(amount: maxDeposit)
-                    self.depositAndPush(
-                        pid: pid,
-                        from: <-depositVault,
-                        pushToDrawDownSink: false
-                    )
+                    self._depositEffectsOnly(pid: pid, from: <-depositVault)
 
                     // We need to update the queued vault to reflect the amount we used up
                     position.queuedDeposits[depositType] <-! queuedVault
