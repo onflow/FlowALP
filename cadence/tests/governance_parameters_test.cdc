@@ -60,7 +60,7 @@ fun test_setGovernanceParams_and_exercise_paths() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 1000.0, beFailed: false)
     let depositRes = _executeTransaction(
         "./transactions/position-manager/deposit_to_position.cdc",
-        [0, 500.0, MOET.VaultStoragePath, false],
+        [UInt64(0), 500.0, MOET.VaultStoragePath, false],
         user
     )
     Test.expect(depositRes, Test.beSucceeded())
