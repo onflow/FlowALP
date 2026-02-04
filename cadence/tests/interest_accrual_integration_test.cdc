@@ -83,9 +83,6 @@ access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-    Test.expect(betaTxResult, Test.beSucceeded())
-
     // Capture snapshot AFTER deployment for clean test resets
     snapshot = getCurrentBlockHeight()
 }

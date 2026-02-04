@@ -44,10 +44,6 @@ access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-
-    Test.expect(betaTxResult, Test.beSucceeded())
-
     // price setup
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: flowStartPrice)
 

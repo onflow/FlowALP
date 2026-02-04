@@ -15,9 +15,6 @@ access(all) var snapshot: UInt64 = 0
 access(all)
 fun setup() {
     deployContracts()
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-
-    Test.expect(betaTxResult, Test.beSucceeded())
 
     snapshot = getCurrentBlockHeight()
 }

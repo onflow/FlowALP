@@ -8,10 +8,6 @@ import "test_helpers.cdc"
 access(all)
 fun setup() {
     deployContracts()
-
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-
-    Test.expect(betaTxResult, Test.beSucceeded())
 }
 
 access(all)
