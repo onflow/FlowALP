@@ -89,8 +89,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 100_000.0, beFailed: false)
 
     // Grant beta access (required for protocol interaction during beta phase)
-    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, lp)
-    Test.expect(lpBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, lp)
 
     // Create LP's position by depositing MOET.
     // The `false` parameter = not auto-borrowing, just supplying liquidity.
@@ -142,8 +141,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     setupMoetVault(borrower, beFailed: false)
     mintFlow(to: borrower, amount: 10_000.0)
 
-    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
-    Test.expect(borrowerBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower)
 
     // Create borrower's position with auto-borrow enabled (`true` parameter).
     // This deposits FLOW collateral and automatically borrows MOET targeting health factor ~1.3.

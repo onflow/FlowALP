@@ -78,7 +78,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         // Load the authorized Pool capability from storage
         self.poolCap = signer.storage.load<Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>>(
             from: FlowCreditMarket.PoolCapStoragePath
-        ) ?? panic("Could not load Pool capability from storage - ensure grantBeta has been called")
+        ) ?? panic("Could not load Pool capability from storage - ensure the signer has been granted Pool access with EParticipant entitlement")
     }
 
     execute {

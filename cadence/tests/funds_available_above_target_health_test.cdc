@@ -65,8 +65,7 @@ fun setup() {
     mintFlow(to: userAccount, amount: positionFundingAmount)
 
     // Grant beta access to userAccount so they can create positions
-    let userBetaResult = grantBeta(PROTOCOL_ACCOUNT, userAccount)
-    Test.expect(userBetaResult, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, userAccount)
 
     snapshot = getCurrentBlockHeight()
 

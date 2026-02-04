@@ -45,8 +45,7 @@ fun test_borrower_full_redemption_insolvency() {
     transferFlowTokens(to: borrower, amount: 1000.0)
 
     // Grant beta access to borrower so they can create positions
-    let grantRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
-    Test.expect(grantRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower)
 
     // Open wrapped position and deposit Flow as collateral
     let openRes = _executeTransaction(

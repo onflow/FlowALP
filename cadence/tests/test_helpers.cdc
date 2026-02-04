@@ -9,7 +9,7 @@ access(all) let FLOW_VAULT_STORAGE_PATH = /storage/flowTokenVault
 access(all) let WRAPPER_STORAGE_PATH = /storage/flowCreditMarketPositionWrapper
 
 access(all) let PROTOCOL_ACCOUNT = Test.getAccount(0x0000000000000007)
-access(all) let CONSUMER_ACCOUNT = Test.getAccount(0x0000000000000008)
+access(all) let NON_ADMIN_ACCOUNT = Test.getAccount(0x0000000000000008)
 
 // Variance for UFix64 comparisons
 access(all) let DEFAULT_UFIX_VARIANCE = 0.00000001
@@ -51,8 +51,9 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
     return Test.executeTransaction(txn)
 }
 
+// Grants a beta pool participant capability to the grantee account.
 access(all)
-fun grantBeta(_ admin: Test.TestAccount, _ grantee: Test.TestAccount): Test.TransactionResult {
+fun grantBetaPoolParticipantAccess(_ admin: Test.TestAccount, _ grantee: Test.TestAccount) {
     let signers = admin.address == grantee.address ? [admin] : [admin, grantee]
     let betaTxn = Test.Transaction(
         code: Test.readFile("./transactions/flow-credit-market/pool-management/03_grant_beta.cdc"),
@@ -60,7 +61,8 @@ fun grantBeta(_ admin: Test.TestAccount, _ grantee: Test.TestAccount): Test.Tran
         signers: signers,
         arguments: []
     )
-    return Test.executeTransaction(betaTxn)
+    let result = Test.executeTransaction(betaTxn)
+    Test.expect(result, Test.beSucceeded())
 }
 
 /* --- Setup helpers --- */
@@ -386,8 +388,7 @@ fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: Strin
 access(all)
 fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     // Grant beta access to the signer if they don't have it yet
-    let grantRes = grantBeta(PROTOCOL_ACCOUNT, signer)
-    Test.expect(grantRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, signer)
 
     let openRes = _executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",

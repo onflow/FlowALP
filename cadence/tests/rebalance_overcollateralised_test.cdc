@@ -37,8 +37,7 @@ fun testRebalanceOvercollateralised() {
     mintFlow(to: user, amount: 1_000.0)
 
     // Grant beta access to user so they can create positions
-    let grantRes = grantBeta(PROTOCOL_ACCOUNT, user)
-    Test.expect(grantRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
 
     let openRes = executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",

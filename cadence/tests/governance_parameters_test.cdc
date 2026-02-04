@@ -37,8 +37,7 @@ fun test_setGovernanceParams_and_exercise_paths() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 200.0, beFailed: false)
 
     // Grant beta access to user so they can create positions
-    let grantRes = grantBeta(PROTOCOL_ACCOUNT, user)
-    Test.expect(grantRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
 
     // Open minimal position and deposit to ensure token has credit balance
     let openRes = _executeTransaction(

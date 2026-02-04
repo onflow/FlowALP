@@ -145,8 +145,7 @@ fun test_moet_debit_accrues_interest() {
     setupMoetVault(liquidityProvider, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: liquidityProvider.address, amount: 10_000.0, beFailed: false)
 
-    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, liquidityProvider)
-    Test.expect(lpBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidityProvider)
 
     // Create LP's position (ID = 0) by depositing MOET.
     // The `false` parameter means no auto-borrow - LP is just supplying liquidity.
@@ -197,8 +196,7 @@ fun test_moet_debit_accrues_interest() {
     setupMoetVault(borrower, beFailed: false)
     mintFlow(to: borrower, amount: 1_000.0)
 
-    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
-    Test.expect(borrowerBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower)
 
     // Create borrower's position (ID = 1) with auto-borrow enabled (`true`).
     let openRes = executeTransaction(
@@ -382,8 +380,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10_000.0, beFailed: false)
 
-    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, lp)
-    Test.expect(lpBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, lp)
 
     // Create LP's position (ID = 0) with MOET deposit
     let createLpPosRes = executeTransaction(
@@ -429,8 +426,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     setupMoetVault(borrower, beFailed: false)
     mintFlow(to: borrower, amount: 10_000.0)
 
-    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
-    Test.expect(borrowerBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower)
 
     // Borrower deposits FLOW collateral and auto-borrows MOET
     // This creates utilization in the MOET pool
@@ -565,8 +561,7 @@ fun test_flow_debit_accrues_interest() {
     setupMoetVault(flowLp, beFailed: false)
     mintFlow(to: flowLp, amount: 10_000.0)
 
-    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, flowLp)
-    Test.expect(lpBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, flowLp)
 
     // Create LP's position (ID = 0) with Flow deposit
     let createLpPosRes = executeTransaction(
@@ -615,8 +610,7 @@ fun test_flow_debit_accrues_interest() {
     setupMoetVault(borrower, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: 10_000.0, beFailed: false)
 
-    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
-    Test.expect(borrowerBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower)
 
     // Step 5a: Create position with MOET collateral (no auto-borrow)
     let createPosRes = executeTransaction(
@@ -763,8 +757,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
     setupMoetVault(flowLp, beFailed: false)
     mintFlow(to: flowLp, amount: 10_000.0)
 
-    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, flowLp)
-    Test.expect(lpBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, flowLp)
 
     // Create LP's position (ID = 0) with Flow deposit
     let createLpPosRes = executeTransaction(
@@ -808,8 +801,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
     setupMoetVault(borrower, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: 10_000.0, beFailed: false)
 
-    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
-    Test.expect(borrowerBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower)
 
     // Create position with MOET collateral
     let createPosRes = executeTransaction(
@@ -952,8 +944,7 @@ fun test_insurance_deduction_verification() {
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10_000.0, beFailed: false)
 
-    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, lp)
-    Test.expect(lpBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, lp)
 
     let createLpPosRes = executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",
@@ -1000,8 +991,7 @@ fun test_insurance_deduction_verification() {
     setupMoetVault(borrower, beFailed: false)
     mintFlow(to: borrower, amount: 10_000.0)
 
-    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
-    Test.expect(borrowerBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower)
 
     let openRes = executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",
@@ -1146,8 +1136,7 @@ fun test_combined_all_interest_scenarios() {
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: moetLp.address, amount: 10_000.0, beFailed: false)
-    let lp1Beta = grantBeta(PROTOCOL_ACCOUNT, moetLp)
-    Test.expect(lp1Beta, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, moetLp)
 
     let lp1Res = executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",
@@ -1165,8 +1154,7 @@ fun test_combined_all_interest_scenarios() {
     let flowLp = Test.createAccount()
     setupMoetVault(flowLp, beFailed: false)
     mintFlow(to: flowLp, amount: 5_000.0)
-    let lp2Beta = grantBeta(PROTOCOL_ACCOUNT, flowLp)
-    Test.expect(lp2Beta, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, flowLp)
 
     let lp2Res = executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",
@@ -1222,8 +1210,7 @@ fun test_combined_all_interest_scenarios() {
     let borrower1 = Test.createAccount()
     setupMoetVault(borrower1, beFailed: false)
     mintFlow(to: borrower1, amount: 2_000.0)
-    let b1Beta = grantBeta(PROTOCOL_ACCOUNT, borrower1)
-    Test.expect(b1Beta, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower1)
 
     let b1Res = executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",
@@ -1244,8 +1231,7 @@ fun test_combined_all_interest_scenarios() {
     let borrower2 = Test.createAccount()
     setupMoetVault(borrower2, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower2.address, amount: 3_000.0, beFailed: false)
-    let b2Beta = grantBeta(PROTOCOL_ACCOUNT, borrower2)
-    Test.expect(b2Beta, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower2)
 
     let b2PosRes = executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",
