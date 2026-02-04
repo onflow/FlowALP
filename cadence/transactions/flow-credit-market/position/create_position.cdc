@@ -18,7 +18,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     // this DeFiActions Source that will allow for the repayment of a loan if the position becomes undercollateralized
     let source: {DeFiActions.Source}
     // the position manager in the signer's account where we should store the new position
-    let positionManager: auth(FlowCreditMarket.EPositionManage) &FlowCreditMarket.PositionManager
+    let positionManager: auth(FlowCreditMarket.EPositionAdmin) &FlowCreditMarket.PositionManager
     // the authorized Pool capability
     let poolCap: Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>
     // reference to signer's account for saving capability back
@@ -72,7 +72,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
             // Publish read-only capability publicly
             signer.capabilities.publish(readCap, at: FlowCreditMarket.PositionPublicPath)
         }
-        self.positionManager = signer.storage.borrow<auth(FlowCreditMarket.EPositionManage) &FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath)
+        self.positionManager = signer.storage.borrow<auth(FlowCreditMarket.EPositionAdmin) &FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath)
             ?? panic("PositionManager not found")
 
         // Load the authorized Pool capability from storage

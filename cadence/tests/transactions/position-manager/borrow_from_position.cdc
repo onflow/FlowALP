@@ -18,7 +18,7 @@ transaction(
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
         // Borrow the PositionManager from constant storage path
-        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowCreditMarket.EPositionManage) &FlowCreditMarket.PositionManager>(
+        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowCreditMarket.EPositionAdmin) &FlowCreditMarket.PositionManager>(
                 from: FlowCreditMarket.PositionStoragePath
             )
             ?? panic("Could not find PositionManager in signer's storage")
