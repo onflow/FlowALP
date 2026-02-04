@@ -42,6 +42,13 @@ access(all) contract MockDexSwapper {
         }
     }
 
+    /// Used by testing code to remove a swapper for the given token pair.
+    /// Panics if no swapper for the given pair exists.
+    access(all) fun removeMockDEXSwapperForPair(inType: Type, outType: Type) {
+        let swappersForInTypeRef = &self.swappers[inType]! as auth(Mutate) &{Type: Swapper}
+        swappersForInTypeRef.remove(key: outType)
+    }
+
     access(all) struct BasicQuote : DeFiActions.Quote {
         access(all) let inType: Type
         access(all) let outType: Type
