@@ -109,7 +109,6 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 1000.0, beFailed: false)
-    grantPoolCapToConsumer()
 
     // LP deposits 1000 MOET (creates credit balance, provides borrowing liquidity)
     createWrappedPosition(signer: lp, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
@@ -213,7 +212,6 @@ fun test_collectInsurance_success_fullAmount() {
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10000.0, beFailed: false)
-    grantPoolCapToConsumer()
 
     // LP deposits MOET (creates credit balance, provides borrowing liquidity)
     createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
@@ -282,7 +280,6 @@ fun test_collectInsurance_multipleTokens() {
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: moetLp.address, amount: 10000.0, beFailed: false)
-    grantPoolCapToConsumer()
 
     // MOET LP deposits MOET (creates MOET credit balance)
     createWrappedPosition(signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
