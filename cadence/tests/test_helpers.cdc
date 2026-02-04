@@ -386,7 +386,7 @@ fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: Strin
 }
 
 access(all)
-fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+fun createPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     // Grant beta access to the signer if they don't have it yet
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, signer)
 
@@ -399,7 +399,7 @@ fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStorage
 }
 
 access(all)
-fun depositToWrappedPosition(signer: Test.TestAccount, positionID: UInt64, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+fun depositToPosition(signer: Test.TestAccount, positionID: UInt64, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     let depositRes = _executeTransaction(
         "./transactions/position-manager/deposit_to_position.cdc",
         [positionID, amount, vaultStoragePath, pushToDrawDownSink],
