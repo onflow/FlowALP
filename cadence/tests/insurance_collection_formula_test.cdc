@@ -39,6 +39,7 @@ fun test_collectInsurance_success_fullAmount() {
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10000.0, beFailed: false)
+    grantPoolCapToConsumer()
 
     // LP deposits MOET (creates credit balance, provides borrowing liquidity)
     createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)

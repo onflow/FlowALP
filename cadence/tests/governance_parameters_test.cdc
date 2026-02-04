@@ -36,6 +36,10 @@ fun test_setGovernanceParams_and_exercise_paths() {
     setupMoetVault(user, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 200.0, beFailed: false)
 
+    // Grant beta access to user so they can create positions
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, user)
+    Test.expect(grantRes, Test.beSucceeded())
+
     // Open minimal position and deposit to ensure token has credit balance
     let openRes = _executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",

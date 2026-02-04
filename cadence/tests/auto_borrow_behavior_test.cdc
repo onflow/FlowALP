@@ -40,6 +40,10 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
 
+    // Grant beta access to user so they can create positions
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, user)
+    Test.expect(grantRes, Test.beSucceeded())
+
     // Capture MOET balance before opening the position for later comparison (no MOET should be minted)
     let moetVaultBalanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
 
@@ -100,6 +104,10 @@ fun testNoAutoBorrowWhenPushToDrawDownSinkFalse() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
+
+    // Grant beta access to user so they can create positions
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, user)
+    Test.expect(grantRes, Test.beSucceeded())
 
     // Capture MOET balance before opening the position for later comparison (no MOET should be minted)
     let moetVaultBalanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0

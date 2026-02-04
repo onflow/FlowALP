@@ -39,6 +39,10 @@ fun testZeroDebtFullWithdrawalAvailable() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
 
+    // Grant beta access to user so they can create positions
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, user)
+    Test.expect(grantRes, Test.beSucceeded())
+
     // 4. open position WITHOUT auto-borrow (pushToDrawDownSink = false)
     let openRes = executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",

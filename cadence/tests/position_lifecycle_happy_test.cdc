@@ -42,6 +42,10 @@ fun testPositionLifecycleHappyPath() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
 
+    // Grant beta access to user so they can create positions
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, user)
+    Test.expect(grantRes, Test.beSucceeded())
+
     let balanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assertEqual(0.0, balanceBefore)
 

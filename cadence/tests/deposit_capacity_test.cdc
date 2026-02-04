@@ -53,7 +53,8 @@ fun test_deposit_capacity_consumption() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 5000.0, beFailed: false)
-    
+    grantPoolCapToConsumer()
+
     // Get capacity before position creation (the initial deposit will consume capacity)
     capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
     let capacityBeforePositionCreation = capacityInfo["depositCapacity"]!
@@ -116,7 +117,8 @@ fun test_per_user_deposit_limits() {
     let user1 = Test.createAccount()
     setupMoetVault(user1, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user1.address, amount: 10000.0, beFailed: false)
-    
+    grantPoolCapToConsumer()
+
     let initialDeposit1 = 100.0
     createWrappedPosition(signer: user1, amount: initialDeposit1, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     // After position creation: usage = 100 (out of 500 limit)
@@ -191,7 +193,8 @@ fun test_capacity_regeneration() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 6000.0, beFailed: false)
-    
+    grantPoolCapToConsumer()
+
     // Get capacity before position creation (the initial deposit will consume capacity)
     capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
     let capacityBeforePositionCreation = capacityInfo["depositCapacity"]!
@@ -273,7 +276,8 @@ fun test_user_usage_reset_on_regeneration() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 10000.0, beFailed: false)
-    
+    grantPoolCapToConsumer()
+
     let initialDepositAmount = 100.0
     createWrappedPosition(signer: user, amount: initialDepositAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     // After position creation: usage = 100 (out of 500 limit)
@@ -344,7 +348,8 @@ fun test_multiple_hours_regeneration() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 1000.0, beFailed: false)
-    
+    grantPoolCapToConsumer()
+
     let initialDepositAmount = 100.0
     createWrappedPosition(signer: user, amount: initialDepositAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     // The initial deposit consumes capacity, but we're checking the cap regeneration, not capacity

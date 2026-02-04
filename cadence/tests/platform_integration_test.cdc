@@ -63,6 +63,10 @@ fun testCreateUserPositionSucceeds() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: collateralAmount)
 
+    // Grant beta access to user so they can create positions
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, user)
+    Test.expect(grantRes, Test.beSucceeded())
+
     // ensure user does not have a MOET balance
     var moetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assertEqual(0.0, moetBalance)
@@ -113,6 +117,10 @@ fun testUndercollateralizedPositionRebalanceSucceeds() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: collateralAmount)
+
+    // Grant beta access to user so they can create positions
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, user)
+    Test.expect(grantRes, Test.beSucceeded())
 
     // open the position & push to drawDownSink - forces MOET to downstream test sink which is user's MOET Vault
     let res = executeTransaction("../transactions/flow-credit-market/position/create_position.cdc",
@@ -177,6 +185,10 @@ fun testOvercollateralizedPositionRebalanceSucceeds() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: collateralAmount)
+
+    // Grant beta access to user so they can create positions
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, user)
+    Test.expect(grantRes, Test.beSucceeded())
 
     // open the position & push to drawDownSink - forces MOET to downstream test sink which is user's MOET Vault
     let res = executeTransaction("../transactions/flow-credit-market/position/create_position.cdc",

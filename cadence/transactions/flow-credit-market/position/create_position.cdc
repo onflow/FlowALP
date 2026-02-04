@@ -19,8 +19,13 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     let source: {DeFiActions.Source}
     // the position manager in the signer's account where we should store the new position
     let positionManager: auth(FlowCreditMarket.EPositionManage) &FlowCreditMarket.PositionManager
+    // the authorized Pool capability
+    let poolCap: Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>
+    // reference to signer's account for saving capability back
+    let signerAccount: auth(Storage) &Account
 
     prepare(signer: auth(BorrowValue, Storage, Capabilities) &Account) {
+        self.signerAccount = signer
         // configure a MOET Vault to receive the loaned amount (if none already exists)
         if signer.storage.type(at: MOET.VaultStoragePath) == nil {
             // save a new MOET Vault
@@ -69,15 +74,16 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         }
         self.positionManager = signer.storage.borrow<auth(FlowCreditMarket.EPositionManage) &FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath)
             ?? panic("PositionManager not found")
+
+        // Load the authorized Pool capability from storage
+        self.poolCap = signer.storage.load<Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>>(
+            from: FlowCreditMarket.PoolCapStoragePath
+        ) ?? panic("Could not load Pool capability from storage - ensure grantBeta has been called")
     }
 
     execute {
-        // Borrow public Pool reference
-        let protocolAddress = Type<@FlowCreditMarket.Pool>().address!
-        let poolRef = getAccount(protocolAddress)
-            .capabilities.borrow<&FlowCreditMarket.Pool>(
-                FlowCreditMarket.PoolPublicPath
-            ) ?? panic("Could not borrow Pool public capability")
+        // Borrow the authorized Pool reference
+        let poolRef = self.poolCap.borrow() ?? panic("Could not borrow Pool capability")
 
         // Create position
         let position <- poolRef.createPosition(
@@ -89,7 +95,10 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
 
         let pid = position.id
 
-        
+
         self.positionManager.addPosition(position: <-position)
+
+        // Save the capability back to storage for future use
+        self.signerAccount.storage.save(self.poolCap, to: FlowCreditMarket.PoolCapStoragePath)
     }
 }

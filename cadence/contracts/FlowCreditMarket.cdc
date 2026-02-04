@@ -2571,7 +2571,7 @@ access(all) contract FlowCreditMarket {
         /// Returns a Position resource that provides fine-grained access control through entitlements.
         /// The caller must store the Position resource in their account and manage access to it.
         /// Clients are recommended to use the PositionManager collection type to manage their Positions.
-        access(all) fun createPosition(
+        access(EParticipant) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DeFiActions.Sink},
             repaymentSource: {DeFiActions.Source}?,

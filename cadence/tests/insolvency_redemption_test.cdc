@@ -44,6 +44,10 @@ fun test_borrower_full_redemption_insolvency() {
     setupMoetVault(borrower, beFailed: false)
     transferFlowTokens(to: borrower, amount: 1000.0)
 
+    // Grant beta access to borrower so they can create positions
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
+    Test.expect(grantRes, Test.beSucceeded())
+
     // Open wrapped position and deposit Flow as collateral
     let openRes = _executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",

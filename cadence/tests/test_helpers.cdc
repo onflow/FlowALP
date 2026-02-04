@@ -62,6 +62,21 @@ fun grantBeta(_ admin: Test.TestAccount, _ grantee: Test.TestAccount): Test.Tran
     )
     return Test.executeTransaction(betaTxn)
 }
+
+// Must be called AFTER the pool is created and stored, otherwise publishing will fail the capability check.
+access(all)
+fun grantPoolCapToConsumer() {
+    // Check pool exists (defensively handle CI ordering). If not, no-op.
+    let existsRes = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [PROTOCOL_ACCOUNT.address])
+    Test.expect(existsRes, Test.beSucceeded())
+    if !(existsRes.returnValue as! Bool) {
+        return
+    }
+
+    // Use in-repo grant transaction that issues EParticipant+EPosition and saves to PoolCapStoragePath
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
+    Test.expect(grantRes, Test.beSucceeded())
+}
 /* --- Setup helpers --- */
 
 // Common test setup function that deploys all required contracts
@@ -104,6 +119,7 @@ fun deployContracts() {
 
     // NOTE: Do not publish beta capability here; some tests create the Pool later and
     // publishing before pool creation will fail. Tests that need the cap should call
+    // grantPoolCapToConsumer() after creating the pool.
 
     err = Test.deployContract(
         name: "MockOracle",
@@ -387,6 +403,10 @@ fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: Strin
 
 access(all)
 fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+    // Grant beta access to the signer if they don't have it yet
+    let grantRes = grantBeta(PROTOCOL_ACCOUNT, signer)
+    Test.expect(grantRes, Test.beSucceeded())
+
     let openRes = _executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",
         [amount, vaultStoragePath, pushToDrawDownSink],
