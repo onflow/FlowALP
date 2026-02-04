@@ -1469,10 +1469,6 @@ access(all) contract FlowCreditMarket {
         /// percentage between 0.0 and 1.0
         access(self) var borrowFactor: {Type: UFix64}
 
-        /// Per-token liquidation bonus fraction (e.g., 0.05 for 5%)
-        /// TODO(jord): we want to keep this logic but set it to 0 initially
-        access(self) var liquidationBonus: {Type: UFix64}
-
         /// The count of positions to update per asynchronous update
         access(self) var positionsProcessedPerCallback: UInt64
 
@@ -1497,38 +1493,17 @@ access(all) contract FlowCreditMarket {
         /// Time this pool most recently had liquidations paused
         access(self) var lastUnpausedAt: UInt64?
 
-        /// Deprecated: Unused field, but cannot be removed without contract update
-        access(self) var protocolLiquidationFeeBps: UInt16
-
-        // TODO(jord): figure out how to reference dex https://github.com/onflow/FlowCreditMarket/issues/94
-        //  - either need to redeploy contract to create new dex field
-        //  - or need to revert to allowlist pattern and pass in swapper instances (I worry about security of this option)
-        //  - also to make allowlist pattern work with automated liquidation, initiator of this automation will need actual handle on a dex in order to pass it to FCM 
-
-        /// Allowlist of permitted DeFiActions Swapper types for DEX liquidations
-        /// TODO: unused! To remove, must re-deploy existing contracts
-        access(self) var allowedSwapperTypes: {Type: Bool}
-
-        /// A trusted DEX (or set of DEXes) used by FCM as a pricing oracle and trading counterparty for liquidations.
+        /// A trusted DEX (or set of DEXes) used by FlowCreditMarket as a pricing oracle and trading counterparty for liquidations.
         /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
         /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
         ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
         ///
-        /// FCM does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
+        /// FlowCreditMarket does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
         /// It relies directly on the Swapper's returned by the configured SwapperProvider.
         access(self) let dex: {DeFiActions.SwapperProvider}
 
         /// Max allowed deviation in basis points between DEX-implied price and oracle price
         access(self) var dexOracleDeviationBps: UInt16
-
-        /// Max slippage allowed in basis points for DEX liquidations
-        /// TODO(jord): revisit this. Is this ever necessary if we are also checking dexOracleDeviationBps? Do we want both a spot price check and a slippage from spot price check?
-        /// TODO: unused! To remove, must re-deploy existing contracts
-        access(self) var dexMaxSlippageBps: UInt64
-
-        /// Max route hops allowed for DEX liquidations
-        /// TODO: unused! To remove, must re-deploy existing contracts
-        access(self) var dexMaxRouteHops: UInt64
 
         init(
         	defaultToken: Type,
