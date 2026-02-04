@@ -164,9 +164,45 @@ access(all) contract FlowCreditMarket {
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
+    /// EPosition
+    ///
+    /// Entitlement for managing positions within the pool.
+    /// This entitlement grants access to position-specific operations including deposits, withdrawals,
+    /// rebalancing, and health parameter management for any position in the pool.
+    ///
+    /// Note that this entitlement provides access to all positions in the pool,
+    /// not just individual position owners' positions.
     access(all) entitlement EPosition
+
+    /// EGovernance
+    ///
+    /// Entitlement for governance operations that control pool-wide parameters and configuration.
+    /// This entitlement grants access to administrative functions that affect the entire pool,
+    /// including liquidation settings, token support, interest rates, and protocol parameters.
+    ///
+    /// This entitlement should be granted only to trusted governance entities that manage
+    /// the protocol's risk parameters and operational settings.
     access(all) entitlement EGovernance
+
+    /// EImplementation
+    ///
+    /// Entitlement for internal implementation operations that maintain the pool's state
+    /// and process asynchronous updates. This entitlement grants access to low-level state
+    /// management functions used by the protocol's internal mechanisms.
+    ///
+    /// This entitlement is used internally by the protocol to maintain state consistency
+    /// and process queued operations. It should not be granted to external users.
     access(all) entitlement EImplementation
+
+    /// EParticipant
+    ///
+    /// Entitlement for general participant operations that allow users to interact with the pool
+    /// at a basic level. This entitlement grants access to position creation and basic deposit
+    /// operations without requiring full position ownership.
+    ///
+    /// This entitlement is more permissive than EPosition and allows anyone to create positions
+    /// and make deposits, enabling public participation in the protocol while maintaining
+    /// separation between position creation and position management.
     access(all) entitlement EParticipant
 
     /* --- NUMERIC TYPES POLICY ---
@@ -408,7 +444,15 @@ access(all) contract FlowCreditMarket {
         }
     }
 
-    /// Entitlement mapping enabling authorized references on nested resources within InternalPosition
+    /// ImplementationUpdates
+    ///
+    /// Entitlement mapping that enables authorized references on nested resources within InternalPosition.
+    /// This mapping translates EImplementation entitlement into Mutate and FungibleToken.Withdraw
+    /// capabilities, allowing the protocol's internal implementation to modify position state and
+    /// interact with fungible token vaults.
+    ///
+    /// This mapping is used internally to process queued deposits and manage position state
+    /// without requiring direct access to the nested resources.
     access(all) entitlement mapping ImplementationUpdates {
         EImplementation -> Mutate
         EImplementation -> FungibleToken.Withdraw
