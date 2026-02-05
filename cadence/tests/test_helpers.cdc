@@ -322,6 +322,26 @@ fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, pri
     Test.expect(setRes, Test.beSucceeded())
 }
 
+/// Sets a swapper for the given pair with the given price ratio.
+/// This overwrites any previously stored swapper for this pair, if any exists.
+/// This is intended to be used in tests both to set an initial DEX price for a supported token,
+/// or to modify the price of an existing token during the course of a test.
+access(all)
+fun setMockDexPriceForPair(
+    signer: Test.TestAccount,
+    inVaultIdentifier: String,
+    outVaultIdentifier: String,
+    vaultSourceStoragePath: StoragePath,
+    priceRatio: UFix64
+) {
+    let addRes = _executeTransaction(
+        "./transactions/mock-dex-swapper/set_mock_dex_price_for_pair.cdc",
+        [inVaultIdentifier, outVaultIdentifier, vaultSourceStoragePath, priceRatio],
+        signer
+    )
+    Test.expect(addRes, Test.beSucceeded())
+}
+
 access(all)
 fun addSupportedTokenZeroRateCurve(
     signer: Test.TestAccount,
