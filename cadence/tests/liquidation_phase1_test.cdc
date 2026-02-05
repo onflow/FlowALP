@@ -338,7 +338,7 @@ fun testManualLiquidation_increaseHealthBelowTarget() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // cause severe undercollateralization
     let newPrice = 0.5 // $/FLOW
@@ -397,7 +397,7 @@ fun testManualLiquidation_liquidateToTarget() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // cause undercollateralization
     let newPrice = 0.7 // $/FLOW
@@ -853,7 +853,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_withinThreshold() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // cause undercollateralization
     let oraclePrice = 0.7 // $/FLOW
@@ -899,7 +899,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexBelowOracle() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // cause undercollateralization
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 0.7)
@@ -936,7 +936,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexAboveOracle() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // cause undercollateralization
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 0.7)
@@ -977,7 +977,7 @@ fun testManualLiquidation_liquidatorOfferWorseThanDex() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // cause undercollateralization
     let newPrice = 0.7 // $/FLOW
@@ -1028,7 +1028,7 @@ fun testManualLiquidation_combinedEdgeCase() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // cause undercollateralization
     let oraclePrice = 0.7 // $/FLOW
