@@ -24,7 +24,6 @@ fun setup() {
 
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
     createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
-    grantPoolCapToConsumer()
     addSupportedTokenZeroRateCurve(
         signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
@@ -50,7 +49,7 @@ fun testManualLiquidation_healthyPosition() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // Log initial health
     let health = getPositionHealth(pid: pid, beFailed: false)
@@ -88,7 +87,7 @@ fun testManualLiquidation_liquidationExceedsTargetHealth() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -137,7 +136,7 @@ fun testManualLiquidation_repayExceedsDebt() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -189,7 +188,7 @@ fun testManualLiquidation_seizeExceedsCollateral() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -239,7 +238,7 @@ fun testManualLiquidation_reduceHealth() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -297,7 +296,7 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -342,7 +341,7 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -389,7 +388,7 @@ fun testManualLiquidation_unsupportedDebtType() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -436,7 +435,7 @@ fun testManualLiquidation_unsupportedCollateralType() {
 
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
-    createWrappedPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -496,7 +495,7 @@ fun testManualLiquidation_supportedDebtTypeNotInPosition() {
     // user1 opens wrapped position with FLOW collateral
     // debt is MOET, collateral is FLOW
     let pid1: UInt64 = 0
-    createWrappedPosition(signer: user1, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user1, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // user2 setup - deposits MockYieldToken
     let user2 = Test.createAccount()
@@ -506,7 +505,7 @@ fun testManualLiquidation_supportedDebtTypeNotInPosition() {
 
     // user2 opens wrapped position with MockYieldToken collateral
     let pid2: UInt64 = 1
-    createWrappedPosition(signer: user2, amount: 1000.0, vaultStoragePath: MockYieldToken.VaultStoragePath, pushToDrawDownSink: true)
+    createPosition(signer: user2, amount: 1000.0, vaultStoragePath: MockYieldToken.VaultStoragePath, pushToDrawDownSink: true)
 
     // health before price drop for user1
     let hBefore = getPositionHealth(pid: pid1, beFailed: false)
@@ -562,7 +561,7 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
 
     // user1 opens wrapped position with FLOW collateral, MOET debt
     let pid1: UInt64 = 0
-    createWrappedPosition(signer: user1, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    createPosition(signer: user1, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
 
     // user2 setup - deposits MockYieldToken, borrows MOET
     let user2 = Test.createAccount()
@@ -572,7 +571,7 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
 
     // user2 opens wrapped position with MockYieldToken collateral
     let pid2: UInt64 = 1
-    createWrappedPosition(signer: user2, amount: 1000.0, vaultStoragePath: MockYieldToken.VaultStoragePath, pushToDrawDownSink: true)
+    createPosition(signer: user2, amount: 1000.0, vaultStoragePath: MockYieldToken.VaultStoragePath, pushToDrawDownSink: true)
 
     // health before price drop for user1
     let hBefore = getPositionHealth(pid: pid1, beFailed: false)

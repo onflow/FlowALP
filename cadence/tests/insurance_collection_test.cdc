@@ -47,8 +47,7 @@ fun test_collectInsurance_noInsuranceRate_returnsNil() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 1000.0, beFailed: false)
 
     // create position
-    grantPoolCapToConsumer()
-    createWrappedPosition(signer: user, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(signer: user, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // verify no swapper
     Test.assertEqual(false, insuranceSwapperExists(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER))
@@ -110,10 +109,9 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 1000.0, beFailed: false)
-    grantPoolCapToConsumer()
 
     // LP deposits 1000 MOET (creates credit balance, provides borrowing liquidity)
-    createWrappedPosition(signer: lp, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(signer: lp, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with large FLOW collateral to borrow most of the MOET
     let borrower = Test.createAccount()
@@ -124,7 +122,7 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     // With 0.8 CF and 1.3 target health: 10000 FLOW allows borrowing ~6153 MOET
     // But pool only has 1000 MOET, so borrower gets ~1000 MOET (limited by liquidity)
     // This leaves reserves very low (close to 0)
-    createWrappedPosition(signer: borrower, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    createPosition(signer: borrower, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
@@ -174,8 +172,7 @@ fun test_collectInsurance_tinyAmount_roundsToZero_returnsNil() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 1.0, beFailed: false)
 
     // create position with tiny deposit
-    grantPoolCapToConsumer()
-    createWrappedPosition(signer: user, amount: 0.00000001, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(signer: user, amount: 0.00000001, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
@@ -216,9 +213,8 @@ fun test_collectInsurance_success_fullAmount() {
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10000.0, beFailed: false)
 
-    grantPoolCapToConsumer()
     // LP deposits MOET (creates credit balance, provides borrowing liquidity)
-    createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with FLOW collateral
     let borrower = Test.createAccount()
@@ -226,7 +222,7 @@ fun test_collectInsurance_success_fullAmount() {
     transferFlowTokens(to: borrower, amount: 1000.0)
 
     // borrower deposits FLOW and auto-borrows MOET (creates debit balance)
-    createWrappedPosition(signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    createPosition(signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
@@ -285,9 +281,8 @@ fun test_collectInsurance_multipleTokens() {
     setupMoetVault(moetLp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: moetLp.address, amount: 10000.0, beFailed: false)
 
-    grantPoolCapToConsumer()
     // MOET LP deposits MOET (creates MOET credit balance)
-    createWrappedPosition(signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup FLOW LP to provide FLOW liquidity for borrowing
     let flowLp = Test.createAccount()
@@ -295,7 +290,7 @@ fun test_collectInsurance_multipleTokens() {
     transferFlowTokens(to: flowLp, amount: 10000.0)
 
     // FLOW LP deposits FLOW (creates FLOW debit balance)
-    createWrappedPosition(signer: flowLp, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(signer: flowLp, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     // setup MOET borrower with FLOW collateral (creates MOET debit)
     let moetBorrower = Test.createAccount()
@@ -303,7 +298,7 @@ fun test_collectInsurance_multipleTokens() {
     transferFlowTokens(to: moetBorrower, amount: 1000.0)
 
     // MOET borrower deposits FLOW and auto-borrows MOET (creates MOET debit balance)
-    createWrappedPosition(signer: moetBorrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    createPosition(signer: moetBorrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     // setup FLOW borrower with MOET collateral (creates FLOW debit)
     let flowBorrower = Test.createAccount()
@@ -311,7 +306,7 @@ fun test_collectInsurance_multipleTokens() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: flowBorrower.address, amount: 1000.0, beFailed: false)
 
     // FLOW borrower deposits MOET as collateral
-    createWrappedPosition(signer: flowBorrower, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(signer: flowBorrower, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     // Then borrow FLOW (creates FLOW debit balance)
     borrowFromPosition(signer: flowBorrower, positionId: 3, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 500.0, beFailed: false)
 

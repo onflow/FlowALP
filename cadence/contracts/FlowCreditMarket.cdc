@@ -26,6 +26,12 @@ access(all) contract FlowCreditMarket {
 
     access(all) let PoolCapStoragePath: StoragePath
 
+    /// The canonical StoragePath where PositionManager resources are stored
+    access(all) let PositionStoragePath: StoragePath
+
+    /// The canonical PublicPath where PositionManager can be accessed publicly
+    access(all) let PositionPublicPath: PublicPath
+
     /* --- EVENTS ---- */
 
     // Prefer Type in events for stronger typing; off-chain can stringify via .identifier
@@ -204,6 +210,10 @@ access(all) contract FlowCreditMarket {
     /// and make deposits, enabling public participation in the protocol while maintaining
     /// separation between position creation and position management.
     access(all) entitlement EParticipant
+
+    /// Grants access to configure drawdown sinks, top-up sources, and other position settings, for the Position resource.
+    /// Withdrawal access is provided using FungibleToken.Withdraw.
+    access(all) entitlement EPositionAdmin
 
     /* --- NUMERIC TYPES POLICY ---
         - External/public APIs (Vault amounts, deposits/withdrawals, events) use UFix64.
@@ -2557,13 +2567,16 @@ access(all) contract FlowCreditMarket {
         /// depositing the loaned amount to the given Sink.
         /// If a Source is provided, the position will be configured to pull loan repayment
         /// when the loan becomes undercollateralized, preferring repayment to outright liquidation.
-        /// TODO(jord): it does not seem like there is any permission system for positions. Anyone with (auth EPosition) &Pool can operate on any position.
+        ///
+        /// Returns a Position resource that provides fine-grained access control through entitlements.
+        /// The caller must store the Position resource in their account and manage access to it.
+        /// Clients are recommended to use the PositionManager collection type to manage their Positions.
         access(EParticipant) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DeFiActions.Sink},
             repaymentSource: {DeFiActions.Source}?,
             pushToDrawDownSink: Bool
-        ): UInt64 {
+        ): @Position {
             pre {
                 self.globalLedger[funds.getType()] != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
@@ -2587,13 +2600,21 @@ access(all) contract FlowCreditMarket {
                 iPos.setTopUpSource(repaymentSource)
             }
 
-            // deposit the initial funds & return the position ID
+            // deposit the initial funds
             self.depositAndPush(
                 pid: id,
                 from: <-funds,
                 pushToDrawDownSink: pushToDrawDownSink
             )
-            return id
+
+            // Create a capability to the Pool for the Position resource
+            // The Pool is stored in the FlowCreditMarket contract account
+            let poolCap = FlowCreditMarket.account.capabilities.storage.issue<auth(EPosition) &Pool>(
+                FlowCreditMarket.PoolStoragePath
+            )
+
+            // Create and return the Position resource
+            return <- create Position(id: id, pool: poolCap)
         }
 
         /// Allows anyone to deposit funds into any position.
@@ -3683,22 +3704,26 @@ access(all) contract FlowCreditMarket {
 
     /// Position
     ///
-    /// A Position is an external object representing ownership of value deposited to the protocol. From a Position, an
-    /// actor can deposit and withdraw funds as well as construct DeFiActions components enabling value flows in and out
-    /// of the Position from within the context of DeFiActions stacks.
+    /// A Position is a resource representing ownership of value deposited to the protocol.
+    /// From a Position, a user can deposit and withdraw funds as well as construct DeFiActions components enabling
+    /// value flows in and out of the Position from within the context of DeFiActions stacks.
+    /// Unauthorized Position references allow depositing only, and are considered safe to publish.
+    /// The EPositionAdmin entitlement protects sensitive withdrawal and configuration methods.
     ///
-    // TODO: Consider making this a resource given how critical it is to accessing a loan
-    access(all) struct Position {
+    /// Position resources are held in user accounts and provide access to one position (by pid).
+    /// Clients are recommended to use PositionManager to manage access to Positions.
+    ///
+    access(all) resource Position {
 
         /// The unique ID of the Position used to track deposits and withdrawals to the Pool
-        access(self) let id: UInt64
+        access(all) let id: UInt64
 
-        /// An authorized Capability to which the Position was opened
-        access(self) let pool: Capability<auth(EPosition, EParticipant) &Pool>
+        /// An authorized Capability to the Pool for which this Position was opened.
+        access(self) let pool: Capability<auth(EPosition) &Pool>
 
         init(
             id: UInt64,
-            pool: Capability<auth(EPosition, EParticipant) &Pool>
+            pool: Capability<auth(EPosition) &Pool>
         ) {
             pre {
                 pool.check():
@@ -3737,7 +3762,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Sets the target health of the Position
-        access(all) fun setTargetHealth(targetHealth: UFix64) {
+        access(EPositionAdmin) fun setTargetHealth(targetHealth: UFix64) {
             let pool = self.pool.borrow()!
             let uint = UFix128(targetHealth)
             pool.writeTargetHealth(pid: self.id, targetHealth: uint)
@@ -3751,7 +3776,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Sets the minimum health of the Position
-        access(all) fun setMinHealth(minHealth: UFix64) {
+        access(EPositionAdmin) fun setMinHealth(minHealth: UFix64) {
             let pool = self.pool.borrow()!
             let uint = UFix128(minHealth)
             pool.writeMinHealth(pid: self.id, minHealth: uint)
@@ -3765,7 +3790,7 @@ access(all) contract FlowCreditMarket {
         }
 
         /// Sets the maximum health of the position
-        access(all) fun setMaxHealth(maxHealth: UFix64) {
+        access(EPositionAdmin) fun setMaxHealth(maxHealth: UFix64) {
             let pool = self.pool.borrow()!
             let uint = UFix128(maxHealth)
             pool.writeMaxHealth(pid: self.id, maxHealth: uint)
@@ -3777,9 +3802,9 @@ access(all) contract FlowCreditMarket {
             return UFix64.max
         }
 
-        /// Deposits funds to the Position without pushing to the drawDownSink
-        /// if the deposit puts the Position above its maximum health
-        access(EParticipant) fun deposit(from: @{FungibleToken.Vault}) {
+        /// Deposits funds to the Position without immediately pushing to the drawDownSink if the deposit puts the Position above its maximum health.
+        /// NOTE: Anyone is allowed to deposit to any position.
+        access(all) fun deposit(from: @{FungibleToken.Vault}) {
             self.depositAndPush(
                 from: <-from,
                 pushToDrawDownSink: false
@@ -3788,7 +3813,8 @@ access(all) contract FlowCreditMarket {
 
         /// Deposits funds to the Position enabling the caller to configure whether excess value
         /// should be pushed to the drawDownSink if the deposit puts the Position above its maximum health
-        access(EParticipant) fun depositAndPush(
+        /// NOTE: Anyone is allowed to deposit to any position.
+        access(all) fun depositAndPush(
             from: @{FungibleToken.Vault},
             pushToDrawDownSink: Bool
         ) {
@@ -3898,7 +3924,7 @@ access(all) contract FlowCreditMarket {
         /// configured for the pool. Providing a new sink will replace the existing sink.
         ///
         /// Pass nil to configure the position to not push tokens when the Position exceeds its maximum health.
-        access(FungibleToken.Withdraw) fun provideSink(sink: {DeFiActions.Sink}?) {
+        access(EPositionAdmin) fun provideSink(sink: {DeFiActions.Sink}?) {
             let pool = self.pool.borrow()!
             pool.provideDrawDownSink(pid: self.id, sink: sink)
         }
@@ -3911,10 +3937,66 @@ access(all) contract FlowCreditMarket {
         /// configured for the pool. Providing a new source will replace the existing source.
         ///
         /// Pass nil to configure the position to not pull tokens.
-        access(EParticipant) fun provideSource(source: {DeFiActions.Source}?) {
+        access(EPositionAdmin) fun provideSource(source: {DeFiActions.Source}?) {
             let pool = self.pool.borrow()!
             pool.provideTopUpSource(pid: self.id, source: source)
         }
+    }
+
+    /// PositionManager
+    ///
+    /// A collection resource that manages multiple Position resources for an account.
+    /// This allows users to have multiple positions while using a single, constant storage path.
+    ///
+    access(all) resource PositionManager {
+
+        /// Dictionary storing all positions owned by this manager, keyed by position ID
+        access(self) let positions: @{UInt64: Position}
+
+        init() {
+            self.positions <- {}
+        }
+
+        /// Adds a new position to the manager.
+        access(EPositionAdmin) fun addPosition(position: @Position) {
+            let pid = position.id
+            let old <- self.positions[pid] <- position
+            if old != nil {
+                panic("Cannot add position with same pid (\(pid)) as existing position: must explicitly remove existing position first")
+            }
+            destroy old
+        }
+
+        /// Removes and returns a position from the manager.
+        access(EPositionAdmin) fun removePosition(pid: UInt64): @Position {
+            if let position <- self.positions.remove(key: pid) {
+                return <-position
+            }
+            panic("Position with pid=\(pid) not found in PositionManager")
+        }
+
+        /// Internal method that returns a reference to a position authorized with all entitlements.
+        /// Callers who wish to provide a partially authorized reference can downcast the result as needed.
+        access(EPositionAdmin) fun borrowAuthorizedPosition(pid: UInt64): auth(FungibleToken.Withdraw, EPositionAdmin) &Position {
+            return (&self.positions[pid] as auth(FungibleToken.Withdraw, EPositionAdmin) &Position?)
+                ?? panic("Position with pid=\(pid) not found in PositionManager")
+        }
+
+        /// Returns a public reference to a position with no entitlements.
+        access(all) fun borrowPosition(pid: UInt64): &Position {
+            return (&self.positions[pid] as &Position?)
+                ?? panic("Position with pid=\(pid) not found in PositionManager")
+        }
+
+        /// Returns the IDs of all positions in this manager
+        access(all) fun getPositionIDs(): [UInt64] {
+            return self.positions.keys
+        }
+    }
+
+    /// Creates and returns a new PositionManager resource
+    access(all) fun createPositionManager(): @PositionManager {
+        return <- create PositionManager()
     }
 
     /// PositionSink
@@ -4238,6 +4320,9 @@ access(all) contract FlowCreditMarket {
         self.PoolFactoryPath = StoragePath(identifier: "flowCreditMarketPoolFactory_\(self.account.address)")!
         self.PoolPublicPath = PublicPath(identifier: "flowCreditMarketPool_\(self.account.address)")!
         self.PoolCapStoragePath = StoragePath(identifier: "flowCreditMarketPoolCap_\(self.account.address)")!
+
+        self.PositionStoragePath = StoragePath(identifier: "flowCreditMarketPosition_\(self.account.address)")!
+        self.PositionPublicPath = PublicPath(identifier: "flowCreditMarketPosition_\(self.account.address)")!
 
         // save PoolFactory in storage
         self.account.storage.save(

@@ -8,10 +8,6 @@ import "test_helpers.cdc"
 access(all)
 fun setup() {
     deployContracts()
-
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-
-    Test.expect(betaTxResult, Test.beSucceeded())
 }
 
 access(all)
@@ -40,12 +36,15 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
 
+    // Grant beta access to user so they can create positions
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
+
     // Capture MOET balance before opening the position for later comparison (no MOET should be minted)
     let moetVaultBalanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
 
     // Create position with pushToDrawDownSink=true to trigger auto-rebalancing
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],  // pushToDrawDownSink=true triggers auto-borrow
         user
     )
@@ -101,12 +100,15 @@ fun testNoAutoBorrowWhenPushToDrawDownSinkFalse() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
 
+    // Grant beta access to user so they can create positions
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
+
     // Capture MOET balance before opening the position for later comparison (no MOET should be minted)
     let moetVaultBalanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
 
     // Create position with pushToDrawDownSink=false to prevent auto-rebalancing
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, false],  // pushToDrawDownSink=false prevents auto-borrow
         user
     )
