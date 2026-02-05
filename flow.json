@@ -52,12 +52,6 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"MockFlowCreditMarketConsumer": {
-			"source": "./cadence/contracts/mocks/MockFlowCreditMarketConsumer.cdc",
-			"aliases": {
-				"testing": "0000000000000008"
-			}
-		},
 		"MockOracle": {
 			"source": "./cadence/contracts/mocks/MockOracle.cdc",
 			"aliases": {

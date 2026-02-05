@@ -63,7 +63,7 @@ access(all)
 fun testNegativeCap() {
     Test.reset(to: snapshot)
 
-    let negativeResult = _executeTransaction("../tests/transactions/flow-credit-market/pool-management/05_negative_cap.cdc", [], CONSUMER_ACCOUNT)
+    let negativeResult = _executeTransaction("../tests/transactions/flow-credit-market/pool-management/05_negative_cap.cdc", [], NON_ADMIN_ACCOUNT)
     Test.expect(negativeResult, Test.beFailed())
 }
 
