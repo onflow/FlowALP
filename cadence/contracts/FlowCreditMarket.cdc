@@ -1600,9 +1600,6 @@ access(all) contract FlowCreditMarket {
         }
 
         access(self) fun _unlockPosition(_ pid: UInt64) {
-            post {
-                self.positionLock[pid] == nil: "Position is not unlocked"
-            }
             // Always unlock (even if missing)
             self.positionLock.remove(key: pid)
         }
@@ -1927,6 +1924,9 @@ access(all) contract FlowCreditMarket {
                 self.isTokenSupported(tokenType: seizeType): "Collateral token type unsupported: \(seizeType.identifier)"
                 debtType == repayment.getType(): "Repayment vault does not match debt type: \(debtType.identifier)!=\(repayment.getType().identifier)"
                 // TODO(jord): liquidation paused / post-pause warm
+            }
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
             }
             
             self._lockPosition(pid)
@@ -2637,6 +2637,9 @@ access(all) contract FlowCreditMarket {
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
                 // TODO(jord): Sink/source should be valid
             }
+            post {
+                self.positionLock[self.nextPositionID] == nil: "Position is not unlocked"
+            }
             // construct a new InternalPosition, assigning it the current position ID
             let id = self.nextPositionID
             self.nextPositionID = self.nextPositionID + 1
@@ -2805,6 +2808,9 @@ access(all) contract FlowCreditMarket {
                 self.globalLedger[from.getType()] != nil:
                     "Invalid token type \(from.getType().identifier) - not supported by this Pool"
             }
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
             if self.debugLogging {
                 log("    [CONTRACT] depositAndPush(pid: \(pid), pushToDrawDownSink: \(pushToDrawDownSink))")
             }
@@ -2853,6 +2859,9 @@ access(all) contract FlowCreditMarket {
                     "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
                 self.globalLedger[type] != nil:
                     "Invalid token type \(type.identifier) - not supported by this Pool"
+            }
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
             }
             self._lockPosition(pid)
             if self.debugLogging {
@@ -2985,6 +2994,9 @@ access(all) contract FlowCreditMarket {
         /// the position exceeds its maximum health. Note, if a non-nil value is provided, the Sink MUST accept the
         /// Pool's default deposits or the operation will revert.
         access(EPosition) fun provideDrawDownSink(pid: UInt64, sink: {DeFiActions.Sink}?) {
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
             self._lockPosition(pid)
             let position = self._borrowPosition(pid: pid)
             position.setDrawDownSink(sink)
@@ -2995,6 +3007,9 @@ access(all) contract FlowCreditMarket {
         /// If `nil`, the Pool will not be able to pull underflown value when
         /// the position falls below its minimum health which may result in liquidation.
         access(EPosition) fun provideTopUpSource(pid: UInt64, source: {DeFiActions.Source}?) {
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
             self._lockPosition(pid)
             let position = self._borrowPosition(pid: pid)
             position.setTopUpSource(source)
@@ -3391,6 +3406,9 @@ access(all) contract FlowCreditMarket {
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
         access(EPosition) fun rebalancePosition(pid: UInt64, force: Bool) {
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
             self._lockPosition(pid)
             self._rebalancePositionNoLock(pid: pid, force: force)
             self._unlockPosition(pid)
@@ -3523,6 +3541,9 @@ access(all) contract FlowCreditMarket {
 
         /// Executes an asynchronous update on the specified position
         access(EImplementation) fun asyncUpdatePosition(pid: UInt64) {
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
             self._lockPosition(pid)
             let position = self._borrowPosition(pid: pid)
 
