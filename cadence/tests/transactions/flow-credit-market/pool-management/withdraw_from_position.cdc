@@ -10,16 +10,16 @@ transaction(
     pullFromTopUpSource: Bool
 ) {
     let tokenType: Type
-    let pool: auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) &FlowCreditMarket.Pool
     let receiverRef: &{FungibleToken.Receiver}
+    let positionManager: auth(FlowCreditMarket.EPositionAdmin) &FlowCreditMarket.PositionManager
 
     prepare(signer: auth(Storage, Capabilities, BorrowValue) &Account) {
         self.tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier: ".concat(tokenTypeIdentifier))
 
-        // Borrow Pool with the entitlements required by withdrawAndPull
-        let poolCapability = MockFlowCreditMarketConsumer.getPoolCapability()
-        self.pool = poolCapability.borrow()!
+        self.positionManager = signer.storage.borrow<auth(FlowCreditMarket.EPositionAdmin) &FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath)
+            ?? panic("PositionManager not found")
+
         // Get capability (NOT optional), then borrow a reference (optional)
         let cap = signer.capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
         self.receiverRef = cap.borrow()
@@ -27,8 +27,9 @@ transaction(
     }
 
     execute {
+        let position = self.positionManager.borrowAuthorizedPosition(positionID)
+            ?? panic("Could not borrow authorized position")
         let withdrawn <- self.pool.withdrawAndPull(
-            pid: positionID,
             type: self.tokenType,
             amount: amount,
             pullFromTopUpSource: pullFromTopUpSource

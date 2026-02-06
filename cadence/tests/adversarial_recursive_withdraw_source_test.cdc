@@ -16,7 +16,6 @@ access(all) let userAccount = Test.createAccount()
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) let moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
-access(all) let wrapperStoragePath = /storage/flowCreditMarketPositionWrapper
 
 access(all) let flowBorrowFactor = 1.0
 access(all) let flowStartPrice = 1.0
@@ -29,8 +28,8 @@ access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
-    Test.expect(betaTxResult, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(protocolAccount, protocolConsumerAccount)
+    grantBetaPoolParticipantAccess(protocolAccount, userAccount)
 
     // Price setup
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: flowStartPrice)
@@ -72,10 +71,9 @@ fun testRecursiveWithdrawSource() {
     setupMoetVault(user1, beFailed: false)
     mintMoet(signer: protocolAccount, to: user1.address, amount: 10000.0, beFailed: false)
     mintFlow(to: user1, amount: 10000.0)
-    grantPoolCapToConsumer()
 
     let initialDeposit1 = 10000.0
-    createWrappedPosition(
+    createPosition(
         signer: user1,
         amount: initialDeposit1,
         vaultStoragePath: /storage/flowTokenVault,
@@ -93,7 +91,7 @@ fun testRecursiveWithdrawSource() {
     // The goal is to prove the pool rejects the attempt (e.g. via position lock /
     // reentrancy guard), rather than allowing nested withdraw/deposit effects.
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position_reentrancy.cdc",
+        "./transactions/position-manager/create_position_reentrancy.cdc",
         [positionFundingAmount, flowVaultStoragePath, false],
         userAccount
     )

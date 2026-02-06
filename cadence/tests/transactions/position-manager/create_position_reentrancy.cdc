@@ -6,13 +6,11 @@ import "AdversarialReentrancyConnectors"
 
 import "MOET"
 import "FlowToken"
-import "MockFlowCreditMarketConsumer"
 import "FlowCreditMarket"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
-/// Opens a FlowCreditMarket position using collateral withdrawn from the signer’s vault and
-/// wraps it in a `MockFlowCreditMarketConsumer.PositionWrapper`.
+/// Opens a FlowCreditMarket position using collateral withdrawn from the signer’s vault PositionWrapper.
 ///
 /// This transaction intentionally wires an **adversarial DeFiActions.Source** that attempts
 /// to re-enter the Pool during `withdrawAndPull` flows. It is used to validate that the Pool’s
@@ -24,12 +22,17 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     let collateral: @{FungibleToken.Vault}
     // this DeFiActions Sink that will receive the loaned funds
     let sink: {DeFiActions.Sink}
-    // DEBUG: this DeFiActions Source that will allow for the repayment of a loan if the position becomes undercollateralized
+    // this DeFiActions Source that will allow for the repayment of a loan if the position becomes undercollateralized
     let source: {DeFiActions.Source}
-    // the signer's account in which to store a PositionWrapper
-    let account: auth(SaveValue) &Account
+    // the position manager in the signer's account where we should store the new position
+    let positionManager: auth(FlowCreditMarket.EPositionAdmin) &FlowCreditMarket.PositionManager
+    // the authorized Pool capability
+    let poolCap: Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>
+    // reference to signer's account for saving capability back
+    let signerAccount: auth(LoadValue, BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account
 
-    prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
+    prepare(signer: auth(LoadValue, BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
+        self.signerAccount = signer
         // assign a Vault Capability to be used in the VaultSink
         let depositVaultCap = signer.capabilities.get<&{FungibleToken.Vault}>(MOET.VaultPublicPath)
         let withdrawVaultCap = signer.capabilities.storage.issue<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(/storage/flowTokenVault)
@@ -62,26 +65,48 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
             liveDataCap: liveDataCap
         )
 
-        // assign the signer's account enabling the execute block to save the wrapper
-        self.account = signer
+        // Get or create PositionManager at constant path
+        if signer.storage.borrow<&FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath) == nil {
+            // Create new PositionManager if it doesn't exist
+            let manager <- FlowCreditMarket.createPositionManager()
+            signer.storage.save(<-manager, to: FlowCreditMarket.PositionStoragePath)
+
+            // Issue and publish capabilities for the PositionManager
+            let readCap = signer.capabilities.storage.issue<&FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
+
+            // Publish read-only capability publicly
+            signer.capabilities.publish(readCap, at: FlowCreditMarket.PositionPublicPath)
+        }
+        self.positionManager = signer.storage.borrow<auth(FlowCreditMarket.EPositionAdmin) &FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath)
+            ?? panic("PositionManager not found")
+
+        // Load the authorized Pool capability from storage
+        self.poolCap = signer.storage.load<Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>>(
+            from: FlowCreditMarket.PoolCapStoragePath
+        ) ?? panic("Could not load Pool capability from storage - ensure the signer has been granted Pool access with EParticipant entitlement")
     }
 
     execute {
-        // open a position & save in the Wrapper
-        let wrapper <- MockFlowCreditMarketConsumer.createPositionWrapper(
-            collateral: <-self.collateral,
+        // Borrow the authorized Pool reference
+        let poolRef = self.poolCap.borrow() ?? panic("Could not borrow Pool capability")
+
+        // Create position
+        let position <- poolRef.createPosition(
+            funds: <-self.collateral,
             issuanceSink: self.sink,
             repaymentSource: self.source,
             pushToDrawDownSink: pushToDrawDownSink
         )
-        let poolCapability = MockFlowCreditMarketConsumer.getPoolCapability()
-        log("Pool capability: \(poolCapability.check())")
+
+        let pid = position.id
+
+        self.positionManager.addPosition(position: <-position)
         let sourceRef = self.source as! AdversarialReentrancyConnectors.VaultSourceHacked
         
         let liveData = sourceRef.liveDataCap.borrow() ?? panic("cant borrow LiveData")
-        liveData.setRecursivePool(poolCapability)
-        liveData.setRecursivePositionID(wrapper.positionID)
+        liveData.setRecursivePool(self.poolCap)
+        liveData.setRecursivePositionID(pid)
 
-        self.account.storage.save(<-wrapper, to: MockFlowCreditMarketConsumer.WrapperStoragePath)
+        self.signerAccount.storage.save(self.poolCap, to: FlowCreditMarket.PoolCapStoragePath)
     }
 }

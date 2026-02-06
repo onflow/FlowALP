@@ -5,7 +5,6 @@ import "MOET"
 import "FlowCreditMarket"
 import "DeFiActions"
 import "DeFiActionsUtils"
-import "MockFlowCreditMarketConsumer"
 import "FlowToken"
 import "test_helpers.cdc"
 import "FungibleToken"
@@ -17,16 +16,13 @@ access(all) var hackerAccount = Test.getAccount(0x0000000000000008)
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 access(all) let moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
-access(all) let wrapperStoragePath = /storage/flowCreditMarketPositionWrapper
 
 access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult1 = grantBeta(protocolAccount, liquidityAccount)
-    Test.expect(betaTxResult1, Test.beSucceeded())
-    let betaTxResult2 = grantBeta(protocolAccount, hackerAccount)
-    Test.expect(betaTxResult2, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(protocolAccount, liquidityAccount)
+    grantBetaPoolParticipantAccess(protocolAccount, hackerAccount)
 
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 0.0001)
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: moetTokenIdentifier, price: 1.0)
@@ -47,7 +43,7 @@ fun setup() {
     setupMoetVault(hackerAccount, beFailed: false)
 
     // provide liquidity to the pool we can extract
-    createWrappedPosition(signer: liquidityAccount, amount: 10000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
+    createPosition(signer: liquidityAccount, amount: 10000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
 }
 
 access(all)
@@ -57,7 +53,7 @@ fun testMaliciousSource() {
 
     // deposit 1 Flow into the position
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position_spoofing_source.cdc",
+        "./transactions/position-manager/create_position_spoofing_source.cdc",
         [1.0, flowVaultStoragePath, false],
         hackerAccount
     )
