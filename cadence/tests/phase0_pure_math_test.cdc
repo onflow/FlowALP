@@ -21,7 +21,6 @@ fun snap(price: UFix128, creditIdx: UFix128, debitIdx: UFix128, cf: UFix128, bf:
         risk: FlowCreditMarket.RiskParams(
             collateralFactor: cf,
             borrowFactor: bf,
-            liquidationBonus: 0.05
         )
     )
 }

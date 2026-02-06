@@ -1180,7 +1180,6 @@ access(all) contract FlowCreditMarket {
     /// The difference between the effective value and "true" value represents the safety buffer available to prevent loss.
     /// - collateralFactor: the factor used to derive effective collateral
     /// - borrowFactor: the factor used to derive effective debt
-    /// - liquidationBonus: premium applied to liquidations to incentivize repayors
     access(all) struct RiskParams {
         /// The factor (Fc) used to determine effective collateral, in the range [0, 1]
         /// See FlowCreditMarket.effectiveCollateral for additional detail.
@@ -1189,13 +1188,9 @@ access(all) contract FlowCreditMarket {
         /// See FlowCreditMarket.effectiveDebt for additional detail.
         access(all) let borrowFactor: UFix128
 
-        /// Bonus expressed as fractional rate, e.g. 0.05 for 5%
-        access(all) let liquidationBonus: UFix128
-
         init(
             collateralFactor: UFix128,
             borrowFactor: UFix128,
-            liquidationBonus: UFix128
         ) {
             pre {
                 collateralFactor <= 1.0: "collateral factor must be <=1"
@@ -1203,7 +1198,6 @@ access(all) contract FlowCreditMarket {
             }
             self.collateralFactor = collateralFactor
             self.borrowFactor = borrowFactor
-            self.liquidationBonus = liquidationBonus
         }
     }
 
@@ -1729,7 +1723,6 @@ access(all) contract FlowCreditMarket {
                 risk: FlowCreditMarket.RiskParams(
                     collateralFactor: UFix128(self.collateralFactor[type]!),
                     borrowFactor: UFix128(self.borrowFactor[type]!),
-                    liquidationBonus: UFix128(self.liquidationBonus[type]!)
                 )
             )
 
@@ -3619,7 +3612,6 @@ access(all) contract FlowCreditMarket {
                     risk: FlowCreditMarket.RiskParams(
                         collateralFactor: UFix128(self.collateralFactor[t]!),
                         borrowFactor: UFix128(self.borrowFactor[t]!),
-                        liquidationBonus: UFix128(self.liquidationBonus[t]!)
                     )
                 )
             }
