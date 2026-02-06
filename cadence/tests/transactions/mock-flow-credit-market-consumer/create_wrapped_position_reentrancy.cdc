@@ -1,6 +1,7 @@
 import "FungibleToken"
 
 import "DeFiActions"
+import "FungibleTokenConnectors"
 import "AdversarialReentrancyConnectors"
 
 import "MOET"
@@ -10,8 +11,13 @@ import "FlowCreditMarket"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
-/// Opens a Position with the amount of funds source from the Vault at the provided StoragePath and wraps it in a
-/// MockFlowCreditMarketConsumer PositionWrapper
+/// Opens a FlowCreditMarket position using collateral withdrawn from the signer’s vault and
+/// wraps it in a `MockFlowCreditMarketConsumer.PositionWrapper`.
+///
+/// This transaction intentionally wires an **adversarial DeFiActions.Source** that attempts
+/// to re-enter the Pool during `withdrawAndPull` flows. It is used to validate that the Pool’s
+/// reentrancy protections (position locks) correctly reject recursive deposit/withdraw behavior.
+///
 ///
 transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool){
     // the funds that will be used as collateral for a FlowCreditMarket loan
@@ -24,16 +30,6 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     let account: auth(SaveValue) &Account
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
-        // configure a MOET Vault to receive the loaned amount
-        // if signer.storage.type(at: MOET.VaultStoragePath) == nil {
-        //     // save a new MOET Vault
-        //     signer.storage.save(<-MOET.createEmptyVault(vaultType: Type<@MOET.Vault>()), to: MOET.VaultStoragePath)
-        //     // issue un-entitled Capability
-        //     let vaultCap = signer.capabilities.storage.issue<&MOET.Vault>(MOET.VaultStoragePath)
-        //     // publish receiver Capability, unpublishing any that may exist to prevent collision
-        //     signer.capabilities.unpublish(MOET.VaultPublicPath)
-        //     signer.capabilities.publish(vaultCap, at: MOET.VaultPublicPath)
-        // }
         // assign a Vault Capability to be used in the VaultSink
         let depositVaultCap = signer.capabilities.get<&{FungibleToken.Vault}>(MOET.VaultPublicPath)
         let withdrawVaultCap = signer.capabilities.storage.issue<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(/storage/flowTokenVault)
@@ -47,7 +43,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         ?? panic("Could not borrow reference to Vault from \(vaultStoragePath)")
         self.collateral <- collateralSource.withdraw(amount: amount)
         // construct the DeFiActions Sink that will receive the loaned amount
-        self.sink = AdversarialReentrancyConnectors.VaultSinkHacked(
+        self.sink = FungibleTokenConnectors.VaultSink(
             max: nil,
             depositVault: depositVaultCap,
             uniqueID: nil
@@ -85,11 +81,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         let liveData = sourceRef.liveDataCap.borrow() ?? panic("cant borrow LiveData")
         liveData.setRecursivePool(poolCapability)
         liveData.setRecursivePositionID(wrapper.positionID)
-        // sourceRef.setRecursivePool(poolCapability)
-        // let test2 = &wrapper.positionID
-        // sourceRef.setRecursivePositionID(test2)
-        // sourceRef.setRecursivePositionID(&wrapper.positionID)
-        // save the wrapper into the signer's account - reverts on storage collision
+
         self.account.storage.save(<-wrapper, to: MockFlowCreditMarketConsumer.WrapperStoragePath)
     }
 }

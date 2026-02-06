@@ -2587,7 +2587,12 @@ access(all) contract FlowCreditMarket {
                 pushToDrawDownSink: false
             )
         }
-
+        /// Applies the state transitions for depositing `from` into `pid`, without doing any of the
+        /// surrounding orchestration (locking, health checks, rebalancing, or caller authorization).
+        ///
+        /// This helper is intentionally effects-only: it *mutates* Pool/Position state and consumes `from`,
+        /// but assumes all higher-level preconditions have already been enforced by the caller.
+        ///
         /// TODO(jord): ~100-line function - consider refactoring.
         access(self) fun _depositEffectsOnly(
             pid: UInt64,
@@ -2829,7 +2834,6 @@ access(all) contract FlowCreditMarket {
                     log("    [CONTRACT] Required deposit for minHealth: \(requiredDeposit)")
                     log("    [CONTRACT] Pull from topUpSource: \(pullFromTopUpSource)")
                 }
-                self._unlockPosition(pid)
                 // We can't service this withdrawal, so we just abort
                 panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
             }
@@ -2856,7 +2860,7 @@ access(all) contract FlowCreditMarket {
             let postHealth = self.positionHealth(pid: pid)
             assert(
                 position.minHealth <= postHealth,
-                message: "Position is overdrawn"
+                message: "Post-withdrawal position health (\(postHealth)) is below min health threshold (\(position.minHealth))"
             )
 
             // Queue for update if necessary
@@ -3290,6 +3294,14 @@ access(all) contract FlowCreditMarket {
             self._rebalancePositionNoLock(pid: pid, force: force)
             self._unlockPosition(pid)
         }
+
+        /// Attempts to rebalance a position toward its configured `targetHealth` without acquiring
+        /// or releasing the position lock. This function performs *best-effort* rebalancing and may
+        /// partially rebalance or no-op depending on available sinks/sources and their capacity.
+        ///
+        /// This helper is intentionally "no-lock" and "effects-only" with respect to orchestration.
+        /// Callers are responsible for acquiring and releasing the position lock and for enforcing
+        /// any higher-level invariants.
         access(self) fun _rebalancePositionNoLock(pid: UInt64, force: Bool) {
             if self.debugLogging {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
@@ -3433,12 +3445,7 @@ access(all) contract FlowCreditMarket {
                     self._depositEffectsOnly(pid: pid, from: <-depositVault)
 
                     // We need to update the queued vault to reflect the amount we used up
-                    if let existing <- position.queuedDeposits.remove(key: depositType) {
-                        existing.deposit(from: <-queuedVault)
-                        position.queuedDeposits[depositType] <-! existing
-                    } else {
-                        position.queuedDeposits[depositType] <-! queuedVault
-                    }
+                    position.queuedDeposits[depositType] <-! queuedVault
                 }
             }
 

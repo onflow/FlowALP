@@ -14,6 +14,11 @@ import "FlowCreditMarket"
 /// Opens a Position with the amount of funds source from the Vault at the provided StoragePath and wraps it in a
 /// MockFlowCreditMarketConsumer PositionWrapper
 ///
+/// This transaction intentionally wires an **adversarial DeFiActions.Source** that attempts
+/// to **spoof token types** during withdrawal. It is used to verify that the Pool and its
+/// connectors correctly enforce runtime type checks and do not accept malformed or
+/// mis-declared vaults from external Sources.
+///
 transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
 
     // the funds that will be used as collateral for a FlowCreditMarket loan

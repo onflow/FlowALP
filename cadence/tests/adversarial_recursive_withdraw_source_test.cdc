@@ -56,46 +56,70 @@ fun setup() {
 
 access(all)
 fun testRecursiveWithdrawSource() {
+    // Ensure we always run from the same post-setup chain state.
+    // This makes the test deterministic across multiple runs.
     if snapshot < getCurrentBlockHeight() {
         Test.reset(to: snapshot)
     }
 
-    // Setup user 1 - Giving pool 10000 Flow to borrow
+    // -------------------------------------------------------------------------
+    // Seed pool liquidity / establish a baseline lender position
+    // -------------------------------------------------------------------------
+    // Create a separate account (user1) that funds the pool by opening a position
+    // with a large initial deposit. This ensures the pool has reserves available
+    // for subsequent borrow/withdraw paths in this test.
     let user1 = Test.createAccount()
     setupMoetVault(user1, beFailed: false)
     mintMoet(signer: protocolAccount, to: user1.address, amount: 10000.0, beFailed: false)
     mintFlow(to: user1, amount: 10000.0)
     grantPoolCapToConsumer()
-    
-    let initialDeposit1 = 10000.0
-    createWrappedPosition(signer: user1, amount: initialDeposit1, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: false)
-    log("[TEST] USER1 POSITION ID: \(positionID)")
-    
-    // ==============================
 
-    // Open a position with pushToDrawDownSink=true to get some MOET borrowed
+    let initialDeposit1 = 10000.0
+    createWrappedPosition(
+        signer: user1,
+        amount: initialDeposit1,
+        vaultStoragePath: /storage/flowTokenVault,
+        pushToDrawDownSink: false
+    )
+    log("[TEST] USER1 POSITION ID: \(positionID)")
+
+    // -------------------------------------------------------------------------
+    // Attempt a reentrancy / recursive-withdraw scenario
+    // -------------------------------------------------------------------------
+    // Open a new position for `userAccount` using a special transaction that wires
+    // a *malicious* topUpSource (or wrapper behavior) designed to attempt recursion
+    // during `withdrawAndPull(..., pullFromTopUpSource: true)`.
+    //
+    // The goal is to prove the pool rejects the attempt (e.g. via position lock /
+    // reentrancy guard), rather than allowing nested withdraw/deposit effects.
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position_hack.cdc",
+        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position_reentrancy.cdc",
         [positionFundingAmount, flowVaultStoragePath, false],
         userAccount
     )
     Test.expect(openRes, Test.beSucceeded())
 
-    // Get position ID from events
+    // Read the newly opened position id from the latest Opened event.
     var evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
     let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
     positionID = openedEvt.pid
     log("[TEST] Position opened with ID: \(positionID)")
 
+    // Log balances for debugging context only (not assertions).
     let remainingFlow = getBalance(address: userAccount.address, vaultPublicPath: /public/flowTokenReceiver) ?? 0.0
-    log("[TEST] Remaining Flow: \(remainingFlow)")
+    log("[TEST] User FLOW balance after open: \(remainingFlow)")
     let moetBalance = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
-    log("[TEST] Remaining MOET: \(moetBalance)")
+    log("[TEST] User MOET balance after open: \(moetBalance)")
 
-    // put 1000 Flow into the position
-    // somehow only 650 get put into it?
-    // took 500 out of the position
-
+    // -------------------------------------------------------------------------
+    // Trigger the vulnerable path: withdraw with pullFromTopUpSource=true
+    // -------------------------------------------------------------------------
+    // This withdrawal is intentionally oversized so it cannot be satisfied purely
+    // from the position’s current available balance. The pool will attempt to pull
+    // funds from the configured topUpSource to keep the position above minHealth.
+    //
+    // In this test, the topUpSource behavior is adversarial: it attempts to re-enter
+    // the pool during the pull/deposit flow. We expect the transaction to fail.
     let withdrawRes = executeTransaction(
         "./transactions/flow-credit-market/pool-management/withdraw_from_position.cdc",
         [positionID, flowTokenIdentifier, 1500.0, true], // pullFromTopUpSource: true
@@ -103,117 +127,9 @@ fun testRecursiveWithdrawSource() {
     )
     Test.expect(withdrawRes, Test.beFailed())
 
+    // Log post-failure balances for debugging context.
     let currentFlow = getBalance(address: userAccount.address, vaultPublicPath: /public/flowTokenReceiver) ?? 0.0
-    log("[TEST] Current Flow: \(currentFlow)")
+    log("[TEST] User FLOW balance after failed withdraw: \(currentFlow)")
     let currentMoet = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
-    log("[TEST] Current MOET: \(currentMoet)")
-
-
-
-
-    // let withdrawRes2 = executeTransaction(
-    //     "./transactions/flow-credit-market/pool-management/withdraw_from_position.cdc",
-    //     [positionID, flowTokenIdentifier, 10000.0, false], // pullFromTopUpSource: true
-    //     user1
-    // )
-    // Test.expect(withdrawRes2, Test.beSucceeded())
-    // log("[TEST] Withdrawal 2 succeeded")
-
-    // log info about the position
-    // log("[TEST] Position info: \(getPositionInfo(pid: positionID, beFailed: false))")
-
-    // // Get initial available balance without topUpSource
-    // let initialAvailable = getAvailableBalance(
-    //     pid: positionID,
-    //     vaultIdentifier: moetTokenIdentifier,
-    //     pullFromTopUpSource: false,
-    //     beFailed: false
-    // )
-    // log("[TEST] Initial available balance (no topUp): \(initialAvailable)")
-
-    // // Calculate a withdrawal amount that will require topUpSource
-    // // We need to withdraw more than what's available without topUpSource
-    // let largeWithdrawAmount = initialAvailable * 1.00000001
-    // // let largeWithdrawAmount = 110.0
-    // log("[TEST] Large withdrawal amount (requires topUp): \(largeWithdrawAmount)")
-
-    // // Calculate a smaller withdrawal amount that does NOT require topUpSource
-    // // This should be less than the available balance
-    // let smallWithdrawAmount = initialAvailable * 0.3
-    // log("[TEST] Small withdrawal amount (no topUp needed): \(smallWithdrawAmount)")
-
-    // // Verify that the large amount requires topUpSource (when topUpSource provides MOET)
-    // let requiredForLarge = fundsRequiredForTargetHealthAfterWithdrawing(
-    //     pid: positionID,
-    //     depositType: flowTokenIdentifier,
-    //     targetHealth: UFix128(minHealth),
-    //     withdrawType: moetTokenIdentifier,
-    //     withdrawAmount: largeWithdrawAmount,
-    //     beFailed: false
-    // )
-    // log("[TEST] Required deposit for large withdrawal (with MOET topUp): \(requiredForLarge)")
-    // Test.assert(requiredForLarge > 0.0, message: "Large withdrawal should require topUpSource")
-
-    // // Verify that the small amount does NOT require topUpSource
-    // let requiredForSmall = fundsRequiredForTargetHealthAfterWithdrawing(
-    //     pid: positionID,
-    //     depositType: flowTokenIdentifier,
-    //     targetHealth: UFix128(minHealth),
-    //     withdrawType: moetTokenIdentifier,
-    //     withdrawAmount: smallWithdrawAmount,
-    //     beFailed: false
-    // )
-    // log("[TEST] Required deposit for small withdrawal: \(requiredForSmall)")
-    // Test.assert(requiredForSmall == 0.0, message: "Small withdrawal should NOT require topUpSource")
-    
-    // // Also check what would be required if topUpSource provides Flow (for our recursive source)
-    // let requiredForLargeWithFlow = fundsRequiredForTargetHealthAfterWithdrawing(
-    //     pid: positionID,
-    //     depositType: flowTokenIdentifier,
-    //     targetHealth: UFix128(minHealth),
-    //     withdrawType: moetTokenIdentifier,
-    //     withdrawAmount: largeWithdrawAmount,
-    //     beFailed: false
-    // )
-    // log("[TEST] Required deposit for large withdrawal (with Flow topUp): \(requiredForLargeWithFlow)")
-
-    // // Ensure user has enough Flow in their vault for the topUpSource
-    // // The user should have some Flow remaining after opening the position
-    // let userFlowBalance = getBalance(address: userAccount.address, vaultPublicPath: /public/flowTokenReceiver) ?? 0.0
-    // log("[TEST] User Flow balance: \(userFlowBalance)")
-    
-    // // Ensure user has enough Flow for the topUpSource (we need Flow, not MOET, since our source provides Flow)
-    // // Mint additional Flow if needed
-    // if userFlowBalance < requiredForLargeWithFlow {
-    //     let additionalFlow = requiredForLargeWithFlow - userFlowBalance + 100.0  // Add buffer
-    //     mintFlow(to: userAccount, amount: additionalFlow)
-    //     log("[TEST] Minted \(additionalFlow) Flow to user")
-    // }
-
-    // // Now make a withdrawal with the large amount that requires pullFromTopUpSource
-    // // This should trigger the recursive source's withdrawAvailable, which will
-    // // call withdrawAndPull with the small amount (without pullFromTopUpSource)
-    // // log("[TEST] Making large withdrawal that requires topUpSource...")
-    
-    // let withdrawRes = executeTransaction(
-    //     "./transactions/flow-credit-market/pool-management/withdraw_from_position.cdc",
-    //     [positionID, moetTokenIdentifier, largeWithdrawAmount, true], // pullFromTopUpSource: true
-    //     userAccount
-    // )
-    
-    // // The transaction should succeed because:
-    // // 1. withdrawAndPull is called with largeWithdrawAmount and pullFromTopUpSource: true
-    // // 2. This triggers the recursive source's withdrawAvailable
-    // // 3. The recursive source calls withdrawAndPull with smallWithdrawAmount and pullFromTopUpSource: false
-    // // 4. This nested call succeeds because smallWithdrawAmount doesn't require topUpSource
-    
-    // Test.expect(withdrawRes, Test.beSucceeded())
-    // log("[TEST] Large withdrawal succeeded with recursive source")
-
-    // // Verify the position health is still above minimum
-    let finalHealth = getPositionHealth(pid: positionID, beFailed: false)
-    log("[TEST] Final position health: \(finalHealth)")
-    // Test.assert(finalHealth >= UFix128(minHealth), message: "Position health should be at or above minimum")
-
-    // log("==============================")
+    log("[TEST] User MOET balance after failed withdraw: \(currentMoet)")
 }

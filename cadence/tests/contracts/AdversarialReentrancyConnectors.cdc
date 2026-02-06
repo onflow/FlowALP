@@ -9,15 +9,16 @@ import "MOET"
 import "FlowToken"
 
 /// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-/// THIS CONTRACT IS IN BETA AND IS NOT FINALIZED - INTERFACES MAY CHANGE AND/OR PENDING CHANGES MAY REQUIRE REDEPLOYMENT
+/// THIS IS A TESTING CONTRACT THAT SHOULD NOT BE USED IN PRODUCTION
 /// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ///
-/// FungibleTokenConnectors
+/// AdversarialReentrancyConnectors
 ///
-/// This contract defines generic DeFi Actions Sink & Source connector implementations for use with underlying Vault
-/// Capabilities. These connectors can be used alone or in conjunction with other DeFi Actions connectors to create
-/// complex DeFi workflows.
-///
+/// This contract holds malicious DeFi connectors which implement a re-entrancy attack.
+/// When a user withdraws from their position, they can optionally pull from their configured top-up source to help fund the withdrawal.
+/// This contract implements a malicious source which attempts to withdraw from the same position again
+/// when it is asked to provide funds for the outer withdrawal.
+/// If unaccounted for, this could allow an attacker to withdraw more than their available balance from the shared Pool reserve.
 access(all) contract AdversarialReentrancyConnectors {
 
     /// VaultSink
@@ -136,10 +137,6 @@ access(all) contract AdversarialReentrancyConnectors {
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
         /// An entitled Capability on the Vault from which withdrawals are sourced
         access(self) let withdrawVault: Capability<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>
-        // /// Optional: Pool capability for recursive withdrawAndPull call
-        // access(self) var recursivePool: Capability<auth(FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>?
-        // /// Optional: Position ID for recursive withdrawAndPull call
-        // access(self) var recursivePositionID: &UInt64?
 
         access(all) let liveDataCap: Capability<&LiveData>
 

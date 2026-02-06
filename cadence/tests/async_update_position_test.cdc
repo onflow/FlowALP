@@ -19,9 +19,8 @@ fun setup() {
 
 access(all)
 fun testUpdatePosition() {
-    // Test.reset(to: snapshot)
     let initialPrice = 1.0
-    let priceIncreasePct: UFix64 = 1.2
+    let priceIncreaseFactor: UFix64 = 1.2
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: initialPrice)
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: MOET_TOKEN_IDENTIFIER, price: initialPrice)
 
@@ -42,7 +41,7 @@ fun testUpdatePosition() {
     createWrappedPosition(signer: user, amount: 100.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     // increase price
-    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: initialPrice * priceIncreasePct)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: initialPrice * priceIncreaseFactor)
 
     depositToWrappedPosition(signer: user, amount: 600.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 

@@ -57,7 +57,7 @@ fun testMaliciousSource() {
 
     // deposit 1 Flow into the position
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position_malicious_source.cdc",
+        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position_spoofing_source.cdc",
         [1.0, flowVaultStoragePath, false],
         hackerAccount
     )
