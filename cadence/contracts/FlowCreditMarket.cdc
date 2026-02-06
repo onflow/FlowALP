@@ -3546,7 +3546,12 @@ access(all) contract FlowCreditMarket {
                     self._depositEffectsOnly(pid: pid, from: <-depositVault)
 
                     // We need to update the queued vault to reflect the amount we used up
-                    position.queuedDeposits[depositType] <-! queuedVault
+                    if let existing <- position.queuedDeposits.remove(key: depositType) {
+                        existing.deposit(from: <-queuedVault)
+                        position.queuedDeposits[depositType] <-! existing
+                    } else {
+                        position.queuedDeposits[depositType] <-! queuedVault
+                    }
                 }
             }
 
