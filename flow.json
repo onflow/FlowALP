@@ -92,6 +92,12 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"FlowOracleAggregatorV1": {
+			"source": "./cadence/contracts/FlowOracleAggregatorV1.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"MockDexSwapper": {
 			"source": "./cadence/contracts/mocks/MockDexSwapper.cdc",
 			"aliases": {
