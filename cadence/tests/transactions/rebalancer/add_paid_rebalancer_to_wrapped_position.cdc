@@ -8,7 +8,7 @@ import "MockFlowCreditMarketConsumer"
 import "FlowCreditMarketRebalancerV1"
 import "FlowCreditMarketRebalancerPaidV1"
 
-transaction() {
+transaction(paidRebalancerStoragePath: StoragePath) {
     let signer: auth(Storage, IssueStorageCapabilityController, SaveValue) &Account
 
     prepare(signer: auth(Storage, IssueStorageCapabilityController, SaveValue) &Account) {
@@ -16,12 +16,12 @@ transaction() {
     }
 
     execute {
-        let rebalanceCap = self.signer.capabilities.storage.issue<auth(FlowCreditMarket.Rebalance) &{FlowCreditMarketRebalancerV1.Rebalancable}>(
+        let rebalanceCap = self.signer.capabilities.storage.issue<auth(FlowCreditMarket.ERebalance) &{FlowCreditMarketRebalancerV1.Rebalancable}>(
             MockFlowCreditMarketConsumer.WrapperStoragePath
         )
         let paidRebalancer <- FlowCreditMarketRebalancerPaidV1.createPaidRebalancer(
             positionRebalanceCapability: rebalanceCap
         )
-        self.signer.storage.save(<-paidRebalancer, to: StoragePath(identifier: "FCM.PaidRebalancer")!)
+        self.signer.storage.save(<-paidRebalancer, to: paidRebalancerStoragePath)
     }
 }

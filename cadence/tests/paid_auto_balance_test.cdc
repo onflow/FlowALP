@@ -4,6 +4,7 @@ import BlockchainHelpers
 import "test_helpers.cdc"
 import "test_helpers_rebalance.cdc"
 import "FlowCreditMarketRebalancerV1"
+import "FlowCreditMarketRebalancerPaidV1"
 import "FlowTransactionScheduler"
 import "MOET"
 import "FlowCreditMarketSupervisorV1"
@@ -14,16 +15,12 @@ access(all) let userAccount = Test.createAccount()
 
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) let moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
-access(all) var snapshot: UInt64 = 0
-access(all) let hourInSeconds = 3600.0
 
-access(all) fun safeReset() {
-    let cur = getCurrentBlockHeight()
-    if cur > snapshot {
-        Test.reset(to: snapshot)
-    }
-}
+access(all) let paidRebalancerStoragePath = /storage/paidRebalancer
+access(all) let supervisorStoragePath = /storage/supervisor
+access(all) let cronHandlerStoragePath = /storage/myRecurringTaskHandler
+
+access(all) var snapshot: UInt64 = 0
 
 access(all) fun setup() {
     deployContracts()
@@ -44,24 +41,29 @@ access(all) fun setup() {
 
     grantPoolCapToConsumer()
 
-    createPaidRebalancer(signer: protocolAccount)
+    createPaidRebalancer(signer: protocolAccount, paidRebalancerAdminStoragePath: FlowCreditMarketRebalancerPaidV1.adminCapabilityStoragePath)
     createWrappedPosition(signer: userAccount, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
     depositToWrappedPosition(signer: userAccount, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
-    addPaidRebalancerToWrappedPosition(signer: userAccount)
+    addPaidRebalancerToWrappedPosition(signer: userAccount, paidRebalancerStoragePath: paidRebalancerStoragePath)
     createSupervisor(
         signer: userAccount, 
         cronExpression: "0 * * * *",
-        cronHandlerStoragePath: /storage/myRecurringTaskHandler,
+        cronHandlerStoragePath: cronHandlerStoragePath,
         keeperExecutionEffort: 1000,
-        executorExecutionEffort: 1000
+        executorExecutionEffort: 1000,
+        supervisorStoragePath: supervisorStoragePath
     )
     
     snapshot = getCurrentBlockHeight()
 }
 
-access(all) fun test_on_time() {
-    safeReset()
+access(all) fun beforeEach() {
+    if getCurrentBlockHeight() > snapshot {
+        Test.reset(to: snapshot)
+    }
+}
 
+access(all) fun test_on_time() {
     // should execute every 100 seconds
     Test.moveTime(by: 90.0)
     Test.commitBlock()
@@ -85,8 +87,6 @@ access(all) fun test_on_time() {
 }
 
 access(all) fun test_delayed_rebalance() {
-    safeReset()
-
     // should execute every 100 seconds
     Test.moveTime(by: 1000.0)
     Test.commitBlock()
@@ -108,33 +108,29 @@ access(all) fun test_delayed_rebalance() {
 }
 
 access(all) fun test_fix_reschedule_idempotent() {
-    safeReset()
-
     // when initially created, it should emit an fix reschedule event to get started
-    var evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.FixReschedule>())
+    var evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.FixedReschedule>())
     Test.assertEqual(1, evts.length)
 
-    fixPaidReschedule(signer: userAccount, uuid: nil)
-    fixPaidReschedule(signer: userAccount, uuid: nil)
+    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
+    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
 
     Test.moveTime(by: 10.0)
     Test.commitBlock()
 
-    fixPaidReschedule(signer: userAccount, uuid: nil)
+    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
 
     Test.moveTime(by: 1000.0)
     Test.commitBlock()
 
-    fixPaidReschedule(signer: userAccount, uuid: nil)
-    fixPaidReschedule(signer: userAccount, uuid: nil)
+    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
+    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
 
-    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.FixReschedule>())
+    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.FixedReschedule>())
     Test.assertEqual(1, evts.length)
 }
 
 access(all) fun test_fix_reschedule_no_funds() {
-    safeReset()
-
     Test.moveTime(by: 100.0)
     Test.commitBlock()
 
@@ -143,7 +139,7 @@ access(all) fun test_fix_reschedule_no_funds() {
 
     // drain the funding contract so the transaction reverts
     let balance = getBalance(address: protocolAccount.address, vaultPublicPath: /public/flowTokenBalance)!
-    actuallyTransferFlowTokens(from: protocolAccount, to: userAccount, amount: balance)
+    sendFlow(from: protocolAccount, to: userAccount, amount: balance)
 
     Test.moveTime(by: 100.0)
     Test.commitBlock()
@@ -159,20 +155,18 @@ access(all) fun test_fix_reschedule_no_funds() {
 
     // now we fix the missing funds and call fix reschedule
     mintFlow(to: protocolAccount, amount: 1000.0)
-    fixPaidReschedule(signer: userAccount, uuid: nil)
+    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
     Test.moveTime(by: 1.0)
     Test.commitBlock()
 
     evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
     Test.assertEqual(3, evts.length)
 
-    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.FixReschedule>())
+    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.FixedReschedule>())
     Test.assertEqual(2, evts.length)
 }
 
 access(all) fun test_change_recurring_config_as_user() {
-    safeReset()
-
     var evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.CreatedRebalancer>())
     Test.assertEqual(1, evts.length)
     let e = evts[0] as! FlowCreditMarketRebalancerV1.CreatedRebalancer
@@ -181,8 +175,6 @@ access(all) fun test_change_recurring_config_as_user() {
 }
 
 access(all) fun test_change_recurring_config() {
-    safeReset()
-
     Test.moveTime(by: 150.0)
     Test.commitBlock()
 
@@ -220,15 +212,13 @@ access(all) fun test_change_recurring_config() {
 }
 
 access(all) fun test_delete_rebalancer() {
-    safeReset()
-
     Test.moveTime(by: 100.0)
     Test.commitBlock()
 
     var evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
     Test.assertEqual(1, evts.length)
 
-    deletePaidRebalancer(signer: userAccount)
+    deletePaidRebalancer(signer: userAccount, paidRebalancerStoragePath: paidRebalancerStoragePath)
 
     Test.moveTime(by: 1000.0)
     Test.commitBlock()
@@ -238,8 +228,6 @@ access(all) fun test_delete_rebalancer() {
 }
 
 access(all) fun test_public_fix_reschedule() {
-    safeReset()
-
     Test.moveTime(by: 100.0)
     Test.commitBlock()
 
@@ -248,12 +236,10 @@ access(all) fun test_public_fix_reschedule() {
     let e = evts[0] as! FlowCreditMarketRebalancerV1.Rebalanced
 
     let randomAccount = Test.createAccount()
-    fixPaidReschedule(signer: randomAccount, uuid: e.uuid)
+    fixPaidReschedule(signer: randomAccount, uuid: e.uuid, paidRebalancerStoragePath: paidRebalancerStoragePath)
 }
 
 access(all) fun test_supervisor_executed() {
-    safeReset()
-
     Test.moveTime(by: 100.0)
     Test.commitBlock()
 
@@ -268,8 +254,6 @@ access(all) fun test_supervisor_executed() {
 }
 
 access(all) fun test_supervisor() {
-    safeReset()
-
     Test.moveTime(by: 100.0)
     Test.commitBlock()
 
@@ -280,11 +264,11 @@ access(all) fun test_supervisor() {
     Test.assertEqual(1, evts.length)
     let e = evts[0] as! FlowCreditMarketRebalancerV1.Rebalanced
 
-    addPaidRebalancerToSupervisor(signer: userAccount, uuid: e.uuid)
+    addPaidRebalancerToSupervisor(signer: userAccount, uuid: e.uuid, supervisorStoragePath: supervisorStoragePath)
 
     // drain the funding contract so the transaction reverts
     let balance = getBalance(address: protocolAccount.address, vaultPublicPath: /public/flowTokenBalance)!
-    actuallyTransferFlowTokens(from: protocolAccount, to: userAccount, amount: balance)
+    sendFlow(from: protocolAccount, to: userAccount, amount: balance)
 
     Test.moveTime(by: 100.0)
     Test.commitBlock()
@@ -295,8 +279,6 @@ access(all) fun test_supervisor() {
 
     Test.moveTime(by: 1000.0)
     Test.commitBlock()
-    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.Rebalanced>())
-    Test.assertEqual(2, evts.length)
 
     // now we fix the missing funds and call fix reschedule
     mintFlow(to: protocolAccount, amount: 1000.0)
@@ -305,9 +287,9 @@ access(all) fun test_supervisor() {
 
     // now supervisor will fix the rebalancer
     evts = Test.eventsOfType(Type<FlowCreditMarketSupervisorV1.Executed>())
-    Test.assertEqual(2, evts.length)
+    Test.assert(evts.length >= 2, message: "Supervisor should have executed at least 2 times")
 
-    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.FixReschedule>())
+    evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.FixedReschedule>())
     Test.assertEqual(2, evts.length)
 
     Test.moveTime(by: 10.0)

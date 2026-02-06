@@ -18,7 +18,7 @@ import "FungibleToken"
 access(all) contract FlowCreditMarketRebalancerV1 {
 
     access(all) event Rebalanced(uuid: UInt64)
-    access(all) event FixReschedule(uuid: UInt64)
+    access(all) event FixedReschedule(uuid: UInt64)
     access(all) event CreatedRebalancer(uuid: UInt64)
     access(all) event FailedRecurringSchedule(
         uuid: UInt64,
@@ -28,7 +28,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
     )
 
     access(all) resource interface Rebalancable {
-        access(FlowCreditMarket.Rebalance) fun rebalance(force: Bool)
+        access(FlowCreditMarket.ERebalance) fun rebalance(force: Bool)
     }
 
     access(all) struct RecurringConfig {
@@ -84,7 +84,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         access(all) var recurringConfig: RecurringConfig
 
         access(self) var _selfCapability: Capability<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>?
-        access(self) var _positionRebalanceCapability: Capability<auth(FlowCreditMarket.Rebalance) &{Rebalancable}>
+        access(self) var _positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &{Rebalancable}>
         access(self) var scheduledTransactions: @{UInt64: FlowTransactionScheduler.ScheduledTransaction}
 
         access(all) entitlement Configure
@@ -93,7 +93,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
 
         init(
             recurringConfig: RecurringConfig,
-            positionRebalanceCapability: Capability<auth(FlowCreditMarket.Rebalance) &{Rebalancable}>
+            positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &{Rebalancable}>
         ) {
             self._selfCapability = nil
             self.lastRebalanceTimestamp = getCurrentBlock().timestamp
@@ -122,6 +122,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         /// @param data: The data that was passed when the transaction was originally scheduled
         ///
         access(FlowTransactionScheduler.Execute) fun executeTransaction(id: UInt64, data: AnyStruct?) {
+            // we want to panic and not keep spending fees on scheduled transactions if borrow fails
             self._positionRebalanceCapability.borrow()!.rebalance(force: self.recurringConfig.forceRebalance)
             self.lastRebalanceTimestamp = getCurrentBlock().timestamp
             emit Rebalanced(
@@ -154,7 +155,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             self.nextScheduledRebalanceTimestamp = nextTimestamp
             
             let estimate = FlowTransactionScheduler.estimate(
-                data: self.recurringConfig.forceRebalance,
+                data: nil,
                 timestamp: nextTimestamp,
                 priority: self.recurringConfig.priority,
                 executionEffort: self.recurringConfig.executionEffort
@@ -196,10 +197,19 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             self.removeAllNonScheduledTransactions()
            
             if self.scheduledTransactions.keys.length == 0 {
-                self.scheduleNextRebalance()
-                emit FixReschedule(
-                    uuid: self.uuid
-                )
+                let err = self.scheduleNextRebalance()
+                if err != nil {
+                    emit FailedRecurringSchedule(
+                        uuid: self.uuid,
+                        whileExecuting: 0,
+                        address: self.owner?.address,
+                        error: err!,
+                    )
+                } else {
+                    emit FixedReschedule(
+                        uuid: self.uuid
+                    )
+                }
             }
         }
 
@@ -264,7 +274,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
 
     access(all) fun createRebalancer(
         recurringConfig: RecurringConfig,
-        positionRebalanceCapability: Capability<auth(FlowCreditMarket.Rebalance) &{Rebalancable}>,
+        positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &{Rebalancable}>,
     ): @Rebalancer {
         let rebalancer <- create Rebalancer(
             recurringConfig: recurringConfig, 

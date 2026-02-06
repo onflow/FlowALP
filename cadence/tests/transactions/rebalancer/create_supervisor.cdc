@@ -10,6 +10,7 @@ transaction(
     cronHandlerStoragePath: StoragePath,
     keeperExecutionEffort: UInt64,
     executorExecutionEffort: UInt64,
+    supervisorStoragePath: StoragePath
 ) {
     let signer: auth(BorrowValue, IssueStorageCapabilityController, SaveValue) &Account
     let feeProviderCap: Capability<auth(FungibleToken.Withdraw) &FlowToken.Vault>
@@ -21,10 +22,10 @@ transaction(
 
     execute {
         let supervisor <- FlowCreditMarketSupervisorV1.createSupervisor()
-        self.signer.storage.save(<-supervisor, to: /storage/flowCreditMarketSupervisor)
+        self.signer.storage.save(<-supervisor, to: supervisorStoragePath)
         let wrappedHandlerCap = 
             self.signer.capabilities.storage.issue<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}
-        >(/storage/flowCreditMarketSupervisor)
+        >(supervisorStoragePath)
         assert(wrappedHandlerCap.check(), message: "Invalid wrapped handler capability")
         self.signer.storage.save(<-FlowTransactionSchedulerUtils.createManager(), to: FlowTransactionSchedulerUtils.managerStoragePath)
         let schedulerManagerCap: Capability<auth(FlowTransactionSchedulerUtils.Owner) &{FlowTransactionSchedulerUtils.Manager}> = self.signer.capabilities.storage.issue<auth(FlowTransactionSchedulerUtils.Owner) &{FlowTransactionSchedulerUtils.Manager}>(

@@ -13,37 +13,27 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
 }
 
 access(all)
-fun createPaidRebalancer(
-    signer: Test.TestAccount
-) {
-    let txRes = _executeTransaction(
-        "./transactions/rebalancer/create_paid_rebalancer.cdc",
-        [],
-        signer
-    )
-    Test.expect(txRes, Test.beSucceeded())
-}
-
-access(all)
 fun addPaidRebalancerToWrappedPosition(
     signer: Test.TestAccount, 
+    paidRebalancerStoragePath: StoragePath
 ) {
     let addRes = _executeTransaction(
         "./transactions/rebalancer/add_paid_rebalancer_to_wrapped_position.cdc",
-        [],
+        [paidRebalancerStoragePath],
         signer
     )
     Test.expect(addRes, Test.beSucceeded())
 }
 
 access(all)
-fun fixPaidReschedule(
+fun addPaidRebalancerToSupervisor(
     signer: Test.TestAccount,
-    uuid: UInt64?
+    uuid: UInt64,
+    supervisorStoragePath: StoragePath,
 ) {
     let setRes = _executeTransaction(
-        "./transactions/rebalancer/fix_paid_reschedule.cdc",
-        [uuid],
+        "./transactions/rebalancer/add_rebalancer_to_supervisor.cdc",
+        [uuid, supervisorStoragePath],
         signer
     )
     Test.expect(setRes, Test.beSucceeded())
@@ -65,15 +55,16 @@ fun changePaidInterval(
 }
 
 access(all)
-fun deletePaidRebalancer(
+fun createPaidRebalancer(
     signer: Test.TestAccount,
+    paidRebalancerAdminStoragePath: StoragePath
 ) {
-    let setRes = _executeTransaction(
-        "./transactions/rebalancer/delete_paid_rebalancer.cdc",
-        [],
+    let txRes = _executeTransaction(
+        "./transactions/rebalancer/create_paid_rebalancer.cdc",
+        [paidRebalancerAdminStoragePath],
         signer
     )
-    Test.expect(setRes, Test.beSucceeded())
+    Test.expect(txRes, Test.beSucceeded())
 }
 
 access(all)
@@ -82,24 +73,39 @@ fun createSupervisor(
     cronExpression: String,
     cronHandlerStoragePath: StoragePath,
     keeperExecutionEffort: UInt64,
-    executorExecutionEffort: UInt64
+    executorExecutionEffort: UInt64,
+    supervisorStoragePath: StoragePath
 ) {
     let setRes = _executeTransaction(
         "./transactions/rebalancer/create_supervisor.cdc",
-        [cronExpression, cronHandlerStoragePath, keeperExecutionEffort, executorExecutionEffort],
+        [cronExpression, cronHandlerStoragePath, keeperExecutionEffort, executorExecutionEffort, supervisorStoragePath],
         signer
     )
     Test.expect(setRes, Test.beSucceeded())
 }
 
 access(all)
-fun addPaidRebalancerToSupervisor(
+fun deletePaidRebalancer(
     signer: Test.TestAccount,
-    uuid: UInt64
+    paidRebalancerStoragePath: StoragePath
 ) {
     let setRes = _executeTransaction(
-        "./transactions/rebalancer/add_rebalancer_to_supervisor.cdc",
-        [uuid],
+        "./transactions/rebalancer/delete_paid_rebalancer.cdc",
+        [paidRebalancerStoragePath],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun fixPaidReschedule(
+    signer: Test.TestAccount,
+    uuid: UInt64?,
+    paidRebalancerStoragePath: StoragePath
+) {
+    let setRes = _executeTransaction(
+        "./transactions/rebalancer/fix_paid_reschedule.cdc",
+        [uuid, paidRebalancerStoragePath],
         signer
     )
     Test.expect(setRes, Test.beSucceeded())

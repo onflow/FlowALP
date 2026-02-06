@@ -167,13 +167,6 @@ fun deployContracts() {
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
-        name: "SimpleSinkSource",
-        path: "../contracts/mocks/SimpleSinkSource.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    err = Test.deployContract(
         name: "FlowCronUtils",
         path: "../../imports/6dec6e64a13b881e/FlowCronUtils.cdc",
         arguments: []
@@ -670,7 +663,7 @@ fun transferFlowTokens(to: Test.TestAccount, amount: UFix64) {
 }
 
 access(all)
-fun actuallyTransferFlowTokens(from: Test.TestAccount, to: Test.TestAccount, amount: UFix64) {
+fun sendFlow(from: Test.TestAccount, to: Test.TestAccount, amount: UFix64) {
     let transferTx = Test.Transaction(
         code: Test.readFile("../transactions/flowtoken/transfer_flowtoken.cdc"),
         authorizers: [from.address],

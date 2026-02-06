@@ -165,7 +165,7 @@ access(all) contract FlowCreditMarket {
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
     access(all) entitlement EPosition
-    access(all) entitlement Rebalance
+    access(all) entitlement ERebalance
     access(all) entitlement EGovernance
     access(all) entitlement EImplementation
     access(all) entitlement EParticipant
@@ -3244,7 +3244,7 @@ access(all) contract FlowCreditMarket {
         /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
-        access(EPosition | Rebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
+        access(EPosition | ERebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
             if self.debugLogging {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
             }
@@ -3651,11 +3651,11 @@ access(all) contract FlowCreditMarket {
         access(self) let id: UInt64
 
         /// An authorized Capability to which the Position was opened
-        access(self) let pool: Capability<auth(EPosition, Rebalance, EParticipant) &Pool>
+        access(self) let pool: Capability<auth(EPosition, ERebalance, EParticipant) &Pool>
 
         init(
             id: UInt64,
-            pool: Capability<auth(EPosition, Rebalance, EParticipant) &Pool>
+            pool: Capability<auth(EPosition, ERebalance, EParticipant) &Pool>
         ) {
             pre {
                 pool.check():
@@ -3873,7 +3873,7 @@ access(all) contract FlowCreditMarket {
             pool.provideTopUpSource(pid: self.id, source: source)
         }
 
-        access(Rebalance) fun rebalance(force: Bool) {
+        access(ERebalance) fun rebalance(force: Bool) {
             let pool = self.pool.borrow()!
             pool.rebalancePosition(pid: self.id, force: force)
         }

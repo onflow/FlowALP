@@ -28,21 +28,6 @@ access(all) contract FlowCreditMarketSupervisorV1 {
                 FlowCreditMarketRebalancerPaidV1.fixReschedule(uuid: rebalancerUUID)
             }
         }
-
-        access(all) view fun getViews(): [Type] {
-            return [Type<StoragePath>(), Type<PublicPath>()]
-        }
-
-        access(all) fun resolveView(_ view: Type): AnyStruct? {
-            switch view {
-                case Type<StoragePath>():
-                    return /storage/MyRecurringTaskHandler
-                case Type<PublicPath>():
-                    return /public/MyRecurringTaskHandler
-                default:
-                    return nil
-            }
-        }
     }
 
     access(all) fun createSupervisor(): @Supervisor {

@@ -87,12 +87,6 @@
 			"aliases": {
 				"testing": "0000000000000007"
 			}
-		},
-		"SimpleSinkSource": {
-			"source": "./cadence/contracts/mocks/SimpleSinkSource.cdc",
-			"aliases": {
-				"testing": "0000000000000007"
-			}
 		}
 	},
 	"dependencies": {

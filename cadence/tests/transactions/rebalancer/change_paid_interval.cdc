@@ -7,7 +7,6 @@ import "FlowCreditMarket"
 import "MockFlowCreditMarketConsumer"
 import "FlowCreditMarketRebalancerV1"
 import "FlowCreditMarketRebalancerPaidV1"
-import "SimpleSinkSource"
 import "FlowToken"
 import "FlowTransactionScheduler"
 
@@ -25,7 +24,7 @@ transaction(uuid: UInt64, interval: UInt64) {
     }
 
     execute {
-        let sinkSource = SimpleSinkSource.SinkSource(vault: self.vaultCapability)
+        let sinkSource = FungibleTokenConnectors.VaultSinkAndSource(min: nil, max: nil, vault: self.vaultCapability, uniqueID: nil)
         
         let borrowedRebalancer = self.adminPaidRebalancerCap.borrow()!.borrowRebalancer(uuid: uuid)!
         let config = FlowCreditMarketRebalancerV1.RecurringConfig(

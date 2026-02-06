@@ -24,7 +24,7 @@ access(all) contract MockFlowCreditMarketConsumer {
         repaymentSource: {DeFiActions.Source}?,
         pushToDrawDownSink: Bool
     ): @PositionWrapper {
-        let poolCap = self.account.storage.load<Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition, FlowCreditMarket.Rebalance) &FlowCreditMarket.Pool>>(
+        let poolCap = self.account.storage.load<Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition, FlowCreditMarket.ERebalance) &FlowCreditMarket.Pool>>(
             from: FlowCreditMarket.PoolCapStoragePath
         ) ?? panic("Missing pool capability")
 
@@ -70,7 +70,7 @@ access(all) contract MockFlowCreditMarketConsumer {
             return &self.position
         }
 
-        access(FlowCreditMarket.Rebalance) fun rebalance(force: Bool) {
+        access(FlowCreditMarket.ERebalance) fun rebalance(force: Bool) {
             self.position.rebalance(force: force)
         }
     }
