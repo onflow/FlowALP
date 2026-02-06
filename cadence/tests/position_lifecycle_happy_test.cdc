@@ -4,7 +4,6 @@ import BlockchainHelpers
 import "MOET"
 import "FlowCreditMarket"
 import "test_helpers.cdc"
-import "MockFlowCreditMarketConsumer"
 
 // -----------------------------------------------------------------------------
 // Position Lifecycle Happy Path Test
@@ -15,10 +14,6 @@ access(all) var snapshot: UInt64 = 0
 access(all)
 fun setup() {
     deployContracts()
-
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-
-    Test.expect(betaTxResult, Test.beSucceeded())
 
     snapshot = getCurrentBlockHeight()
 }
@@ -47,12 +42,15 @@ fun testPositionLifecycleHappyPath() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
 
+    // Grant beta access to user so they can create positions
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
+
     let balanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assertEqual(0.0, balanceBefore)
 
     // open wrapped position (pushToDrawDownSink)
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
@@ -75,9 +73,11 @@ fun testPositionLifecycleHappyPath() {
     log("Flow balance BEFORE repay: ".concat(flowBalanceBefore.toString()))
 
     // repay MOET and close position
+    // The first position created has ID 0
+    let positionId: UInt64 = 0
     let repayRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/repay_and_close_position.cdc",
-        [WRAPPER_STORAGE_PATH],
+        "../transactions/flow-credit-market/position/repay_and_close_position.cdc",
+        [positionId],
         user
     )
     Test.expect(repayRes, Test.beSucceeded())

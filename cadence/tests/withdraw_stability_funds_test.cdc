@@ -43,10 +43,9 @@ fun setupStabilityFundWithBalance(): UFix64 {
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10000.0, beFailed: false)
-    grantPoolCapToConsumer()
-    
+
     // LP deposits MOET (creates credit balance, provides borrowing liquidity)
-    createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with FLOW collateral to create debit balance
     let borrower = Test.createAccount()
@@ -54,7 +53,7 @@ fun setupStabilityFundWithBalance(): UFix64 {
     transferFlowTokens(to: borrower, amount: 1000.0)
 
     // borrower deposits FLOW and auto-borrows MOET (creates debit balance)
-    createWrappedPosition(signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    createPosition(signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     // set 10% annual debit rate (stability is calculated on interest income)
     setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.1)
