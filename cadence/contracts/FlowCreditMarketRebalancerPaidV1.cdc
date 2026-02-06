@@ -27,8 +27,7 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
         )
         let uuid = rebalancer.uuid
         self.storeRebalancer(rebalancer: <-rebalancer)
-        self.setSelfCapability(uuid: uuid)
-        self.borrowRebalancer(uuid: uuid)!.fixReschedule()
+        self.setSelfCapability(uuid: uuid).fixReschedule()
         return <- create RebalancerPaid(rebalancerUUID: uuid)
     }
 
@@ -104,14 +103,16 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
     // issue and set the capability that the scheduler will use to call back into this rebalancer
     access(self) fun setSelfCapability(
         uuid: UInt64,
-    ) {
+    ) : auth(FlowCreditMarket.ERebalance, FlowCreditMarketRebalancerV1.Rebalancer.Configure) &FlowCreditMarketRebalancerV1.Rebalancer {
         let selfCap = self.account.capabilities.storage.issue<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>(self.getPath(uuid: uuid))
         // The Rebalancer is stored in the contract storage (storeRebalancer),
         // it needs a capability pointing to itself to pass to the scheduler.
         // We issue this capability here and set it on the Rebalancer, so that when
         // fixReschedule is called, the Rebalancer can pass it to the transaction scheduler
         // as a callback for executing scheduled rebalances.
-        self.borrowRebalancer(uuid: uuid)!.setSelfCapability(selfCap)
+        let rebalancer = self.borrowRebalancer(uuid: uuid)!
+        rebalancer.setSelfCapability(selfCap)
+        return rebalancer
     }
 
     access(self) view fun getPath(uuid: UInt64): StoragePath {
