@@ -1494,9 +1494,9 @@ access(all) contract FlowCreditMarket {
         ///
         /// FlowCreditMarket does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
         /// It relies directly on the Swapper's returned by the configured SwapperProvider.
-        access(self) let dex: {DeFiActions.SwapperProvider}
+        access(self) var dex: {DeFiActions.SwapperProvider}
 
-        /// Max allowed deviation in basis points between DEX-implied price and oracle price
+        /// Max allowed deviation in basis points between DEX-implied price and oracle price.
         access(self) var dexOracleDeviationBps: UInt16
 
         init(
@@ -1527,7 +1527,6 @@ access(all) contract FlowCreditMarket {
             self.priceOracle = priceOracle
             self.collateralFactor = {defaultToken: 1.0}
             self.borrowFactor = {defaultToken: 1.0}
-            self.liquidationBonus = {defaultToken: 0.05}
             self.nextPositionID = 0
             self.positionsNeedingUpdates = []
             self.positionsProcessedPerCallback = 100
@@ -1535,12 +1534,8 @@ access(all) contract FlowCreditMarket {
             self.liquidationsPaused = false
             self.liquidationWarmupSec = 300
             self.lastUnpausedAt = nil
-            self.protocolLiquidationFeeBps = 0
-            self.allowedSwapperTypes = {}
             self.dex = dex
             self.dexOracleDeviationBps = 300 // 3% default
-            self.dexMaxSlippageBps = 100
-            self.dexMaxRouteHops = 3
 
             // The pool starts with an empty reserves map.
             // Vaults will be created when tokens are first deposited.
@@ -1634,15 +1629,8 @@ access(all) contract FlowCreditMarket {
 
         /// Returns Oracle-DEX guards and allowlists for frontends/keepers
         access(all) fun getDexLiquidationConfig(): {String: AnyStruct} {
-            let allowed: [String] = []
-            for t in self.allowedSwapperTypes.keys {
-                allowed.append(t.identifier)
-            }
             return {
-                "dexOracleDeviationBps": self.dexOracleDeviationBps,
-                "allowedSwappers": allowed,
-                "dexMaxSlippageBps": self.dexMaxSlippageBps,
-                "dexMaxRouteHops": self.dexMaxRouteHops // informational; enforcement is left to swapper implementations
+                "dexOracleDeviationBps": self.dexOracleDeviationBps
             }
         }
 
@@ -2974,33 +2962,24 @@ access(all) contract FlowCreditMarket {
             )
         }
 
-        /// Governance: set DEX oracle deviation guard and toggle allowlisted swapper types
-        access(EGovernance) fun setDexLiquidationConfig(
-            dexOracleDeviationBps: UInt16?,
-            allowSwappers: [Type]?,
-            disallowSwappers: [Type]?,
-            dexMaxSlippageBps: UInt64?,
-            dexMaxRouteHops: UInt64?
-        ) {
-            if let dexOracleDeviationBps = dexOracleDeviationBps {
-                self.dexOracleDeviationBps = dexOracleDeviationBps
+        /// Updates the maximum allowed price deviation (in basis points) between the oracle and configured DEX.
+        access(EGovernance) fun setDexOracleDeviationBps(dexOracleDeviationBps: UInt16) {
+            pre {
+                // TODO(jord): sanity check here?
             }
-            if let allowSwappers = allowSwappers {
-                for t in allowSwappers {
-                    self.allowedSwapperTypes[t] = true
-                }
-            }
-            if let disallowSwappers = disallowSwappers {
-                for t in disallowSwappers {
-                    self.allowedSwapperTypes.remove(key: t)
-                }
-            }
-            if let dexMaxSlippageBps = dexMaxSlippageBps {
-                self.dexMaxSlippageBps = dexMaxSlippageBps
-            }
-            if let dexMaxRouteHops = dexMaxRouteHops {
-                self.dexMaxRouteHops = dexMaxRouteHops
-            }
+            self.dexOracleDeviationBps = dexOracleDeviationBps
+        }
+
+        /// Updates the DEX (AMM) interface used for liquidations and insurance collection.
+        ///
+        /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
+        /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
+        ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
+        ///
+        /// FlowCreditMarket does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
+        /// It relies directly on the Swapper's returned by the configured SwapperProvider.
+        access(EGovernance) fun setDEX(dex: {DeFiActions.SwapperProvider}) {
+            self.dex = dex
         }
 
         /// Pauses or unpauses liquidations; when unpausing, starts a warm-up window
@@ -3059,23 +3038,6 @@ access(all) contract FlowCreditMarket {
 
             // Set borrow factor (risk adjustment for borrowed amounts)
             self.borrowFactor[tokenType] = borrowFactor
-
-            // Default liquidation bonus per token = 5%
-            self.liquidationBonus[tokenType] = 0.05
-        }
-
-        // Removed: addSupportedTokenWithLiquidationBonus:
-        // Callers should use addSupportedToken then setTokenLiquidationBonus if needed
-
-        /// Sets per-token liquidation bonus fraction (0.0 to 1.0). E.g., 0.05 means +5% seize bonus.
-        access(EGovernance) fun setTokenLiquidationBonus(tokenType: Type, bonus: UFix64) {
-            pre {
-                self.isTokenSupported(tokenType: tokenType):
-                    "Unsupported token type \(tokenType.identifier)"
-                bonus >= 0.0 && bonus <= 1.0:
-                    "Liquidation bonus must be between 0 and 1"
-            }
-            self.liquidationBonus[tokenType] = bonus
         }
 
         /// Updates the insurance rate for a given token (fraction in [0,1])
