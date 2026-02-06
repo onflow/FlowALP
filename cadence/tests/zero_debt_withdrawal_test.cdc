@@ -10,10 +10,6 @@ access(all) var snapshot: UInt64 = 0
 access(all)
 fun setup() {
     deployContracts()
-
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-
-    snapshot = getCurrentBlockHeight()
 }
 
 access(all)
@@ -39,9 +35,12 @@ fun testZeroDebtFullWithdrawalAvailable() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
 
+    // Grant beta access to user so they can create positions
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
+
     // 4. open position WITHOUT auto-borrow (pushToDrawDownSink = false)
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, false],
         user
     )
