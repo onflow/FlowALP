@@ -1,8 +1,8 @@
-# Test Coverage Analysis - TidalProtocol (FlowCreditMarket)
+# Test Coverage Analysis - TidalProtocol (FlowALPv1)
 
 **Analysis Date:** 2026-01-28
 **Repository:** TidalProtocol
-**Core Contract:** FlowCreditMarket.cdc
+**Core Contract:** FlowALPv1.cdc
 **Test Coverage:** 89.7%
 **Total Core Tests:** 31 test files
 
@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-This document provides a comprehensive analysis of the existing test coverage for the FlowCreditMarket lending protocol, an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The protocol has achieved 89.7% code coverage with 31 core test files covering fundamental operations, interest mechanics, liquidations, and edge cases.
+This document provides a comprehensive analysis of the existing test coverage for the FlowALPv1 lending protocol, an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The protocol has achieved 89.7% code coverage with 31 core test files covering fundamental operations, interest mechanics, liquidations, and edge cases.
 
 This analysis identifies areas of strong test coverage and highlights high-priority gaps that should be addressed to improve protocol security, resilience, and robustness.
 
@@ -30,7 +30,7 @@ This analysis identifies areas of strong test coverage and highlights high-prior
 
 ### Overview
 
-The FlowCreditMarket protocol has comprehensive test coverage across the following categories:
+The FlowALPv1 protocol has comprehensive test coverage across the following categories:
 
 | Category | Number of Tests | Coverage Level |
 |----------|----------------|----------------|
@@ -59,7 +59,7 @@ The protocol uses Cadence's native Test framework with:
 
 ### Test File Location
 
-All core FlowCreditMarket tests are located in `/cadence/tests/` directory.
+All core FlowALPv1 tests are located in `/cadence/tests/` directory.
 
 ### Common Test Patterns
 
@@ -1113,7 +1113,7 @@ Test: Connector provides false quote, transaction validates and reverts
 
 ## Conclusion
 
-The FlowCreditMarket protocol has achieved strong test coverage (89.7%) across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
+The FlowALPv1 protocol has achieved strong test coverage (89.7%) across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
 
 However, significant gaps exist in multi-collateral scenarios, oracle failure handling, advanced liquidation cases, and adversarial attack vectors. Addressing these high-priority gaps will substantially improve protocol robustness and production readiness.
 
