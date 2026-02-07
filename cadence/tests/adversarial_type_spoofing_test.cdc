@@ -2,7 +2,6 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-import "FlowCreditMarket"
 import "DeFiActions"
 import "DeFiActionsUtils"
 import "FlowToken"

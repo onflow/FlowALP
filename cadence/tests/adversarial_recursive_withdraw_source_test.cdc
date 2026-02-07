@@ -2,7 +2,7 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-import "FlowCreditMarket"
+import "FlowALPv1"
 import "DeFiActions"
 import "DeFiActionsUtils"
 import "FlowToken"
@@ -98,8 +98,8 @@ fun testRecursiveWithdrawSource() {
     Test.expect(openRes, Test.beSucceeded())
 
     // Read the newly opened position id from the latest Opened event.
-    var evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
+    var evts = Test.eventsOfType(Type<FlowALPv1.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPv1.Opened
     positionID = openedEvt.pid
     log("[TEST] Position opened with ID: \(positionID)")
 

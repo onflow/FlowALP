@@ -1,15 +1,15 @@
-import "FlowCreditMarket"
+import "FlowALPv1"
 
-/// Async update a FlowCreditMarket position by it's Position ID
+/// Async update a FlowALPv1 position by it's Position ID
 ///
 /// @param pid: The position ID to update
 ///
 transaction(pid: UInt64) {
-    let pool: auth(FlowCreditMarket.EImplementation) &FlowCreditMarket.Pool
+    let pool: auth(FlowALPv1.EImplementation) &FlowALPv1.Pool
 
     prepare(signer: auth(BorrowValue) &Account) {
-        self.pool = signer.storage.borrow<auth(FlowCreditMarket.EImplementation) &FlowCreditMarket.Pool>(from: FlowCreditMarket.PoolStoragePath)
-            ?? panic("Could not borrow reference to Pool from \(FlowCreditMarket.PoolStoragePath) - ensure a Pool has been configured")
+        self.pool = signer.storage.borrow<auth(FlowALPv1.EImplementation) &FlowALPv1.Pool>(from: FlowALPv1.PoolStoragePath)
+            ?? panic("Could not borrow reference to Pool from \(FlowALPv1.PoolStoragePath) - ensure a Pool has been configured")
     }
     
     execute {
