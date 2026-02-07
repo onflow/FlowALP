@@ -1540,6 +1540,14 @@ access(all) contract FlowCreditMarket {
         /// TODO: unused! To remove, must re-deploy existing contracts
         access(self) var dexMaxRouteHops: UInt64
 
+        /// Reentrancy guards keyed by position id.
+        /// When a position is locked, it means an operation on the position is in progress.
+        /// While a position is locked, no new operation can begin on the locked position.
+        /// All positions must be unlocked at the end of each transaction.
+        /// A locked position is indicated by the presence of an entry {pid: True} in the map.
+        /// An unlocked position is indicated by the lack of entry for the pid in the map.
+        access(self) var positionLock: {UInt64: Bool}
+
         init(
         	defaultToken: Type,
         	priceOracle: {DeFiActions.PriceOracle},
@@ -1583,8 +1591,24 @@ access(all) contract FlowCreditMarket {
             self.dexMaxSlippageBps = 100
             self.dexMaxRouteHops = 3
 
+            self.positionLock = {}
+
             // The pool starts with an empty reserves map.
             // Vaults will be created when tokens are first deposited.
+        }
+
+        /// Marks the position as locked. Panics if the position is already locked.
+        access(self) fun _lockPosition(_ pid: UInt64) {
+            // If key absent => unlocked
+            let locked = self.positionLock[pid] ?? false
+            assert(!locked, message: "Reentrancy: position \(pid) is locked")
+            self.positionLock[pid] = true
+        }
+
+        /// Marks the position as unlocked. No-op if the position is already unlocked.
+        access(self) fun _unlockPosition(_ pid: UInt64) {
+            // Always unlock (even if missing)
+            self.positionLock.remove(key: pid)
         }
 
         access(self) fun _assertLiquidationsActive() {
@@ -1908,6 +1932,11 @@ access(all) contract FlowCreditMarket {
                 debtType == repayment.getType(): "Repayment vault does not match debt type: \(debtType.identifier)!=\(repayment.getType().identifier)"
                 // TODO(jord): liquidation paused / post-pause warm
             }
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
+            
+            self._lockPosition(pid)
 
             let positionView = self.buildPositionView(pid: pid)
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
@@ -1960,7 +1989,11 @@ access(all) contract FlowCreditMarket {
             assert(Pcd_dex_oracle_diffBps <= self.dexOracleDeviationBps, message: "Too large difference between dex/oracle prices diff=\(Pcd_dex_oracle_diffBps)bps")
 
             // Execute the liquidation
-            return <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
+            let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
+            
+            self._unlockPosition(pid)
+            
+            return <- seizedCollateral
         }
 
         /// Gets a swapper from the DEX for the given token pair.
@@ -2611,10 +2644,15 @@ access(all) contract FlowCreditMarket {
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
                 // TODO(jord): Sink/source should be valid
             }
+            post {
+                self.positionLock[result.id] == nil: "Position is not unlocked"
+            }
             // construct a new InternalPosition, assigning it the current position ID
             let id = self.nextPositionID
             self.nextPositionID = self.nextPositionID + 1
             self.positions[id] <-! create InternalPosition()
+
+            self._lockPosition(id)
 
             emit Opened(
                 pid: id,
@@ -2630,11 +2668,12 @@ access(all) contract FlowCreditMarket {
             }
 
             // deposit the initial funds
-            self.depositAndPush(
-                pid: id,
-                from: <-funds,
-                pushToDrawDownSink: pushToDrawDownSink
-            )
+            self._depositEffectsOnly(pid: id, from: <-funds)
+
+            // Rebalancing and queue management
+            if pushToDrawDownSink {
+                self._rebalancePositionNoLock(pid: id, force: true)
+            }
 
             // Create a capability to the Pool for the Position resource
             // The Pool is stored in the FlowCreditMarket contract account
@@ -2643,7 +2682,11 @@ access(all) contract FlowCreditMarket {
             )
 
             // Create and return the Position resource
-            return <- create Position(id: id, pool: poolCap)
+
+            let position <- create Position(id: id, pool: poolCap)
+
+            self._unlockPosition(id)
+            return <-position
         }
 
         /// Allows anyone to deposit funds into any position.
@@ -2655,37 +2698,29 @@ access(all) contract FlowCreditMarket {
                 pushToDrawDownSink: false
             )
         }
-
-        /// Deposits the provided funds to the specified position with the configurable `pushToDrawDownSink` option.
-        /// If `pushToDrawDownSink` is true, excess value putting the position above its max health
-        /// is pushed to the position's configured `drawDownSink`.
+        /// Applies the state transitions for depositing `from` into `pid`, without doing any of the
+        /// surrounding orchestration (locking, health checks, rebalancing, or caller authorization).
+        ///
+        /// This helper is intentionally effects-only: it *mutates* Pool/Position state and consumes `from`,
+        /// but assumes all higher-level preconditions have already been enforced by the caller.
+        ///
         /// TODO(jord): ~100-line function - consider refactoring.
-        access(EPosition) fun depositAndPush(
+        access(self) fun _depositEffectsOnly(
             pid: UInt64,
-            from: @{FungibleToken.Vault},
-            pushToDrawDownSink: Bool
+            from: @{FungibleToken.Vault}
         ) {
-            pre {
-                self.positions[pid] != nil:
-                    "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
-                self.globalLedger[from.getType()] != nil:
-                    "Invalid token type \(from.getType().identifier) - not supported by this Pool"
-            }
-            if self.debugLogging {
-                log("    [CONTRACT] depositAndPush(pid: \(pid), pushToDrawDownSink: \(pushToDrawDownSink))")
-            }
-
-            if from.balance == 0.0 {
+            // NOTE: caller must have already validated pid + token support
+            let amount = from.balance
+            if amount == 0.0 {
                 Burner.burn(<-from)
                 return
             }
 
             // Get a reference to the user's position and global token state for the affected token.
             let type = from.getType()
+            let depositedUUID = from.uuid
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: type)
-            let amount = from.balance
-            let depositedUUID = from.uuid
 
             // Time-based state is handled by the tokenState() helper function
 
@@ -2754,12 +2789,8 @@ access(all) contract FlowCreditMarket {
             // Add the money to the reserves
             reserveVault.deposit(from: <-from)
 
-            // Rebalancing and queue management
-            if pushToDrawDownSink {
-                self.rebalancePosition(pid: pid, force: true)
-            }
-
             self._queuePositionForUpdateIfNecessary(pid: pid)
+
             emit Deposited(
                 pid: pid,
                 poolUUID: self.uuid,
@@ -2767,6 +2798,40 @@ access(all) contract FlowCreditMarket {
                 amount: amount,
                 depositedUUID: depositedUUID
             )
+
+        }
+
+        /// Deposits the provided funds to the specified position with the configurable `pushToDrawDownSink` option.
+        /// If `pushToDrawDownSink` is true, excess value putting the position above its max health
+        /// is pushed to the position's configured `drawDownSink`.
+        access(EPosition) fun depositAndPush(
+            pid: UInt64,
+            from: @{FungibleToken.Vault},
+            pushToDrawDownSink: Bool
+        ) {
+            pre {
+                self.positions[pid] != nil:
+                    "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
+                self.globalLedger[from.getType()] != nil:
+                    "Invalid token type \(from.getType().identifier) - not supported by this Pool"
+            }
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
+            if self.debugLogging {
+                log("    [CONTRACT] depositAndPush(pid: \(pid), pushToDrawDownSink: \(pushToDrawDownSink))")
+            }
+
+            self._lockPosition(pid)
+
+            self._depositEffectsOnly(pid: pid, from: <-from)
+
+            // Rebalancing and queue management
+            if pushToDrawDownSink {
+                self._rebalancePositionNoLock(pid: pid, force: true)
+            }
+
+            self._unlockPosition(pid)
         }
 
         /// Withdraws the requested funds from the specified position.
@@ -2802,10 +2867,15 @@ access(all) contract FlowCreditMarket {
                 self.globalLedger[type] != nil:
                     "Invalid token type \(type.identifier) - not supported by this Pool"
             }
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
+            self._lockPosition(pid)
             if self.debugLogging {
                 log("    [CONTRACT] withdrawAndPull(pid: \(pid), type: \(type.identifier), amount: \(amount), pullFromTopUpSource: \(pullFromTopUpSource))")
             }
             if amount == 0.0 {
+                self._unlockPosition(pid)
                 return <- DeFiActionsUtils.getEmptyVault(type)
             }
 
@@ -2828,7 +2898,6 @@ access(all) contract FlowCreditMarket {
             )
 
             var canWithdraw = false
-            var usedTopUp = false
 
             if requiredDeposit == 0.0 {
                 // We can service this withdrawal without any top up
@@ -2846,28 +2915,26 @@ access(all) contract FlowCreditMarket {
                     )
 
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
+                    assert(pulledVault.getType() == topUpType, message: "topUpSource returned unexpected token type")
                     let pulledAmount = pulledVault.balance
+
 
                     // NOTE: We requested the "ideal" deposit, but we compare against the required deposit here.
                     // The top up source may not have enough funds get us to the target health, but could have
                     // enough to keep us over the minimum.
                     if pulledAmount >= requiredDeposit {
                         // We can service this withdrawal if we deposit funds from our top up source
-                        self.depositAndPush(
+                        self._depositEffectsOnly(
                             pid: pid,
-                            from: <-pulledVault,
-                            pushToDrawDownSink: false
+                            from: <-pulledVault
                         )
-                        usedTopUp = pulledAmount > 0.0
                         canWithdraw = true
                     } else {
                         // We can't get the funds required to service this withdrawal, so we need to redeposit what we got
-                        self.depositAndPush(
+                        self._depositEffectsOnly(
                             pid: pid,
-                            from: <-pulledVault,
-                            pushToDrawDownSink: false
+                            from: <-pulledVault
                         )
-                        usedTopUp = pulledAmount > 0.0
                     }
                 }
             }
@@ -2884,7 +2951,6 @@ access(all) contract FlowCreditMarket {
                     log("    [CONTRACT] Required deposit for minHealth: \(requiredDeposit)")
                     log("    [CONTRACT] Pull from topUpSource: \(pullFromTopUpSource)")
                 }
-
                 // We can't service this withdrawal, so we just abort
                 panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
             }
@@ -2905,16 +2971,14 @@ access(all) contract FlowCreditMarket {
                 amount: uintAmount,
                 tokenState: tokenState
             )
-            // Ensure that this withdrawal doesn't cause the position to be overdrawn.
-            // Skip the assertion only when a top-up was used in this call and the immediate
-            // post-withdrawal health is 0 (transitional state before top-up effects fully reflect).
+            // Attempt to pull additional collateral from the top-up source (if configured)
+            // to keep the position above minHealth after the withdrawal.
+            // Regardless of whether a top-up occurs, the final post-call health must satisfy minHealth.
             let postHealth = self.positionHealth(pid: pid)
-            if !(usedTopUp && postHealth == 0.0) {
-                assert(
-                    position.minHealth <= postHealth,
-                    message: "Position is overdrawn"
-                )
-            }
+            assert(
+                position.minHealth <= postHealth,
+                message: "Post-withdrawal position health (\(postHealth)) is below min health threshold (\(position.minHealth))"
+            )
 
             // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
@@ -2929,6 +2993,7 @@ access(all) contract FlowCreditMarket {
                 withdrawnUUID: withdrawn.uuid
             )
 
+            self._unlockPosition(pid)
             return <- withdrawn
         }
 
@@ -2936,16 +3001,26 @@ access(all) contract FlowCreditMarket {
         /// the position exceeds its maximum health. Note, if a non-nil value is provided, the Sink MUST accept the
         /// Pool's default deposits or the operation will revert.
         access(EPosition) fun provideDrawDownSink(pid: UInt64, sink: {DeFiActions.Sink}?) {
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
+            self._lockPosition(pid)
             let position = self._borrowPosition(pid: pid)
             position.setDrawDownSink(sink)
+            self._unlockPosition(pid)
         }
 
         /// Sets the InternalPosition's topUpSource.
         /// If `nil`, the Pool will not be able to pull underflown value when
         /// the position falls below its minimum health which may result in liquidation.
         access(EPosition) fun provideTopUpSource(pid: UInt64, source: {DeFiActions.Source}?) {
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
+            self._lockPosition(pid)
             let position = self._borrowPosition(pid: pid)
             position.setTopUpSource(source)
+            self._unlockPosition(pid)
         }
 
         // ---- Position health accessors (called via Position using EPosition capability) ----
@@ -3338,6 +3413,22 @@ access(all) contract FlowCreditMarket {
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
         access(EPosition) fun rebalancePosition(pid: UInt64, force: Bool) {
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
+            self._lockPosition(pid)
+            self._rebalancePositionNoLock(pid: pid, force: force)
+            self._unlockPosition(pid)
+        }
+
+        /// Attempts to rebalance a position toward its configured `targetHealth` without acquiring
+        /// or releasing the position lock. This function performs *best-effort* rebalancing and may
+        /// partially rebalance or no-op depending on available sinks/sources and their capacity.
+        ///
+        /// This helper is intentionally "no-lock" and "effects-only" with respect to orchestration.
+        /// Callers are responsible for acquiring and releasing the position lock and for enforcing
+        /// any higher-level invariants.
+        access(self) fun _rebalancePositionNoLock(pid: UInt64, force: Bool) {
             if self.debugLogging {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
             }
@@ -3363,7 +3454,9 @@ access(all) contract FlowCreditMarket {
                         log("    [CONTRACT] idealDeposit: \(idealDeposit)")
                     }
 
+                    let topUpType = topUpSource.getSourceType()
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
+                    assert(pulledVault.getType() == topUpType, message: "topUpSource returned unexpected token type")
 
                     emit Rebalanced(
                         pid: pid,
@@ -3373,10 +3466,9 @@ access(all) contract FlowCreditMarket {
                         fromUnder: true
                         )
 
-                    self.depositAndPush(
+                    self._depositEffectsOnly(
                         pid: pid,
                         from: <-pulledVault,
-                        pushToDrawDownSink: false
                     )
                 }
             } else if balanceSheet.health > position.targetHealth {
@@ -3426,10 +3518,9 @@ access(all) contract FlowCreditMarket {
                         // Push what we can into the sink, and redeposit the rest
                         drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
                         if sinkVault.balance > 0.0 {
-                            self.depositAndPush(
+                            self._depositEffectsOnly(
                                 pid: pid,
                                 from: <-sinkVault,
-                                pushToDrawDownSink: false
                             )
                         } else {
                             Burner.burn(<-sinkVault)
@@ -3437,6 +3528,7 @@ access(all) contract FlowCreditMarket {
                     }
                 }
             }
+
         }
 
         /// Executes asynchronous updates on positions that have been queued up to the lesser of the queue length or
@@ -3456,10 +3548,16 @@ access(all) contract FlowCreditMarket {
 
         /// Executes an asynchronous update on the specified position
         access(EImplementation) fun asyncUpdatePosition(pid: UInt64) {
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
+            self._lockPosition(pid)
             let position = self._borrowPosition(pid: pid)
 
+            // store types to avoid iterating while mutating
+            let depositTypes = position.queuedDeposits.keys
             // First check queued deposits, their addition could affect the rebalance we attempt later
-            for depositType in position.queuedDeposits.keys {
+            for depositType in depositTypes {
                 let queuedVault <- position.queuedDeposits.remove(key: depositType)!
                 let queuedAmount = queuedVault.balance
                 let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
@@ -3467,29 +3565,28 @@ access(all) contract FlowCreditMarket {
 
                 if maxDeposit >= queuedAmount {
                     // We can deposit all of the queued deposit, so just do it and remove it from the queue
-                    self.depositAndPush(
-                        pid: pid,
-                        from: <-queuedVault,
-                        pushToDrawDownSink: false
-                    )
+
+                    self._depositEffectsOnly(pid: pid, from: <-queuedVault)
                 } else {
                     // We can only deposit part of the queued deposit, so do that and leave the rest in the queue
                     // for the next time we run.
                     let depositVault <- queuedVault.withdraw(amount: maxDeposit)
-                    self.depositAndPush(
-                        pid: pid,
-                        from: <-depositVault,
-                        pushToDrawDownSink: false
-                    )
+                    self._depositEffectsOnly(pid: pid, from: <-depositVault)
 
                     // We need to update the queued vault to reflect the amount we used up
-                    position.queuedDeposits[depositType] <-! queuedVault
+                    if let existing <- position.queuedDeposits.remove(key: depositType) {
+                        existing.deposit(from: <-queuedVault)
+                        position.queuedDeposits[depositType] <-! existing
+                    } else {
+                        position.queuedDeposits[depositType] <-! queuedVault
+                    }
                 }
             }
 
             // Now that we've deposited a non-zero amount of any queued deposits, we can rebalance
             // the position if necessary.
-            self.rebalancePosition(pid: pid, force: false)
+            self._rebalancePositionNoLock(pid: pid, force: false)
+            self._unlockPosition(pid)
         }
 
         /// Updates interest rates for a token and collects stability fee.
