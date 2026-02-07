@@ -406,6 +406,16 @@ fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: Strin
 }
 
 access(all)
+fun setMinimumTokenBalancePerPosition(signer: Test.TestAccount, tokenTypeIdentifier: String, minimum: UFix64) {
+    let setRes = _executeTransaction(
+        "../transactions/flow-credit-market/pool-governance/set_minimum_token_balance_per_position.cdc",
+        [tokenTypeIdentifier, minimum],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
 fun createPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     // Grant beta access to the signer if they don't have it yet
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, signer)

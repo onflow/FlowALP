@@ -765,6 +765,9 @@ access(all) contract FlowCreditMarket {
         /// Maps position ID -> usage amount (how much of each user's limit has been consumed for this token type)
         access(EImplementation) var depositUsage: {UInt64: UFix64}
 
+        /// The minimum balance amount for the related token per position
+        access(EImplementation) var minimumTokenBalancePerPosition: UFix64
+
         init(
             tokenType: Type,
             interestCurve: {InterestCurve},
@@ -791,6 +794,7 @@ access(all) contract FlowCreditMarket {
             self.depositCapacityCap = depositCapacityCap
             self.depositUsage = {}
             self.lastDepositCapacityUpdate = getCurrentBlock().timestamp
+            self.minimumTokenBalancePerPosition = 1.0
         }
 
         /// Sets the insurance rate for this token state
@@ -834,6 +838,11 @@ access(all) contract FlowCreditMarket {
             }
             // Reset the last update timestamp to prevent regeneration based on old timestamp
             self.lastDepositCapacityUpdate = getCurrentBlock().timestamp
+        }
+
+        /// Sets the minimum token balance per position for this token state
+        access(EImplementation) fun setMinimumTokenBalancePerPosition(_ minimum: UFix64) {
+            self.minimumTokenBalancePerPosition = minimum
         }
 
         /// Sets the stability fee rate for this token state.
@@ -2609,6 +2618,8 @@ access(all) contract FlowCreditMarket {
             pre {
                 self.globalLedger[funds.getType()] != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
+                funds.balance >= self.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition:
+                    "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition)"
                 // TODO(jord): Sink/source should be valid
             }
             // construct a new InternalPosition, assigning it the current position ID
@@ -3225,6 +3236,16 @@ access(all) contract FlowCreditMarket {
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositCapacityCap(cap)
+        }
+
+        /// Updates the minimum token balance per position for a given token
+        access(EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minimum: UFix64) {
+            pre {
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
+            }
+            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+                ?? panic("Invariant: token state missing")
+            tsRef.setMinimumTokenBalancePerPosition(minimum)
         }
 
         /// Updates the stability fee rate for a given token (fraction in [0,1]).
