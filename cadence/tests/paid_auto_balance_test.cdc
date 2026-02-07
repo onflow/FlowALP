@@ -45,6 +45,9 @@ access(all) fun setup() {
     createWrappedPosition(signer: userAccount, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
     depositToWrappedPosition(signer: userAccount, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
     addPaidRebalancerToWrappedPosition(signer: userAccount, paidRebalancerStoragePath: paidRebalancerStoragePath)
+    let evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.CreatedRebalancer>())
+    let paidRebalancerUUID = evts[0] as! FlowCreditMarketRebalancerV1.CreatedRebalancer
+    activatePaidRebalancer(signer: protocolAccount, uuid: paidRebalancerUUID.uuid)
     createSupervisor(
         signer: userAccount, 
         cronExpression: "0 * * * *",

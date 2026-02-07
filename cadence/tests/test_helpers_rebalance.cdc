@@ -13,6 +13,18 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
 }
 
 access(all)
+fun activatePaidRebalancer(
+    signer: Test.TestAccount,
+    uuid: UInt64
+) {
+    let setRes = _executeTransaction(
+        "./transactions/rebalancer/activate_paid_rebalancer.cdc",
+        [uuid],
+        signer
+    )
+}
+
+access(all)
 fun addPaidRebalancerToWrappedPosition(
     signer: Test.TestAccount, 
     paidRebalancerStoragePath: StoragePath
