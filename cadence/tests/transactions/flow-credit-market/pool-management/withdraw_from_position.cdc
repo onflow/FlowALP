@@ -1,6 +1,5 @@
 import "FlowCreditMarket"
 import "FungibleToken"
-import "MockFlowCreditMarketConsumer"
 
 /// Withdraw assets from an existing credit position, depositing to signer's Receiver
 transaction(

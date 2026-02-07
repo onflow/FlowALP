@@ -1540,7 +1540,12 @@ access(all) contract FlowCreditMarket {
         /// TODO: unused! To remove, must re-deploy existing contracts
         access(self) var dexMaxRouteHops: UInt64
 
-        // Reentrancy guards keyed by position id
+        /// Reentrancy guards keyed by position id.
+        /// When a position is locked, it means an operation on the position is in progress.
+        /// While a position is locked, no new operation can begin on the locked position.
+        /// All positions must be unlocked at the end of each transaction.
+        /// A locked position is indicated by the presence of an entry {pid: True} in the map.
+        /// An unlocked position is indicated by the lack of entry for the pid in the map.
         access(self) var positionLock: {UInt64: Bool}
 
         init(
@@ -1592,6 +1597,7 @@ access(all) contract FlowCreditMarket {
             // Vaults will be created when tokens are first deposited.
         }
 
+        /// Marks the position as locked. Panics if the position is already locked.
         access(self) fun _lockPosition(_ pid: UInt64) {
             // If key absent => unlocked
             let locked = self.positionLock[pid] ?? false
@@ -1599,6 +1605,7 @@ access(all) contract FlowCreditMarket {
             self.positionLock[pid] = true
         }
 
+        /// Marks the position as unlocked. No-op if the position is already unlocked.
         access(self) fun _unlockPosition(_ pid: UInt64) {
             // Always unlock (even if missing)
             self.positionLock.remove(key: pid)
@@ -2638,7 +2645,7 @@ access(all) contract FlowCreditMarket {
                 // TODO(jord): Sink/source should be valid
             }
             post {
-                self.positionLock[self.nextPositionID] == nil: "Position is not unlocked"
+                self.positionLock[result.id] == nil: "Position is not unlocked"
             }
             // construct a new InternalPosition, assigning it the current position ID
             let id = self.nextPositionID
