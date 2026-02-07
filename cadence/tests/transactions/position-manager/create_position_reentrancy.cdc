@@ -6,11 +6,11 @@ import "AdversarialReentrancyConnectors"
 
 import "MOET"
 import "FlowToken"
-import "FlowCreditMarket"
+import "FlowALPv1"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
-/// Opens a FlowCreditMarket position using collateral withdrawn from the signer’s vault PositionWrapper.
+/// Opens a FlowALPv1 position using collateral withdrawn from the signer’s vault PositionWrapper.
 ///
 /// This transaction intentionally wires an **adversarial DeFiActions.Source** that attempts
 /// to re-enter the Pool during `withdrawAndPull` flows. It is used to validate that the Pool’s
@@ -18,16 +18,16 @@ import "FlowCreditMarket"
 ///
 ///
 transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool){
-    // the funds that will be used as collateral for a FlowCreditMarket loan
+    // the funds that will be used as collateral for a FlowALPv1 loan
     let collateral: @{FungibleToken.Vault}
     // this DeFiActions Sink that will receive the loaned funds
     let sink: {DeFiActions.Sink}
     // this DeFiActions Source that will allow for the repayment of a loan if the position becomes undercollateralized
     let source: {DeFiActions.Source}
     // the position manager in the signer's account where we should store the new position
-    let positionManager: auth(FlowCreditMarket.EPositionAdmin) &FlowCreditMarket.PositionManager
+    let positionManager: auth(FlowALPv1.EPositionAdmin) &FlowALPv1.PositionManager
     // the authorized Pool capability
-    let poolCap: Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>
+    let poolCap: Capability<auth(FlowALPv1.EParticipant, FlowALPv1.EPosition) &FlowALPv1.Pool>
     // reference to signer's account for saving capability back
     let signerAccount: auth(LoadValue, BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account
 
@@ -66,23 +66,23 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         )
 
         // Get or create PositionManager at constant path
-        if signer.storage.borrow<&FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath) == nil {
+        if signer.storage.borrow<&FlowALPv1.PositionManager>(from: FlowALPv1.PositionStoragePath) == nil {
             // Create new PositionManager if it doesn't exist
-            let manager <- FlowCreditMarket.createPositionManager()
-            signer.storage.save(<-manager, to: FlowCreditMarket.PositionStoragePath)
+            let manager <- FlowALPv1.createPositionManager()
+            signer.storage.save(<-manager, to: FlowALPv1.PositionStoragePath)
 
             // Issue and publish capabilities for the PositionManager
-            let readCap = signer.capabilities.storage.issue<&FlowCreditMarket.PositionManager>(FlowCreditMarket.PositionStoragePath)
+            let readCap = signer.capabilities.storage.issue<&FlowALPv1.PositionManager>(FlowALPv1.PositionStoragePath)
 
             // Publish read-only capability publicly
-            signer.capabilities.publish(readCap, at: FlowCreditMarket.PositionPublicPath)
+            signer.capabilities.publish(readCap, at: FlowALPv1.PositionPublicPath)
         }
-        self.positionManager = signer.storage.borrow<auth(FlowCreditMarket.EPositionAdmin) &FlowCreditMarket.PositionManager>(from: FlowCreditMarket.PositionStoragePath)
+        self.positionManager = signer.storage.borrow<auth(FlowALPv1.EPositionAdmin) &FlowALPv1.PositionManager>(from: FlowALPv1.PositionStoragePath)
             ?? panic("PositionManager not found")
 
         // Load the authorized Pool capability from storage
-        self.poolCap = signer.storage.load<Capability<auth(FlowCreditMarket.EParticipant, FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>>(
-            from: FlowCreditMarket.PoolCapStoragePath
+        self.poolCap = signer.storage.load<Capability<auth(FlowALPv1.EParticipant, FlowALPv1.EPosition) &FlowALPv1.Pool>>(
+            from: FlowALPv1.PoolCapStoragePath
         ) ?? panic("Could not load Pool capability from storage - ensure the signer has been granted Pool access with EParticipant entitlement")
     }
 
@@ -107,6 +107,6 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         liveData.setRecursivePool(self.poolCap)
         liveData.setRecursivePositionID(pid)
 
-        self.signerAccount.storage.save(self.poolCap, to: FlowCreditMarket.PoolCapStoragePath)
+        self.signerAccount.storage.save(self.poolCap, to: FlowALPv1.PoolCapStoragePath)
     }
 }
