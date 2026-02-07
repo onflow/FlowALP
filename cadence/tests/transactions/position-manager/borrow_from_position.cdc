@@ -1,15 +1,14 @@
 import "FungibleToken"
 import "FlowToken"
 import "FlowALPv1"
-import "MockFlowALPv1Consumer"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
-/// Borrows (withdraws) the specified token type from the wrapped position.
+/// Borrows (withdraws) the specified token type from the position.
 /// This creates a debit balance if the position doesn't have sufficient credit balance.
 ///
 transaction(
-    positionId: UInt64,  // Kept for API compatibility but ignored (position ID is in wrapper)
+    positionId: UInt64,
     tokenTypeIdentifier: String,
     amount: UFix64
 ) {
@@ -18,11 +17,14 @@ transaction(
     let receiverVault: &{FungibleToken.Receiver}
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
-        // Reference the wrapped position with withdraw entitlement
-        self.position = signer.storage.borrow<&MockFlowALPv1Consumer.PositionWrapper>(
-                from: MockFlowALPv1Consumer.WrapperStoragePath
-            )?.borrowPositionForWithdraw()
-            ?? panic("Could not find a WrappedPosition in signer's storage at \(MockFlowALPv1Consumer.WrapperStoragePath.toString())")
+        // Borrow the PositionManager from constant storage path
+        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv1.EPositionAdmin) &FlowALPv1.PositionManager>(
+                from: FlowALPv1.PositionStoragePath
+            )
+            ?? panic("Could not find PositionManager in signer's storage")
+
+        // Borrow the position with withdraw entitlement
+        self.position = manager.borrowAuthorizedPosition(pid: positionId)
 
         // Parse the token type
         self.tokenType = CompositeType(tokenTypeIdentifier)
@@ -47,7 +49,7 @@ transaction(
     }
 
     execute {
-        // Withdraw (borrow) from the position
+        // Withdraw (borrow) from the position directly
         let borrowedVault <- self.position.withdraw(type: self.tokenType, amount: amount)
 
         // Deposit the borrowed tokens to the signer's vault

@@ -11,10 +11,6 @@ access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-
-    Test.expect(betaTxResult, Test.beSucceeded())
-
     snapshot = getCurrentBlockHeight()
 }
 
@@ -40,8 +36,11 @@ fun testRebalanceOvercollateralised() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
 
+    // Grant beta access to user so they can create positions
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
+
     let openRes = executeTransaction(
-        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )

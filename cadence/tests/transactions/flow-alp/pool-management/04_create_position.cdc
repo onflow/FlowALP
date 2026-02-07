@@ -6,17 +6,29 @@ import "MOET"
 import "DummyConnectors"
 
 transaction {
-    prepare(admin: auth(BorrowValue) &Account) {
+    prepare(admin: auth(BorrowValue, Storage, Capabilities) &Account) {
         let pool = admin.storage.borrow<auth(FlowALPv1.EParticipant, FlowALPv1.EPosition) &FlowALPv1.Pool>(from: FlowALPv1.PoolStoragePath)
+
+        // Ensure PositionManager exists
+        if admin.storage.borrow<&FlowALPv1.PositionManager>(from: FlowALPv1.PositionStoragePath) == nil {
+            let manager <- FlowALPv1.createPositionManager()
+            admin.storage.save(<-manager, to: FlowALPv1.PositionStoragePath)
+        }
 
         // Call EParticipant-gated methods
         let zero1 <- DeFiActionsUtils.getEmptyVault(Type<@MOET.Vault>())
-        let pid = pool.createPosition(
+        let position <- pool.createPosition(
             funds: <- zero1,
             issuanceSink: DummyConnectors.DummySink(),
             repaymentSource: nil,
             pushToDrawDownSink: false
         )
+
+        let pid = position.id
+
+        // Add position to manager
+        let manager = admin.storage.borrow<&FlowALPv1.PositionManager>(from: FlowALPv1.PositionStoragePath)!
+        manager.addPosition(position: <-position)
 
         // Also allowed with EParticipant:
         let zero2 <- DeFiActionsUtils.getEmptyVault(Type<@MOET.Vault>())

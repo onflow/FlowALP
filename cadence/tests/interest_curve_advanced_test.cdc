@@ -6,7 +6,6 @@ import "FlowToken"
 import "FlowALPv1"
 import "FlowALPMath"
 import "test_helpers.cdc"
-import "MockFlowALPv1Consumer"
 
 // =============================================================================
 // Advanced Interest Curve Tests
@@ -26,9 +25,6 @@ access(all) var snapshotAfterTest1: UInt64 = 0
 access(all)
 fun setup() {
     deployContracts()
-
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-    Test.expect(betaTxResult, Test.beSucceeded())
 
     snapshot = getCurrentBlockHeight()
 }
@@ -93,14 +89,13 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 100_000.0, beFailed: false)
 
     // Grant beta access (required for protocol interaction during beta phase)
-    let lpBetaRes = grantBeta(PROTOCOL_ACCOUNT, lp)
-    Test.expect(lpBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, lp)
 
     // Create LP's position by depositing MOET.
     // The `false` parameter = not auto-borrowing, just supplying liquidity.
     // This creates position ID 0 (first position in the pool).
     let createLpPosRes = executeTransaction(
-        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [100_000.0, MOET.VaultStoragePath, false],
         lp
     )
@@ -146,15 +141,14 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     setupMoetVault(borrower, beFailed: false)
     mintFlow(to: borrower, amount: 10_000.0)
 
-    let borrowerBetaRes = grantBeta(PROTOCOL_ACCOUNT, borrower)
-    Test.expect(borrowerBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower)
 
     // Create borrower's position with auto-borrow enabled (`true` parameter).
     // This deposits FLOW collateral and automatically borrows MOET targeting health factor ~1.3.
     // With 10,000 FLOW × 0.8 collateralFactor / 1.3 healthFactor ≈ 6153.85 MOET borrowed.
     // This creates position ID 1 (second position in the pool).
     let openRes = executeTransaction(
-        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [10_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )

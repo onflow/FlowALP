@@ -22,7 +22,6 @@ fun setup() {
 
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
     createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
-    grantPoolCapToConsumer()
     addSupportedTokenZeroRateCurve(
         signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
@@ -45,9 +44,12 @@ fun test_borrower_full_redemption_insolvency() {
     setupMoetVault(borrower, beFailed: false)
     transferFlowTokens(to: borrower, amount: 1000.0)
 
+    // Grant beta access to borrower so they can create positions
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower)
+
     // Open wrapped position and deposit Flow as collateral
     let openRes = _executeTransaction(
-        "./transactions/mock-flow-alp-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [1000.0, /storage/flowTokenVault, true],
         borrower
     )
@@ -74,8 +76,8 @@ fun test_borrower_full_redemption_insolvency() {
     // Execute borrower redemption: repay MOET (pulled from topUpSource) and withdraw Flow up to availableBalance
     // Note: use the helper tx which withdraws availableBalance with pullFromTopUpSource=true
     let closeRes = _executeTransaction(
-        "./transactions/flow-alp/pool-management/repay_and_close_position.cdc",
-        [/storage/flowALPv1PositionWrapper],
+        "../transactions/flow-alp/position/repay_and_close_position.cdc",
+        [pid],
         borrower
     )
     Test.expect(closeRes, Test.beSucceeded())

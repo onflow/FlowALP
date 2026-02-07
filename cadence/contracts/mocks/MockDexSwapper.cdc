@@ -8,6 +8,47 @@ import "DeFiActionsUtils"
 /// Do NOT use in production.
 access(all) contract MockDexSwapper {
 
+    /// Holds the set of available swappers which will be provided to users of SwapperProvider.
+    /// inType -> outType -> Swapper
+    access(self) let swappers: {Type: {Type: Swapper}}
+
+    init() {
+        self.swappers = {}
+    }
+
+    access(all) fun getSwapper(inType: Type, outType: Type): Swapper? {
+        if let swappersForInType = self.swappers[inType] {
+            return swappersForInType[outType]
+        }
+        return nil
+    }
+
+    /// Used by testing code to configure the DEX with swappers for a specific token pair.
+    ///
+    /// IMPORTANT: This function will overwrite any existing swapper for the same token pair.
+    /// This is intended to be used in cases where we want to change the price only, without
+    /// needing to remove and re-add the swapper.
+    ///
+    /// @param swapper: The swapper to set for the token pair
+    access(all) fun setMockDEXSwapperForPair(swapper: Swapper) {
+        let inType = swapper.inType()
+        let outType = swapper.outType()
+        let swappersRef = &self.swappers as auth(Mutate) &{Type: {Type: Swapper}}
+        if swappersRef[inType] == nil {
+            swappersRef[inType] = { outType: swapper }
+        } else {
+            let swappersForInTypeRef = &self.swappers[inType]! as auth(Mutate) &{Type: Swapper}
+            swappersForInTypeRef[outType] = swapper
+        }
+    }
+
+    /// Used by testing code to remove a swapper for the given token pair.
+    /// Panics if no swapper for the given pair exists.
+    access(all) fun removeMockDEXSwapperForPair(inType: Type, outType: Type) {
+        let swappersForInTypeRef = &self.swappers[inType]! as auth(Mutate) &{Type: Swapper}
+        swappersForInTypeRef.remove(key: outType)
+    }
+
     access(all) struct BasicQuote : DeFiActions.Quote {
         access(all) let inType: Type
         access(all) let outType: Type
@@ -21,9 +62,11 @@ access(all) contract MockDexSwapper {
         }
     }
 
+    /// NOTE: reverse swaps are unsupported.
     access(all) struct Swapper : DeFiActions.Swapper {
         access(self) let inVault: Type
         access(self) let outVault: Type
+        /// source for output tokens only (reverse swaps unsupported)
         access(self) let vaultSource: Capability<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>
         access(self) let priceRatio: UFix64 // out per unit in
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
@@ -85,5 +128,11 @@ access(all) contract MockDexSwapper {
         }
         access(contract) view fun copyID(): DeFiActions.UniqueIdentifier? { return self.uniqueID }
         access(contract) fun setID(_ id: DeFiActions.UniqueIdentifier?) { self.uniqueID = id }
+    }
+
+    access(all) struct SwapperProvider : DeFiActions.SwapperProvider {
+        access(all) fun getSwapper(inType: Type, outType: Type): Swapper? {
+            return MockDexSwapper.getSwapper(inType: inType, outType: outType)
+        }
     }
 }
