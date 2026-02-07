@@ -4,10 +4,6 @@ import BlockchainHelpers
 import "MOET"
 import "FlowALPv1"
 import "test_helpers.cdc"
-<<<<<<< HEAD
-import "MockFlowALPv1Consumer"
-=======
->>>>>>> origin/main
 
 // -----------------------------------------------------------------------------
 // Position Lifecycle Happy Path Test
