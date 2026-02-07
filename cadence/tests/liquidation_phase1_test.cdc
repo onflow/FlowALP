@@ -367,7 +367,7 @@ fun testManualLiquidation_increaseHealthBelowTarget() {
     let repayAmount = 100.0
     let seizeAmount = 150.0
     let liqRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
@@ -432,7 +432,7 @@ fun testManualLiquidation_liquidateToTarget() {
     let repayAmount = 100.0
     let seizeAmount = 33.66
     let liqRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
@@ -882,7 +882,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_withinThreshold() {
     let repayAmount = 50.0
     let seizeAmount = 72.0
     let liqRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
@@ -918,7 +918,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexBelowOracle() {
     mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
 
     let liqRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, 70.0, 50.0],
         liquidator
     )
@@ -955,7 +955,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexAboveOracle() {
     mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
 
     let liqRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, 66.0, 50.0],
         liquidator
     )
@@ -1006,7 +1006,7 @@ fun testManualLiquidation_liquidatorOfferWorseThanDex() {
     let repayAmount = 50.0
     let seizeAmount = 75.0
     let liqRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
@@ -1059,7 +1059,7 @@ fun testManualLiquidation_combinedEdgeCase() {
     let repayAmount = 50.0
     let seizeAmount = 75.0
     let liqRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )

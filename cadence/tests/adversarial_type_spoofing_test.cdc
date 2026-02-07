@@ -60,7 +60,7 @@ fun testMaliciousSource() {
 
     // withdraw 1337 Flow from the position
     let withdrawRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/withdraw_from_position.cdc",
+        "./transactions/flow-alp/pool-management/withdraw_from_position.cdc",
         [1 as UInt64, flowTokenIdentifier, 1337.0, true],
         hackerAccount
     )
