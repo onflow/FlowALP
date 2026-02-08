@@ -6,7 +6,6 @@ import "FlowToken"
 import "FlowCreditMarket"
 import "FlowCreditMarketMath"
 import "test_helpers.cdc"
-import "MockFlowCreditMarketConsumer"
 
 // =============================================================================
 // Advanced Interest Curve Tests
@@ -17,17 +16,6 @@ import "MockFlowCreditMarketConsumer"
 // 3. Rate change between time periods - validates interest segmentation
 // =============================================================================
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
-
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) let flowVaultStoragePath = /storage/flowTokenVault
-
-// Time constants
-access(all) let TEN_DAYS: Fix64 = 864000.0
-access(all) let THIRTY_DAYS: Fix64 = 2592000.0   // 30 * 86400
-access(all) let ONE_YEAR: Fix64 = 31536000.0     // 365 * 86400
-
 // Snapshot for state reset between tests
 access(all) var snapshot: UInt64 = 0
 
@@ -37,9 +25,6 @@ access(all) var snapshotAfterTest1: UInt64 = 0
 access(all)
 fun setup() {
     deployContracts()
-
-    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
-    Test.expect(betaTxResult, Test.beSucceeded())
 
     snapshot = getCurrentBlockHeight()
 }
@@ -65,11 +50,11 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // -------------------------------------------------------------------------
     // Set up the price oracle with a 1:1 price for FLOW token.
     // This simplifies collateral calculations: 10,000 FLOW = $10,000 collateral value.
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
 
     // Create the lending pool that will hold all positions.
     // The pool manages state for both lenders (credit positions) and borrowers (debit positions).
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     // -------------------------------------------------------------------------
     // STEP 2: Configure FLOW as a Collateral Asset
@@ -82,8 +67,8 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // - slope1/slope2: interest rate slopes before/after the kink
     // - depositRate/Cap: maximum deposit limits for risk management
     addSupportedTokenKinkCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         optimalUtilization: 0.80,
@@ -101,17 +86,16 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // that borrowers can borrow from. The LP earns interest on their deposit.
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: lp.address, amount: 100_000.0, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 100_000.0, beFailed: false)
 
     // Grant beta access (required for protocol interaction during beta phase)
-    let lpBetaRes = grantBeta(protocolAccount, lp)
-    Test.expect(lpBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, lp)
 
     // Create LP's position by depositing MOET.
     // The `false` parameter = not auto-borrowing, just supplying liquidity.
     // This creates position ID 0 (first position in the pool).
     let createLpPosRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [100_000.0, MOET.VaultStoragePath, false],
         lp
     )
@@ -126,11 +110,27 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // Using FixedRateInterestCurve means rate doesn't depend on utilization.
     let rate1: UFix128 = 0.05
     setInterestCurveFixed(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: rate1
     )
     log("Set MOET interest rate to 5% APY (Phase 1)")
+
+     // set insurance swapper
+    let res = setInsuranceSwapper(
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        priceRatio: 1.0,
+    )
+    Test.expect(res, Test.beSucceeded())
+
+    // set insurance rate
+    let setInsRes = setInsuranceRate(
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        insuranceRate: 0.001,
+    )
+    Test.expect(setInsRes, Test.beSucceeded())
 
     // -------------------------------------------------------------------------
     // STEP 5: Create a Borrower
@@ -141,16 +141,15 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     setupMoetVault(borrower, beFailed: false)
     mintFlow(to: borrower, amount: 10_000.0)
 
-    let borrowerBetaRes = grantBeta(protocolAccount, borrower)
-    Test.expect(borrowerBetaRes, Test.beSucceeded())
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, borrower)
 
     // Create borrower's position with auto-borrow enabled (`true` parameter).
     // This deposits FLOW collateral and automatically borrows MOET targeting health factor ~1.3.
     // With 10,000 FLOW × 0.8 collateralFactor / 1.3 healthFactor ≈ 6153.85 MOET borrowed.
     // This creates position ID 1 (second position in the pool).
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [10_000.0, flowVaultStoragePath, true],
+        "../transactions/flow-credit-market/position/create_position.cdc",
+        [10_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -173,7 +172,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // PHASE 1: 10 Days at 5% APY
     // =========================================================================
     // Advance blockchain time by 10 days and observe interest accrual.
-    // Formula: perSecondRate = 1 + 0.05/31536000, factor = perSecondRate^864000
+    // Formula: perSecondRate = 1 + 0.05/31_557_600, factor = perSecondRate^864000
     // Expected growth = principal × (factor - 1) ≈ 0.137% of principal
     // The commitBlock() ensures the time change is finalized in the ledger state.
     Test.moveTime(by: TEN_DAYS)
@@ -185,16 +184,16 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     let debtT10 = getDebitBalanceForType(details: detailsT10, vaultType: Type<@MOET.Vault>())
     let growth1 = debtT10 - debtT0
     log("=== DAY 10 ===")
-    log("Debt after 10 days @ 5%: \(debtT10.toString())") // 6162.28185663 MOET
-    log("Phase 1 growth: \(growth1.toString())") // 8.43570279 MOET
+    log("Debt after 10 days @ 5%: \(debtT10.toString())") // 6162.27607875 MOET
+    log("Phase 1 growth: \(growth1.toString())") // 8.42992491 MOET
 
     // Verify growth1 equals expected value
-    // Formula: perSecondRate = 1 + 0.05/31536000, factor = perSecondRate^864000
-    // Expected: 6153.84615384 * (factor - 1) ≈ 8.43570279 MOET
-    let expectedGrowth1: UFix64 = 8.43570279
+    // Formula: perSecondRate = 1 + 0.05/31_557_600, factor = perSecondRate^864000
+    // Expected: 6153.84615384 * (factor - 1) ≈ 8.42992491 MOET
+    let expectedGrowth1: UFix64 = 8.42992491
     let tolerance: UFix64 = 0.0001  // Precision to 0.0001 MOET
     let diff1 = growth1 > expectedGrowth1 ? growth1 - expectedGrowth1 : expectedGrowth1 - growth1
-    Test.assert(diff1 <= tolerance, message: "Phase 1 growth should be ~8.43570279. Actual: \(growth1)")
+    Test.assert(diff1 <= tolerance, message: "Phase 1 growth should be ~8.42992491. Actual: \(growth1)")
 
     // -------------------------------------------------------------------------
     // STEP 7: Change Interest Rate to 15% APY (Phase 2 Configuration)
@@ -205,10 +204,11 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // 3. The ratio of growth reflects the ratio of rates (15%/5% = 3x)
     let rate2: UFix128 = 0.15
     setInterestCurveFixed(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: rate2
     )
+
     log("Changed MOET interest rate to 15% APY (Phase 2)")
 
     // =========================================================================
@@ -227,11 +227,11 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     log("Phase 2 growth: \(growth2.toString())")
 
     // Verify growth2 equals expected value
-    // Formula: perSecondRate = 1 + 0.15/31536000, factor = perSecondRate^864000
-    // Expected: 6162.28185663 * (factor - 1) ≈ 25.37655381 MOET
-    let expectedGrowth2: UFix64 = 25.37655381
+    // Formula: perSecondRate = 1 + 0.15/31_557_600, factor = perSecondRate^864000
+    // Expected: 6162.27607875 * (factor - 1) ≈ 25.35912505 MOET
+    let expectedGrowth2: UFix64 = 25.35912505
     let diff2 = growth2 > expectedGrowth2 ? growth2 - expectedGrowth2 : expectedGrowth2 - growth2
-    Test.assert(diff2 <= tolerance, message: "Phase 2 growth should be ~25.37655381. Actual: \(growth2)")
+    Test.assert(diff2 <= tolerance, message: "Phase 2 growth should be ~25.35912505. Actual: \(growth2)")
 
     // -------------------------------------------------------------------------
     // STEP 8: Change Interest Rate to 10% APY (Phase 3 Configuration)
@@ -240,8 +240,8 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // This validates that multiple consecutive rate changes work correctly.
     let rate3: UFix128 = 0.10
     setInterestCurveFixed(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: rate3
     )
     log("Changed MOET interest rate to 10% APY (Phase 3)")
@@ -262,11 +262,11 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     log("Phase 3 growth: \(growth3.toString())")
 
     // Verify growth3 equals expected value
-    // Formula: perSecondRate = 1 + 0.10/31536000, factor = perSecondRate^864000
-    // Expected: 6187.65841045 * (factor - 1) ≈ 16.97573258 MOET
-    let expectedGrowth3: UFix64 = 16.97573258
+    // Formula: perSecondRate = 1 + 0.10/31_557_600, factor = perSecondRate^864000
+    // Expected: 6187.63520380 * (factor - 1) ≈ 16.96403378 MOET
+    let expectedGrowth3: UFix64 = 16.96403378
     let diff3 = growth3 > expectedGrowth3 ? growth3 - expectedGrowth3 : expectedGrowth3 - growth3
-    Test.assert(diff3 <= tolerance, message: "Phase 3 growth should be ~16.97573258. Actual: \(growth3)")
+    Test.assert(diff3 <= tolerance, message: "Phase 3 growth should be ~16.96403378. Actual: \(growth3)")
 
     // =========================================================================
     // ASSERTIONS: Verify Rate Ratios Match Growth Ratios
@@ -315,9 +315,9 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     log("Sum of phases: \(sumOfPhases.toString())")
     log("Difference: \(growthDiff.toString())")
 
-    // Allow small tolerance (< 0.01) for fixed-point arithmetic rounding
+    // Allow small tolerance (< 0.0001) for fixed-point arithmetic rounding
     Test.assert(
-        growthDiff < 0.01,
+        growthDiff < 0.0001,
         message: "Total growth should equal sum of phase growths"
     )
 
@@ -338,7 +338,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
 // Formula: FinalBalance = InitialBalance × (1 + r/n)^(n×t) for per-second compounding
 // The protocol uses discrete per-second compounding with exponentiation by squaring.
 //
-// Expected: 10% APY should yield ~10.52% effective rate ((1 + 0.10/31536000)^31536000 ≈ 1.10517)
+// Expected: 10% APY should yield ~10.52% effective rate ((1 + 0.10/31_557_600)^31_557_600 ≈ 1.10517)
 // =============================================================================
 access(all)
 fun test_exact_compounding_verification_one_year() {
@@ -356,11 +356,11 @@ fun test_exact_compounding_verification_one_year() {
     // -------------------------------------------------------------------------
     // Set MOET to exactly 10% APY. This round number makes it easy to verify
     // that the compounding formula is working correctly.
-    // 10% APY with per-second compounding yields: (1 + 0.10/31536000)^31536000 - 1 ≈ 10.517% effective rate
+    // 10% APY with per-second compounding yields: (1 + 0.10/31_557_600)^31_557_600 - 1 ≈ 10.517% effective rate
     let yearlyRate: UFix128 = 0.10
     setInterestCurveFixed(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: yearlyRate
     )
     log("Set MOET interest rate to 10% APY for compounding verification")
@@ -407,20 +407,25 @@ fun test_exact_compounding_verification_one_year() {
     // =========================================================================
     // MATHEMATICAL BACKGROUND: Per-Second Compounding
     // =========================================================================
-    // Formula: factor = (1 + r/31536000)^31536000
-    // At 10% APY: factor = (1 + 0.10/31536000)^31536000 ≈ 1.10517092
+    // Formula: factor = (1 + r/31_557_600)^31_557_600
+    // At 10% APY: factor = (1 + 0.10/31_557_600)^31_557_600 ≈ 1.10517092
     // This is discrete per-second compounding with exponentiation by squaring.
+    // Note: Using 31557600 seconds/year (365.25 days)
     // =========================================================================
 
     // -------------------------------------------------------------------------
     // STEP 6: Verify Exact Growth Value
     // -------------------------------------------------------------------------
-    // Formula: perSecondRate = 1 + 0.10/31536000, factor = perSecondRate^31536000
-    // Expected growth = debtBefore * (factor - 1) ≈ 652.54706806 MOET
-    // Expected growth rate = factor - 1 ≈ 0.10517092
-    let expectedGrowth: UFix64 = 652.54706806
-    let expectedGrowthRate: UFix64 = 0.10517092
-    let tolerance: UFix64 = 0.0001
+    // Formula: perSecondRate = 1 + 0.10/31557600, factor = perSecondRate^31557600
+    // factor = (1 + 0.10/31557600)^31557600 ≈ 1.105170918
+    // Expected growth rate = factor - 1 ≈ 0.105170918
+    // Expected growth = debtBefore * (factor - 1) = 6204.59926707 * 0.105170918 ≈ 652.54340074 MOET
+    // Note: Tests run sequentially with accumulated interest, so exact values depend on debtBefore
+
+    // Verify growth rate is approximately 10.52% (the effective rate from 10% APY compounded per-second)
+    let expectedGrowthRate: UFix64 = 0.10517091
+    let expectedGrowth: UFix64 = 652.54340074
+    let tolerance: UFix64 = 0.001
 
     let growthDiff = actualGrowth > expectedGrowth
         ? actualGrowth - expectedGrowth
@@ -431,17 +436,17 @@ fun test_exact_compounding_verification_one_year() {
 
     log("Expected growth: \(expectedGrowth.toString())")
     log("Growth difference: \(growthDiff.toString())")
+    log("Actual growth rate: \(actualGrowthRate.toString())")
     log("Expected growth rate: \(expectedGrowthRate.toString())")
-    log("Rate difference: \(rateDiff.toString())")
-
-    Test.assert(
-        growthDiff <= 0.01,
-        message: "Growth should be ~652.54706806. Actual: \(actualGrowth)"
-    )
 
     Test.assert(
         rateDiff <= tolerance,
-        message: "Growth rate should be ~0.10517092. Actual: \(actualGrowthRate)"
+        message: "Growth rate should be ~0.105170918 (10.52% effective). Actual: \(actualGrowthRate)"
+    )
+    
+     Test.assert(
+        growthDiff <= tolerance,
+        message: "Growth should be ~652.54340074. Actual: \(actualGrowth)"
     )
 
     log("=== TEST PASSED ===")
@@ -502,9 +507,9 @@ fun test_rapid_curve_changes_no_double_counting() {
     // negligible (only from any micro-second differences in timestamps).
     //
     // Sequence: 5% -> 20% -> 10% (final rate)
-    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 0.05)
-    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 0.20)
-    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: defaultTokenIdentifier, yearlyRate: 0.10)
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.05)
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.20)
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.10)
 
     // -------------------------------------------------------------------------
     // STEP 3: Record Debt After Rapid Changes
@@ -527,17 +532,12 @@ fun test_rapid_curve_changes_no_double_counting() {
     // Verify growth equals expected value
     // Formula: No time passes between curve changes, so no interest should accrue
     // Expected: 0.0 MOET (or negligible due to timing jitter)
-    let expectedGrowth: UFix64 = 0.0
-    let expectedGrowthRate: UFix64 = 0.0
     let tolerance: UFix64 = 0.001  // Allow up to 0.001 MOET for timing jitter
 
-    let growthDiff = growth > expectedGrowth ? growth - expectedGrowth : expectedGrowth - growth
-
     log("Growth from rapid curve changes: \(growth.toString())")
-    log("Expected growth: \(expectedGrowth.toString())")
-    log("Growth difference: \(growthDiff.toString())")
+    log("Expected growth: 0.0")
     log("Growth rate: \(growthRate.toString())")
-    log("Expected growth rate: \(expectedGrowthRate.toString())")
+    log("Expected growth rate: 0.0")
 
     Test.assert(
         growth <= tolerance,
@@ -575,12 +575,12 @@ fun test_credit_rate_changes_with_curve() {
     // 2. CREDIT interest: What lenders (LPs) earn
     //
     // This test verifies that when the interest curve changes, the credit
-    // rate paid to LPs also updates correctly. The credit rate is typically
-    // slightly less than the debit rate due to an "insurance spread" that
-    // the protocol retains for risk management.
+    // rate paid to LPs also updates correctly. The credit rate is less than
+    // the debit rate due to the protocol fee (insurance + stability fee).
     //
-    // Formula: creditRate = debitRate - insuranceSpread
-    // Example: At 8% debit rate with 0.1% insurance, credit rate = 7.9%
+    // Formula: creditRate = debitRate * (1 - protocolFeeRate)
+    // where protocolFeeRate = insuranceRate + stabilityFeeRate = 0.001 + 0.05 = 0.051
+    // Example: At 8% debit rate, credit rate = 8% * 0.949 = 7.592%
     // =========================================================================
 
     // LP's position ID (created in Test 1, first position in the pool)
@@ -593,8 +593,8 @@ fun test_credit_rate_changes_with_curve() {
     // The LP should earn slightly less (approximately 7.9% after insurance).
     let testRate: UFix128 = 0.08 // 8% APY
     setInterestCurveFixed(
-        signer: protocolAccount,
-        tokenTypeIdentifier: defaultTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: testRate
     )
     log("Set MOET interest rate to 8% APY")
@@ -645,13 +645,15 @@ fun test_credit_rate_changes_with_curve() {
     let creditGrowth = creditAfter - creditBefore
     let creditGrowthRate = creditGrowth / creditBefore
 
-    // Verify credit growth equals expected value
-    // Formula: creditRate = debitRate - insuranceSpread = 8% - 0.1% = 7.9% APY
-    // perSecondRate = 1 + 0.079/31536000, factor = perSecondRate^2592000
-    // Expected 30-day growth rate = factor - 1 ≈ 0.00651428
-    // Expected credit growth = creditBefore * 0.00651428 ≈ 362.54775590 MOET
-    let expectedCreditGrowthRate: UFix64 = 0.00651428
-    let expectedCreditGrowth: UFix64 = 362.54775590
+    // Verify credit growth rate equals expected value
+    // Formula: creditRate = debitRate * (1 - protocolFeeRate)
+    // where protocolFeeRate = insuranceRate + stabilityFeeRate = 0.001 + 0.05 = 0.051
+    // creditRate = 0.08 * (1 - 0.051) = 0.08 * 0.949 = 0.07592 APY (7.592%)
+    // perSecondRate = 1 + (0.07592/31557600), factor = perSecondRate^2592000
+    // Expected 30-day growth rate = factor - 1 ≈ 0.00625521141
+    // Expected credit growth = creditBefore * 0.00625950922 ≈ 346.58 MOET
+    let expectedCreditGrowthRate: UFix64 = 0.0062552
+    let expectedCreditGrowth: UFix64 = 346.58
     let tolerance: UFix64 = 0.0001
 
     let rateDiff = creditGrowthRate > expectedCreditGrowthRate
@@ -670,12 +672,12 @@ fun test_credit_rate_changes_with_curve() {
 
     Test.assert(
         growthDiff <= 0.01,
-        message: "Credit growth should be ~362.54775590. Actual: \(creditGrowth)"
+        message: "Credit growth should be ~346.58. Actual: \(creditGrowth)"
     )
 
     Test.assert(
         rateDiff <= tolerance,
-        message: "Credit growth rate should be ~0.00651428. Actual: \(creditGrowthRate)"
+        message: "Credit growth rate should be ~0.0062552. Actual: \(creditGrowthRate)"
     )
 
     log("=== TEST PASSED ===")

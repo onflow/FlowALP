@@ -4,27 +4,16 @@ import BlockchainHelpers
 import "MOET"
 import "FlowCreditMarket"
 import "test_helpers.cdc"
-import "MockFlowCreditMarketConsumer"
 
 // -----------------------------------------------------------------------------
 // Position Lifecycle Happy Path Test
 // -----------------------------------------------------------------------------
 
-access(all) let protocolAccount = Test.getAccount(0x0000000000000007)
-access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 access(all) var snapshot: UInt64 = 0
-
-access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) let flowVaultStoragePath = /storage/flowTokenVault
-access(all) let wrapperStoragePath = /storage/flowCreditMarketPositionWrapper
 
 access(all)
 fun setup() {
     deployContracts()
-
-    let betaTxResult = grantBeta(protocolAccount, protocolConsumerAccount)
-
-    Test.expect(betaTxResult, Test.beSucceeded())
 
     snapshot = getCurrentBlockHeight()
 }
@@ -35,13 +24,13 @@ fun testPositionLifecycleHappyPath() {
     // Test.reset(to: snapshot)
 
     // price setup
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 1.0)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
 
     // create pool & enable token
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: defaultTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: flowTokenIdentifier,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -53,13 +42,16 @@ fun testPositionLifecycleHappyPath() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
 
+    // Grant beta access to user so they can create positions
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
+
     let balanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assertEqual(0.0, balanceBefore)
 
     // open wrapped position (pushToDrawDownSink)
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
-        [1_000.0, flowVaultStoragePath, true],
+        "../transactions/flow-credit-market/position/create_position.cdc",
+        [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
     Test.expect(openRes, Test.beSucceeded())
@@ -81,9 +73,11 @@ fun testPositionLifecycleHappyPath() {
     log("Flow balance BEFORE repay: ".concat(flowBalanceBefore.toString()))
 
     // repay MOET and close position
+    // The first position created has ID 0
+    let positionId: UInt64 = 0
     let repayRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/repay_and_close_position.cdc",
-        [wrapperStoragePath],
+        "../transactions/flow-credit-market/position/repay_and_close_position.cdc",
+        [positionId],
         user
     )
     Test.expect(repayRes, Test.beSucceeded())
