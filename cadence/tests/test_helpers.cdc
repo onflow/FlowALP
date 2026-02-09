@@ -6,7 +6,6 @@ import "FlowALPv1"
 access(all) let MOET_TOKEN_IDENTIFIER = "A.0000000000000007.MOET.Vault"
 access(all) let FLOW_TOKEN_IDENTIFIER = "A.0000000000000003.FlowToken.Vault"
 access(all) let FLOW_VAULT_STORAGE_PATH = /storage/flowTokenVault
-access(all) let WRAPPER_STORAGE_PATH = /storage/flowALPv1PositionWrapper
 
 access(all) let PROTOCOL_ACCOUNT = Test.getAccount(0x0000000000000007)
 access(all) let NON_ADMIN_ACCOUNT = Test.getAccount(0x0000000000000008)
