@@ -99,7 +99,7 @@ The protocol:
 
 ### Short Term
 
-**No explicit incentive is provided.** The Flow Foundation will perform liquidations manually as needed during the initial deployment period. Since FCM is operated by Flow Foundation, any cost of liquidation is offset by the benefit of protecting the protocol's solvency.
+**No explicit incentive is provided.** The Flow Foundation will perform liquidations manually as needed during the initial deployment period. Since FlowALP is operated by Flow Foundation, any cost of liquidation is offset by the benefit of protecting the protocol's solvency.
 
 ### Long Term
 
