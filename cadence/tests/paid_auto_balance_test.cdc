@@ -46,7 +46,6 @@ access(all) fun setup() {
     addPaidRebalancerToPosition(signer: userAccount, positionStoragePath: positionStoragePath, paidRebalancerStoragePath: paidRebalancerStoragePath)
     let evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.CreatedRebalancer>())
     let paidRebalancerUUID = evts[0] as! FlowCreditMarketRebalancerV1.CreatedRebalancer
-    activatePaidRebalancer(signer: protocolAccount, uuid: paidRebalancerUUID.uuid)
     createSupervisor(
         signer: userAccount, 
         cronExpression: "0 * * * *",
