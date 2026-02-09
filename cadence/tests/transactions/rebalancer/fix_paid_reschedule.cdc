@@ -1,11 +1,3 @@
-import "FungibleToken"
-
-import "FungibleTokenConnectors"
-
-import "MOET"
-import "FlowCreditMarket"
-import "MockFlowCreditMarketConsumer"
-import "FlowCreditMarketRebalancerV1"
 import "FlowCreditMarketRebalancerPaidV1"
 
 transaction(uuid: UInt64?, paidRebalancerStoragePath: StoragePath) {

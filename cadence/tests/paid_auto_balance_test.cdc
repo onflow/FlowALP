@@ -16,6 +16,7 @@ access(all) let userAccount = Test.createAccount()
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 
+access(all) let positionStoragePath = /storage/position
 access(all) let paidRebalancerStoragePath = /storage/paidRebalancer
 access(all) let supervisorStoragePath = /storage/supervisor
 access(all) let cronHandlerStoragePath = /storage/myRecurringTaskHandler
@@ -39,12 +40,10 @@ access(all) fun setup() {
     mintFlow(to: userAccount, amount: 1000.0)
     mintFlow(to: protocolAccount, amount: 1000.0)
 
-    grantPoolCapToConsumer()
-
     createPaidRebalancer(signer: protocolAccount, paidRebalancerAdminStoragePath: FlowCreditMarketRebalancerPaidV1.adminCapabilityStoragePath)
-    createWrappedPosition(signer: userAccount, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
-    depositToWrappedPosition(signer: userAccount, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
-    addPaidRebalancerToWrappedPosition(signer: userAccount, paidRebalancerStoragePath: paidRebalancerStoragePath)
+    createPositionNotManaged(signer: userAccount, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false, positionStoragePath: positionStoragePath)
+    depositToPositionNotManaged(signer: userAccount, positionStoragePath: positionStoragePath, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
+    addPaidRebalancerToPosition(signer: userAccount, positionStoragePath: positionStoragePath, paidRebalancerStoragePath: paidRebalancerStoragePath)
     let evts = Test.eventsOfType(Type<FlowCreditMarketRebalancerV1.CreatedRebalancer>())
     let paidRebalancerUUID = evts[0] as! FlowCreditMarketRebalancerV1.CreatedRebalancer
     activatePaidRebalancer(signer: protocolAccount, uuid: paidRebalancerUUID.uuid)

@@ -44,10 +44,6 @@ access(all)
 fun setup() {
     deployContracts()
 
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-
-    Test.expect(betaTxResult, Test.beSucceeded())
-
     // price setup
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: flowStartPrice)
 
@@ -66,6 +62,9 @@ fun setup() {
     setupMoetVault(userAccount, beFailed: false)
     mintFlow(to: userAccount, amount: positionFundingAmount)
 
+    // Grant beta access to userAccount so they can create positions
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, userAccount)
+
     snapshot = getCurrentBlockHeight()
 }
 
@@ -79,7 +78,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, true],
         userAccount
     )
@@ -141,7 +140,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
@@ -200,7 +199,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollatera
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
@@ -275,7 +274,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, true],
         userAccount
     )
@@ -355,7 +354,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromUndercollater
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
@@ -430,7 +429,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, true],
         userAccount
     )

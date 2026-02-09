@@ -1,14 +1,4 @@
-import "FungibleToken"
-
-import "FungibleTokenConnectors"
-
-import "MOET"
-import "FlowCreditMarket"
-import "MockFlowCreditMarketConsumer"
-import "FlowCreditMarketRebalancerV1"
 import "FlowCreditMarketRebalancerPaidV1"
-import "FlowToken"
-import "FlowTransactionScheduler"
 
 transaction(uuid: UInt64) {
     let adminPaidRebalancerCap: Capability<&FlowCreditMarketRebalancerPaidV1.Admin>

@@ -27,10 +27,6 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         error: String,
     )
 
-    access(all) resource interface Rebalancable {
-        access(FlowCreditMarket.ERebalance) fun rebalance(force: Bool)
-    }
-
     access(all) struct RecurringConfig {
         /// How frequently the rebalance will be executed (in seconds)
         access(all) let interval: UInt64
@@ -84,7 +80,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         access(all) var recurringConfig: RecurringConfig
 
         access(self) var _selfCapability: Capability<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>?
-        access(self) var _positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &{Rebalancable}>
+        access(self) var _positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &FlowCreditMarket.Position>
         access(self) var scheduledTransactions: @{UInt64: FlowTransactionScheduler.ScheduledTransaction}
 
         access(all) entitlement Configure
@@ -93,7 +89,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
 
         init(
             recurringConfig: RecurringConfig,
-            positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &{Rebalancable}>
+            positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &FlowCreditMarket.Position>
         ) {
             self._selfCapability = nil
             self.lastRebalanceTimestamp = getCurrentBlock().timestamp
@@ -274,7 +270,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
 
     access(all) fun createRebalancer(
         recurringConfig: RecurringConfig,
-        positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &{Rebalancable}>,
+        positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &FlowCreditMarket.Position>,
     ): @Rebalancer {
         let rebalancer <- create Rebalancer(
             recurringConfig: recurringConfig, 

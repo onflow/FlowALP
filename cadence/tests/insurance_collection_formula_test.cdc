@@ -40,9 +40,8 @@ fun test_collectInsurance_success_fullAmount() {
     setupMoetVault(lp, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10000.0, beFailed: false)
 
-    grantPoolCapToConsumer()
     // LP deposits MOET (creates credit balance, provides borrowing liquidity)
-    createWrappedPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with FLOW collateral
     // With 0.8 CF and 1.3 target health: 1000 FLOW collateral allows borrowing ~615 MOET
@@ -52,7 +51,7 @@ fun test_collectInsurance_success_fullAmount() {
     transferFlowTokens(to: borrower, amount: 1000.0)
 
     // borrower deposits FLOW and auto-borrows MOET (creates debit balance ~615 MOET)
-    createWrappedPosition(signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    createPosition(signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)

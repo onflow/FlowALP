@@ -20,7 +20,7 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
     access(all) var activeRebalancers: {UInt64: Bool}
 
     access(all) fun createPaidRebalancer(
-        positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &{FlowCreditMarketRebalancerV1.Rebalancable}>,
+        positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &FlowCreditMarket.Position>,
     ): @RebalancerPaid {
         assert(positionRebalanceCapability.check(), message: "Invalid position rebalance capability")
         let rebalancer <- FlowCreditMarketRebalancerV1.createRebalancer(

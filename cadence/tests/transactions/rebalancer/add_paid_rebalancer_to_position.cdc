@@ -1,14 +1,8 @@
-import "FungibleToken"
-
-import "FungibleTokenConnectors"
-
-import "MOET"
 import "FlowCreditMarket"
-import "MockFlowCreditMarketConsumer"
 import "FlowCreditMarketRebalancerV1"
 import "FlowCreditMarketRebalancerPaidV1"
 
-transaction(paidRebalancerStoragePath: StoragePath) {
+transaction(positionStoragePath: StoragePath, paidRebalancerStoragePath: StoragePath) {
     let signer: auth(Storage, IssueStorageCapabilityController, SaveValue) &Account
 
     prepare(signer: auth(Storage, IssueStorageCapabilityController, SaveValue) &Account) {
@@ -16,8 +10,8 @@ transaction(paidRebalancerStoragePath: StoragePath) {
     }
 
     execute {
-        let rebalanceCap = self.signer.capabilities.storage.issue<auth(FlowCreditMarket.ERebalance) &{FlowCreditMarketRebalancerV1.Rebalancable}>(
-            MockFlowCreditMarketConsumer.WrapperStoragePath
+        let rebalanceCap = self.signer.capabilities.storage.issue<auth(FlowCreditMarket.ERebalance) &FlowCreditMarket.Position>(
+            positionStoragePath
         )
         let paidRebalancer <- FlowCreditMarketRebalancerPaidV1.createPaidRebalancer(
             positionRebalanceCapability: rebalanceCap

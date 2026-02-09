@@ -25,13 +25,14 @@ fun activatePaidRebalancer(
 }
 
 access(all)
-fun addPaidRebalancerToWrappedPosition(
+fun addPaidRebalancerToPosition(
     signer: Test.TestAccount, 
+    positionStoragePath: StoragePath,
     paidRebalancerStoragePath: StoragePath
 ) {
     let addRes = _executeTransaction(
-        "./transactions/rebalancer/add_paid_rebalancer_to_wrapped_position.cdc",
-        [paidRebalancerStoragePath],
+        "./transactions/rebalancer/add_paid_rebalancer_to_position.cdc",
+        [positionStoragePath, paidRebalancerStoragePath],
         signer
     )
     Test.expect(addRes, Test.beSucceeded())

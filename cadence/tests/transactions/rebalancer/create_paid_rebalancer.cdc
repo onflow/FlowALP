@@ -1,4 +1,3 @@
-import "MockOracle"
 import "FlowToken"
 import "FungibleToken"
 import "FlowCreditMarketRebalancerPaidV1"
