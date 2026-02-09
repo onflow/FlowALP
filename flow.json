@@ -63,6 +63,18 @@
 			"aliases": {
 				"testing": "0000000000000007"
 			}
+		},
+		"AdversarialReentrancyConnectors": {
+			"source": "./cadence/tests/contracts/AdversarialReentrancyConnectors.cdc",
+			"aliases": {
+				"testing": "0000000000000008"
+			}
+		},
+		"AdversarialTypeSpoofingConnectors": {
+			"source": "./cadence/tests/contracts/AdversarialTypeSpoofingConnectors.cdc",
+			"aliases": {
+				"testing": "0000000000000008"
+			}
 		}
 	},
 	"dependencies": {

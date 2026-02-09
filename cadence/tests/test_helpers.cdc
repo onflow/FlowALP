@@ -141,6 +141,21 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "AdversarialReentrancyConnectors",
+        path: "./contracts/AdversarialReentrancyConnectors.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+
+    err = Test.deployContract(
+        name: "AdversarialTypeSpoofingConnectors",
+        path: "./contracts/AdversarialTypeSpoofingConnectors.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 }
 
 /* --- Script Helpers --- */
