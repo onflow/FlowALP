@@ -179,6 +179,10 @@ access(all) contract FlowCreditMarket {
     /// Note that this entitlement provides access to all positions in the pool,
     /// not just individual position owners' positions.
     access(all) entitlement EPosition
+
+    /// ERebalance
+    ///
+    /// Entitlement for rebalancing positions.
     access(all) entitlement ERebalance
 
     /// EGovernance
@@ -3853,7 +3857,7 @@ access(all) contract FlowCreditMarket {
         /// The unique ID of the Position used to track deposits and withdrawals to the Pool
         access(all) let id: UInt64
 
-        /// An authorized Capability to which the Position was opened
+        /// An authorized Capability to the Pool for which this Position was opened.
         access(self) let pool: Capability<auth(EPosition) &Pool>
 
         init(
@@ -4077,7 +4081,7 @@ access(all) contract FlowCreditMarket {
             pool.provideTopUpSource(pid: self.id, source: source)
         }
 
-        access(ERebalance) fun rebalance(force: Bool) {
+        access(EPosition | ERebalance) fun rebalance(force: Bool) {
             let pool = self.pool.borrow()!
             pool.rebalancePosition(pid: self.id, force: force)
         }
@@ -4132,7 +4136,6 @@ access(all) contract FlowCreditMarket {
         access(all) fun getPositionIDs(): [UInt64] {
             return self.positions.keys
         }
-
     }
 
     /// Creates and returns a new PositionManager resource
