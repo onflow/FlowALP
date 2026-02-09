@@ -496,15 +496,15 @@ newCapacity = depositRate * (timeElapsed / 3600) + oldCapacity
 
 ### 9. Mathematical Operations Tests
 
-The protocol includes 15+ test files for mathematical operations:
+The protocol includes math-focused tests such as:
 
-- **flowcreditmarketmath_pow_test.cdc** - Power function (exponentiation)
-- **flowcreditmarketmath_exp_test.cdc** - Exponential function (e^x)
-- **flowcreditmarketmath_compound_test.cdc** - Compound interest calculation
-- **flowcreditmarketmath_ln_test.cdc** - Natural logarithm
-- **flowcreditmarketmath_conversions_test.cdc** - UFix64 ↔ UFix128 conversions
-- **flowcreditmarketmath_rounding_test.cdc** - Rounding operations
-- And additional math validation tests
+- **flowALPMath_pow_test.cdc** - Power function (exponentiation)
+- **phase0_pure_math_test.cdc** - Core health and max-withdraw pure math invariants
+- **interest_curve_test.cdc** - Fixed and kink curve behavior/constraints
+- **update_interest_rate_test.cdc** - Debit/credit rate update behavior by curve type
+- **funds_available_above_target_health_test.cdc** - Funds-available calculations across scenarios
+- **funds_required_for_target_health_test.cdc** - Funds-required calculations across scenarios
+- Additional math-adjacent integration coverage: `interest_accrual_integration_test.cdc`, `interest_curve_advanced_test.cdc`, and `liquidation_phase1_test.cdc`
 
 **Coverage:**
 - Fixed-point arithmetic (128-bit precision)

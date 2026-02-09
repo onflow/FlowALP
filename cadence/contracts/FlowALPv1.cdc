@@ -1513,18 +1513,18 @@ access(all) contract FlowALPv1 {
         // TODO(jord): figure out how to reference dex https://github.com/onflow/FlowALP/issues/94
         //  - either need to redeploy contract to create new dex field
         //  - or need to revert to allowlist pattern and pass in swapper instances (I worry about security of this option)
-        //  - also to make allowlist pattern work with automated liquidation, initiator of this automation will need actual handle on a dex in order to pass it to FCM 
+        //  - also to make allowlist pattern work with automated liquidation, initiator of this automation will need actual handle on a dex in order to pass it to FlowALPv1
 
         /// Allowlist of permitted DeFiActions Swapper types for DEX liquidations
         /// TODO: unused! To remove, must re-deploy existing contracts
         access(self) var allowedSwapperTypes: {Type: Bool}
 
-        /// A trusted DEX (or set of DEXes) used by FCM as a pricing oracle and trading counterparty for liquidations.
+        /// A trusted DEX (or set of DEXes) used by FlowALPv1 as a pricing oracle and trading counterparty for liquidations.
         /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
         /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
         ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
         ///
-        /// FCM does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
+        /// FlowALPv1 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
         /// It relies directly on the Swapper's returned by the configured SwapperProvider.
         access(self) let dex: {DeFiActions.SwapperProvider}
 
@@ -3961,7 +3961,7 @@ access(all) contract FlowALPv1 {
         }
 
         /// Withdraws funds from the Position without pulling from the topUpSource
-        /// if the deposit puts the Position below its minimum health
+        /// if the withdrawal puts the Position below its minimum health
         access(FungibleToken.Withdraw) fun withdraw(type: Type, amount: UFix64): @{FungibleToken.Vault} {
             return <- self.withdrawAndPull(
                 type: type,
@@ -3971,7 +3971,7 @@ access(all) contract FlowALPv1 {
         }
 
         /// Withdraws funds from the Position enabling the caller to configure whether insufficient value
-        /// should be pulled from the topUpSource if the deposit puts the Position below its minimum health
+        /// should be pulled from the topUpSource if the withdrawal puts the Position below its minimum health
         access(FungibleToken.Withdraw) fun withdrawAndPull(
             type: Type,
             amount: UFix64,
@@ -4023,7 +4023,7 @@ access(all) contract FlowALPv1 {
         /// Note that calling this method multiple times will create multiple sources,
         /// each of which will continue to work regardless of how many other sources have been created.
         access(FungibleToken.Withdraw) fun createSource(type: Type): {DeFiActions.Source} {
-            // Create enhanced source with pullFromTopUpSource = true
+            // Create source with pullFromTopUpSource = false
             return self.createSourceWithOptions(
                 type: type,
                 pullFromTopUpSource: false
