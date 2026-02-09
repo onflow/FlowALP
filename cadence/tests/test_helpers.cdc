@@ -9,7 +9,7 @@ access(all) let FLOW_VAULT_STORAGE_PATH = /storage/flowTokenVault
 access(all) let WRAPPER_STORAGE_PATH = /storage/flowCreditMarketPositionWrapper
 
 access(all) let PROTOCOL_ACCOUNT = Test.getAccount(0x0000000000000007)
-access(all) let CONSUMER_ACCOUNT = Test.getAccount(0x0000000000000008)
+access(all) let NON_ADMIN_ACCOUNT = Test.getAccount(0x0000000000000008)
 
 // Variance for UFix64 comparisons
 access(all) let DEFAULT_UFIX_VARIANCE = 0.00000001
@@ -51,8 +51,9 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
     return Test.executeTransaction(txn)
 }
 
+// Grants a beta pool participant capability to the grantee account.
 access(all)
-fun grantBeta(_ admin: Test.TestAccount, _ grantee: Test.TestAccount): Test.TransactionResult {
+fun grantBetaPoolParticipantAccess(_ admin: Test.TestAccount, _ grantee: Test.TestAccount) {
     let signers = admin.address == grantee.address ? [admin] : [admin, grantee]
     let betaTxn = Test.Transaction(
         code: Test.readFile("./transactions/flow-credit-market/pool-management/03_grant_beta.cdc"),
@@ -60,8 +61,10 @@ fun grantBeta(_ admin: Test.TestAccount, _ grantee: Test.TestAccount): Test.Tran
         signers: signers,
         arguments: []
     )
-    return Test.executeTransaction(betaTxn)
+    let result = Test.executeTransaction(betaTxn)
+    Test.expect(result, Test.beSucceeded())
 }
+
 /* --- Setup helpers --- */
 
 // Common test setup function that deploys all required contracts
@@ -183,6 +186,18 @@ fun deployContracts() {
     err = Test.deployContract(
         name: "FlowCreditMarketSupervisorV1",
         path: "../contracts/FlowCreditMarketSupervisorV1.cdc",
+        arguments: []
+    )
+
+    err = Test.deployContract(
+        name: "AdversarialReentrancyConnectors",
+        path: "./contracts/AdversarialReentrancyConnectors.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+    err = Test.deployContract(
+        name: "AdversarialTypeSpoofingConnectors",
+        path: "./contracts/AdversarialTypeSpoofingConnectors.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -367,6 +382,26 @@ fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, pri
     Test.expect(setRes, Test.beSucceeded())
 }
 
+/// Sets a swapper for the given pair with the given price ratio.
+/// This overwrites any previously stored swapper for this pair, if any exists.
+/// This is intended to be used in tests both to set an initial DEX price for a supported token,
+/// or to modify the price of an existing token during the course of a test.
+access(all)
+fun setMockDexPriceForPair(
+    signer: Test.TestAccount,
+    inVaultIdentifier: String,
+    outVaultIdentifier: String,
+    vaultSourceStoragePath: StoragePath,
+    priceRatio: UFix64
+) {
+    let addRes = _executeTransaction(
+        "./transactions/mock-dex-swapper/set_mock_dex_price_for_pair.cdc",
+        [inVaultIdentifier, outVaultIdentifier, vaultSourceStoragePath, priceRatio],
+        signer
+    )
+    Test.expect(addRes, Test.beSucceeded())
+}
+
 access(all)
 fun addSupportedTokenZeroRateCurve(
     signer: Test.TestAccount,
@@ -431,9 +466,12 @@ fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: Strin
 }
 
 access(all)
-fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+fun createPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+    // Grant beta access to the signer if they don't have it yet
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, signer)
+
     let openRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [amount, vaultStoragePath, pushToDrawDownSink],
         signer
     )
@@ -441,10 +479,10 @@ fun createWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStorage
 }
 
 access(all)
-fun depositToWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+fun depositToPosition(signer: Test.TestAccount, positionID: UInt64, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     let depositRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/deposit_to_wrapped_position.cdc",
-        [amount, vaultStoragePath, pushToDrawDownSink],
+        "./transactions/position-manager/deposit_to_position.cdc",
+        [positionID, amount, vaultStoragePath, pushToDrawDownSink],
         signer
     )
     Test.expect(depositRes, Test.beSucceeded())
@@ -453,7 +491,7 @@ fun depositToWrappedPosition(signer: Test.TestAccount, amount: UFix64, vaultStor
 access(all)
 fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, beFailed: Bool) {
     let borrowRes = _executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/borrow_from_position.cdc",
+        "./transactions/position-manager/borrow_from_position.cdc",
         [positionId, tokenTypeIdentifier, amount],
         signer
     )
@@ -698,23 +736,6 @@ fun withdrawReserve(
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
-/* --- Capability Helpers --- */
-
-// Grants the Pool capability with EParticipant and EPosition entitlements to the MockFlowCreditMarketConsumer account (0x8)
-// Must be called AFTER the pool is created and stored, otherwise publishing will fail the capability check.
-access(all)
-fun grantPoolCapToConsumer() {
-    // Check pool exists (defensively handle CI ordering). If not, no-op.
-    let existsRes = _executeScript("../scripts/flow-credit-market/pool_exists.cdc", [PROTOCOL_ACCOUNT.address])
-    Test.expect(existsRes, Test.beSucceeded())
-    if !(existsRes.returnValue as! Bool) {
-        return
-    }
-
-    // Use in-repo grant transaction that issues EParticipant+EPosition and saves to PoolCapStoragePath
-    let grantRes = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-    Test.expect(grantRes, Test.beSucceeded())
-}
 /* --- Assertion Helpers --- */
 
 access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct): Bool {
