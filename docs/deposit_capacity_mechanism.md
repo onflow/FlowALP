@@ -235,3 +235,126 @@ The deposit capacity system provides:
 - **Automatic reset**: User limits reset when capacity regenerates
 - **Per-token control**: Each token type has independent capacity management
 
+## Minimum Balance Requirements
+
+### Overview
+
+In addition to capacity limits, the protocol enforces a minimum token balance requirement per position. This prevents dust positions and ensures operational efficiency.
+
+**Type**: `UFix64`
+**Location**: `TokenState.minimumTokenBalancePerPosition`
+**Default**: `1.0`
+
+### Design Rationale
+
+The minimum balance requirement exists to:
+1. **Prevent dust positions**: Avoid positions with negligible value that consume storage and computational resources
+2. **Ensure economic viability**: Position operations (interest calculations, health checks, liquidations) have fixed costs; minimum balances ensure these costs are justified
+3. **Simplify operations**: Eliminates edge cases with near-zero balances
+4. **Protect protocol health**: Very small positions can create disproportionate risk relative to their value
+
+### Enforcement Points
+
+#### 1. Position Creation
+
+When opening a new position, the initial deposit must meet or exceed the minimum balance:
+
+```cadence
+pre {
+    funds.balance >= self.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition:
+        "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition)"
+}
+```
+
+**Behavior**:
+- If initial deposit < minimum: Transaction fails with error message
+- If initial deposit ≥ minimum: Position created successfully
+
+**Example**:
+```
+Token: FLOW
+minimumTokenBalancePerPosition: 1.0
+
+User attempts to open position with 0.5 FLOW:
+  ❌ Transaction fails
+  Error: "Insufficient funds to create position. Minimum deposit of A.xxx.FlowToken.Vault is 1.0"
+
+User opens position with 10.0 FLOW:
+  ✅ Position created
+  Balance: 10.0 FLOW
+```
+
+#### 2. Withdrawals
+
+When withdrawing from an existing position, the remaining balance must stay at or above the minimum:
+
+```cadence
+// Only enforce minimum for credit balances (deposits)
+if position.creditBalances[tokenType]! > 0 {
+    let minimumRequired = UFix128(tokenState.minimumTokenBalancePerPosition)
+    let remainingBalance = UFix128(position.creditBalances[tokenType]!) - amount
+    assert(
+        remainingBalance >= minimumRequired,
+        message: "Withdrawal would leave position below minimum balance requirement of \(minimumRequired). Remaining balance would be \(remainingBalance)."
+    )
+}
+```
+
+**Behavior**:
+- Minimum only enforced for credit (deposit) balances, not debt balances
+- Withdrawal that would leave balance below minimum is rejected
+- Full withdrawals (closing position) are allowed
+
+**Example**:
+```
+Position balance: 5.0 FLOW
+minimumTokenBalancePerPosition: 1.0
+
+User withdraws 4.5 FLOW:
+  ❌ Transaction fails
+  Remaining: 0.5 FLOW < 1.0 minimum
+  Error: "Withdrawal would leave position below minimum balance requirement of 1.0. Remaining balance would be 0.5."
+
+User withdraws 3.0 FLOW:
+  ✅ Withdrawal succeeds
+  Remaining: 2.0 FLOW ≥ 1.0 minimum
+
+User withdraws all 5.0 FLOW (closing position):
+  ✅ Full withdrawal allowed
+  Position closed
+```
+
+### Configuration
+
+The minimum balance is configurable per token type via governance:
+
+```cadence
+access(EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minimum: UFix64)
+```
+
+**Parameters**:
+- `tokenType`: The token type to configure (e.g., `Type<@FlowToken.Vault>()`)
+- `minimum`: The minimum balance required (in token units)
+
+**Example**:
+```cadence
+// Set minimum FLOW deposit to 1.0
+FlowCreditMarket.setMinimumTokenBalancePerPosition(
+    tokenType: Type<@FlowToken.Vault>(),
+    minimum: 1.0
+)
+
+// Set minimum stablecoin deposit to 10.0
+FlowCreditMarket.setMinimumTokenBalancePerPosition(
+    tokenType: Type<@USDC.Vault>(),
+    minimum: 10.0
+)
+```
+
+### Best Practices
+
+1. **Set minimums based on token economics**: Higher-value tokens may need lower minimums in token units (e.g., 0.1 ETH) while lower-value tokens need higher minimums (e.g., 100 USDC)
+2. **Consider gas/transaction costs**: Minimum should be high enough that position operations are economically justified
+3. **Balance accessibility**: Don't set minimums so high that they exclude legitimate small users
+4. **Review periodically**: Adjust minimums as token prices change significantly
+
