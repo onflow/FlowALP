@@ -171,8 +171,11 @@ fun test_collectInsurance_tinyAmount_roundsToZero_returnsNil() {
     setupMoetVault(user, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 1.0, beFailed: false)
 
+    let tinyDeposit = 0.00000001
+    setMinimumTokenBalancePerPosition(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, minimum: tinyDeposit)
+
     // create position with tiny deposit
-    createPosition(signer: user, amount: 0.00000001, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(signer: user, amount: tinyDeposit, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
