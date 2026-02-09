@@ -2927,6 +2927,27 @@ access(all) contract FlowCreditMarket {
                 )
             }
 
+            // Ensure that the remaining balance meets the minimum requirement (or is zero)
+            let balanceRecord = position.balances[type]!
+            let interestIndex = balanceRecord.direction == BalanceDirection.Credit
+                ? tokenState.creditInterestIndex
+                : tokenState.debitInterestIndex
+            let remainingBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
+                balanceRecord.scaledBalance,
+                interestIndex: interestIndex
+            )
+
+            // Only enforce minimum for credit balances (deposits)
+            // Debit balances (borrows) can be any positive amount
+            if balanceRecord.direction == BalanceDirection.Credit {
+                let minimumRequired = UFix128(tokenState.minimumTokenBalancePerPosition)
+
+                assert(
+                    remainingBalance == 0.0 || remainingBalance >= minimumRequired,
+                    message: "Withdrawal would leave position below minimum balance requirement of \(minimumRequired). Remaining balance would be \(remainingBalance)."
+                )
+            }
+
             // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
 

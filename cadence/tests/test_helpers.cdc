@@ -449,6 +449,16 @@ fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeId
 }
 
 access(all)
+fun wtihdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, pushToDrawDownSink: Bool) {
+    let withdrawRes = _executeTransaction(
+        "./transactions/position-manager/withdraw_from_position.cdc",
+        [positionId, tokenTypeIdentifier, amount, true],
+        signer
+    )
+    Test.expect(withdrawRes, Test.beSucceeded())
+}
+
+access(all)
 fun addSupportedTokenKinkCurve(
     signer: Test.TestAccount,
     tokenTypeIdentifier: String,

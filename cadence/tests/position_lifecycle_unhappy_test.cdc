@@ -6,7 +6,7 @@ import "FlowCreditMarket"
 import "test_helpers.cdc"
 
 // -----------------------------------------------------------------------------
-// Position Lifecycle Happy Path Test
+// Position Lifecycle Unhappy Path Test
 // -----------------------------------------------------------------------------
 
 access(all) var snapshot: UInt64 = 0
@@ -39,6 +39,8 @@ fun testPositionLifecycleBelowMinimumDeposit() {
 
     setMinimumTokenBalancePerPosition(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, minimum: minimum)
 
+    // position id to use for tests
+    let positionId = 0 as UInt64
 
     // user prep
     let user = Test.createAccount()
@@ -52,10 +54,38 @@ fun testPositionLifecycleBelowMinimumDeposit() {
     Test.assertEqual(0.0, balanceBefore)
 
     // open wrapped position (pushToDrawDownSink)
-    let openRes = executeTransaction(
+    let openWithLessThanMinRes = executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",
         [minimum-0.1, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
-    Test.expect(openRes, Test.beFailed())
+    Test.expect(openWithLessThanMinRes, Test.beFailed())
+
+    let amountAboveMin = 1.0
+
+    // open wrapped position (pushToDrawDownSink)
+    let openRes = executeTransaction(
+        "../transactions/flow-credit-market/position/create_position.cdc",
+        [minimum+amountAboveMin, FLOW_VAULT_STORAGE_PATH, true],
+        user
+    )
+    Test.expect(openRes, Test.beSucceeded())
+
+    // Attempt to withdraw the exact amount above the minimum
+    let withdrawResSuccess = _executeTransaction(
+        "./transactions/position-manager/withdraw_from_position.cdc",
+        [positionId, FLOW_TOKEN_IDENTIFIER, amountAboveMin, true],
+        user
+    )
+
+    Test.expect(withdrawResSuccess, Test.beSucceeded())
+
+    // Amount should now be exactly the minimum, so withdrawal should fail
+    let withdrawResFail = _executeTransaction(
+        "./transactions/position-manager/withdraw_from_position.cdc",
+        [positionId, FLOW_TOKEN_IDENTIFIER, amountAboveMin, true],
+        user
+    )
+
+    Test.expect(withdrawResFail, Test.beFailed())
 } 
