@@ -1067,6 +1067,8 @@ access(all) contract FlowCreditMarket {
         /// CAUTION: This function will panic if no insuranceSwapper is provided.
         ///
         /// @param reserveVault: The reserve vault for this token type to withdraw insurance from
+        /// @param oraclePrice: The current price for this token according to the Oracle, denominated in $
+        /// @param maxDeviationBps: The max deviation between oracle/dex prices (see Pool.dexOracleDeviationBps)
         /// @return: A MOET vault containing the collected insurance funds, or nil if no collection occurred
         access(EImplementation) fun collectInsurance(
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
