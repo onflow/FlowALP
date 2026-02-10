@@ -180,6 +180,11 @@ access(all) contract FlowCreditMarket {
     /// not just individual position owners' positions.
     access(all) entitlement EPosition
 
+    /// ERebalance
+    ///
+    /// Entitlement for rebalancing positions.
+    access(all) entitlement ERebalance
+
     /// EGovernance
     ///
     /// Entitlement for governance operations that control pool-wide parameters and configuration.
@@ -3415,7 +3420,7 @@ access(all) contract FlowCreditMarket {
         /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
-        access(EPosition) fun rebalancePosition(pid: UInt64, force: Bool) {
+        access(EPosition | ERebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
             post {
                 self.positionLock[pid] == nil: "Position is not unlocked"
             }
@@ -4082,6 +4087,19 @@ access(all) contract FlowCreditMarket {
         access(EPositionAdmin) fun provideSource(source: {DeFiActions.Source}?) {
             let pool = self.pool.borrow()!
             pool.provideTopUpSource(pid: self.id, source: source)
+        }
+
+        /// Rebalances the position to the target health value, if the position is under- or over-collateralized,
+        /// as defined by the position-specific min/max health thresholds.
+        /// If force=true, the position will be rebalanced regardless of its current health.
+        ///
+        /// When rebalancing, funds are withdrawn from the position's topUpSource or deposited to its drawDownSink.
+        /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
+        /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
+        /// not cause the position to reach its target health.
+        access(EPosition | ERebalance) fun rebalance(force: Bool) {
+            let pool = self.pool.borrow()!
+            pool.rebalancePosition(pid: self.id, force: force)
         }
     }
 
