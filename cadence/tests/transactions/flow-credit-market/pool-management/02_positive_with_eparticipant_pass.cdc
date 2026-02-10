@@ -18,9 +18,9 @@ transaction {
         let pool = cap.borrow() ?? panic("borrow failed")
 
         // Call EParticipant-gated methods
-        let zero1 <- minter.mintTokens(amount: 1.0)
+        let initialFunds <- minter.mintTokens(amount: 1.0)
         let position <- pool.createPosition(
-            funds: <- zero1,
+            funds: <- initialFunds,
             issuanceSink: DummyConnectors.DummySink(),
             repaymentSource: nil,
             pushToDrawDownSink: false
@@ -29,7 +29,7 @@ transaction {
         destroy position
 
         // Also allowed with EParticipant:
-        let zero2 <- minter.mintTokens(amount: 1.0)
-        pool.depositToPosition(pid: pid, from: <- zero2)
+        let additionalFunds <- minter.mintTokens(amount: 1.0)
+        pool.depositToPosition(pid: pid, from: <- additionalFunds)
     }
 }

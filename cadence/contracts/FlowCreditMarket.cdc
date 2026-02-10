@@ -767,7 +767,12 @@ access(all) contract FlowCreditMarket {
         /// Maps position ID -> usage amount (how much of each user's limit has been consumed for this token type)
         access(EImplementation) var depositUsage: {UInt64: UFix64}
 
-        /// The minimum balance amount for the related token per position
+        /// The minimum balance size for the related token T per position.
+        /// This minimum balance is denominated in units of token T.
+        /// Let this minimum balance be M. Then each position must have either:
+        /// - A balance of 0
+        /// - A credit balance greater than or equal to M
+        /// - A debit balance greater than or equal to M
         access(EImplementation) var minimumTokenBalancePerPosition: UFix64
 
         init(
