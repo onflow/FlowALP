@@ -72,11 +72,11 @@ access(all) contract FlowALPv1 {
         warmupSec: UInt64,
     )
 
-    access(all) event LiquidationsPaused(
+    access(all) event PoolPaused(
         poolUUID: UInt64
     )
 
-    access(all) event LiquidationsUnpaused(
+    access(all) event PoolUnpaused(
         poolUUID: UInt64,
         warmupEndsAt: UInt64
     )
@@ -1484,11 +1484,12 @@ access(all) contract FlowALPv1 {
         /// The target health factor when liquidating a position, which limits how much collateral can be liquidated.
         /// After a liquidation, the position's health factor must be less than or equal to this target value.
         access(self) var liquidationTargetHF: UFix128
-        /// Whether liquidations are currently paused
-        access(self) var liquidationsPaused: Bool
-        /// Period (s) following liquidation unpause in which liquidations are still not allowed
-        access(self) var liquidationWarmupSec: UInt64
-        /// Time this pool most recently had liquidations paused
+
+        /// Whether the pool is currently paused by governance in case of issues
+        access(self) var paused: Bool
+        /// Period (s) following unpause in which actions are still not allowed
+        access(self) var warmupSec: UInt64
+        /// Time this pool most recently was unpaused
         access(self) var lastUnpausedAt: UInt64?
 
         /// A trusted DEX (or set of DEXes) used by FlowALPv1 as a pricing oracle and trading counterparty for liquidations.
@@ -1542,8 +1543,8 @@ access(all) contract FlowALPv1 {
             self.positionsNeedingUpdates = []
             self.positionsProcessedPerCallback = 100
             self.liquidationTargetHF = 1.05
-            self.liquidationsPaused = false
-            self.liquidationWarmupSec = 300
+            self.paused = false
+            self.warmupSec = 300
             self.lastUnpausedAt = nil
             self.dex = dex
             self.dexOracleDeviationBps = 300 // 3% default
@@ -1569,21 +1570,26 @@ access(all) contract FlowALPv1 {
 
         access(self) fun _assertLiquidationsActive() {
             pre {
-                !self.liquidationsPaused:
-                    "Liquidations paused"
-            }
-            if let lastUnpausedAt = self.lastUnpausedAt {
-                let now = UInt64(getCurrentBlock().timestamp)
-                assert(
-                    now >= lastUnpausedAt + self.liquidationWarmupSec,
-                    message: "Liquidations in warm-up period"
-                )
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
         }
 
         ///////////////
         // GETTERS
         ///////////////
+
+        /// Returns whether sensitive pool actions are paused by governance,
+        /// including withdrawals, deposits, and liquidations
+        access(all) view fun isPausedOrWarmup(): Bool {
+            if self.paused {
+                return true
+            }
+            if let lastUnpausedAt = self.lastUnpausedAt {
+                let now = UInt64(getCurrentBlock().timestamp)
+                return now >= lastUnpausedAt + self.warmupSec
+            }
+            return false
+        }
 
         /// Returns an array of the supported token Types
         access(all) view fun getSupportedTokens(): [Type] {
@@ -1646,8 +1652,8 @@ access(all) contract FlowALPv1 {
         access(all) fun getLiquidationParams(): FlowALPv1.LiquidationParamsView {
             return FlowALPv1.LiquidationParamsView(
                 targetHF: self.liquidationTargetHF,
-                paused: self.liquidationsPaused,
-                warmupSec: self.liquidationWarmupSec,
+                paused: self.paused,
+                warmupSec: self.warmupSec,
                 lastUnpausedAt: self.lastUnpausedAt,
                 triggerHF: 1.0,
             )
@@ -1875,6 +1881,7 @@ access(all) contract FlowALPv1 {
             repayment: @{FungibleToken.Vault}
         ): @{FungibleToken.Vault} {
             pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.isTokenSupported(tokenType: debtType): "Debt token type unsupported: \(debtType.identifier)"
                 self.isTokenSupported(tokenType: seizeType): "Collateral token type unsupported: \(seizeType.identifier)"
                 debtType == repayment.getType(): "Repayment vault does not match debt type: \(debtType.identifier)!=\(repayment.getType().identifier)"
@@ -1960,6 +1967,7 @@ access(all) contract FlowALPv1 {
         /// Callers are responsible for checking preconditions.
         access(self) fun _doLiquidation(pid: UInt64, repayment: @{FungibleToken.Vault}, debtType: Type, seizeType: Type, seizeAmount: UFix64): @{FungibleToken.Vault} {
             pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
                 // position must have debt and collateral balance 
             }
 
@@ -2583,6 +2591,7 @@ access(all) contract FlowALPv1 {
             pushToDrawDownSink: Bool
         ): @Position {
             pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.globalLedger[funds.getType()] != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
                 self.positionSatisfiesMinimumBalance(type: funds.getType(), balance: UFix128(funds.balance)):
@@ -2650,6 +2659,9 @@ access(all) contract FlowALPv1 {
         /// Allows anyone to deposit funds into any position.
         /// If the provided Vault is not supported by the Pool, the operation reverts.
         access(EParticipant) fun depositToPosition(pid: UInt64, from: @{FungibleToken.Vault}) {
+            pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+            }
             self.depositAndPush(
                 pid: pid,
                 from: <-from,
@@ -2667,6 +2679,9 @@ access(all) contract FlowALPv1 {
             pid: UInt64,
             from: @{FungibleToken.Vault}
         ) {
+            pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+            }
             // NOTE: caller must have already validated pid + token support
             let amount = from.balance
             if amount == 0.0 {
@@ -2768,6 +2783,7 @@ access(all) contract FlowALPv1 {
             pushToDrawDownSink: Bool
         ) {
             pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.positions[pid] != nil:
                     "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
                 self.globalLedger[from.getType()] != nil:
@@ -2798,6 +2814,9 @@ access(all) contract FlowALPv1 {
         /// especially if the position doesn't have a configured `topUpSource` from which to repay borrowed funds
         // in the event of undercollaterlization.
         access(EPosition) fun withdraw(pid: UInt64, amount: UFix64, type: Type): @{FungibleToken.Vault} {
+            pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+            }
             // Call the enhanced function with pullFromTopUpSource = false for backward compatibility
             return <- self.withdrawAndPull(
                 pid: pid,
@@ -2820,6 +2839,7 @@ access(all) contract FlowALPv1 {
             pullFromTopUpSource: Bool
         ): @{FungibleToken.Vault} {
             pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.positions[pid] != nil:
                     "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
                 self.globalLedger[type] != nil:
@@ -3051,7 +3071,6 @@ access(all) contract FlowALPv1 {
             warmupSec: UInt64?,
         ) {
             var newTarget = self.liquidationTargetHF
-            var newWarmup = self.liquidationWarmupSec
             if let targetHF = targetHF {
                 assert(
                     targetHF > 1.0,
@@ -3060,8 +3079,9 @@ access(all) contract FlowALPv1 {
                 self.liquidationTargetHF = targetHF
                 newTarget = targetHF
             }
+            var newWarmup = self.warmupSec
             if let warmupSec = warmupSec {
-                self.liquidationWarmupSec = warmupSec
+                self.warmupSec = warmupSec
                 newWarmup = warmupSec
             }
 
@@ -3092,18 +3112,18 @@ access(all) contract FlowALPv1 {
             self.dex = dex
         }
 
-        /// Pauses or unpauses liquidations; when unpausing, starts a warm-up window
-        access(EGovernance) fun pauseLiquidations(flag: Bool) {
+        /// Pauses or unpauses the pool; when unpausing, starts a warm-up window
+        access(EGovernance) fun pauseOrUnpause(flag: Bool) {
             if flag {
-                self.liquidationsPaused = true
-                emit LiquidationsPaused(poolUUID: self.uuid)
+                self.paused = true
+                emit PoolPaused(poolUUID: self.uuid)
             } else {
-                self.liquidationsPaused = false
+                self.paused = false
                 let now = UInt64(getCurrentBlock().timestamp)
                 self.lastUnpausedAt = now
-                emit LiquidationsUnpaused(
+                emit PoolUnpaused(
                     poolUUID: self.uuid,
-                    warmupEndsAt: now + self.liquidationWarmupSec
+                    warmupEndsAt: now + self.warmupSec
                 )
             }
         }
