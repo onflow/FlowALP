@@ -435,8 +435,6 @@ access(all) contract FlowCreditMarket {
         access(all) let warmupSec: UInt64
         access(all) let lastUnpausedAt: UInt64?
         access(all) let triggerHF: UFix128
-        /// Deprecated: Unused field, but cannot be removed without contract update
-        access(all) let protocolFeeBps: UInt16
 
         init(
             targetHF: UFix128,
@@ -450,7 +448,6 @@ access(all) contract FlowCreditMarket {
             self.warmupSec = warmupSec
             self.lastUnpausedAt = lastUnpausedAt
             self.triggerHF = triggerHF
-            self.protocolFeeBps = 0
         }
     }
 
@@ -1455,9 +1452,6 @@ access(all) contract FlowCreditMarket {
         /// Position update queue to be processed as an asynchronous update
         access(EImplementation) var positionsNeedingUpdates: [UInt64]
 
-        /// Deprecated: This field is unused and should be removed in the next contract re-deployment
-        access(EImplementation) var version: UInt64
-
         /// Liquidation target health and controls (global)
 
         /// The target health factor when liquidating a position, which limits how much collateral can be liquidated.
@@ -1500,7 +1494,6 @@ access(all) contract FlowCreditMarket {
                     "Price oracle must return prices in terms of the default token"
             }
 
-            self.version = 0 // deprecated
             self.debugLogging = false
             self.globalLedger = {
                 defaultToken: TokenState(
