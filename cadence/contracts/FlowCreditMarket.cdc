@@ -918,33 +918,6 @@ access(all) contract FlowCreditMarket {
             self.updateForUtilizationChange()
         }
 
-        /// Updates the totalCreditBalance by the provided amount
-        /// TODO(jord): unused
-        access(EImplementation) fun updateCreditBalance(amount: Int256) {
-            // temporary cast the credit balance to a signed value so we can add/subtract
-            let adjustedBalance = Int256(self.totalCreditBalance) + amount
-            // Do not silently clamp: underflow indicates a serious accounting error
-            assert(
-                adjustedBalance >= 0,
-                message: "totalCreditBalance underflow"
-            )
-            self.totalCreditBalance = UFix128(adjustedBalance)
-            self.updateForUtilizationChange()
-        }
-
-        /// TODO(jord): unused
-        access(EImplementation) fun updateDebitBalance(amount: Int256) {
-            // temporary cast the debit balance to a signed value so we can add/subtract
-            let adjustedBalance = Int256(self.totalDebitBalance) + amount
-            // Do not silently clamp: underflow indicates a serious accounting error
-            assert(
-                adjustedBalance >= 0,
-                message: "totalDebitBalance underflow"
-            )
-            self.totalDebitBalance = UFix128(adjustedBalance)
-            self.updateForUtilizationChange()
-        }
-
         // Updates the credit and debit interest index for this token, accounting for time since the last update.
         access(EImplementation) fun updateInterestIndices() {
             let currentTime = getCurrentBlock().timestamp
