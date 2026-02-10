@@ -766,7 +766,7 @@ access(all) contract FlowCreditMarket {
         access(EImplementation) var depositUsage: {UInt64: UFix64}
 
         /// The minimum balance amount for the related token per position
-        access(EImplementation) var minimumTokenBalancePerPosition: UFix64
+        access(self) var minimumTokenBalancePerPosition: UFix64
 
         init(
             tokenType: Type,
