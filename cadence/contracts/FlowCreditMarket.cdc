@@ -3005,14 +3005,10 @@ access(all) contract FlowCreditMarket {
             )
 
             // Ensure that the remaining balance meets the minimum requirement (or is zero)
-            let balanceRecord = position.balances[type]!
-            let interestIndex = balanceRecord.direction == BalanceDirection.Credit
-                ? tokenState.creditInterestIndex
-                : tokenState.debitInterestIndex
-            let remainingBalance = FlowCreditMarket.scaledBalanceToTrueBalance(
-                balanceRecord.scaledBalance,
-                interestIndex: interestIndex
-            )
+            // Building the position view does require copying the balances, so it's less efficient than accessing the balance directly.
+            // Since most positions will have a single token type, we're okay with this for now.
+            let positionView = self.buildPositionView(pid: pid)
+            let remainingBalance = positionView.trueBalance(ofToken: type)
 
             // This is applied to both credit and debit balances, with the main goal being to avoid dust positions.
             assert(
