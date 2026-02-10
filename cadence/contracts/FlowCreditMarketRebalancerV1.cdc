@@ -20,8 +20,15 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         uuid: UInt64,
         positionID: UInt64,
         force: Bool,
+        scheduledTimestamp: UFix64,
+        currentTimestamp: UFix64,
+        nextScheduledTimestamp: UFix64,
+        scheduledTransactionID: UInt64,
     )
-    access(all) event FixedReschedule(uuid: UInt64)
+    access(all) event FixedReschedule(
+        uuid: UInt64,
+        nextScheduledTimestamp: UFix64,
+    )
     access(all) event CreatedRebalancer(
         uuid: UInt64,
         positionID: UInt64,
@@ -140,6 +147,10 @@ access(all) contract FlowCreditMarketRebalancerV1 {
                 uuid: self.uuid,
                 positionID: positionRebalanceCap.id,
                 force: self.recurringConfig.forceRebalance,
+                scheduledTimestamp: self.nextScheduledRebalanceTimestamp!,
+                currentTimestamp: getCurrentBlock().timestamp,
+                nextScheduledTimestamp: self.nextExecutionTimestamp(),
+                scheduledTransactionID: id,
             )
 
             let err = self.scheduleNextRebalance()
@@ -229,7 +240,8 @@ access(all) contract FlowCreditMarketRebalancerV1 {
                     )
                 } else {
                     emit FixedReschedule(
-                        uuid: self.uuid
+                        uuid: self.uuid,
+                        nextScheduledTimestamp: self.nextExecutionTimestamp(),
                     )
                 }
             }

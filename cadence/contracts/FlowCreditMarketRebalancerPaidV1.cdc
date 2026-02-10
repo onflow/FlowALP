@@ -107,7 +107,7 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
     access(all) view fun getPaidRebalancerPath(
         uuid: UInt64,
     ): StoragePath {
-        return StoragePath(identifier: "FlowCreditMarket.RebalancerPaidV1\(uuid)")!
+        return StoragePath(identifier: "FlowCreditMarket.RebalancerPaidV1_\(self.account.address)_\(uuid)")!
     }
 
     access(self) fun borrowRebalancer(
