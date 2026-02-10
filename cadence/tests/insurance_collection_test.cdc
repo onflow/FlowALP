@@ -395,14 +395,6 @@ fun test_collectInsurance_multipleTokens() {
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_dexOracleSlippageProtection() {
-    // setup LP to provide MOET liquidity for borrowing
-    let lp = Test.createAccount()
-    setupMoetVault(lp, beFailed: false)
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10000.0, beFailed: false)
-
-    // LP deposits MOET (creates credit balance, provides borrowing liquidity)
-    createPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
-
     // setup FLOW LP to provide FLOW reserves (insurance is collected from FLOW reserves)
     let flowLp = Test.createAccount()
     setupMoetVault(flowLp, beFailed: false)
@@ -418,7 +410,7 @@ fun test_collectInsurance_dexOracleSlippageProtection() {
 
     // borrower deposits MOET as collateral and borrows FLOW
     createPosition(signer: borrower, amount: 5000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
-    borrowFromPosition(signer: borrower, positionId: 2, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 2000.0, beFailed: false)
+    borrowFromPosition(signer: borrower, positionId: 1, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 2000.0, beFailed: false)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
