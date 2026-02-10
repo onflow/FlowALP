@@ -40,7 +40,7 @@ access(all) fun setup() {
     mintFlow(to: userAccount, amount: 1000.0)
     mintFlow(to: protocolAccount, amount: 1000.0)
 
-    createPaidRebalancer(signer: protocolAccount, paidRebalancerAdminStoragePath: FlowCreditMarketRebalancerPaidV1.adminCapabilityStoragePath)
+    createPaidRebalancer(signer: protocolAccount, paidRebalancerAdminStoragePath: FlowCreditMarketRebalancerPaidV1.adminStoragePath)
     createPositionNotManaged(signer: userAccount, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false, positionStoragePath: positionStoragePath)
     depositToPositionNotManaged(signer: userAccount, positionStoragePath: positionStoragePath, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
     addPaidRebalancerToPosition(signer: userAccount, positionStoragePath: positionStoragePath, paidRebalancerStoragePath: paidRebalancerStoragePath)

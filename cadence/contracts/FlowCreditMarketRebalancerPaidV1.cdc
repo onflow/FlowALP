@@ -7,15 +7,28 @@ import "FlowTransactionScheduler"
 // This contract hosts scheduled rebalancers on behalf of users. Instead of users storing and
 // configuring Rebalancer resources themselves, they call createPaidRebalancer with a position
 // rebalance capability and receive a lightweight RebalancerPaid resource. The contract stores
-// the underlying Rebalancer, wires it to the FlowTransactionScheduler, and applies a shared
-// defaultRecurringConfig (interval, priority, txnFunder, etc.). Users can fixReschedule by UUID
-// or delete their RebalancerPaid to stop and remove the rebalancer. Admins control the default
-// config and can update or remove individual paid rebalancers.
+// the underlying Rebalancer, wires it to the FlowTransactionScheduler, and applies the
+// defaultRecurringConfig (interval, priority, txnFunder, etc.).
+// The txnFunder set by the admin will be used to fund the rebalance transactions for the users.
+// Users can fixReschedule by UUID or delete their RebalancerPaid to stop and remove the rebalancer.
+// Admins control the default config and can update or remove individual paid rebalancers.
+// See RebalanceArchitecture.md for an architecture overview.
 access(all) contract FlowCreditMarketRebalancerPaidV1 {
 
+    access(all) event CreatedRebalancerPaid(uuid: UInt64)
+    access(all) event RemovedRebalancerPaid(uuid: UInt64)
+    access(all) event UpdatedDefaultRecurringConfig(
+        interval: UInt64,
+        priority: UInt8,
+        executionEffort: UInt64,
+        estimationMargin: UFix64,
+        forceRebalance: Bool,
+    )
+
+    // default recurring config for all newly created paid rebalancers
+    // this entails the txnFunder, which will be used to fund the rebalance transactions
     access(all) var defaultRecurringConfig: FlowCreditMarketRebalancerV1.RecurringConfig?
-    access(all) var storageAdminPath: StoragePath
-    access(all) let adminCapabilityStoragePath: StoragePath
+    access(all) var adminStoragePath: StoragePath
 
     access(all) fun createPaidRebalancer(
         positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &FlowCreditMarket.Position>,
@@ -28,15 +41,24 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
         let uuid = rebalancer.uuid
         self.storeRebalancer(rebalancer: <-rebalancer)
         self.setSelfCapability(uuid: uuid).fixReschedule()
+        emit CreatedRebalancerPaid(uuid: uuid)
         return <- create RebalancerPaid(rebalancerUUID: uuid)
     }
 
     access(all) resource Admin {
+        // update the default recurring config for all newly created paid rebalancers
         access(all) fun updateDefaultRecurringConfig(recurringConfig: FlowCreditMarketRebalancerV1.RecurringConfig) {
             FlowCreditMarketRebalancerPaidV1.defaultRecurringConfig = recurringConfig
+            emit UpdatedDefaultRecurringConfig(
+                interval: recurringConfig.interval,
+                priority: recurringConfig.priority.rawValue,
+                executionEffort: recurringConfig.executionEffort,
+                estimationMargin: recurringConfig.estimationMargin,
+                forceRebalance: recurringConfig.forceRebalance,
+            )
         }
 
-        access(all) fun borrowRebalancer(
+        access(all) fun borrowAuthorizedRebalancer(
             uuid: UInt64,
         ): auth(FlowCreditMarket.ERebalance, FlowCreditMarketRebalancerV1.Rebalancer.Configure) &FlowCreditMarketRebalancerV1.Rebalancer? {
             return FlowCreditMarketRebalancerPaidV1.borrowRebalancer(uuid: uuid)
@@ -52,12 +74,14 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
 
         access(account) fun removePaidRebalancer(uuid: UInt64) {
             FlowCreditMarketRebalancerPaidV1.removePaidRebalancer(uuid: uuid)
+            emit RemovedRebalancerPaid(uuid: uuid)
         }
     }
 
     access(all) entitlement Delete
 
     access(all) resource RebalancerPaid {
+        // the UUID of the rebalancer this resource is associated with
         access(all) var rebalancerUUID : UInt64
 
         init(rebalancerUUID: UInt64) {
@@ -69,8 +93,7 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
         }
 
         access(all) fun fixReschedule() {
-            let rebalancer = FlowCreditMarketRebalancerPaidV1.borrowRebalancer(uuid: self.rebalancerUUID)!
-            rebalancer.fixReschedule()
+            FlowCreditMarketRebalancerPaidV1.fixReschedule(uuid: self.rebalancerUUID)
         }
     }
 
@@ -79,6 +102,12 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
     ) {
         let rebalancer = FlowCreditMarketRebalancerPaidV1.borrowRebalancer(uuid: uuid)!
         rebalancer.fixReschedule()
+    }
+
+    access(all) view fun getPaidRebalancerPath(
+        uuid: UInt64,
+    ): StoragePath {
+        return StoragePath(identifier: "FlowCreditMarket.RebalancerPaidV1\(uuid)")!
     }
 
     access(self) fun borrowRebalancer(
@@ -120,10 +149,9 @@ access(all) contract FlowCreditMarketRebalancerPaidV1 {
     }
 
     init() {
-        self.adminCapabilityStoragePath = StoragePath(identifier: "FlowCreditMarket.RebalancerPaidV1.Admin")!
-        self.storageAdminPath = self.adminCapabilityStoragePath
+        self.adminStoragePath = StoragePath(identifier: "FlowCreditMarket.RebalancerPaidV1.Admin")!
         self.defaultRecurringConfig = nil
         let admin <- create Admin()
-        self.account.storage.save(<-admin, to: self.storageAdminPath)
+        self.account.storage.save(<-admin, to: self.adminStoragePath)
     }
 }

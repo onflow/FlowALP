@@ -8,18 +8,23 @@ import "FungibleToken"
 //
 // Users create and store a Rebalancer resource in their own account. They supply a RecurringConfig
 // (interval, priority, executionEffort, estimationMargin, forceRebalance, txnFunder) and a
-// capability to a position that conforms to Rebalancable. After saving the Rebalancer, they must
-// issue a Capability to it and call setSelfCapability so it can register with the
-// FlowTransactionScheduler. The scheduler then invokes executeTransaction on the configured
-// interval; each run rebalances the position (using the txnFunder for fees) and schedules the
-// next run. Users have full control over config (setRecurringConfig), can trigger rebalance or
-// unstuck manually, and can destroy the resource to stop scheduling. See RebalanceArchitecture.md
-// for an architecture overview.
+// capability to a position. After saving the Rebalancer, users must issue a Capability to it 
+// and call setSelfCapability so it can register with the FlowTransactionScheduler.
+// The scheduler then invokes executeTransaction on the configured interval; 
+// each run rebalances the position (using the txnFunder for fees) and schedules the
+// next run. See RebalanceArchitecture.md for an architecture overview.
 access(all) contract FlowCreditMarketRebalancerV1 {
 
-    access(all) event Rebalanced(uuid: UInt64)
+    access(all) event Rebalanced(
+        uuid: UInt64,
+        positionID: UInt64,
+        force: Bool,
+    )
     access(all) event FixedReschedule(uuid: UInt64)
-    access(all) event CreatedRebalancer(uuid: UInt64)
+    access(all) event CreatedRebalancer(
+        uuid: UInt64,
+        positionID: UInt64,
+    )
     access(all) event FailedRecurringSchedule(
         uuid: UInt64,
         whileExecuting: UInt64,
@@ -32,7 +37,8 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         access(all) let interval: UInt64
         access(all) let priority: FlowTransactionScheduler.Priority
         access(all) let executionEffort: UInt64
-        /// The margin to multiply with the estimated fees
+        /// The margin to multiply with the estimated fees for the scheduled transaction
+        /// feePaid = estimate.flowFee * estimationMargin
         access(all) let estimationMargin: UFix64
         /// The force rebalance flag
         access(all) let forceRebalance: Bool
@@ -52,6 +58,8 @@ access(all) contract FlowCreditMarketRebalancerV1 {
                 "Invalid interval: \(interval) - must be greater than 0"
                 interval < UInt64(UFix64.max) - UInt64(getCurrentBlock().timestamp):
                 "Invalid interval: \(interval) - must be less than the maximum interval of \(UInt64(UFix64.max) - UInt64(getCurrentBlock().timestamp))"
+                priority != FlowTransactionScheduler.Priority.High:
+                "Invalid priority: \(priority.rawValue) - must not be High"
                 txnFunder.getSourceType() == Type<@FlowToken.Vault>():
                 "Invalid txnFunder: \(txnFunder.getSourceType().identifier) - must provide FLOW but provides \(txnFunder.getSourceType().identifier)"
                 txnFunder.getSinkType() == Type<@FlowToken.Vault>():
@@ -73,6 +81,9 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         }
     }
 
+    // Rebalancer automatically calls rebalance on the position on the configured interval.
+    // Owners can change the config (setRecurringConfig), call fixReschedule to unstuck the scheduler, 
+    // or destroy the resource to stop scheduling after calling cancelAllScheduledTransactions to rebate the fees.  
     access(all) resource Rebalancer : FlowTransactionScheduler.TransactionHandler {
             
         access(all) var lastRebalanceTimestamp: UFix64
@@ -81,6 +92,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
 
         access(self) var _selfCapability: Capability<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>?
         access(self) var _positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &FlowCreditMarket.Position>
+        // txnIDs => ScheduledTransaction
         access(self) var scheduledTransactions: @{UInt64: FlowTransactionScheduler.ScheduledTransaction}
 
         access(all) entitlement Configure
@@ -99,7 +111,8 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             self.nextScheduledRebalanceTimestamp = nil
 
             emit CreatedRebalancer(
-                uuid: self.uuid
+                uuid: self.uuid,
+                positionID: positionRebalanceCapability.borrow()!.id
             )
         }
 
@@ -119,10 +132,13 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         ///
         access(FlowTransactionScheduler.Execute) fun executeTransaction(id: UInt64, data: AnyStruct?) {
             // we want to panic and not keep spending fees on scheduled transactions if borrow fails
-            self._positionRebalanceCapability.borrow()!.rebalance(force: self.recurringConfig.forceRebalance)
+            let positionRebalanceCap = self._positionRebalanceCapability.borrow()!
+            positionRebalanceCap.rebalance(force: self.recurringConfig.forceRebalance)
             self.lastRebalanceTimestamp = getCurrentBlock().timestamp
             emit Rebalanced(
-                uuid: self.uuid
+                uuid: self.uuid,
+                positionID: positionRebalanceCap.id,
+                force: self.recurringConfig.forceRebalance,
             )
 
             let err = self.scheduleNextRebalance()
@@ -138,8 +154,8 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         }
         
         /// Schedules the next execution of the rebalance. This method is written to fail as gracefully as
-        /// possible, reporting any failures to schedule the next execution to the as an event. This allows
-        /// `executeTransaction` to continue execution even if the next execution cannot be scheduled while still
+        /// possible, reporting any failures to schedule the next execution to the calling function as a string to be emitted in an event. 
+        /// This allows `executeTransaction` to continue execution even if the next execution cannot be scheduled while still
         /// informing of the failure via `FailedRecurringSchedule` event.
         /// Custom code of the txnFunder is called which can panic the transaction. But this is purely a quality of live improvement, 
         /// making sure the last rebalancing does not get reverted.
@@ -149,7 +165,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         access(self) fun scheduleNextRebalance(): String? {
             var nextTimestamp = self.nextExecutionTimestamp()
             self.nextScheduledRebalanceTimestamp = nextTimestamp
-            
+
             let estimate = FlowTransactionScheduler.estimate(
                 data: nil,
                 timestamp: nextTimestamp,
@@ -159,7 +175,14 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             if estimate.error != nil {
                 return estimate.error
             }
-            let feeWithMargin = estimate.flowFee! * self.recurringConfig.estimationMargin
+
+            // let flowFee = FlowTransactionScheduler.calculateFee(
+            //     executionEffort: self.recurringConfig.executionEffort,
+            //     priority: self.recurringConfig.priority,
+            //     dataSizeMB: 0.0,
+            // )
+            let flowFee = estimate.flowFee!
+            let feeWithMargin = flowFee * self.recurringConfig.estimationMargin
             if self.recurringConfig.txnFunder.minimumAvailable() < feeWithMargin {
                 return "INSUFFICIENT_FEES_AVAILABLE"
             }
@@ -167,6 +190,9 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             let fees <- self.recurringConfig.txnFunder.withdrawAvailable(maxAmount: feeWithMargin) as! @FlowToken.Vault
             if fees.balance < feeWithMargin {
                 self.recurringConfig.txnFunder.depositCapacity(from: &fees as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
+                if fees.balance > 0.0 {
+                    panic("can't deposit full amount of fees back to the txnFunder, remaining: \(fees.balance)")
+                }
                 destroy fees
                 return "INSUFFICIENT_FEES_PROVIDED"
             } else {
@@ -188,7 +214,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         /// Idempotent, schedules a new transaction if there is no scheduled transaction.
         /// 
         /// This function is designed to be safely callable by any account, including an off-chain supervisor,
-        /// to help recover from issues where the scheduled transactions are incorrect or stuck.
+        /// to help recover from issues where the next scheduled transaction could not be scheduled.
         access(all) fun fixReschedule() {
             self.removeAllNonScheduledTransactions()
            
@@ -253,7 +279,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             let refund <- FlowTransactionScheduler.cancel(scheduledTx: <-txn)
             self.recurringConfig.txnFunder.depositCapacity(from: &refund as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
             if refund.balance > 0.0 {
-                panic("can't deposit refund")
+                panic("can't deposit full amount of refund back to the txnFunder, remaining: \(refund.balance)")
             }
             destroy refund
         }

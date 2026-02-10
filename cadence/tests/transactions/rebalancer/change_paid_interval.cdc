@@ -11,7 +11,7 @@ transaction(uuid: UInt64, interval: UInt64) {
 
     prepare(signer: auth(IssueStorageCapabilityController) &Account) {
         self.adminPaidRebalancerCap = signer.capabilities.storage.issue<&FlowCreditMarketRebalancerPaidV1.Admin>(
-            FlowCreditMarketRebalancerPaidV1.storageAdminPath
+            FlowCreditMarketRebalancerPaidV1.adminStoragePath
         )
         assert(self.adminPaidRebalancerCap.check(), message: "Invalid admin paid rebalancer capability")
         self.vaultCapability = signer.capabilities.storage.issue<auth(FungibleToken.Withdraw) &FlowToken.Vault>(/storage/flowTokenVault)
@@ -21,7 +21,7 @@ transaction(uuid: UInt64, interval: UInt64) {
     execute {
         let sinkSource = FungibleTokenConnectors.VaultSinkAndSource(min: nil, max: nil, vault: self.vaultCapability, uniqueID: nil)
         
-        let borrowedRebalancer = self.adminPaidRebalancerCap.borrow()!.borrowRebalancer(uuid: uuid)!
+        let borrowedRebalancer = self.adminPaidRebalancerCap.borrow()!.borrowAuthorizedRebalancer(uuid: uuid)!
         let config = FlowCreditMarketRebalancerV1.RecurringConfig(
             interval: interval,
             priority: FlowTransactionScheduler.Priority.Medium,
