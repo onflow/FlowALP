@@ -467,7 +467,7 @@ access(all)
 fun withdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, pullFromTopUpSource: Bool) {
     let withdrawRes = _executeTransaction(
         "./transactions/position-manager/withdraw_from_position.cdc",
-        [positionId, tokenTypeIdentifier, amount, true],
+        [positionId, tokenTypeIdentifier, amount, pullFromTopUpSource],
         signer
     )
     Test.expect(withdrawRes, Test.beSucceeded())
