@@ -1,0 +1,65 @@
+name: Update TEST_COVERAGE.md
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Prevent concurrent runs from conflicting commits
+concurrency:
+  group: update-test-coverage
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  update-coverage-doc:
+    name: Update test coverage documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+          submodules: "true"
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.23.x"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install Flow CLI
+        env:
+          FLOW_CLI_VERSION: v2.7.2
+        run: sh -ci "$(curl -fsSL https://raw.githubusercontent.com/onflow/flow-cli/master/install.sh)"
+
+      - name: Update PATH
+        run: |
+          echo "/root/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: flow deps install --skip-alias --skip-deployments
+
+      - name: Run tests and update TEST_COVERAGE.md
+        run: ./scripts/update-test-coverage-doc.sh
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cadence/tests/TEST_COVERAGE.md
+          if git diff --cached --quiet; then
+            echo "No changes to TEST_COVERAGE.md"
+          else
+            git commit -m "docs: auto-update TEST_COVERAGE.md with latest test results"
+            git push
+          fi
