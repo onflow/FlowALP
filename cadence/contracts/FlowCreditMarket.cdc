@@ -2651,7 +2651,7 @@ access(all) contract FlowCreditMarket {
             pre {
                 self.globalLedger[funds.getType()] != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
-                funds.balance >= self.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition:
+               self.positionSatisfiesMinimumCreditBalance(funds.getType(), funds.balance):
                     "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition)"
                 // TODO(jord): Sink/source should be valid
             }
