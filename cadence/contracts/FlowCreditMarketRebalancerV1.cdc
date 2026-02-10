@@ -3,6 +3,7 @@ import "FlowCreditMarket"
 import "FlowToken"
 import "FlowTransactionScheduler"
 import "FungibleToken"
+import "FlowFees"
 
 // FlowCreditMarketRebalancerV1 — Self-custody scheduled rebalancer for Flow Credit Market positions.
 //
@@ -166,22 +167,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             var nextTimestamp = self.nextExecutionTimestamp()
             self.nextScheduledRebalanceTimestamp = nextTimestamp
 
-            let estimate = FlowTransactionScheduler.estimate(
-                data: nil,
-                timestamp: nextTimestamp,
-                priority: self.recurringConfig.priority,
-                executionEffort: self.recurringConfig.executionEffort
-            )
-            if estimate.error != nil {
-                return estimate.error
-            }
-
-            // let flowFee = FlowTransactionScheduler.calculateFee(
-            //     executionEffort: self.recurringConfig.executionEffort,
-            //     priority: self.recurringConfig.priority,
-            //     dataSizeMB: 0.0,
-            // )
-            let flowFee = estimate.flowFee!
+            let flowFee = self.transactionSchedulerCalculateFee(priority: self.recurringConfig.priority, executionEffort: self.recurringConfig.executionEffort)
             let feeWithMargin = flowFee * self.recurringConfig.estimationMargin
             if self.recurringConfig.txnFunder.minimumAvailable() < feeWithMargin {
                 return "INSUFFICIENT_FEES_AVAILABLE"
@@ -209,6 +195,20 @@ access(all) contract FlowCreditMarketRebalancerV1 {
                 self.scheduledTransactions[txnID] <-! txn
                 return nil
             }
+        }
+
+        /// Calculates the FLOW fee for scheduling a transaction using the official FlowFees calculation.
+        /// Will be replaced with FlowTransactionScheduler.calculateFee in the future, once it is available in the emulator.
+        access(self) fun transactionSchedulerCalculateFee(priority: FlowTransactionScheduler.Priority, executionEffort: UInt64): UFix64 {
+            // Use the official FlowFees calculation
+            let baseFee = FlowFees.computeFees(inclusionEffort: 1.0, executionEffort: UFix64(executionEffort)/100_000_000.0)
+            // Scale the execution fee by the multiplier for the priority
+            let scaledExecutionFee = baseFee * FlowTransactionScheduler.getConfig().priorityFeeMultipliers[priority]!
+            // Add inclusion Flow fee for scheduled transactions
+            let inclusionFee = 0.00001
+
+            let flowFee = scaledExecutionFee + inclusionFee
+            return flowFee
         }
 
         /// Idempotent, schedules a new transaction if there is no scheduled transaction.
