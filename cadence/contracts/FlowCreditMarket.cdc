@@ -1120,7 +1120,9 @@ access(all) contract FlowCreditMarket {
             // Get quote and perform swap
             let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
             let dexPrice = quote.outAmount / quote.inAmount
-            FlowCreditMarket.assertDexOracleDeviation(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps)
+            assert(
+                FlowCreditMarket.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
+                message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
             var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
 
             // Update last collection time
@@ -1984,8 +1986,9 @@ access(all) contract FlowCreditMarket {
 
             // Compare the DEX price to the oracle price and revert if they diverge beyond configured threshold.
             let Pcd_dex = quote.outAmount / quote.inAmount // price of collateral, denominated in debt token, implied by dex quote (D/C)
-            FlowCreditMarket.assertDexOracleDeviation(dexPrice: Pcd_dex, oraclePrice: Pcd_oracle, maxDeviationBps: self.dexOracleDeviationBps)
-
+            assert(
+                FlowCreditMarket.dexOraclePriceDeviationInRange(dexPrice: Pcd_dex, oraclePrice: Pcd_oracle, maxDeviationBps: self.dexOracleDeviationBps),
+                message: "DEX/oracle price deviation too large. Dex price: \(Pcd_dex), Oracle price: \(Pcd_oracle)")
             // Execute the liquidation
             let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
             
@@ -4379,13 +4382,13 @@ access(all) contract FlowCreditMarket {
 
     /* --- PUBLIC METHODS ---- */
 
-    /// Asserts that the DEX price does not deviate from the oracle price by more than the given threshold.
+    /// Checks that the DEX price does not deviate from the oracle price by more than the given threshold.
     /// The deviation is computed as the absolute difference divided by the smaller price, expressed in basis points.
-    access(all) fun assertDexOracleDeviation(dexPrice: UFix64, oraclePrice: UFix64, maxDeviationBps: UInt16) {
+    access(all) view fun dexOraclePriceDeviationInRange(dexPrice: UFix64, oraclePrice: UFix64, maxDeviationBps: UInt16): Bool {
         let diff: UFix64 = dexPrice < oraclePrice ? oraclePrice - dexPrice : dexPrice - oraclePrice
         let diffPct: UFix64 = dexPrice < oraclePrice ? diff / dexPrice : diff / oraclePrice
         let diffBps = UInt16(diffPct * 10_000.0)
-        assert(diffBps <= maxDeviationBps, message: "DEX/oracle price deviation too large: ".concat(diffBps.toString()).concat("bps > ").concat(maxDeviationBps.toString()).concat("bps"))
+        return diffBps <= maxDeviationBps
     }
 
     /// Returns a health value computed from the provided effective collateral and debt values
