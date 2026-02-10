@@ -46,10 +46,6 @@ fun setup() {
 
     deployContracts()
 
-    let betaTxResult = grantBeta(PROTOCOL_ACCOUNT, CONSUMER_ACCOUNT)
-
-    Test.expect(betaTxResult, Test.beSucceeded())
-
     // price setup
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: flowStartPrice)
 
@@ -68,6 +64,9 @@ fun setup() {
     setupMoetVault(userAccount, beFailed: false)
     mintFlow(to: userAccount, amount: positionFundingAmount)
 
+    // Grant beta access to userAccount so they can create positions
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, userAccount)
+
     snapshot = getCurrentBlockHeight()
 
     log("----- funds_available_above_target_health_test.cdc SETUP COMPLETE -----")
@@ -83,7 +82,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, true],
         userAccount
     )
@@ -160,7 +159,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
@@ -232,7 +231,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     }
 
     let openRes = executeTransaction(
-        "./transactions/mock-flow-credit-market-consumer/create_wrapped_position.cdc",
+        "../transactions/flow-credit-market/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
