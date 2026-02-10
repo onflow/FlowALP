@@ -924,7 +924,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexBelowOracle() {
     )
     // Should fail because divergence exceeds threshold
     Test.expect(liqRes, Test.beFailed())
-    Test.assertError(liqRes, errorMessage: "Too large difference between dex/oracle prices")
+    Test.assertError(liqRes, errorMessage: "DEX/oracle price deviation too large")
 }
 
 /// Liquidations should fail when DEX price is above oracle and divergence exceeds threshold.
@@ -961,7 +961,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexAboveOracle() {
     )
     // Should fail because divergence exceeds threshold
     Test.expect(liqRes, Test.beFailed())
-    Test.assertError(liqRes, errorMessage: "Too large difference between dex/oracle prices")
+    Test.assertError(liqRes, errorMessage: "DEX/oracle price deviation too large")
 }
 
 /// Liquidation should fail if liquidator offer is worse than DEX price.
@@ -1065,6 +1065,6 @@ fun testManualLiquidation_combinedEdgeCase() {
     )
     // Should fail because DEX/oracle divergence is too high, even though liquidator offer is competitive
     Test.expect(liqRes, Test.beFailed())
-    Test.assertError(liqRes, errorMessage: "Too large difference between dex/oracle prices")
+    Test.assertError(liqRes, errorMessage: "DEX/oracle price deviation too large")
 }
 

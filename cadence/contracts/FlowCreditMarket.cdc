@@ -1072,9 +1072,13 @@ access(all) contract FlowCreditMarket {
         /// CAUTION: This function will panic if no insuranceSwapper is provided.
         ///
         /// @param reserveVault: The reserve vault for this token type to withdraw insurance from
+        /// @param oraclePrice: The current price for this token according to the Oracle, denominated in $
+        /// @param maxDeviationBps: The max deviation between oracle/dex prices (see Pool.dexOracleDeviationBps)
         /// @return: A MOET vault containing the collected insurance funds, or nil if no collection occurred
         access(EImplementation) fun collectInsurance(
-            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
+            oraclePrice: UFix64,
+            maxDeviationBps: UInt16
         ): @MOET.Vault? {
             let currentTime = getCurrentBlock().timestamp
 
@@ -1122,6 +1126,10 @@ access(all) contract FlowCreditMarket {
 
             // Get quote and perform swap
             let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
+            let dexPrice = quote.outAmount / quote.inAmount
+            assert(
+                FlowCreditMarket.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
+                message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
             var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
 
             // Update last collection time
@@ -1985,14 +1993,9 @@ access(all) contract FlowCreditMarket {
 
             // Compare the DEX price to the oracle price and revert if they diverge beyond configured threshold.
             let Pcd_dex = quote.outAmount / quote.inAmount // price of collateral, denominated in debt token, implied by dex quote (D/C)
-            // Compute the absolute value of the difference between the oracle price and dex price
-            let Pcd_dex_oracle_diff: UFix64 = Pcd_dex < Pcd_oracle ? Pcd_oracle - Pcd_dex : Pcd_dex - Pcd_oracle
-            // Compute the percent difference (eg. 0.05 for 5%). Always use the smaller price as the denominator.
-            let Pcd_dex_oracle_diffPct: UFix64 = Pcd_dex < Pcd_oracle ? Pcd_dex_oracle_diff / Pcd_dex : Pcd_dex_oracle_diff / Pcd_oracle
-            let Pcd_dex_oracle_diffBps = UInt16(Pcd_dex_oracle_diffPct * 10_000.0) // cannot overflow because Pcd_dex_oracle_diffPct<=1
-
-            assert(Pcd_dex_oracle_diffBps <= self.dexOracleDeviationBps, message: "Too large difference between dex/oracle prices diff=\(Pcd_dex_oracle_diffBps)bps")
-
+            assert(
+                FlowCreditMarket.dexOraclePriceDeviationInRange(dexPrice: Pcd_dex, oraclePrice: Pcd_oracle, maxDeviationBps: self.dexOracleDeviationBps),
+                message: "DEX/oracle price deviation too large. Dex price: \(Pcd_dex), Oracle price: \(Pcd_oracle)")
             // Execute the liquidation
             let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
             
@@ -3732,7 +3735,12 @@ access(all) contract FlowCreditMarket {
             // Get reference to reserves
             if let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?) {
                 // Collect insurance and get MOET vault
-                if let collectedMOET <- tokenState.collectInsurance(reserveVault: reserveRef) {
+                let oraclePrice = self.priceOracle.price(ofToken: tokenType)!
+                if let collectedMOET <- tokenState.collectInsurance(
+                    reserveVault: reserveRef,
+                    oraclePrice: oraclePrice,
+                    maxDeviationBps: self.dexOracleDeviationBps
+                ) {
                     let collectedMOETBalance = collectedMOET.balance
                     // Deposit collected MOET into insurance fund
                     self.insuranceFund.deposit(from: <-collectedMOET)
@@ -4393,6 +4401,15 @@ access(all) contract FlowCreditMarket {
     }
 
     /* --- PUBLIC METHODS ---- */
+
+    /// Checks that the DEX price does not deviate from the oracle price by more than the given threshold.
+    /// The deviation is computed as the absolute difference divided by the smaller price, expressed in basis points.
+    access(all) view fun dexOraclePriceDeviationInRange(dexPrice: UFix64, oraclePrice: UFix64, maxDeviationBps: UInt16): Bool {
+        let diff: UFix64 = dexPrice < oraclePrice ? oraclePrice - dexPrice : dexPrice - oraclePrice
+        let diffPct: UFix64 = dexPrice < oraclePrice ? diff / dexPrice : diff / oraclePrice
+        let diffBps = UInt16(diffPct * 10_000.0)
+        return diffBps <= maxDeviationBps
+    }
 
     /// Returns a health value computed from the provided effective collateral and debt values
     /// where health is a ratio of effective collateral over effective debt
