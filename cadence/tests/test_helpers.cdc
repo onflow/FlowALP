@@ -464,7 +464,7 @@ fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeId
 }
 
 access(all)
-fun wtihdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, pushToDrawDownSink: Bool) {
+fun withdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, pullFromTopUpSource: Bool) {
     let withdrawRes = _executeTransaction(
         "./transactions/position-manager/withdraw_from_position.cdc",
         [positionId, tokenTypeIdentifier, amount, true],
