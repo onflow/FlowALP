@@ -180,6 +180,11 @@ access(all) contract FlowCreditMarket {
     /// not just individual position owners' positions.
     access(all) entitlement EPosition
 
+    /// ERebalance
+    ///
+    /// Entitlement for rebalancing positions.
+    access(all) entitlement ERebalance
+
     /// EGovernance
     ///
     /// Entitlement for governance operations that control pool-wide parameters and configuration.
@@ -435,8 +440,6 @@ access(all) contract FlowCreditMarket {
         access(all) let warmupSec: UInt64
         access(all) let lastUnpausedAt: UInt64?
         access(all) let triggerHF: UFix128
-        /// Deprecated: Unused field, but cannot be removed without contract update
-        access(all) let protocolFeeBps: UInt16
 
         init(
             targetHF: UFix128,
@@ -450,7 +453,6 @@ access(all) contract FlowCreditMarket {
             self.warmupSec = warmupSec
             self.lastUnpausedAt = lastUnpausedAt
             self.triggerHF = triggerHF
-            self.protocolFeeBps = 0
         }
     }
 
@@ -927,33 +929,6 @@ access(all) contract FlowCreditMarket {
             self.updateForUtilizationChange()
         }
 
-        /// Updates the totalCreditBalance by the provided amount
-        /// TODO(jord): unused
-        access(EImplementation) fun updateCreditBalance(amount: Int256) {
-            // temporary cast the credit balance to a signed value so we can add/subtract
-            let adjustedBalance = Int256(self.totalCreditBalance) + amount
-            // Do not silently clamp: underflow indicates a serious accounting error
-            assert(
-                adjustedBalance >= 0,
-                message: "totalCreditBalance underflow"
-            )
-            self.totalCreditBalance = UFix128(adjustedBalance)
-            self.updateForUtilizationChange()
-        }
-
-        /// TODO(jord): unused
-        access(EImplementation) fun updateDebitBalance(amount: Int256) {
-            // temporary cast the debit balance to a signed value so we can add/subtract
-            let adjustedBalance = Int256(self.totalDebitBalance) + amount
-            // Do not silently clamp: underflow indicates a serious accounting error
-            assert(
-                adjustedBalance >= 0,
-                message: "totalDebitBalance underflow"
-            )
-            self.totalDebitBalance = UFix128(adjustedBalance)
-            self.updateForUtilizationChange()
-        }
-
         // Updates the credit and debit interest index for this token, accounting for time since the last update.
         access(EImplementation) fun updateInterestIndices() {
             let currentTime = getCurrentBlock().timestamp
@@ -1076,9 +1051,13 @@ access(all) contract FlowCreditMarket {
         /// CAUTION: This function will panic if no insuranceSwapper is provided.
         ///
         /// @param reserveVault: The reserve vault for this token type to withdraw insurance from
+        /// @param oraclePrice: The current price for this token according to the Oracle, denominated in $
+        /// @param maxDeviationBps: The max deviation between oracle/dex prices (see Pool.dexOracleDeviationBps)
         /// @return: A MOET vault containing the collected insurance funds, or nil if no collection occurred
         access(EImplementation) fun collectInsurance(
-            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
+            oraclePrice: UFix64,
+            maxDeviationBps: UInt16
         ): @MOET.Vault? {
             let currentTime = getCurrentBlock().timestamp
 
@@ -1126,6 +1105,10 @@ access(all) contract FlowCreditMarket {
 
             // Get quote and perform swap
             let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
+            let dexPrice = quote.outAmount / quote.inAmount
+            assert(
+                FlowCreditMarket.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
+                message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
             var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
 
             // Update last collection time
@@ -1199,7 +1182,6 @@ access(all) contract FlowCreditMarket {
     /// The difference between the effective value and "true" value represents the safety buffer available to prevent loss.
     /// - collateralFactor: the factor used to derive effective collateral
     /// - borrowFactor: the factor used to derive effective debt
-    /// - liquidationBonus: premium applied to liquidations to incentivize repayors
     access(all) struct RiskParams {
         /// The factor (Fc) used to determine effective collateral, in the range [0, 1]
         /// See FlowCreditMarket.effectiveCollateral for additional detail.
@@ -1208,13 +1190,9 @@ access(all) contract FlowCreditMarket {
         /// See FlowCreditMarket.effectiveDebt for additional detail.
         access(all) let borrowFactor: UFix128
 
-        /// Bonus expressed as fractional rate, e.g. 0.05 for 5%
-        access(all) let liquidationBonus: UFix128
-
         init(
             collateralFactor: UFix128,
             borrowFactor: UFix128,
-            liquidationBonus: UFix128
         ) {
             pre {
                 collateralFactor <= 1.0: "collateral factor must be <=1"
@@ -1222,7 +1200,6 @@ access(all) contract FlowCreditMarket {
             }
             self.collateralFactor = collateralFactor
             self.borrowFactor = borrowFactor
-            self.liquidationBonus = liquidationBonus
         }
     }
 
@@ -1488,10 +1465,6 @@ access(all) contract FlowCreditMarket {
         /// percentage between 0.0 and 1.0
         access(self) var borrowFactor: {Type: UFix64}
 
-        /// Per-token liquidation bonus fraction (e.g., 0.05 for 5%)
-        /// TODO(jord): we want to keep this logic but set it to 0 initially
-        access(self) var liquidationBonus: {Type: UFix64}
-
         /// The count of positions to update per asynchronous update
         access(self) var positionsProcessedPerCallback: UInt64
 
@@ -1500,9 +1473,6 @@ access(all) contract FlowCreditMarket {
 
         /// Position update queue to be processed as an asynchronous update
         access(EImplementation) var positionsNeedingUpdates: [UInt64]
-
-        /// Deprecated: This field is unused and should be removed in the next contract re-deployment
-        access(EImplementation) var version: UInt64
 
         /// Liquidation target health and controls (global)
 
@@ -1516,38 +1486,17 @@ access(all) contract FlowCreditMarket {
         /// Time this pool most recently had liquidations paused
         access(self) var lastUnpausedAt: UInt64?
 
-        /// Deprecated: Unused field, but cannot be removed without contract update
-        access(self) var protocolLiquidationFeeBps: UInt16
-
-        // TODO(jord): figure out how to reference dex https://github.com/onflow/FlowCreditMarket/issues/94
-        //  - either need to redeploy contract to create new dex field
-        //  - or need to revert to allowlist pattern and pass in swapper instances (I worry about security of this option)
-        //  - also to make allowlist pattern work with automated liquidation, initiator of this automation will need actual handle on a dex in order to pass it to FCM 
-
-        /// Allowlist of permitted DeFiActions Swapper types for DEX liquidations
-        /// TODO: unused! To remove, must re-deploy existing contracts
-        access(self) var allowedSwapperTypes: {Type: Bool}
-
-        /// A trusted DEX (or set of DEXes) used by FCM as a pricing oracle and trading counterparty for liquidations.
+        /// A trusted DEX (or set of DEXes) used by FlowCreditMarket as a pricing oracle and trading counterparty for liquidations.
         /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
         /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
         ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
         ///
-        /// FCM does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
+        /// FlowCreditMarket does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
         /// It relies directly on the Swapper's returned by the configured SwapperProvider.
-        access(self) let dex: {DeFiActions.SwapperProvider}
+        access(self) var dex: {DeFiActions.SwapperProvider}
 
-        /// Max allowed deviation in basis points between DEX-implied price and oracle price
+        /// Max allowed deviation in basis points between DEX-implied price and oracle price.
         access(self) var dexOracleDeviationBps: UInt16
-
-        /// Max slippage allowed in basis points for DEX liquidations
-        /// TODO(jord): revisit this. Is this ever necessary if we are also checking dexOracleDeviationBps? Do we want both a spot price check and a slippage from spot price check?
-        /// TODO: unused! To remove, must re-deploy existing contracts
-        access(self) var dexMaxSlippageBps: UInt64
-
-        /// Max route hops allowed for DEX liquidations
-        /// TODO: unused! To remove, must re-deploy existing contracts
-        access(self) var dexMaxRouteHops: UInt64
 
         /// Reentrancy guards keyed by position id.
         /// When a position is locked, it means an operation on the position is in progress.
@@ -1567,7 +1516,6 @@ access(all) contract FlowCreditMarket {
                     "Price oracle must return prices in terms of the default token"
             }
 
-            self.version = 0 // deprecated
             self.debugLogging = false
             self.globalLedger = {
                 defaultToken: TokenState(
@@ -1585,7 +1533,6 @@ access(all) contract FlowCreditMarket {
             self.priceOracle = priceOracle
             self.collateralFactor = {defaultToken: 1.0}
             self.borrowFactor = {defaultToken: 1.0}
-            self.liquidationBonus = {defaultToken: 0.05}
             self.nextPositionID = 0
             self.positionsNeedingUpdates = []
             self.positionsProcessedPerCallback = 100
@@ -1593,13 +1540,8 @@ access(all) contract FlowCreditMarket {
             self.liquidationsPaused = false
             self.liquidationWarmupSec = 300
             self.lastUnpausedAt = nil
-            self.protocolLiquidationFeeBps = 0
-            self.allowedSwapperTypes = {}
             self.dex = dex
             self.dexOracleDeviationBps = 300 // 3% default
-            self.dexMaxSlippageBps = 100
-            self.dexMaxRouteHops = 3
-
             self.positionLock = {}
 
             // The pool starts with an empty reserves map.
@@ -1708,15 +1650,8 @@ access(all) contract FlowCreditMarket {
 
         /// Returns Oracle-DEX guards and allowlists for frontends/keepers
         access(all) fun getDexLiquidationConfig(): {String: AnyStruct} {
-            let allowed: [String] = []
-            for t in self.allowedSwapperTypes.keys {
-                allowed.append(t.identifier)
-            }
             return {
-                "dexOracleDeviationBps": self.dexOracleDeviationBps,
-                "allowedSwappers": allowed,
-                "dexMaxSlippageBps": self.dexMaxSlippageBps,
-                "dexMaxRouteHops": self.dexMaxRouteHops // informational; enforcement is left to swapper implementations
+                "dexOracleDeviationBps": self.dexOracleDeviationBps
             }
         }
 
@@ -1797,7 +1732,6 @@ access(all) contract FlowCreditMarket {
                 risk: FlowCreditMarket.RiskParams(
                     collateralFactor: UFix128(self.collateralFactor[type]!),
                     borrowFactor: UFix128(self.borrowFactor[type]!),
-                    liquidationBonus: UFix128(self.liquidationBonus[type]!)
                 )
             )
 
@@ -1989,14 +1923,9 @@ access(all) contract FlowCreditMarket {
 
             // Compare the DEX price to the oracle price and revert if they diverge beyond configured threshold.
             let Pcd_dex = quote.outAmount / quote.inAmount // price of collateral, denominated in debt token, implied by dex quote (D/C)
-            // Compute the absolute value of the difference between the oracle price and dex price
-            let Pcd_dex_oracle_diff: UFix64 = Pcd_dex < Pcd_oracle ? Pcd_oracle - Pcd_dex : Pcd_dex - Pcd_oracle
-            // Compute the percent difference (eg. 0.05 for 5%). Always use the smaller price as the denominator.
-            let Pcd_dex_oracle_diffPct: UFix64 = Pcd_dex < Pcd_oracle ? Pcd_dex_oracle_diff / Pcd_dex : Pcd_dex_oracle_diff / Pcd_oracle
-            let Pcd_dex_oracle_diffBps = UInt16(Pcd_dex_oracle_diffPct * 10_000.0) // cannot overflow because Pcd_dex_oracle_diffPct<=1
-
-            assert(Pcd_dex_oracle_diffBps <= self.dexOracleDeviationBps, message: "Too large difference between dex/oracle prices diff=\(Pcd_dex_oracle_diffBps)bps")
-
+            assert(
+                FlowCreditMarket.dexOraclePriceDeviationInRange(dexPrice: Pcd_dex, oraclePrice: Pcd_oracle, maxDeviationBps: self.dexOracleDeviationBps),
+                message: "DEX/oracle price deviation too large. Dex price: \(Pcd_dex), Oracle price: \(Pcd_oracle)")
             // Execute the liquidation
             let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
             
@@ -3138,33 +3067,24 @@ access(all) contract FlowCreditMarket {
             )
         }
 
-        /// Governance: set DEX oracle deviation guard and toggle allowlisted swapper types
-        access(EGovernance) fun setDexLiquidationConfig(
-            dexOracleDeviationBps: UInt16?,
-            allowSwappers: [Type]?,
-            disallowSwappers: [Type]?,
-            dexMaxSlippageBps: UInt64?,
-            dexMaxRouteHops: UInt64?
-        ) {
-            if let dexOracleDeviationBps = dexOracleDeviationBps {
-                self.dexOracleDeviationBps = dexOracleDeviationBps
+        /// Updates the maximum allowed price deviation (in basis points) between the oracle and configured DEX.
+        access(EGovernance) fun setDexOracleDeviationBps(dexOracleDeviationBps: UInt16) {
+            pre {
+                // TODO(jord): sanity check here?
             }
-            if let allowSwappers = allowSwappers {
-                for t in allowSwappers {
-                    self.allowedSwapperTypes[t] = true
-                }
-            }
-            if let disallowSwappers = disallowSwappers {
-                for t in disallowSwappers {
-                    self.allowedSwapperTypes.remove(key: t)
-                }
-            }
-            if let dexMaxSlippageBps = dexMaxSlippageBps {
-                self.dexMaxSlippageBps = dexMaxSlippageBps
-            }
-            if let dexMaxRouteHops = dexMaxRouteHops {
-                self.dexMaxRouteHops = dexMaxRouteHops
-            }
+            self.dexOracleDeviationBps = dexOracleDeviationBps
+        }
+
+        /// Updates the DEX (AMM) interface used for liquidations and insurance collection.
+        ///
+        /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
+        /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
+        ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
+        ///
+        /// FlowCreditMarket does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
+        /// It relies directly on the Swapper's returned by the configured SwapperProvider.
+        access(EGovernance) fun setDEX(dex: {DeFiActions.SwapperProvider}) {
+            self.dex = dex
         }
 
         /// Pauses or unpauses liquidations; when unpausing, starts a warm-up window
@@ -3223,23 +3143,6 @@ access(all) contract FlowCreditMarket {
 
             // Set borrow factor (risk adjustment for borrowed amounts)
             self.borrowFactor[tokenType] = borrowFactor
-
-            // Default liquidation bonus per token = 5%
-            self.liquidationBonus[tokenType] = 0.05
-        }
-
-        // Removed: addSupportedTokenWithLiquidationBonus:
-        // Callers should use addSupportedToken then setTokenLiquidationBonus if needed
-
-        /// Sets per-token liquidation bonus fraction (0.0 to 1.0). E.g., 0.05 means +5% seize bonus.
-        access(EGovernance) fun setTokenLiquidationBonus(tokenType: Type, bonus: UFix64) {
-            pre {
-                self.isTokenSupported(tokenType: tokenType):
-                    "Unsupported token type \(tokenType.identifier)"
-                bonus >= 0.0 && bonus <= 1.0:
-                    "Liquidation bonus must be between 0 and 1"
-            }
-            self.liquidationBonus[tokenType] = bonus
         }
 
         /// Updates the insurance rate for a given token (fraction in [0,1])
@@ -3458,7 +3361,7 @@ access(all) contract FlowCreditMarket {
         /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
-        access(EPosition) fun rebalancePosition(pid: UInt64, force: Bool) {
+        access(EPosition | ERebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
             post {
                 self.positionLock[pid] == nil: "Position is not unlocked"
             }
@@ -3773,7 +3676,12 @@ access(all) contract FlowCreditMarket {
             // Get reference to reserves
             if let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?) {
                 // Collect insurance and get MOET vault
-                if let collectedMOET <- tokenState.collectInsurance(reserveVault: reserveRef) {
+                let oraclePrice = self.priceOracle.price(ofToken: tokenType)!
+                if let collectedMOET <- tokenState.collectInsurance(
+                    reserveVault: reserveRef,
+                    oraclePrice: oraclePrice,
+                    maxDeviationBps: self.dexOracleDeviationBps
+                ) {
                     let collectedMOETBalance = collectedMOET.balance
                     // Deposit collected MOET into insurance fund
                     self.insuranceFund.deposit(from: <-collectedMOET)
@@ -3808,7 +3716,6 @@ access(all) contract FlowCreditMarket {
                     risk: FlowCreditMarket.RiskParams(
                         collateralFactor: UFix128(self.collateralFactor[t]!),
                         borrowFactor: UFix128(self.borrowFactor[t]!),
-                        liquidationBonus: UFix128(self.liquidationBonus[t]!)
                     )
                 )
             }
@@ -4121,6 +4028,19 @@ access(all) contract FlowCreditMarket {
             let pool = self.pool.borrow()!
             pool.provideTopUpSource(pid: self.id, source: source)
         }
+
+        /// Rebalances the position to the target health value, if the position is under- or over-collateralized,
+        /// as defined by the position-specific min/max health thresholds.
+        /// If force=true, the position will be rebalanced regardless of its current health.
+        ///
+        /// When rebalancing, funds are withdrawn from the position's topUpSource or deposited to its drawDownSink.
+        /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
+        /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
+        /// not cause the position to reach its target health.
+        access(EPosition | ERebalance) fun rebalance(force: Bool) {
+            let pool = self.pool.borrow()!
+            pool.rebalancePosition(pid: self.id, force: force)
+        }
     }
 
     /// PositionManager
@@ -4421,6 +4341,15 @@ access(all) contract FlowCreditMarket {
     }
 
     /* --- PUBLIC METHODS ---- */
+
+    /// Checks that the DEX price does not deviate from the oracle price by more than the given threshold.
+    /// The deviation is computed as the absolute difference divided by the smaller price, expressed in basis points.
+    access(all) view fun dexOraclePriceDeviationInRange(dexPrice: UFix64, oraclePrice: UFix64, maxDeviationBps: UInt16): Bool {
+        let diff: UFix64 = dexPrice < oraclePrice ? oraclePrice - dexPrice : dexPrice - oraclePrice
+        let diffPct: UFix64 = dexPrice < oraclePrice ? diff / dexPrice : diff / oraclePrice
+        let diffBps = UInt16(diffPct * 10_000.0)
+        return diffBps <= maxDeviationBps
+    }
 
     /// Returns a health value computed from the provided effective collateral and debt values
     /// where health is a ratio of effective collateral over effective debt
