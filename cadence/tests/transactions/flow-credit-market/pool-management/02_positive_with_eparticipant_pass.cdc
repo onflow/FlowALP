@@ -7,6 +7,9 @@ import "DummyConnectors"
 
 transaction {
     prepare(admin: auth(BorrowValue, IssueStorageCapabilityController) &Account) {
+        let minter = admin.storage.borrow<&MOET.Minter>(from: MOET.AdminStoragePath)
+            ?? panic("Could not borrow reference to MOET Minter from signer's account at path \(MOET.AdminStoragePath)")
+
         // Issue a storage cap WITH the EParticipant entitlement
         let cap = admin.capabilities.storage.issue<
             auth(FlowCreditMarket.EParticipant) &FlowCreditMarket.Pool
@@ -15,9 +18,9 @@ transaction {
         let pool = cap.borrow() ?? panic("borrow failed")
 
         // Call EParticipant-gated methods
-        let zero1 <- DeFiActionsUtils.getEmptyVault(Type<@MOET.Vault>())
+        let initialFunds <- minter.mintTokens(amount: 1.0)
         let position <- pool.createPosition(
-            funds: <- zero1,
+            funds: <- initialFunds,
             issuanceSink: DummyConnectors.DummySink(),
             repaymentSource: nil,
             pushToDrawDownSink: false
@@ -26,7 +29,7 @@ transaction {
         destroy position
 
         // Also allowed with EParticipant:
-        let zero2 <- DeFiActionsUtils.getEmptyVault(Type<@MOET.Vault>())
-        pool.depositToPosition(pid: pid, from: <- zero2)
+        let additionalFunds <- minter.mintTokens(amount: 1.0)
+        pool.depositToPosition(pid: pid, from: <- additionalFunds)
     }
 }

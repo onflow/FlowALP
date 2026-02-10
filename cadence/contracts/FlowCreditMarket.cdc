@@ -767,6 +767,14 @@ access(all) contract FlowCreditMarket {
         /// Maps position ID -> usage amount (how much of each user's limit has been consumed for this token type)
         access(EImplementation) var depositUsage: {UInt64: UFix64}
 
+        /// The minimum balance size for the related token T per position.
+        /// This minimum balance is denominated in units of token T.
+        /// Let this minimum balance be M. Then each position must have either:
+        /// - A balance of 0
+        /// - A credit balance greater than or equal to M
+        /// - A debit balance greater than or equal to M
+        access(EImplementation) var minimumTokenBalancePerPosition: UFix64
+
         init(
             tokenType: Type,
             interestCurve: {InterestCurve},
@@ -793,6 +801,7 @@ access(all) contract FlowCreditMarket {
             self.depositCapacityCap = depositCapacityCap
             self.depositUsage = {}
             self.lastDepositCapacityUpdate = getCurrentBlock().timestamp
+            self.minimumTokenBalancePerPosition = 1.0
         }
 
         /// Sets the insurance rate for this token state
@@ -836,6 +845,11 @@ access(all) contract FlowCreditMarket {
             }
             // Reset the last update timestamp to prevent regeneration based on old timestamp
             self.lastDepositCapacityUpdate = getCurrentBlock().timestamp
+        }
+
+        /// Sets the minimum token balance per position for this token state
+        access(EImplementation) fun setMinimumTokenBalancePerPosition(_ minimum: UFix64) {
+            self.minimumTokenBalancePerPosition = minimum
         }
 
         /// Sets the stability fee rate for this token state.
@@ -2571,6 +2585,8 @@ access(all) contract FlowCreditMarket {
             pre {
                 self.globalLedger[funds.getType()] != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
+                self.positionSatisfiesMinimumBalance(type: funds.getType(), balance: UFix128(funds.balance)):
+                    "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition)"
                 // TODO(jord): Sink/source should be valid
             }
             post {
@@ -2616,6 +2632,19 @@ access(all) contract FlowCreditMarket {
 
             self._unlockPosition(id)
             return <-position
+        }
+
+        /// Checks if a balance meets the minimum token balance requirement for a given token type.
+        ///
+        /// This function is used to validate that positions maintain a minimum balance to prevent
+        /// dust positions and ensure operational efficiency. The minimum requirement applies to
+        /// credit (deposit) balances and is enforced at position creation and during withdrawals.
+        ///
+        /// @param type: The token type to check (e.g., Type<@FlowToken.Vault>())
+        /// @param balance: The balance amount to validate
+        /// @return true if the balance meets or exceeds the minimum requirement, false otherwise
+        access(self) view fun positionSatisfiesMinimumBalance(type: Type, balance: UFix128): Bool {
+            return balance >= UFix128(self.globalLedger[type]!.minimumTokenBalancePerPosition)
         }
 
         /// Allows anyone to deposit funds into any position.
@@ -2907,6 +2936,18 @@ access(all) contract FlowCreditMarket {
             assert(
                 position.minHealth <= postHealth,
                 message: "Post-withdrawal position health (\(postHealth)) is below min health threshold (\(position.minHealth))"
+            )
+
+            // Ensure that the remaining balance meets the minimum requirement (or is zero)
+            // Building the position view does require copying the balances, so it's less efficient than accessing the balance directly.
+            // Since most positions will have a single token type, we're okay with this for now.
+            let positionView = self.buildPositionView(pid: pid)
+            let remainingBalance = positionView.trueBalance(ofToken: type)
+
+            // This is applied to both credit and debit balances, with the main goal being to avoid dust positions.
+            assert(
+                remainingBalance == 0.0 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
+                message: "Withdrawal would leave position below minimum balance requirement of \(self.globalLedger[type]!.minimumTokenBalancePerPosition). Remaining balance would be \(remainingBalance)."
             )
 
             // Queue for update if necessary
@@ -3203,6 +3244,16 @@ access(all) contract FlowCreditMarket {
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositCapacityCap(cap)
+        }
+
+        /// Updates the minimum token balance per position for a given token
+        access(EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minimum: UFix64) {
+            pre {
+                self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
+            }
+            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+                ?? panic("Invariant: token state missing")
+            tsRef.setMinimumTokenBalancePerPosition(minimum)
         }
 
         /// Updates the stability fee rate for a given token (fraction in [0,1]).
