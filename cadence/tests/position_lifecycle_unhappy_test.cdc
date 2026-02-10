@@ -83,7 +83,7 @@ fun testPositionLifecycleBelowMinimumDeposit() {
     // Amount should now be exactly the minimum, so withdrawal should fail
     let withdrawResFail = _executeTransaction(
         "./transactions/position-manager/withdraw_from_position.cdc",
-        [positionId, FLOW_TOKEN_IDENTIFIER, amountAboveMin, true],
+        [positionId, FLOW_TOKEN_IDENTIFIER, minimum/2.0, true],
         user
     )
 

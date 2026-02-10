@@ -353,8 +353,24 @@ FlowCreditMarket.setMinimumTokenBalancePerPosition(
 
 ### Best Practices
 
-1. **Set minimums based on token economics**: Higher-value tokens may need lower minimums in token units (e.g., 0.1 ETH) while lower-value tokens need higher minimums (e.g., 100 USDC)
-2. **Consider gas/transaction costs**: Minimum should be high enough that position operations are economically justified
-3. **Balance accessibility**: Don't set minimums so high that they exclude legitimate small users
-4. **Review periodically**: Adjust minimums as token prices change significantly
+#### Dollar-Denominated Minimum Concept
+
+Conceptually, the minimum balance should reflect a **minimum value threshold** denominated in a reference currency (e.g., USD or MOET). The protocol implements this as a per-token balance denominated in each token's own units because it is easier to implement and reason about in smart contracts.
+
+**Governance Process**:
+
+1. **Pick a dollar-denominated minimum**: Determine the target minimum position value (e.g., $10 USD equivalent)
+2. **Convert to token units**: For each supported token, calculate the token amount that equals the dollar-denominated minimum
+   - Example: If minimum is $10 and FLOW = $0.50, set `minimumTokenBalancePerPosition = 20.0` FLOW
+   - Example: If minimum is $10 and USDC = $1.00, set `minimumTokenBalancePerPosition = 10.0` USDC
+3. **Add volatility buffer**: Consider adding a buffer for volatile tokens to account for price fluctuations
+   - Stable tokens (e.g., USDC): minimal or no buffer needed
+   - Volatile tokens (e.g., FLOW): add buffer to prevent positions from falling below minimum due to price drops
+4. **Periodic updates**: Review and update token minimums regularly as prices change (this could be automated)
+
+#### Additional Considerations
+
+- **Transaction costs**: Ensure the minimum is high enough that position operations (interest calculations, health checks, liquidations) are economically justified
+- **Accessibility**: Balance the minimum threshold to prevent dust while not excluding legitimate small users
+- **Per-token exceptions**: In rare cases, specific tokens may warrant different minimum values due to unique characteristics (extreme volatility, liquidity constraints, etc.)
 

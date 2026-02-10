@@ -766,7 +766,7 @@ access(all) contract FlowCreditMarket {
         access(EImplementation) var depositUsage: {UInt64: UFix64}
 
         /// The minimum balance amount for the related token per position
-        access(self) var minimumTokenBalancePerPosition: UFix64
+        access(EImplementation) var minimumTokenBalancePerPosition: UFix64
 
         init(
             tokenType: Type,
@@ -2651,7 +2651,7 @@ access(all) contract FlowCreditMarket {
             pre {
                 self.globalLedger[funds.getType()] != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
-               self.positionSatisfiesMinimumCreditBalance(funds.getType(), funds.balance):
+                self.positionSatisfiesMinimumBalance(type: funds.getType(), balance: UFix128(funds.balance)):
                     "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition)"
                 // TODO(jord): Sink/source should be valid
             }
@@ -2698,6 +2698,19 @@ access(all) contract FlowCreditMarket {
 
             self._unlockPosition(id)
             return <-position
+        }
+
+        /// Checks if a balance meets the minimum token balance requirement for a given token type.
+        ///
+        /// This function is used to validate that positions maintain a minimum balance to prevent
+        /// dust positions and ensure operational efficiency. The minimum requirement applies to
+        /// credit (deposit) balances and is enforced at position creation and during withdrawals.
+        ///
+        /// @param type: The token type to check (e.g., Type<@FlowToken.Vault>())
+        /// @param balance: The balance amount to validate
+        /// @return true if the balance meets or exceeds the minimum requirement, false otherwise
+        access(self) view fun positionSatisfiesMinimumBalance(type: Type, balance: UFix128): Bool {
+            return balance >= UFix128(self.globalLedger[type]!.minimumTokenBalancePerPosition)
         }
 
         /// Allows anyone to deposit funds into any position.
@@ -3001,16 +3014,11 @@ access(all) contract FlowCreditMarket {
                 interestIndex: interestIndex
             )
 
-            // Only enforce minimum for credit balances (deposits)
-            // Debit balances (borrows) can be any positive amount
-            if balanceRecord.direction == BalanceDirection.Credit {
-                let minimumRequired = UFix128(tokenState.minimumTokenBalancePerPosition)
-
-                assert(
-                    remainingBalance == 0.0 || remainingBalance >= minimumRequired,
-                    message: "Withdrawal would leave position below minimum balance requirement of \(minimumRequired). Remaining balance would be \(remainingBalance)."
-                )
-            }
+            // This is applied to both credit and debit balances, with the main goal being to avoid dust positions.
+            assert(
+                remainingBalance == 0.0 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
+                message: "Withdrawal would leave position below minimum balance requirement of \(self.globalLedger[type]!.minimumTokenBalancePerPosition). Remaining balance would be \(remainingBalance)."
+            )
 
             // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
