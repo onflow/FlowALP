@@ -69,6 +69,10 @@ access(all) contract FlowALPv1 {
     access(all) event LiquidationParamsUpdated(
         poolUUID: UInt64,
         targetHF: UFix128,
+    )
+
+    access(all) event PauseParamsUpdated(
+        poolUUID: UInt64,
         warmupSec: UInt64,
     )
 
@@ -433,25 +437,32 @@ access(all) contract FlowALPv1 {
         }
     }
 
-    /// Liquidation parameters view (global)
-    access(all) struct LiquidationParamsView {
-        access(all) let targetHF: UFix128
+    access(all) struct PauseParamsView {
         access(all) let paused: Bool
         access(all) let warmupSec: UInt64
         access(all) let lastUnpausedAt: UInt64?
+
+        init(
+            paused: Bool,
+            warmupSec: UInt64,
+            lastUnpausedAt: UInt64?,
+        ) {
+            self.paused = paused
+            self.warmupSec = warmupSec
+            self.lastUnpausedAt = lastUnpausedAt
+        }
+    }
+
+    /// Liquidation parameters view (global)
+    access(all) struct LiquidationParamsView {
+        access(all) let targetHF: UFix128
         access(all) let triggerHF: UFix128
 
         init(
             targetHF: UFix128,
-            paused: Bool,
-            warmupSec: UInt64,
-            lastUnpausedAt: UInt64?,
             triggerHF: UFix128,
         ) {
             self.targetHF = targetHF
-            self.paused = paused
-            self.warmupSec = warmupSec
-            self.lastUnpausedAt = lastUnpausedAt
             self.triggerHF = triggerHF
         }
     }
@@ -1648,13 +1659,19 @@ access(all) contract FlowALPv1 {
             return nil
         }
 
+        /// Returns current pause parameters
+        access(all) fun getPauseParams(): FlowCreditMarket.PauseParamsView {
+            return FlowCreditMarket.PauseParamsView(
+                paused: self.paused,
+                warmupSec: self.warmupSec,
+                lastUnpausedAt: self.lastUnpausedAt,
+            )
+        }
+
         /// Returns current liquidation parameters
         access(all) fun getLiquidationParams(): FlowALPv1.LiquidationParamsView {
             return FlowALPv1.LiquidationParamsView(
                 targetHF: self.liquidationTargetHF,
-                paused: self.paused,
-                warmupSec: self.warmupSec,
-                lastUnpausedAt: self.lastUnpausedAt,
                 triggerHF: 1.0,
             )
         }
@@ -3068,7 +3085,6 @@ access(all) contract FlowALPv1 {
         /// Updates liquidation-related parameters (any nil values are ignored)
         access(EGovernance) fun setLiquidationParams(
             targetHF: UFix128?,
-            warmupSec: UInt64?,
         ) {
             var newTarget = self.liquidationTargetHF
             if let targetHF = targetHF {
@@ -3079,15 +3095,23 @@ access(all) contract FlowALPv1 {
                 self.liquidationTargetHF = targetHF
                 newTarget = targetHF
             }
+            emit LiquidationParamsUpdated(
+                poolUUID: self.uuid,
+                targetHF: newTarget,
+            )
+        }
+
+        /// Updates pause-related parameters (any nil values are ignored)
+        access(EGovernance) fun setPauseParams(
+            warmupSec: UInt64?,
+        ) {
             var newWarmup = self.warmupSec
             if let warmupSec = warmupSec {
                 self.warmupSec = warmupSec
                 newWarmup = warmupSec
             }
-
-            emit LiquidationParamsUpdated(
+            emit PauseParamsUpdated(
                 poolUUID: self.uuid,
-                targetHF: newTarget,
                 warmupSec: newWarmup,
             )
         }
