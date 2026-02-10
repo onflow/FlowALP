@@ -386,3 +386,65 @@ fun test_collectInsurance_multipleTokens() {
     // verify Flow timestamp is now updated (should be >= MOET timestamp since it was collected after)
     Test.assert(flowLastCollectionTimeAfter! >= moetLastCollectionTime!, message: "Flow timestamp should be >= MOET timestamp")
 }
+
+// -----------------------------------------------------------------------------
+// Test: collectInsurance reverts when DEX price deviates too far from oracle
+// Sets up a FLOW insurance swapper with a price ratio that deviates significantly
+// from the oracle price, then verifies that collectInsurance fails. Adjusts the
+// swapper price to be within tolerance and verifies success.
+// -----------------------------------------------------------------------------
+access(all)
+fun test_collectInsurance_dexOracleSlippageProtection() {
+    // setup FLOW LP to provide FLOW reserves (insurance is collected from FLOW reserves)
+    let flowLp = Test.createAccount()
+    setupMoetVault(flowLp, beFailed: false)
+    transferFlowTokens(to: flowLp, amount: 10000.0)
+
+    // FLOW LP deposits FLOW
+    createPosition(signer: flowLp, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+
+    // setup borrower that borrows FLOW (creates FLOW debit balance for insurance calculation)
+    let borrower = Test.createAccount()
+    setupMoetVault(borrower, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: 5000.0, beFailed: false)
+
+    // borrower deposits MOET as collateral and borrows FLOW
+    createPosition(signer: borrower, amount: 5000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    borrowFromPosition(signer: borrower, positionId: 1, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 2000.0, beFailed: false)
+
+    // setup protocol account with MOET vault for the swapper
+    setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 20000.0, beFailed: false)
+
+    // Oracle says FLOW = 1.0 MOET (already set in setup())
+    // Configure insurance swapper with price ratio = 0.5 (50% deviation from oracle)
+    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, priceRatio: 0.5)
+    Test.expect(swapperResult, Test.beSucceeded())
+
+    // set 10% annual debit rate and 10% insurance rate
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.1)
+    Test.expect(rateResult, Test.beSucceeded())
+
+    // advance time so insurance accrues
+    Test.moveTime(by: ONE_YEAR)
+
+    // collect insurance for FLOW - should FAIL because DEX price (0.5) deviates too far from oracle (1.0)
+    // deviation = (1.0 - 0.5) / 0.5 = 100% = 10000 bps >> 300 bps default threshold
+    collectInsurance(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, beFailed: true)
+
+    // verify insurance fund balance is still 0 (collection was rejected)
+    let balanceAfterFailure = getInsuranceFundBalance()
+    Test.assertEqual(0.0, balanceAfterFailure)
+
+    // Now reconfigure swapper with price ratio = 1.0 (matches oracle, 0% deviation)
+    let swapperResult2 = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    Test.expect(swapperResult2, Test.beSucceeded())
+
+    // collect insurance for FLOW - should SUCCEED now
+    collectInsurance(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, beFailed: false)
+
+    // verify insurance was collected
+    let finalBalance = getInsuranceFundBalance()
+    Test.assert(finalBalance > 0.0, message: "Insurance fund should have received MOET after successful collection")
+}
