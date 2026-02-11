@@ -2,7 +2,7 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-import "FlowCreditMarket"
+import "FlowALPv1"
 import "test_helpers.cdc"
 
 // -----------------------------------------------------------------------------
@@ -55,7 +55,7 @@ fun testPositionLifecycleBelowMinimumDeposit() {
 
     // open wrapped position (pushToDrawDownSink)
     let openWithLessThanMinRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [minimum-0.1, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
@@ -65,7 +65,7 @@ fun testPositionLifecycleBelowMinimumDeposit() {
 
     // open wrapped position (pushToDrawDownSink)
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [minimum+amountAboveMin, FLOW_VAULT_STORAGE_PATH, true],
         user
     )

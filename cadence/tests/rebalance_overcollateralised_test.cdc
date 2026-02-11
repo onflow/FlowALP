@@ -1,6 +1,6 @@
 import Test
 import BlockchainHelpers
-import "FlowCreditMarket"
+import "FlowALPv1"
 
 import "MOET"
 import "test_helpers.cdc"
@@ -40,7 +40,7 @@ fun testRebalanceOvercollateralised() {
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
 
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )

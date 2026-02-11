@@ -1,7 +1,7 @@
 import Test
 
 import "test_helpers.cdc"
-import "FlowCreditMarket"
+import "FlowALPv1"
 
 access(all) let alice = Test.createAccount()
 
@@ -70,7 +70,7 @@ access(all) fun test_set_stability_fee_rate_less_than_zero_fails() {
     let invalidRate = -0.01
 
     let res = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_stability_fee_rate.cdc",
+        "../transactions/flow-alp/pool-governance/set_stability_fee_rate.cdc",
         [MOET_TOKEN_IDENTIFIER, invalidRate],
         PROTOCOL_ACCOUNT
     )
@@ -117,10 +117,10 @@ access(all) fun test_set_stability_fee_rate_emits_event() {
     Test.expect(res, Test.beSucceeded())
 
     // Verify event emission
-    let events = Test.eventsOfType(Type<FlowCreditMarket.StabilityFeeRateUpdated>())
+    let events = Test.eventsOfType(Type<FlowALPv1.StabilityFeeRateUpdated>())
     Test.assert(events.length > 0, message: "Expected StabilityFeeRateUpdated event to be emitted")
 
-    let stabilityFeeRateUpdatedEvent = events[events.length - 1] as! FlowCreditMarket.StabilityFeeRateUpdated
+    let stabilityFeeRateUpdatedEvent = events[events.length - 1] as! FlowALPv1.StabilityFeeRateUpdated
     Test.assertEqual(MOET_TOKEN_IDENTIFIER, stabilityFeeRateUpdatedEvent.tokenType)
     Test.assertEqual(newRate, stabilityFeeRateUpdatedEvent.stabilityFeeRate)
 }

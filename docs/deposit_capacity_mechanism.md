@@ -1,6 +1,6 @@
 # Deposit Capacity Mechanism
 
-This document describes the deposit capacity limiting system in the FlowCreditMarket contract, including how deposit rates, capacity caps, and per-user limits work together to control deposit throughput.
+This document describes the deposit capacity limiting system in the FlowALPv1 contract, including how deposit rates, capacity caps, and per-user limits work together to control deposit throughput.
 
 ## Overview
 
@@ -339,13 +339,13 @@ access(EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minim
 **Example**:
 ```cadence
 // Set minimum FLOW deposit to 1.0
-FlowCreditMarket.setMinimumTokenBalancePerPosition(
+FlowALPv1.setMinimumTokenBalancePerPosition(
     tokenType: Type<@FlowToken.Vault>(),
     minimum: 1.0
 )
 
 // Set minimum stablecoin deposit to 10.0
-FlowCreditMarket.setMinimumTokenBalancePerPosition(
+FlowALPv1.setMinimumTokenBalancePerPosition(
     tokenType: Type<@USDC.Vault>(),
     minimum: 10.0
 )

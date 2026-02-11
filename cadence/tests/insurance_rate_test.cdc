@@ -2,7 +2,7 @@ import Test
 import BlockchainHelpers
 
 import "test_helpers.cdc"
-import "FlowCreditMarket"
+import "FlowALPv1"
 
 access(all) let alice = Test.createAccount()
 access(all) var snapshot: UInt64 = 0
@@ -205,7 +205,7 @@ fun test_setInsuranceRate_rateLessThanZero_fails() {
     let invalidRate = -0.01
 
     res = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_insurance_rate.cdc",
+        "../transactions/flow-alp/pool-governance/set_insurance_rate.cdc",
         [MOET_TOKEN_IDENTIFIER, invalidRate],
         PROTOCOL_ACCOUNT
     )
