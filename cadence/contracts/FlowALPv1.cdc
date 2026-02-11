@@ -76,10 +76,12 @@ access(all) contract FlowALPv1 {
         warmupSec: UInt64,
     )
 
+    /// Emitted when the pool is paused, which temporarily prevents liquidations, withdrawals, and deposits.
     access(all) event PoolPaused(
         poolUUID: UInt64
     )
 
+    /// Emitted when the pool is unpaused, which re-enables all functionality when the Pool was previously paused.
     access(all) event PoolUnpaused(
         poolUUID: UInt64,
         warmupEndsAt: UInt64
@@ -1496,7 +1498,8 @@ access(all) contract FlowALPv1 {
         /// After a liquidation, the position's health factor must be less than or equal to this target value.
         access(self) var liquidationTargetHF: UFix128
 
-        /// Whether the pool is currently paused by governance in case of issues
+        /// Whether the pool is currently paused, which prevents all user actions from occurring.
+        /// The pool can be paused by the governance committee to protect user and protocol safety.
         access(self) var paused: Bool
         /// Period (s) following unpause in which actions are still not allowed
         access(self) var warmupSec: UInt64
