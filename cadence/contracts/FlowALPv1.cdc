@@ -3136,20 +3136,21 @@ access(all) contract FlowALPv1 {
             self.dex = dex
         }
 
-        /// Pauses or unpauses the pool; when unpausing, starts a warm-up window
-        access(EGovernance) fun pauseOrUnpause(flag: Bool) {
-            if flag {
-                self.paused = true
-                emit PoolPaused(poolUUID: self.uuid)
-            } else {
-                self.paused = false
-                let now = UInt64(getCurrentBlock().timestamp)
-                self.lastUnpausedAt = now
-                emit PoolUnpaused(
-                    poolUUID: self.uuid,
-                    warmupEndsAt: now + self.warmupSec
-                )
-            }
+        /// Pauses the pool, temporarily preventing further withdrawals, deposits, and liquidations
+        access(EGovernance) fun pausePool() {
+            self.paused = true
+            emit PoolPaused(poolUUID: self.uuid)
+        }
+
+        /// Unpauses the pool, and starts the warm-up window
+        access(EGovernance) fun unpausePool() {
+            self.paused = false
+            let now = UInt64(getCurrentBlock().timestamp)
+            self.lastUnpausedAt = now
+            emit PoolUnpaused(
+                poolUUID: self.uuid,
+                warmupEndsAt: now + self.warmupSec
+            )
         }
 
         /// Adds a new token type to the pool with the given parameters defining borrowing limits on collateral,
