@@ -1582,12 +1582,6 @@ access(all) contract FlowALPv1 {
             self.positionLock.remove(key: pid)
         }
 
-        access(self) fun _assertLiquidationsActive() {
-            pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
-            }
-        }
-
         ///////////////
         // GETTERS
         ///////////////
