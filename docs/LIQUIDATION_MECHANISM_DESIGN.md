@@ -144,7 +144,7 @@
 
 ## References
 - High-level design (Notion): https://www.notion.so/Liquidation-Mechanism-in-FlowVaults-23a9c94cfb9c8087bee9d8e99045b3d9
-- Implementation doc (this branch): https://github.com/onflow/FlowALPv1/blob/feature/liquidation-mechanism/LIQUIDATION_MECHANISM_DESIGN.md
+- Implementation doc (this branch): https://github.com/onflow/FlowCreditMarket/blob/feature/liquidation-mechanism/LIQUIDATION_MECHANISM_DESIGN.md
 
 ## Liquidation policy (Phase 1)
 - **Target health factor (HF):** `liquidationTargetHF = 1.05e24`.

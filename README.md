@@ -89,7 +89,7 @@ For detailed test status and FlowVault removal summary, see [TestingCompletionSu
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/onflow/FlowALPv1.git
+git clone https://github.com/onflow/FlowCreditMarket.git
 cd FlowALPv1
 git submodule update --init --recursive
 ```
