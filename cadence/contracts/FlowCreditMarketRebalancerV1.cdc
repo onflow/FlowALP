@@ -9,11 +9,12 @@ import "FlowFees"
 //
 // Users create and store a Rebalancer resource in their own account. They supply a RecurringConfig
 // (interval, priority, executionEffort, estimationMargin, forceRebalance, txnFunder) and a
-// capability to a position. After saving the Rebalancer, users must issue a Capability to it 
-// and call setSelfCapability so it can register with the FlowTransactionScheduler.
-// The scheduler then invokes executeTransaction on the configured interval; 
-// each run rebalances the position (using the txnFunder for fees) and schedules the
-// next run. See RebalanceArchitecture.md for an architecture overview.
+// capability to a position. After saving the Rebalancer, users must issue a capability to it
+// and call setSelfCapability so it can register with the FlowTransactionScheduler. The scheduler
+// then invokes executeTransaction on the configured interval; each run rebalances the position
+// (using the txnFunder for fees) and schedules the next run. If scheduling the next run fails
+// (e.g. insufficient fees), fixReschedule() can be called by anyone—including an off-chain
+// supervisor—to retry; it is idempotent. See RebalanceArchitecture.md for an architecture overview.
 access(all) contract FlowCreditMarketRebalancerV1 {
 
     access(all) event Rebalanced(
@@ -40,8 +41,9 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         error: String,
     )
 
+    /// Configuration for how often and how the rebalancer runs, and which account pays scheduler fees.
     access(all) struct RecurringConfig {
-        /// How frequently the rebalance will be executed (in seconds)
+        /// How frequently the rebalance will be executed (in seconds).
         access(all) let interval: UInt64
         access(all) let priority: FlowTransactionScheduler.Priority
         access(all) let executionEffort: UInt64
@@ -89,20 +91,21 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         }
     }
 
-    // Rebalancer automatically calls rebalance on the position on the configured interval.
-    // Owners can change the config (setRecurringConfig), call fixReschedule to unstuck the scheduler, 
-    // or destroy the resource to stop scheduling after calling cancelAllScheduledTransactions to rebate the fees.  
+    /// Rebalancer runs the position's rebalance on a schedule. The owner can setRecurringConfig,
+    /// call fixReschedule (or have a supervisor do so) to recover from scheduling failures, or
+    /// call cancelAllScheduledTransactions then destroy the resource to stop and rebate fees.
     access(all) resource Rebalancer : FlowTransactionScheduler.TransactionHandler {
-            
+
         access(all) var lastRebalanceTimestamp: UFix64
         access(all) var nextScheduledRebalanceTimestamp: UFix64?
         access(all) var recurringConfig: RecurringConfig
 
         access(self) var _selfCapability: Capability<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>?
         access(self) var _positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &FlowCreditMarket.Position>
-        // txnIDs => ScheduledTransaction
+        /// Scheduled transaction id -> ScheduledTransaction (used to cancel/refund).
         access(self) var scheduledTransactions: @{UInt64: FlowTransactionScheduler.ScheduledTransaction}
 
+        /// Entitlement required to call setRecurringConfig (owner only for standard rebalancers).
         access(all) entitlement Configure
 
         access(all) event ResourceDestroyed(uuid: UInt64 = self.uuid)
@@ -251,7 +254,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             return &self.scheduledTransactions[id]
         }
 
-        // returns the next execution timestamp, but ensuring it is in the future
+        /// Returns the next execution timestamp (lastRebalanceTimestamp + interval), clamped to the future.
         access(all) view fun nextExecutionTimestamp(): UFix64 {
             // protect overflow
             if UInt64(UFix64.max) - UInt64(self.lastRebalanceTimestamp) <= UInt64(self.recurringConfig.interval) {
@@ -266,6 +269,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             return nextTimestamp
         }
 
+        /// Update schedule and fee config. Cancels existing scheduled transactions and schedules the next run with the new config.
         access(Configure) fun setRecurringConfig(_ config: RecurringConfig) {
             self.recurringConfig = config
             self.cancelAllScheduledTransactions()
@@ -275,13 +279,14 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             }
         }
 
+        /// Cancel all scheduled rebalance transactions and refund fees to the txnFunder.
         access(FlowTransactionScheduler.Cancel) fun cancelAllScheduledTransactions() {
             while self.scheduledTransactions.keys.length > 0 {
                 self.cancelScheduledTransaction(id: self.scheduledTransactions.keys[0])
             }
         }
 
-        // Cancels the scheduled transaction, removes it from the map and refunds the fees to the funder
+        /// Cancel one scheduled transaction, remove it from the map, and refund its fees to the txnFunder.
         access(FlowTransactionScheduler.Cancel) fun cancelScheduledTransaction(id: UInt64) {
             let txn <- self.scheduledTransactions.remove(key: id)!
             if txn.status() != FlowTransactionScheduler.Status.Scheduled {
@@ -296,6 +301,7 @@ access(all) contract FlowCreditMarketRebalancerV1 {
             destroy refund
         }
 
+        /// Drop any scheduled transactions that are no longer Scheduled (e.g. already executed or cancelled).
         access(self) fun removeAllNonScheduledTransactions() {
             for id in self.scheduledTransactions.keys {
                 let txn = self.borrowScheduledTransaction(id: id)!
@@ -306,6 +312,8 @@ access(all) contract FlowCreditMarketRebalancerV1 {
         }
     }
 
+    /// Create a new Rebalancer. The caller must save it to storage, issue a capability to it,
+    /// call setSelfCapability with that capability, then call fixReschedule() to start the schedule.
     access(all) fun createRebalancer(
         recurringConfig: RecurringConfig,
         positionRebalanceCapability: Capability<auth(FlowCreditMarket.ERebalance) &FlowCreditMarket.Position>,
