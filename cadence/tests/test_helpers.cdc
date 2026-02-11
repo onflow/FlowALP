@@ -430,6 +430,18 @@ fun setMinimumTokenBalancePerPosition(signer: Test.TestAccount, tokenTypeIdentif
 }
 
 access(all)
+fun setPoolPauseState(
+    signer: Test.TestAccount,
+    pause: Bool
+): Test.TransactionResult {
+    return _executeTransaction(
+        "./transactions/flow-alp/pool-governance/set_pool_paused.cdc",
+        [pause],
+        signer
+    )
+}
+
+access(all)
 fun createPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     // Grant beta access to the signer if they don't have it yet
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, signer)
