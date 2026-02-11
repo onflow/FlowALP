@@ -3085,37 +3085,29 @@ access(all) contract FlowALPv1 {
         // POOL MANAGEMENT
         ///////////////////////
 
-        /// Updates liquidation-related parameters (any nil values are ignored)
+        /// Updates liquidation-related parameters
         access(EGovernance) fun setLiquidationParams(
-            targetHF: UFix128?,
+            targetHF: UFix128,
         ) {
-            var newTarget = self.liquidationTargetHF
-            if let targetHF = targetHF {
-                assert(
-                    targetHF > 1.0,
-                    message: "targetHF must be > 1.0"
-                )
-                self.liquidationTargetHF = targetHF
-                newTarget = targetHF
-            }
+            assert(
+                targetHF > 1.0,
+                message: "targetHF must be > 1.0"
+            )
+            self.liquidationTargetHF = targetHF
             emit LiquidationParamsUpdated(
                 poolUUID: self.uuid,
-                targetHF: newTarget,
+                targetHF: targetHF,
             )
         }
 
-        /// Updates pause-related parameters (any nil values are ignored)
+        /// Updates pause-related parameters
         access(EGovernance) fun setPauseParams(
-            warmupSec: UInt64?,
+            warmupSec: UInt64,
         ) {
-            var newWarmup = self.warmupSec
-            if let warmupSec = warmupSec {
-                self.warmupSec = warmupSec
-                newWarmup = warmupSec
-            }
+            self.warmupSec = warmupSec
             emit PauseParamsUpdated(
                 poolUUID: self.uuid,
-                warmupSec: newWarmup,
+                warmupSec: warmupSec,
             )
         }
 
