@@ -1597,7 +1597,7 @@ access(all) contract FlowALPv1 {
             }
             if let lastUnpausedAt = self.lastUnpausedAt {
                 let now = UInt64(getCurrentBlock().timestamp)
-                return now >= lastUnpausedAt + self.warmupSec
+                return now < lastUnpausedAt + self.warmupSec
             }
             return false
         }
