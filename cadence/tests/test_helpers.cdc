@@ -422,7 +422,7 @@ fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: Strin
 access(all)
 fun setMinimumTokenBalancePerPosition(signer: Test.TestAccount, tokenTypeIdentifier: String, minimum: UFix64) {
     let setRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-governance/set_minimum_token_balance_per_position.cdc",
+        "../transactions/flow-alp/pool-governance/set_minimum_token_balance_per_position.cdc",
         [tokenTypeIdentifier, minimum],
         signer
     )
