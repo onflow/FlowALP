@@ -3141,12 +3141,18 @@ access(all) contract FlowALPv1 {
 
         /// Pauses the pool, temporarily preventing further withdrawals, deposits, and liquidations
         access(EGovernance) fun pausePool() {
+            if self.paused {
+                return
+            }
             self.paused = true
             emit PoolPaused(poolUUID: self.uuid)
         }
 
         /// Unpauses the pool, and starts the warm-up window
         access(EGovernance) fun unpausePool() {
+            if !self.paused {
+                return
+            }
             self.paused = false
             let now = UInt64(getCurrentBlock().timestamp)
             self.lastUnpausedAt = now
