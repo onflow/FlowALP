@@ -70,7 +70,7 @@ fun test_setMinHealth_fails_below_one() {
 
     // Attempt to set minHealth to 0.9 (below 1.0) — should fail
     let setRes = _executeTransaction(
-        "./transactions/position-manager/set_min_health.cdc",
+        "../transactions/flow-alp/position/set_min_health.cdc",
         [positionId, 0.9 as UFix64],
         user
     )
@@ -92,7 +92,7 @@ fun test_setMinHealth_fails_above_target() {
 
     // minHealth=1.4 exceeds targetHealth=1.3
     let setRes = _executeTransaction(
-        "./transactions/position-manager/set_min_health.cdc",
+        "../transactions/flow-alp/position/set_min_health.cdc",
         [0 as UInt64, 1.4 as UFix64],
         user
     )
@@ -114,7 +114,7 @@ fun test_setTargetHealth_fails_at_or_below_min() {
 
     // targetHealth=1.1 equals minHealth — must be strictly greater
     let setRes = _executeTransaction(
-        "./transactions/position-manager/set_target_health.cdc",
+        "../transactions/flow-alp/position/set_target_health.cdc",
         [0 as UInt64, 1.1 as UFix64],
         user
     )
@@ -136,7 +136,7 @@ fun test_setTargetHealth_fails_at_or_above_max() {
 
     // targetHealth=1.5 equals maxHealth — must be strictly less
     let setRes = _executeTransaction(
-        "./transactions/position-manager/set_target_health.cdc",
+        "../transactions/flow-alp/position/set_target_health.cdc",
         [0 as UInt64, 1.5 as UFix64],
         user
     )
@@ -158,7 +158,7 @@ fun test_setMaxHealth_fails_below_target() {
 
     // maxHealth=1.2 is below targetHealth=1.3
     let setRes = _executeTransaction(
-        "./transactions/position-manager/set_max_health.cdc",
+        "../transactions/flow-alp/position/set_max_health.cdc",
         [0 as UInt64, 1.2 as UFix64],
         user
     )

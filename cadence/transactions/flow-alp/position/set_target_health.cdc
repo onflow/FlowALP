@@ -1,10 +1,7 @@
 import "FungibleToken"
 import "FlowALPv1"
 
-/// TEST TRANSACTION - DO NOT USE IN PRODUCTION
-///
 /// Sets the target health on a position.
-///
 transaction(
     positionId: UInt64,
     targetHealth: UFix64
