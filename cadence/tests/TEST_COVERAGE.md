@@ -1,8 +1,8 @@
-# Test Coverage Analysis - TidalProtocol (FlowCreditMarket)
+# Test Coverage Analysis - TidalProtocol (FlowALPv1)
 
 **Analysis Date:** 2026-01-28
 **Repository:** TidalProtocol
-**Core Contract:** FlowCreditMarket.cdc
+**Core Contract:** FlowALPv1.cdc
 **Test Coverage:** 89.7%
 **Total Core Tests:** 31 test files
 
@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-This document provides a comprehensive analysis of the existing test coverage for the FlowCreditMarket lending protocol, an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The protocol has achieved 89.7% code coverage with 31 core test files covering fundamental operations, interest mechanics, liquidations, and edge cases.
+This document provides a comprehensive analysis of the existing test coverage for the FlowALPv1 lending protocol, an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The protocol has achieved 89.7% code coverage with 31 core test files covering fundamental operations, interest mechanics, liquidations, and edge cases.
 
 This analysis identifies areas of strong test coverage and highlights high-priority gaps that should be addressed to improve protocol security, resilience, and robustness.
 
@@ -30,7 +30,7 @@ This analysis identifies areas of strong test coverage and highlights high-prior
 
 ### Overview
 
-The FlowCreditMarket protocol has comprehensive test coverage across the following categories:
+The FlowALPv1 protocol has comprehensive test coverage across the following categories:
 
 | Category | Number of Tests | Coverage Level |
 |----------|----------------|----------------|
@@ -59,7 +59,7 @@ The protocol uses Cadence's native Test framework with:
 
 ### Test File Location
 
-All core FlowCreditMarket tests are located in `/cadence/tests/` directory.
+All core FlowALPv1 tests are located in `/cadence/tests/` directory.
 
 ### Common Test Patterns
 
@@ -496,15 +496,15 @@ newCapacity = depositRate * (timeElapsed / 3600) + oldCapacity
 
 ### 9. Mathematical Operations Tests
 
-The protocol includes 15+ test files for mathematical operations:
+The protocol includes math-focused tests such as:
 
-- **flowcreditmarketmath_pow_test.cdc** - Power function (exponentiation)
-- **flowcreditmarketmath_exp_test.cdc** - Exponential function (e^x)
-- **flowcreditmarketmath_compound_test.cdc** - Compound interest calculation
-- **flowcreditmarketmath_ln_test.cdc** - Natural logarithm
-- **flowcreditmarketmath_conversions_test.cdc** - UFix64 ↔ UFix128 conversions
-- **flowcreditmarketmath_rounding_test.cdc** - Rounding operations
-- And additional math validation tests
+- **flowALPMath_pow_test.cdc** - Power function (exponentiation)
+- **phase0_pure_math_test.cdc** - Core health and max-withdraw pure math invariants
+- **interest_curve_test.cdc** - Fixed and kink curve behavior/constraints
+- **update_interest_rate_test.cdc** - Debit/credit rate update behavior by curve type
+- **funds_available_above_target_health_test.cdc** - Funds-available calculations across scenarios
+- **funds_required_for_target_health_test.cdc** - Funds-required calculations across scenarios
+- Additional math-adjacent integration coverage: `interest_accrual_integration_test.cdc`, `interest_curve_advanced_test.cdc`, and `liquidation_phase1_test.cdc`
 
 **Coverage:**
 - Fixed-point arithmetic (128-bit precision)
@@ -1113,7 +1113,7 @@ Test: Connector provides false quote, transaction validates and reverts
 
 ## Conclusion
 
-The FlowCreditMarket protocol has achieved strong test coverage (89.7%) across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
+The FlowALPv1 protocol has achieved strong test coverage (89.7%) across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
 
 However, significant gaps exist in multi-collateral scenarios, oracle failure handling, advanced liquidation cases, and adversarial attack vectors. Addressing these high-priority gaps will substantially improve protocol robustness and production readiness.
 

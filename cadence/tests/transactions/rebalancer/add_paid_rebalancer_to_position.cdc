@@ -1,6 +1,6 @@
-import "FlowCreditMarket"
-import "FlowCreditMarketRebalancerV1"
-import "FlowCreditMarketRebalancerPaidV1"
+import "FlowALPv1"
+import "FlowALPRebalancerv1"
+import "FlowALPRebalancerPaidv1"
 
 transaction(positionStoragePath: StoragePath, paidRebalancerStoragePath: StoragePath) {
     let signer: auth(Storage, IssueStorageCapabilityController, SaveValue) &Account
@@ -10,10 +10,10 @@ transaction(positionStoragePath: StoragePath, paidRebalancerStoragePath: Storage
     }
 
     execute {
-        let rebalanceCap = self.signer.capabilities.storage.issue<auth(FlowCreditMarket.ERebalance) &FlowCreditMarket.Position>(
+        let rebalanceCap = self.signer.capabilities.storage.issue<auth(FlowALPv1.ERebalance) &FlowALPv1.Position>(
             positionStoragePath
         )
-        let paidRebalancer <- FlowCreditMarketRebalancerPaidV1.createPaidRebalancer(
+        let paidRebalancer <- FlowALPRebalancerPaidv1.createPaidRebalancer(
             positionRebalanceCapability: rebalanceCap
         )
         self.signer.storage.save(<-paidRebalancer, to: paidRebalancerStoragePath)

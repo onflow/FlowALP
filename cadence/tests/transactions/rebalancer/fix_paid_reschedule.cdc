@@ -1,4 +1,4 @@
-import "FlowCreditMarketRebalancerPaidV1"
+import "FlowALPRebalancerPaidv1"
 
 transaction(uuid: UInt64?, paidRebalancerStoragePath: StoragePath) {
     let rebalancerUUID: UInt64
@@ -7,7 +7,7 @@ transaction(uuid: UInt64?, paidRebalancerStoragePath: StoragePath) {
         if uuid != nil {
             self.rebalancerUUID = uuid!
         } else {
-            let paidRebalancerCap = signer.capabilities.storage.issue<&FlowCreditMarketRebalancerPaidV1.RebalancerPaid>(
+            let paidRebalancerCap = signer.capabilities.storage.issue<&FlowALPRebalancerPaidv1.RebalancerPaid>(
                 paidRebalancerStoragePath
             )
             assert(paidRebalancerCap.check(), message: "Invalid paid rebalancer capability")
@@ -16,6 +16,6 @@ transaction(uuid: UInt64?, paidRebalancerStoragePath: StoragePath) {
     }
 
     execute {
-        FlowCreditMarketRebalancerPaidV1.fixReschedule(uuid: self.rebalancerUUID)
+        FlowALPRebalancerPaidv1.fixReschedule(uuid: self.rebalancerUUID)
     }
 }

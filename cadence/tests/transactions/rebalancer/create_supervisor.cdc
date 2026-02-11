@@ -4,7 +4,7 @@ import "FungibleToken"
 import "FlowToken"
 import "FlowCron"
 import "FlowFees"
-import "FlowCreditMarketSupervisorV1"
+import "FlowALPSupervisorv1"
 
 transaction(
     cronExpression: String,
@@ -22,7 +22,7 @@ transaction(
     }
 
     execute {
-        let supervisor <- FlowCreditMarketSupervisorV1.createSupervisor()
+        let supervisor <- FlowALPSupervisorv1.createSupervisor()
         self.signer.storage.save(<-supervisor, to: supervisorStoragePath)
         let wrappedHandlerCap = 
             self.signer.capabilities.storage.issue<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}

@@ -1,6 +1,6 @@
 # Deposit Capacity Mechanism
 
-This document describes the deposit capacity limiting system in the FlowCreditMarket contract, including how deposit rates, capacity caps, and per-user limits work together to control deposit throughput.
+This document describes the deposit capacity limiting system in the FlowALPv1 contract, including how deposit rates, capacity caps, and per-user limits work together to control deposit throughput.
 
 ## Overview
 
@@ -234,4 +234,143 @@ The deposit capacity system provides:
 - **Rate limiting**: Per-deposit limits prevent single large deposits
 - **Automatic reset**: User limits reset when capacity regenerates
 - **Per-token control**: Each token type has independent capacity management
+
+## Minimum Balance Requirements
+
+### Overview
+
+In addition to capacity limits, the protocol enforces a minimum token balance requirement per position. This prevents dust positions and ensures operational efficiency.
+
+**Type**: `UFix64`
+**Location**: `TokenState.minimumTokenBalancePerPosition`
+**Default**: `1.0`
+
+### Design Rationale
+
+The minimum balance requirement exists to:
+1. **Prevent dust positions**: Avoid positions with negligible value that consume storage and computational resources
+2. **Ensure economic viability**: Position operations (interest calculations, health checks, liquidations) have fixed costs; minimum balances ensure these costs are justified
+3. **Simplify operations**: Eliminates edge cases with near-zero balances
+4. **Protect protocol health**: Very small positions can create disproportionate risk relative to their value
+
+### Enforcement Points
+
+#### 1. Position Creation
+
+When opening a new position, the initial deposit must meet or exceed the minimum balance:
+
+```cadence
+pre {
+    funds.balance >= self.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition:
+        "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition)"
+}
+```
+
+**Behavior**:
+- If initial deposit < minimum: Transaction fails with error message
+- If initial deposit ≥ minimum: Position created successfully
+
+**Example**:
+```
+Token: FLOW
+minimumTokenBalancePerPosition: 1.0
+
+User attempts to open position with 0.5 FLOW:
+  ❌ Transaction fails
+  Error: "Insufficient funds to create position. Minimum deposit of A.xxx.FlowToken.Vault is 1.0"
+
+User opens position with 10.0 FLOW:
+  ✅ Position created
+  Balance: 10.0 FLOW
+```
+
+#### 2. Withdrawals
+
+When withdrawing from an existing position, the remaining balance must stay at or above the minimum:
+
+```cadence
+// Only enforce minimum for credit balances (deposits)
+if position.creditBalances[tokenType]! > 0 {
+    let minimumRequired = UFix128(tokenState.minimumTokenBalancePerPosition)
+    let remainingBalance = UFix128(position.creditBalances[tokenType]!) - amount
+    assert(
+        remainingBalance >= minimumRequired,
+        message: "Withdrawal would leave position below minimum balance requirement of \(minimumRequired). Remaining balance would be \(remainingBalance)."
+    )
+}
+```
+
+**Behavior**:
+- Minimum only enforced for credit (deposit) balances, not debt balances
+- Withdrawal that would leave balance below minimum is rejected
+- Full withdrawals (closing position) are allowed
+
+**Example**:
+```
+Position balance: 5.0 FLOW
+minimumTokenBalancePerPosition: 1.0
+
+User withdraws 4.5 FLOW:
+  ❌ Transaction fails
+  Remaining: 0.5 FLOW < 1.0 minimum
+  Error: "Withdrawal would leave position below minimum balance requirement of 1.0. Remaining balance would be 0.5."
+
+User withdraws 3.0 FLOW:
+  ✅ Withdrawal succeeds
+  Remaining: 2.0 FLOW ≥ 1.0 minimum
+
+User withdraws all 5.0 FLOW (closing position):
+  ✅ Full withdrawal allowed
+  Position closed
+```
+
+### Configuration
+
+The minimum balance is configurable per token type via governance:
+
+```cadence
+access(EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minimum: UFix64)
+```
+
+**Parameters**:
+- `tokenType`: The token type to configure (e.g., `Type<@FlowToken.Vault>()`)
+- `minimum`: The minimum balance required (in token units)
+
+**Example**:
+```cadence
+// Set minimum FLOW deposit to 1.0
+FlowALPv1.setMinimumTokenBalancePerPosition(
+    tokenType: Type<@FlowToken.Vault>(),
+    minimum: 1.0
+)
+
+// Set minimum stablecoin deposit to 10.0
+FlowALPv1.setMinimumTokenBalancePerPosition(
+    tokenType: Type<@USDC.Vault>(),
+    minimum: 10.0
+)
+```
+
+### Best Practices
+
+#### Dollar-Denominated Minimum Concept
+
+Conceptually, the minimum balance should reflect a **minimum value threshold** denominated in a reference currency (e.g., USD or MOET). The protocol implements this as a per-token balance denominated in each token's own units because it is easier to implement and reason about in smart contracts.
+
+**Governance Process**:
+
+1. **Pick a dollar-denominated minimum**: Determine the target minimum position value (e.g., $10 USD equivalent)
+2. **Convert to token units**: For each supported token, calculate the token amount that equals the dollar-denominated minimum
+   - Example: If minimum is $10 and FLOW = $0.50, set `minimumTokenBalancePerPosition = 20.0` FLOW
+   - Example: If minimum is $10 and USDC = $1.00, set `minimumTokenBalancePerPosition = 10.0` USDC
+3. **Add volatility buffer**: Consider adding a buffer for volatile tokens to account for price fluctuations
+   - Stable tokens (e.g., USDC): minimal or no buffer needed
+   - Volatile tokens (e.g., FLOW): add buffer to prevent positions from falling below minimum due to price drops
+4. **Periodic updates**: Review and update token minimums regularly as prices change (this could be automated)
+
+#### Additional Considerations
+
+- **Transaction costs**: Ensure the minimum is high enough that position operations (interest calculations, health checks, liquidations) are economically justified
+- **Accessibility**: Balance the minimum threshold to prevent dust while not excluding legitimate small users
+- **Per-token exceptions**: In rare cases, specific tokens may warrant different minimum values due to unique characteristics (extreme volatility, liquidity constraints, etc.)
 

@@ -40,7 +40,7 @@ fun testZeroDebtFullWithdrawalAvailable() {
 
     // 4. open position WITHOUT auto-borrow (pushToDrawDownSink = false)
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, false],
         user
     )

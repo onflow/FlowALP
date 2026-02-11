@@ -6,8 +6,6 @@ A **Rebalancer** when invoked, calls `rebalance` on the position and tries to sc
 
 A **Supervisor** runs on its own schedule (cron) and calls `fixReschedule()` on each registered rebalancer so that transient scheduling failures (e.g. temporary lack of funds) don’t leave rebalancers stuck. 
 
-The **Supervisor** and the **Paid Rebalancer** contract are only intended for use by us (the protocol operators). Users who want full self-custody use the **Standard Rebalancer** in their own account.
-
 ### Key Principles
 
 * **Isolation:** FCM, Rebalancer, and Supervisor are fully independent.
@@ -41,7 +39,7 @@ There are two rebalancer types; they behave the same for triggering rebalances; 
 | **User’s control** | Full: config, fixReschedule, withdraw/destroy | Only: fixReschedule by UUID, or delete their RebalancerPaid (stops and removes the rebalancer) |
 | **Use case** | User wants full autonomy and to pay their own fees | Admin retains autonomy and pays fees for users (us only) |
 
-**Note:** The Supervisor and the Paid Rebalancer are only intended for use by us; the Standard Rebalancer is for users who self-custody. The bundled `FlowCreditMarketSupervisorV1` only tracks **paid** rebalancers (`addPaidRebalancer` / `removePaidRebalancer`). For standard rebalancers, users can call `fixReschedule()` themselves when needed.
+**Note:** The Supervisor and the Paid Rebalancer are only intended for use by us; the Standard Rebalancer is for users who self-custody. The bundled `FlowALPSupervisorV1` only tracks **paid** rebalancers (`addPaidRebalancer` / `removePaidRebalancer`). For standard rebalancers, users can call `fixReschedule()` themselves when needed.
 
 ### Why calls `fixReschedule()` are necessary
 

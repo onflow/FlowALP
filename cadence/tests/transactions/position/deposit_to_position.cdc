@@ -3,7 +3,7 @@ import "FungibleToken"
 import "FungibleTokenConnectors"
 
 import "MOET"
-import "FlowCreditMarket"
+import "FlowALPv1"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
@@ -11,9 +11,9 @@ import "FlowCreditMarket"
 ///
 transaction(positionStoragePath: StoragePath, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
 
-    // the funds that will be used as collateral for a FlowCreditMarket loan
+    // the funds that will be used as collateral for a FlowALPv1 loan
     let collateral: @{FungibleToken.Vault}
-    let position: &FlowCreditMarket.Position
+    let position: &FlowALPv1.Position
     let pushToDrawDownSink: Bool
 
     prepare(signer: auth(BorrowValue) &Account) {
@@ -23,7 +23,7 @@ transaction(positionStoragePath: StoragePath, amount: UFix64, vaultStoragePath: 
         self.collateral <- collateralSource.withdraw(amount: amount)
 
         // Borrow the PositionManager from constant storage path
-        self.position = signer.storage.borrow<&FlowCreditMarket.Position>(from: positionStoragePath) ?? panic("Could not find Position in signer's storage")
+        self.position = signer.storage.borrow<&FlowALPv1.Position>(from: positionStoragePath) ?? panic("Could not find Position in signer's storage")
         self.pushToDrawDownSink = pushToDrawDownSink
     }
 

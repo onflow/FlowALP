@@ -2,7 +2,7 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-import "FlowCreditMarket"
+import "FlowALPv1"
 import "test_helpers.cdc"
 
 access(all) var snapshot: UInt64 = 0

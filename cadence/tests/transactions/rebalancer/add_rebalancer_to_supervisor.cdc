@@ -1,14 +1,14 @@
-import "FlowCreditMarketSupervisorV1"
+import "FlowALPSupervisorv1"
 
 transaction(
     uuid: UInt64,
     supervisorStoragePath: StoragePath
 ) {
     let signer: auth(BorrowValue, IssueStorageCapabilityController, SaveValue) &Account
-    let supervisor: Capability<&FlowCreditMarketSupervisorV1.Supervisor>
+    let supervisor: Capability<&FlowALPSupervisorv1.Supervisor>
 
     prepare(signer: auth(BorrowValue, IssueStorageCapabilityController, SaveValue) &Account) {
-        self.supervisor = signer.capabilities.storage.issue<&FlowCreditMarketSupervisorV1.Supervisor>(supervisorStoragePath)
+        self.supervisor = signer.capabilities.storage.issue<&FlowALPSupervisorv1.Supervisor>(supervisorStoragePath)
         self.signer = signer
     }
 
