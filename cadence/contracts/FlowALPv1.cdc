@@ -1660,8 +1660,8 @@ access(all) contract FlowALPv1 {
         }
 
         /// Returns current pause parameters
-        access(all) fun getPauseParams(): FlowCreditMarket.PauseParamsView {
-            return FlowCreditMarket.PauseParamsView(
+        access(all) fun getPauseParams(): FlowALPv1.PauseParamsView {
+            return FlowALPv1.PauseParamsView(
                 paused: self.paused,
                 warmupSec: self.warmupSec,
                 lastUnpausedAt: self.lastUnpausedAt,
