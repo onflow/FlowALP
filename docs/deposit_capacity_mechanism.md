@@ -339,13 +339,13 @@ access(EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minim
 **Example**:
 ```cadence
 // Set minimum FLOW deposit to 1.0
-FlowCreditMarket.setMinimumTokenBalancePerPosition(
+FlowALPv1.setMinimumTokenBalancePerPosition(
     tokenType: Type<@FlowToken.Vault>(),
     minimum: 1.0
 )
 
 // Set minimum stablecoin deposit to 10.0
-FlowCreditMarket.setMinimumTokenBalancePerPosition(
+FlowALPv1.setMinimumTokenBalancePerPosition(
     tokenType: Type<@USDC.Vault>(),
     minimum: 10.0
 )
