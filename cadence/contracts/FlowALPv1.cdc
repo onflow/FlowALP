@@ -1501,7 +1501,7 @@ access(all) contract FlowALPv1 {
         /// Whether the pool is currently paused, which prevents all user actions from occurring.
         /// The pool can be paused by the governance committee to protect user and protocol safety.
         access(self) var paused: Bool
-        /// Period (s) following unpause in which actions are still not allowed
+        /// Period (s) following unpause in which liquidations are still not allowed
         access(self) var warmupSec: UInt64
         /// Time this pool most recently was unpaused
         access(self) var lastUnpausedAt: UInt64?
@@ -1588,6 +1588,12 @@ access(all) contract FlowALPv1 {
 
         /// Returns whether sensitive pool actions are paused by governance,
         /// including withdrawals, deposits, and liquidations
+        access(all) view fun isPaused(): Bool {
+            return self.paused
+        }
+
+        /// Returns whether liquidations are paused - liquidations have an additional warmup after a global pause,
+        /// to allow users time to improve position health and avoid liquidation.
         access(all) view fun isPausedOrWarmup(): Bool {
             if self.paused {
                 return true
@@ -1895,7 +1901,7 @@ access(all) contract FlowALPv1 {
             repayment: @{FungibleToken.Vault}
         ): @{FungibleToken.Vault} {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPausedOrWarmup(): "Liquidations are paused by governance"
                 self.isTokenSupported(tokenType: debtType): "Debt token type unsupported: \(debtType.identifier)"
                 self.isTokenSupported(tokenType: seizeType): "Collateral token type unsupported: \(seizeType.identifier)"
                 debtType == repayment.getType(): "Repayment vault does not match debt type: \(debtType.identifier)!=\(repayment.getType().identifier)"
@@ -1981,7 +1987,7 @@ access(all) contract FlowALPv1 {
         /// Callers are responsible for checking preconditions.
         access(self) fun _doLiquidation(pid: UInt64, repayment: @{FungibleToken.Vault}, debtType: Type, seizeType: Type, seizeAmount: UFix64): @{FungibleToken.Vault} {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPausedOrWarmup(): "Liquidations are paused by governance"
                 // position must have debt and collateral balance 
             }
 
@@ -2605,7 +2611,7 @@ access(all) contract FlowALPv1 {
             pushToDrawDownSink: Bool
         ): @Position {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.globalLedger[funds.getType()] != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
                 self.positionSatisfiesMinimumBalance(type: funds.getType(), balance: UFix128(funds.balance)):
@@ -2674,7 +2680,7 @@ access(all) contract FlowALPv1 {
         /// If the provided Vault is not supported by the Pool, the operation reverts.
         access(EParticipant) fun depositToPosition(pid: UInt64, from: @{FungibleToken.Vault}) {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
             self.depositAndPush(
                 pid: pid,
@@ -2694,7 +2700,7 @@ access(all) contract FlowALPv1 {
             from: @{FungibleToken.Vault}
         ) {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
             // NOTE: caller must have already validated pid + token support
             let amount = from.balance
@@ -2797,7 +2803,7 @@ access(all) contract FlowALPv1 {
             pushToDrawDownSink: Bool
         ) {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.positions[pid] != nil:
                     "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
                 self.globalLedger[from.getType()] != nil:
@@ -2829,7 +2835,7 @@ access(all) contract FlowALPv1 {
         // in the event of undercollaterlization.
         access(EPosition) fun withdraw(pid: UInt64, amount: UFix64, type: Type): @{FungibleToken.Vault} {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
             // Call the enhanced function with pullFromTopUpSource = false for backward compatibility
             return <- self.withdrawAndPull(
@@ -2853,7 +2859,7 @@ access(all) contract FlowALPv1 {
             pullFromTopUpSource: Bool
         ): @{FungibleToken.Vault} {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.positions[pid] != nil:
                     "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
                 self.globalLedger[type] != nil:
@@ -3410,7 +3416,7 @@ access(all) contract FlowALPv1 {
         /// not cause the position to reach its target health.
         access(EPosition | ERebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
             post {
                 self.positionLock[pid] == nil: "Position is not unlocked"
@@ -3429,7 +3435,7 @@ access(all) contract FlowALPv1 {
         /// any higher-level invariants.
         access(self) fun _rebalancePositionNoLock(pid: UInt64, force: Bool) {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
             if self.debugLogging {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
@@ -3537,7 +3543,7 @@ access(all) contract FlowALPv1 {
         /// the configured positionsProcessedPerCallback value
         access(EImplementation) fun asyncUpdate() {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
             // TODO: In the production version, this function should only process some positions (limited by positionsProcessedPerCallback) AND
             // it should schedule each update to run in its own callback, so a revert() call from one update (for example, if a source or
@@ -3554,7 +3560,7 @@ access(all) contract FlowALPv1 {
         /// Executes an asynchronous update on the specified position
         access(EImplementation) fun asyncUpdatePosition(pid: UInt64) {
             pre {
-                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
             post {
                 self.positionLock[pid] == nil: "Position is not unlocked"
