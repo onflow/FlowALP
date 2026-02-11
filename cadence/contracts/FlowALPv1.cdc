@@ -3412,6 +3412,9 @@ access(all) contract FlowALPv1 {
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
         access(EPosition | ERebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
+            pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+            }
             post {
                 self.positionLock[pid] == nil: "Position is not unlocked"
             }
@@ -3428,6 +3431,9 @@ access(all) contract FlowALPv1 {
         /// Callers are responsible for acquiring and releasing the position lock and for enforcing
         /// any higher-level invariants.
         access(self) fun _rebalancePositionNoLock(pid: UInt64, force: Bool) {
+            pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+            }
             if self.debugLogging {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
             }
@@ -3533,6 +3539,9 @@ access(all) contract FlowALPv1 {
         /// Executes asynchronous updates on positions that have been queued up to the lesser of the queue length or
         /// the configured positionsProcessedPerCallback value
         access(EImplementation) fun asyncUpdate() {
+            pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+            }
             // TODO: In the production version, this function should only process some positions (limited by positionsProcessedPerCallback) AND
             // it should schedule each update to run in its own callback, so a revert() call from one update (for example, if a source or
             // sink aborts) won't prevent other positions from being updated.
@@ -3547,6 +3556,9 @@ access(all) contract FlowALPv1 {
 
         /// Executes an asynchronous update on the specified position
         access(EImplementation) fun asyncUpdatePosition(pid: UInt64) {
+            pre {
+                !self.isPausedOrWarmup(): "Withdrawal, deposits, and liquidations are paused by governance"
+            }
             post {
                 self.positionLock[pid] == nil: "Position is not unlocked"
             }
