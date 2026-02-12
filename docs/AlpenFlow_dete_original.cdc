@@ -1,3 +1,8 @@
+/// Initial Draft of the Protocol, here for posterity.
+
+/// Not to be used in any form other than as a reference for the original design of the protocol, and the thought process behind it.
+/// This code is NOT intended to be functional, and should not be used as a basis for any implementation without significant modifications.
+
 access(all) contract AlpenFlow {
 
     access(all) resource interface Vault {
