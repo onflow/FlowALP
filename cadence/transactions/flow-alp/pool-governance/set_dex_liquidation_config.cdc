@@ -11,6 +11,6 @@ transaction(
     }
 
     execute {
-        self.pool.setDexOracleDeviationBps(dexOracleDeviationBps: dexOracleDeviationBps)
+        self.pool.borrowConfig().setDexOracleDeviationBps(dexOracleDeviationBps)
     }
 }

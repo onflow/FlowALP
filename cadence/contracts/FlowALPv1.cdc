@@ -1374,7 +1374,7 @@ access(all) contract FlowALPv1 {
         access(self) var paused: Bool
 
         /// Pool Config
-        access(self) var config: FlowALPModels.PoolConfigImpl
+        access(self) var config: {FlowALPModels.PoolConfig}
 
         init(
         	defaultToken: Type,
@@ -2899,24 +2899,10 @@ access(all) contract FlowALPv1 {
             )
         }
 
-        /// Updates the maximum allowed price deviation (in basis points) between the oracle and configured DEX.
-        access(EGovernance) fun setDexOracleDeviationBps(dexOracleDeviationBps: UInt16) {
-            pre {
-                // TODO(jord): sanity check here?
-            }
-            self.config.setDexOracleDeviationBps(dexOracleDeviationBps)
-        }
-
-        /// Updates the DEX (AMM) interface used for liquidations and insurance collection.
-        ///
-        /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
-        /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
-        ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
-        ///
-        /// FlowALPv1 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
-        /// It relies directly on the Swapper's returned by the configured SwapperProvider.
-        access(EGovernance) fun setDEX(dex: {DeFiActions.SwapperProvider}) {
-            self.config.setDex(dex)
+        /// Returns a mutable reference to the pool's configuration.
+        /// Use this to update config fields that don't require events or side effects.
+        access(EGovernance) fun borrowConfig(): &{FlowALPModels.PoolConfig} {
+            return &self.config as &{FlowALPModels.PoolConfig}
         }
 
         /// Pauses the pool, temporarily preventing further withdrawals, deposits, and liquidations
