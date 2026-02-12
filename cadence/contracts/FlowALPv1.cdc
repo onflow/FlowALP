@@ -6,7 +6,7 @@ import "DeFiActionsUtils"
 import "DeFiActions"
 import "MOET"
 import "FlowALPMath"
-import "FlowALPRateCurves"
+import "FlowALPInterestRates"
 
 access(all) contract FlowALPv1 {
 
@@ -627,7 +627,7 @@ access(all) contract FlowALPv1 {
         access(EImplementation) var currentDebitRate: UFix128
 
         /// The interest curve implementation used to calculate interest rate
-        access(EImplementation) var interestCurve: {FlowALPRateCurves.InterestCurve}
+        access(EImplementation) var interestCurve: {FlowALPInterestRates.InterestCurve}
 
         /// The annual insurance rate applied to total debit when computing credit interest (default 0.1%)
         access(EImplementation) var insuranceRate: UFix64
@@ -675,7 +675,7 @@ access(all) contract FlowALPv1 {
 
         init(
             tokenType: Type,
-            interestCurve: {FlowALPRateCurves.InterestCurve},
+            interestCurve: {FlowALPInterestRates.InterestCurve},
             depositRate: UFix64,
             depositCapacityCap: UFix64
         ) {
@@ -793,7 +793,7 @@ access(all) contract FlowALPv1 {
 
         /// Sets the interest curve for this token state
         /// After updating the curve, also update the interest rates to reflect the new curve
-        access(EImplementation) fun setInterestCurve(_ curve: {FlowALPRateCurves.InterestCurve}) {
+        access(EImplementation) fun setInterestCurve(_ curve: {FlowALPInterestRates.InterestCurve}) {
             self.interestCurve = curve
             // Update rates immediately to reflect the new curve
             self.updateInterestRates()
@@ -923,12 +923,12 @@ access(all) contract FlowALPv1 {
             let protocolFeeRate = insuranceRate + stabilityFeeRate
 
             // Two calculation paths based on curve type:
-            // 1. FixedRateInterestCurve: simple spread model (creditRate = debitRate * (1 - protocolFeeRate))
+            // 1. FixedCurve: simple spread model (creditRate = debitRate * (1 - protocolFeeRate))
             //    Used for stable assets like MOET where rates are governance-controlled
-            // 2. KinkInterestCurve (and others): reserve factor model
+            // 2. KinkCurve (and others): reserve factor model
             //    Insurance and stability are percentages of interest income, not a fixed spread
             // TODO(jord): seems like InterestCurve abstraction could be improved if we need to check specific types here.
-            if self.interestCurve.getType() == Type<FlowALPRateCurves.FixedRateInterestCurve>() {
+            if self.interestCurve.getType() == Type<FlowALPInterestRates.FixedCurve>() {
                 // FixedRate path: creditRate = debitRate * (1 - protocolFeeRate))
                 // This provides a fixed, predictable spread between borrower and lender rates
                 creditRate = debitRate * (1.0 - protocolFeeRate) 
@@ -1425,7 +1425,7 @@ access(all) contract FlowALPv1 {
             self.globalLedger = {
                 defaultToken: TokenState(
                     tokenType: defaultToken,
-                    interestCurve: FlowALPRateCurves.FixedRateInterestCurve(yearlyRate: 0.0),
+                    interestCurve: FlowALPInterestRates.FixedCurve(yearlyRate: 0.0),
                     depositRate: 1_000_000.0,        // Default: no rate limiting for default token
                     depositCapacityCap: 1_000_000.0  // Default: high capacity cap
                 )
@@ -2985,7 +2985,7 @@ access(all) contract FlowALPv1 {
             tokenType: Type,
             collateralFactor: UFix64,
             borrowFactor: UFix64,
-            interestCurve: {FlowALPRateCurves.InterestCurve},
+            interestCurve: {FlowALPInterestRates.InterestCurve},
             depositRate: UFix64,
             depositCapacityCap: UFix64
         ) {
@@ -3208,7 +3208,7 @@ access(all) contract FlowALPv1 {
         /// Important: Before changing the curve, we must first compound any accrued interest at the
         /// OLD rate. Otherwise, interest that accrued since lastUpdate would be calculated using the
         /// new rate, which would be incorrect.
-        access(EGovernance) fun setInterestCurve(tokenType: Type, interestCurve: {FlowALPRateCurves.InterestCurve}) {
+        access(EGovernance) fun setInterestCurve(tokenType: Type, interestCurve: {FlowALPInterestRates.InterestCurve}) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }

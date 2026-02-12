@@ -1,6 +1,6 @@
-import "FlowALPRateCurves"
+import "FlowALPInterestRates"
 
 access(all) fun main() {
     // Should panic: rate > 100%
-    FlowALPRateCurves.FixedRateInterestCurve(yearlyRate: 1.5)
+    FlowALPInterestRates.FixedCurve(yearlyRate: 1.5)
 }

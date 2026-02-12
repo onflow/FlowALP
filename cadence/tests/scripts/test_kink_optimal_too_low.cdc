@@ -1,8 +1,8 @@
-import "FlowALPRateCurves"
+import "FlowALPInterestRates"
 
 access(all) fun main() {
     // Should panic: optimalUtilization < 1%
-    let curve = FlowALPRateCurves.KinkInterestCurve(
+    let curve = FlowALPInterestRates.KinkCurve(
         optimalUtilization: 0.005,  // 0.5% < 1%
         baseRate: 0.01,
         slope1: 0.04,

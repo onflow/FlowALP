@@ -1,7 +1,7 @@
 import Test
 import "FlowToken"
 import "FlowALPv1"
-import "FlowALPRateCurves"
+import "FlowALPInterestRates"
 import "FlowALPMath"
 import "test_helpers.cdc"
 
@@ -12,14 +12,14 @@ fun setup() {
 }
 
 // ============================================================================
-// FixedRateInterestCurve Tests
+// FixedCurve Tests
 // ============================================================================
 
 access(all)
-fun test_FixedRateInterestCurve_returns_constant_rate() {
+fun test_FixedCurve_returns_constant_rate() {
     // Create a fixed rate curve with 5% APY
     let fixedRate: UFix128 = 0.05
-    let curve = FlowALPRateCurves.FixedRateInterestCurve(yearlyRate: fixedRate)
+    let curve = FlowALPInterestRates.FixedCurve(yearlyRate: fixedRate)
 
     // Test with various credit and debit balances
     let rate1 = curve.interestRate(creditBalance: 100.0, debitBalance: 0.0)
@@ -30,25 +30,25 @@ fun test_FixedRateInterestCurve_returns_constant_rate() {
 }
 
 access(all)
-fun test_FixedRateInterestCurve_accepts_zero_rate() {
+fun test_FixedCurve_accepts_zero_rate() {
     // Zero rate should be valid (0% APY)
-    let curve = FlowALPRateCurves.FixedRateInterestCurve(yearlyRate: 0.0)
+    let curve = FlowALPInterestRates.FixedCurve(yearlyRate: 0.0)
     let rate = curve.interestRate(creditBalance: 100.0, debitBalance: 50.0)
     Test.assertEqual(0.0 as UFix128, rate)
 }
 
 // ============================================================================
-// KinkInterestCurve Tests
+// KinkCurve Tests
 // ============================================================================
 
 access(all)
-fun test_KinkInterestCurve_at_zero_utilization() {
+fun test_KinkCurve_at_zero_utilization() {
     // Create a kink curve with:
     // - 80% optimal utilization
     // - 1% base rate
     // - 4% slope1
     // - 60% slope2
-    let curve = FlowALPRateCurves.KinkInterestCurve(
+    let curve = FlowALPInterestRates.KinkCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -61,13 +61,13 @@ fun test_KinkInterestCurve_at_zero_utilization() {
 }
 
 access(all)
-fun test_KinkInterestCurve_before_kink() {
+fun test_KinkCurve_before_kink() {
     // Create a kink curve with:
     // - 80% optimal utilization (the kink)
     // - 1% base rate
     // - 4% slope1
     // - 60% slope2
-    let curve = FlowALPRateCurves.KinkInterestCurve(
+    let curve = FlowALPInterestRates.KinkCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -83,9 +83,9 @@ fun test_KinkInterestCurve_before_kink() {
 }
 
 access(all)
-fun test_KinkInterestCurve_at_kink() {
+fun test_KinkCurve_at_kink() {
     // Create a kink curve
-    let curve = FlowALPRateCurves.KinkInterestCurve(
+    let curve = FlowALPInterestRates.KinkCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -100,9 +100,9 @@ fun test_KinkInterestCurve_at_kink() {
 }
 
 access(all)
-fun test_KinkInterestCurve_after_kink() {
+fun test_KinkCurve_after_kink() {
     // Create a kink curve
-    let curve = FlowALPRateCurves.KinkInterestCurve(
+    let curve = FlowALPInterestRates.KinkCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -120,9 +120,9 @@ fun test_KinkInterestCurve_after_kink() {
 }
 
 access(all)
-fun test_KinkInterestCurve_at_full_utilization() {
+fun test_KinkCurve_at_full_utilization() {
     // Create a kink curve
-    let curve = FlowALPRateCurves.KinkInterestCurve(
+    let curve = FlowALPInterestRates.KinkCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -150,9 +150,9 @@ fun test_KinkInterestCurve_at_full_utilization() {
 // ============================================================================
 
 access(all)
-fun test_TokenState_with_FixedRateInterestCurve() {
+fun test_TokenState_with_FixedCurve() {
     // Create a TokenState with a fixed rate curve
-    let fixedCurve = FlowALPRateCurves.FixedRateInterestCurve(yearlyRate: 0.10)
+    let fixedCurve = FlowALPInterestRates.FixedCurve(yearlyRate: 0.10)
     var tokenState = FlowALPv1.TokenState(
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: fixedCurve,
@@ -169,7 +169,7 @@ fun test_TokenState_with_FixedRateInterestCurve() {
     let expectedDebitRate = FlowALPv1.perSecondInterestRate(yearlyRate: 0.10)
     Test.assertEqual(expectedDebitRate, tokenState.currentDebitRate)
 
-    // For FixedRateInterestCurve, credit rate uses the SPREAD MODEL:
+    // For FixedCurve, credit rate uses the SPREAD MODEL:
     // creditRate = debitRate * (1 - protocolFeeRate)
     // where protocolFeeRate = insuranceRate + stabilityFeeRate
     // debitRate = 0.10
@@ -180,9 +180,9 @@ fun test_TokenState_with_FixedRateInterestCurve() {
 }
 
 access(all)
-fun test_TokenState_with_KinkInterestCurve() {
+fun test_TokenState_with_KinkCurve() {
     // Create a TokenState with a kink curve
-    let kinkCurve = FlowALPRateCurves.KinkInterestCurve(
+    let kinkCurve = FlowALPInterestRates.KinkCurve(
         optimalUtilization: 0.80,
         baseRate: 0.02,
         slope1: 0.05,
@@ -212,7 +212,7 @@ fun test_TokenState_with_KinkInterestCurve() {
 access(all)
 fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     // Create TokenState with KinkCurve (80% optimal, 2% base, 5% slope1, 50% slope2)
-    let kinkCurve = FlowALPRateCurves.KinkInterestCurve(
+    let kinkCurve = FlowALPInterestRates.KinkCurve(
         optimalUtilization: 0.80,
         baseRate: 0.02,
         slope1: 0.05,
@@ -262,8 +262,8 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
 // ============================================================================
 
 access(all)
-fun test_KinkInterestCurve_with_very_small_balances() {
-    let curve = FlowALPRateCurves.KinkInterestCurve(
+fun test_KinkCurve_with_very_small_balances() {
+    let curve = FlowALPInterestRates.KinkCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -277,8 +277,8 @@ fun test_KinkInterestCurve_with_very_small_balances() {
 }
 
 access(all)
-fun test_KinkInterestCurve_with_large_balances() {
-    let curve = FlowALPRateCurves.KinkInterestCurve(
+fun test_KinkCurve_with_large_balances() {
+    let curve = FlowALPInterestRates.KinkCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -297,7 +297,7 @@ fun test_KinkInterestCurve_with_large_balances() {
 // These tests verify that invalid parameters are rejected by the preconditions
 
 access(all)
-fun test_FixedRateInterestCurve_rejects_rate_exceeding_max() {
+fun test_FixedCurve_rejects_rate_exceeding_max() {
     // Attempt to create a fixed rate curve with rate > 100%
     // This should fail the precondition: yearlyRate <= 1.0
     let res = _executeScript("./scripts/test_fixed_rate_max.cdc", [])
@@ -305,7 +305,7 @@ fun test_FixedRateInterestCurve_rejects_rate_exceeding_max() {
 }
 
 access(all)
-fun test_KinkInterestCurve_rejects_optimal_too_low() {
+fun test_KinkCurve_rejects_optimal_too_low() {
     // Attempt to create a kink curve with optimalUtilization < 1%
     // This should fail the precondition: optimalUtilization >= 0.01
     let res = _executeScript("./scripts/test_kink_optimal_too_low.cdc", [])
@@ -313,7 +313,7 @@ fun test_KinkInterestCurve_rejects_optimal_too_low() {
 }
 
 access(all)
-fun test_KinkInterestCurve_rejects_optimal_too_high() {
+fun test_KinkCurve_rejects_optimal_too_high() {
     // Attempt to create a kink curve with optimalUtilization > 99%
     // This should fail the precondition: optimalUtilization <= 0.99
     let res = _executeScript("./scripts/test_kink_optimal_too_high.cdc", [])
@@ -321,7 +321,7 @@ fun test_KinkInterestCurve_rejects_optimal_too_high() {
 }
 
 access(all)
-fun test_KinkInterestCurve_rejects_slope2_less_than_slope1() {
+fun test_KinkCurve_rejects_slope2_less_than_slope1() {
     // Attempt to create a kink curve with slope2 < slope1
     // This should fail the precondition: slope2 >= slope1
     let res = _executeScript("./scripts/test_kink_slope2_less_than_slope1.cdc", [])
@@ -329,7 +329,7 @@ fun test_KinkInterestCurve_rejects_slope2_less_than_slope1() {
 }
 
 access(all)
-fun test_KinkInterestCurve_rejects_max_rate_exceeded() {
+fun test_KinkCurve_rejects_max_rate_exceeded() {
     // Attempt to create a kink curve with baseRate + slope1 + slope2 > 400%
     // This should fail the precondition: baseRate + slope1 + slope2 <= 4.0
     let res = _executeScript("./scripts/test_kink_max_rate.cdc", [])

@@ -1,8 +1,8 @@
 import "FlowALPv1"
-import "FlowALPRateCurves"
+import "FlowALPInterestRates"
 
 /// Adds a token type as supported to the stored pool with a zero-rate interest curve (0% APY).
-/// This uses FixedRateInterestCurve with yearlyRate: 0.0, suitable for testing or
+/// This uses FixedCurve with yearlyRate: 0.0, suitable for testing or
 /// scenarios where no interest should accrue.
 ///
 transaction(
@@ -27,7 +27,7 @@ transaction(
             tokenType: self.tokenType,
             collateralFactor: collateralFactor,
             borrowFactor: borrowFactor,
-            interestCurve: FlowALPRateCurves.FixedRateInterestCurve(yearlyRate: 0.0),
+            interestCurve: FlowALPInterestRates.FixedCurve(yearlyRate: 0.0),
             depositRate: depositRate,
             depositCapacityCap: depositCapacityCap
         )

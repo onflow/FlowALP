@@ -1,8 +1,8 @@
 import "FlowALPv1"
-import "FlowALPRateCurves"
+import "FlowALPInterestRates"
 
 /// Adds a token type as supported to the stored pool with a kink interest curve.
-/// This uses KinkInterestCurve for utilization-based variable interest rates,
+/// This uses KinkCurve for utilization-based variable interest rates,
 /// modeled after Aave v3's DefaultReserveInterestRateStrategyV2.
 ///
 transaction(
@@ -31,7 +31,7 @@ transaction(
             tokenType: self.tokenType,
             collateralFactor: collateralFactor,
             borrowFactor: borrowFactor,
-            interestCurve: FlowALPRateCurves.KinkInterestCurve(
+            interestCurve: FlowALPInterestRates.KinkCurve(
                 optimalUtilization: optimalUtilization,
                 baseRate: baseRate,
                 slope1: slope1,

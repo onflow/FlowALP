@@ -1,6 +1,6 @@
 import "FlowALPMath"
 
-access(all) contract FlowALPRateCurves {
+access(all) contract FlowALPInterestRates {
 
     /// InterestCurve
     ///
@@ -19,13 +19,13 @@ access(all) contract FlowALPRateCurves {
         }
     }
 
-    /// FixedRateInterestCurve
+    /// FixedCurve
     ///
     /// A fixed-rate interest curve implementation that returns a constant yearly interest rate
     /// regardless of utilization. This is suitable for stable assets like MOET where predictable
     /// rates are desired.
     /// @param yearlyRate The fixed yearly interest rate as a UFix128 (e.g., 0.05 for 5% APY)
-    access(all) struct FixedRateInterestCurve: InterestCurve {
+    access(all) struct FixedCurve: InterestCurve {
 
         access(all) let yearlyRate: UFix128
 
@@ -41,7 +41,7 @@ access(all) contract FlowALPRateCurves {
         }
     }
 
-    /// KinkInterestCurve
+    /// KinkCurve
     ///
     /// A kink-based interest rate curve implementation. The curve has two linear segments:
     /// - Before the optimal utilization ratio (the "kink"): a gentle slope
@@ -62,7 +62,7 @@ access(all) contract FlowALPRateCurves {
     /// @param baseRate The minimum yearly interest rate (e.g., 0.01 for 1% APY)
     /// @param slope1 The total rate increase from 0% to optimal utilization (e.g., 0.04 for 4%)
     /// @param slope2 The total rate increase from optimal to 100% utilization (e.g., 0.60 for 60%)
-    access(all) struct KinkInterestCurve: InterestCurve {
+    access(all) struct KinkCurve: InterestCurve {
 
         /// The optimal utilization ratio (the "kink" point), e.g., 0.80 = 80%
         access(all) let optimalUtilization: UFix128

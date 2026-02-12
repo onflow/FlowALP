@@ -1,13 +1,13 @@
 import Test
 import "MOET"
 import "FlowALPv1"
-import "FlowALPRateCurves"
+import "FlowALPInterestRates"
 import "FlowALPMath"
 import "test_helpers.cdc"
 
-// Custom curve for testing reserve factor path (NOT FlowALPRateCurves.FixedRateInterestCurve)
+// Custom curve for testing reserve factor path (NOT FlowALPInterestRates.FixedCurve)
 // This will trigger the KinkCurve/reserve factor calculation path
-access(all) struct CustomFixedCurve: FlowALPRateCurves.InterestCurve {
+access(all) struct CustomFixedCurve: FlowALPInterestRates.InterestCurve {
     access(all) let rate: UFix128
 
     init(_ rate: UFix128) {
@@ -26,17 +26,17 @@ fun setup() {
 }
 
 // =============================================================================
-// FixedRateInterestCurve Tests (Spread Model: creditRate = debitRate - insuranceRate)
+// FixedCurve Tests (Spread Model: creditRate = debitRate - insuranceRate)
 // =============================================================================
 
 access(all)
-fun test_FixedRateInterestCurve_uses_spread_model() {
-    // For FixedRateInterestCurve, credit rate = debit rate * (1 - protocolFeeRate)
+fun test_FixedCurve_uses_spread_model() {
+    // For FixedCurve, credit rate = debit rate * (1 - protocolFeeRate)
     // where protocolFeeRate = insuranceRate + stabilityFeeRate
     let debitRate: UFix128 = 0.10  // 10% yearly
     var tokenState = FlowALPv1.TokenState(
         tokenType: Type<@MOET.Vault>(),
-        interestCurve: FlowALPRateCurves.FixedRateInterestCurve(yearlyRate: debitRate),
+        interestCurve: FlowALPInterestRates.FixedCurve(yearlyRate: debitRate),
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
     )
@@ -59,7 +59,7 @@ fun test_FixedRateInterestCurve_uses_spread_model() {
 }
 
 // =============================================================================
-// KinkInterestCurve Tests (Reserve Factor Model: insurance = % of income)
+// KinkCurve Tests (Reserve Factor Model: insurance = % of income)
 // =============================================================================
 
 access(all)

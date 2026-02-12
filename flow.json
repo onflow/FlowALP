@@ -22,8 +22,8 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowALPRateCurves": {
-			"source": "./cadence/contracts/FlowALPRateCurves.cdc",
+		"FlowALPInterestRates": {
+			"source": "./cadence/contracts/FlowALPInterestRates.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
@@ -222,7 +222,7 @@
 				"DeFiActionsUtils",
 				"DeFiActions",
 				"FlowALPMath",
-				"FlowALPRateCurves",
+				"FlowALPInterestRates",
 				{
 					"name": "MOET",
 					"args": [
@@ -238,7 +238,7 @@
 		"mainnet": {
 			"mainnet-deployer": [
 				"FlowALPMath",
-				"FlowALPRateCurves",
+				"FlowALPInterestRates",
 				{
 					"name": "MOET",
 					"args": [
@@ -254,7 +254,7 @@
 		"testnet": {
 			"testnet-deployer": [
 				"FlowALPMath",
-				"FlowALPRateCurves",
+				"FlowALPInterestRates",
 				{
 					"name": "MOET",
 					"args": [
