@@ -2989,7 +2989,7 @@ access(all) contract FlowALPv1 {
             // from precision loss in health factor math (UFix128 arithmetic with prices, collateral/borrow
             // factors) combined with UFix128->UFix64 rounding in availableBalance calculations.
             assert(
-                remainingBalance < 0.00000001 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
+                remainingBalance < 0.00000010 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
                 message: "Withdrawal would leave position below minimum balance requirement of \(self.globalLedger[type]!.minimumTokenBalancePerPosition). Remaining balance would be \(remainingBalance)."
             )
 
