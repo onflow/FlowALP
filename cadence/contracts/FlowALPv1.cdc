@@ -1329,6 +1329,8 @@ access(all) contract FlowALPv1 {
     /// credit and debit balances for each supported token type, and reserves as they are deposited to positions.
     access(all) resource Pool {
 
+        /// Pool state management
+        ///
         /// Enable or disable verbose contract logging for debugging.
         access(self) var debugLogging: Bool
 
@@ -1348,7 +1350,30 @@ access(all) contract FlowALPv1 {
         access(self) var nextPositionID: UInt64
 
         /// The default token type used as the "unit of account" for the pool.
+        // TODO(jord): this should be hard-coded to MOET, or other places in contract where MOET is hard-coded should be generalized
         access(self) let defaultToken: Type
+
+        /// The stability fund vaults storing tokens collected from stability fee rates.
+        access(self) var stabilityFunds: @{Type: {FungibleToken.Vault}}
+
+        /// Position update queue to be processed as an asynchronous update
+        access(EImplementation) var positionsNeedingUpdates: [UInt64]
+
+        /// Reentrancy guards keyed by position id.
+        /// When a position is locked, it means an operation on the position is in progress.
+        /// While a position is locked, no new operation can begin on the locked position.
+        /// All positions must be unlocked at the end of each transaction.
+        /// A locked position is indicated by the presence of an entry {pid: True} in the map.
+        /// An unlocked position is indicated by the lack of entry for the pid in the map.
+        access(self) var positionLock: {UInt64: Bool}
+
+
+        /// Whether the pool is currently paused, which prevents all user actions from occurring.
+        /// The pool can be paused by the governance committee to protect user and protocol safety.
+        access(self) var paused: Bool
+
+        /// Pool Config
+        ///
 
         /// A price oracle that will return the price of each token in terms of the default token.
         access(self) var priceOracle: {DeFiActions.PriceOracle}
@@ -1371,21 +1396,12 @@ access(all) contract FlowALPv1 {
         /// The count of positions to update per asynchronous update
         access(self) var positionsProcessedPerCallback: UInt64
 
-        /// The stability fund vaults storing tokens collected from stability fee rates.
-        access(self) var stabilityFunds: @{Type: {FungibleToken.Vault}}
-
-        /// Position update queue to be processed as an asynchronous update
-        access(EImplementation) var positionsNeedingUpdates: [UInt64]
-
         /// Liquidation target health and controls (global)
 
         /// The target health factor when liquidating a position, which limits how much collateral can be liquidated.
         /// After a liquidation, the position's health factor must be less than or equal to this target value.
         access(self) var liquidationTargetHF: UFix128
 
-        /// Whether the pool is currently paused, which prevents all user actions from occurring.
-        /// The pool can be paused by the governance committee to protect user and protocol safety.
-        access(self) var paused: Bool
         /// Period (s) following unpause in which liquidations are still not allowed
         access(self) var warmupSec: UInt64
         /// Time this pool most recently was unpaused
@@ -1402,14 +1418,6 @@ access(all) contract FlowALPv1 {
 
         /// Max allowed deviation in basis points between DEX-implied price and oracle price.
         access(self) var dexOracleDeviationBps: UInt16
-
-        /// Reentrancy guards keyed by position id.
-        /// When a position is locked, it means an operation on the position is in progress.
-        /// While a position is locked, no new operation can begin on the locked position.
-        /// All positions must be unlocked at the end of each transaction.
-        /// A locked position is indicated by the presence of an entry {pid: True} in the map.
-        /// An unlocked position is indicated by the lack of entry for the pid in the map.
-        access(self) var positionLock: {UInt64: Bool}
 
         init(
         	defaultToken: Type,
