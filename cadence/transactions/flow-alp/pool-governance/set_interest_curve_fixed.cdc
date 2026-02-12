@@ -1,4 +1,5 @@
 import "FlowALPv1"
+import "FlowALPRateCurves"
 
 /// Updates the interest curve for an existing supported token to a FixedRateInterestCurve.
 /// This sets a constant yearly interest rate regardless of utilization.
@@ -20,7 +21,7 @@ transaction(
     execute {
         self.pool.setInterestCurve(
             tokenType: self.tokenType,
-            interestCurve: FlowALPv1.FixedRateInterestCurve(yearlyRate: yearlyRate)
+            interestCurve: FlowALPRateCurves.FixedRateInterestCurve(yearlyRate: yearlyRate)
         )
     }
 }

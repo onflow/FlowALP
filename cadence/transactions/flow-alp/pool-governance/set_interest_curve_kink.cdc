@@ -1,4 +1,5 @@
 import "FlowALPv1"
+import "FlowALPRateCurves"
 
 /// Updates the interest curve for an existing supported token to a KinkInterestCurve.
 /// This allows changing from the default zero-rate curve to a utilization-based variable rate.
@@ -23,7 +24,7 @@ transaction(
     execute {
         self.pool.setInterestCurve(
             tokenType: self.tokenType,
-            interestCurve: FlowALPv1.KinkInterestCurve(
+            interestCurve: FlowALPRateCurves.KinkInterestCurve(
                 optimalUtilization: optimalUtilization,
                 baseRate: baseRate,
                 slope1: slope1,

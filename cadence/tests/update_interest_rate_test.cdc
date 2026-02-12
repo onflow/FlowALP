@@ -1,12 +1,13 @@
 import Test
 import "MOET"
 import "FlowALPv1"
+import "FlowALPRateCurves"
 import "FlowALPMath"
 import "test_helpers.cdc"
 
-// Custom curve for testing reserve factor path (NOT FlowALPv1.FixedRateInterestCurve)
+// Custom curve for testing reserve factor path (NOT FlowALPRateCurves.FixedRateInterestCurve)
 // This will trigger the KinkCurve/reserve factor calculation path
-access(all) struct CustomFixedCurve: FlowALPv1.InterestCurve {
+access(all) struct CustomFixedCurve: FlowALPRateCurves.InterestCurve {
     access(all) let rate: UFix128
 
     init(_ rate: UFix128) {
@@ -35,7 +36,7 @@ fun test_FixedRateInterestCurve_uses_spread_model() {
     let debitRate: UFix128 = 0.10  // 10% yearly
     var tokenState = FlowALPv1.TokenState(
         tokenType: Type<@MOET.Vault>(),
-        interestCurve: FlowALPv1.FixedRateInterestCurve(yearlyRate: debitRate),
+        interestCurve: FlowALPRateCurves.FixedRateInterestCurve(yearlyRate: debitRate),
         depositRate: 1.0,
         depositCapacityCap: 1_000.0
     )

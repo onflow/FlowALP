@@ -22,6 +22,12 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"FlowALPRateCurves": {
+			"source": "./cadence/contracts/FlowALPRateCurves.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"FlowALPv1": {
 			"source": "./cadence/contracts/FlowALPv1.cdc",
 			"aliases": {
@@ -216,6 +222,7 @@
 				"DeFiActionsUtils",
 				"DeFiActions",
 				"FlowALPMath",
+				"FlowALPRateCurves",
 				{
 					"name": "MOET",
 					"args": [
@@ -231,6 +238,7 @@
 		"mainnet": {
 			"mainnet-deployer": [
 				"FlowALPMath",
+				"FlowALPRateCurves",
 				{
 					"name": "MOET",
 					"args": [
@@ -246,6 +254,7 @@
 		"testnet": {
 			"testnet-deployer": [
 				"FlowALPMath",
+				"FlowALPRateCurves",
 				{
 					"name": "MOET",
 					"args": [

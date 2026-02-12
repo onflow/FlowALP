@@ -1,8 +1,8 @@
-import "FlowALPv1"
+import "FlowALPRateCurves"
 
 access(all) fun main() {
     // Should panic: base + slope1 + slope2 > 400%
-    let curve = FlowALPv1.KinkInterestCurve(
+    let curve = FlowALPRateCurves.KinkInterestCurve(
         optimalUtilization: 0.80,
         baseRate: 0.10,   // 10%
         slope1: 0.50,     // 50%
