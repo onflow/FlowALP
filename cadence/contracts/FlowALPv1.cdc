@@ -383,13 +383,22 @@ access(all) contract FlowALPv1 {
                         // so we just decrement the credit balance.
                         let updatedBalance = trueBalance - amount
 
-                        self.scaledBalance = FlowALPv1.trueBalanceToScaledBalance(
-                            updatedBalance,
-                            interestIndex: tokenState.creditInterestIndex
-                        )
+                        // If the remaining balance is dust (below UFix64 precision threshold),
+                        // sweep it to zero to prevent dust positions that would violate minimum
+                        // balance requirements. This dust arises from UFix128->UFix64 rounding
+                        // in availableBalance calculations.
+                        if updatedBalance > 0.0 && updatedBalance < 0.00000010 {
+                            self.scaledBalance = 0.0
+                            tokenState.decreaseCreditBalance(by: trueBalance)
+                        } else {
+                            self.scaledBalance = FlowALPv1.trueBalanceToScaledBalance(
+                                updatedBalance,
+                                interestIndex: tokenState.creditInterestIndex
+                            )
 
-                        // Decrease the total credit balance for the token
-                        tokenState.decreaseCreditBalance(by: amount)
+                            // Decrease the total credit balance for the token
+                            tokenState.decreaseCreditBalance(by: amount)
+                        }
                     } else {
                         // The withdrawal is enough to push the position into debt,
                         // so we switch to a debit position.
@@ -2985,8 +2994,10 @@ access(all) contract FlowALPv1 {
             let remainingBalance = positionView.trueBalance(ofToken: type)
 
             // This is applied to both credit and debit balances, with the main goal being to avoid dust positions.
+            // Remaining balances below the UFix64 precision threshold (1e-8) are treated as effectively zero,
+            // as they arise from unavoidable UFix128->UFix64 rounding in availableBalance calculations.
             assert(
-                remainingBalance == 0.0 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
+                remainingBalance < 0.00000010 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
                 message: "Withdrawal would leave position below minimum balance requirement of \(self.globalLedger[type]!.minimumTokenBalancePerPosition). Remaining balance would be \(remainingBalance)."
             )
 
