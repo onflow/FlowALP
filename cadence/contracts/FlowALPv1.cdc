@@ -540,8 +540,8 @@ access(all) contract FlowALPv1 {
         /// Sets the Position's minimum health. See InternalPosition.minHealth for details.
         access(EImplementation) fun setMinHealth(_ minHealth: UFix128) {
             pre {
-                minHealth >= 1.0: "Min health (\(minHealth)) must be >1"
-                minHealth <= self.targetHealth: "Min health (\(minHealth)) must be ≤ target health (\(self.targetHealth))"
+                minHealth > 1.0: "Min health (\(minHealth)) must be >1"
+                minHealth < self.targetHealth: "Min health (\(minHealth)) must be greater than target health (\(self.targetHealth))"
             }
             self.minHealth = minHealth
         }
@@ -549,7 +549,7 @@ access(all) contract FlowALPv1 {
         /// Sets the Position's maximum health. See InternalPosition.maxHealth for details.
         access(EImplementation) fun setMaxHealth(_ maxHealth: UFix128) {
             pre {
-                maxHealth >= self.targetHealth: "Max health (\(maxHealth)) must be greater than target health (\(self.targetHealth))"
+                maxHealth > self.targetHealth: "Max health (\(maxHealth)) must be greater than target health (\(self.targetHealth))"
             }
             self.maxHealth = maxHealth
         }
