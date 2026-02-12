@@ -1,10 +1,10 @@
 ## Updated Rebalance Architecture
 
-This system **rebalances Flow Credit Market (FCM) positions on a schedule**: at a configurable interval, a rebalancer triggers the position’s `rebalance` function. **FCM** holds positions and exposes `rebalance`. 
+This system **rebalances Flow Credit Market (FCM) positions on a schedule**: at a configurable interval, a rebalancer triggers the position’s `rebalance` function. **FCM** holds positions and exposes `rebalance`.
 
 A **Rebalancer** when invoked, calls `rebalance` on the position and tries to schedules the next run.
 
-A **Supervisor** runs on its own schedule (cron) and calls `fixReschedule()` on each registered rebalancer so that transient scheduling failures (e.g. temporary lack of funds) don’t leave rebalancers stuck. 
+A **Supervisor** runs on its own schedule (cron) and calls `fixReschedule()` on each registered rebalancer so that transient scheduling failures (e.g. temporary lack of funds) don’t leave rebalancers stuck.
 
 ### Key Principles
 
@@ -23,17 +23,17 @@ Each rebalancer is driven by a **RecurringConfig** that defines how and who pays
 | **executionEffort** | Execution effort for fee estimation. |
 | **estimationMargin** | Multiplier on estimated fees (feePaid = estimate × margin). |
 | **forceRebalance** | Whether to force rebalance when invoked. (bool provided to the rebalance function) |
-| **txnFunder** | **Who pays for rebalance transactions.** A Sink/Source (FLOW) used to pay the FlowTransactionScheduler. The rebalancer withdraws from it when scheduling the next run and refunds on cancel. |
+| **txFunder** | **Who pays for rebalance transactions.** A Sink/Source (FLOW) used to pay the FlowTransactionScheduler. The rebalancer withdraws from it when scheduling the next run and refunds on cancel. |
 
-The rebalancer uses this config to: (1) call `rebalance(force)` on the position when the scheduler fires, (2) compute the next run time from `interval`, (3) withdraw FLOW from **txnFunder** to pay the scheduler for the next scheduled transaction, and (4) on config change or cancel, refund unused fees back to **txnFunder**. So **txnFunder is the account that actually pays** for each scheduled rebalance.
+The rebalancer uses this config to: (1) call `rebalance(force)` on the position when the scheduler fires, (2) compute the next run time from `interval`, (3) withdraw FLOW from **txFunder** to pay the scheduler for the next scheduled transaction, and (4) on config change or cancel, refund unused fees back to **txFunder**. So **txFunder is the account that actually pays** for each scheduled rebalance.
 
 ### Rebalancer variants
 
-There are two rebalancer types; they behave the same for triggering rebalances; the difference is **who supplies the config (and thus the txnFunder)** and **who can change it**.
+There are two rebalancer types; they behave the same for triggering rebalances; the difference is **who supplies the config (and thus the txFunder)** and **who can change it**.
 
 | | **Standard Rebalancer** | **Paid Rebalancer** |
 |---|---|---|
-| **Who pays** | User pays (user’s txnFunder) | Admin pays (admin’s txnFunder in config) |
+| **Who pays** | User pays (user’s txFunder) | Admin pays (admin’s txFunder in config) |
 | **Where rebalancer lives** | In the user’s account | In the Paid contract’s account |
 | **Config ownership** | User: they set RecurringConfig and can call `setRecurringConfig` | Admin/contract: `defaultRecurringConfig` for new ones; admin can `updateRecurringConfig(uuid, …)` per rebalancer |
 | **User’s control** | Full: config, fixReschedule, withdraw/destroy | Only: fixReschedule by UUID, or delete their RebalancerPaid (stops and removes the rebalancer) |
@@ -43,7 +43,7 @@ There are two rebalancer types; they behave the same for triggering rebalances; 
 
 ### Why calls `fixReschedule()` are necessary
 
-After each rebalance run, the rebalancer calls `scheduleNextRebalance()` to book the next run with the FlowTransactionScheduler. That call can **fail** for transient reasons (e.g. `INSUFFICIENT_FEES_AVAILABLE`, scheduler busy, or the txnFunder reverting). When it fails, the rebalancer emits `FailedRecurringSchedule` and does **not** schedule the next execution — so the rebalancer is left with **no upcoming scheduled transaction** and would never run again unless something reschedules it.
+After each rebalance run, the rebalancer calls `scheduleNextRebalance()` to book the next run with the FlowTransactionScheduler. That call can **fail** for transient reasons (e.g. `INSUFFICIENT_FEES_AVAILABLE`, scheduler busy, or the txFunder reverting). When it fails, the rebalancer emits `FailedRecurringSchedule` and does **not** schedule the next execution — so the rebalancer is left with **no upcoming scheduled transaction** and would never run again unless something reschedules it.
 
 `fixReschedule()` is **idempotent**: if there is no scheduled transaction, it tries to schedule the next one (and may emit `FailedRecurringSchedule` again if it still fails); if there is already a scheduled transaction, it does nothing.
 
@@ -60,7 +60,7 @@ sequenceDiagram
     participant FCM
     participant Paid as Paid Rebalancer Contract
     participant Supervisor
-    Note over admin,Paid: One-time: admin sets defaultRecurringConfig (incl. txnFunder)
+    Note over admin,Paid: One-time: admin sets defaultRecurringConfig (incl. txFunder)
     admin->>Paid: updateDefaultRecurringConfig(config)
     User->>FCM: createPosition()
     User->>Paid: createPaidRebalancer(positionRebalanceCapability)

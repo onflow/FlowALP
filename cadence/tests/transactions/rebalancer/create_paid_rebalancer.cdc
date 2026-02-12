@@ -9,7 +9,7 @@ transaction(paidRebalancerAdminStoragePath: StoragePath) {
     // let signer: auth(Capabilities, BorrowValue, IssueStorageCapabilityController) &Account
     let admin: &FlowALPRebalancerPaidv1.Admin
     let vaultCapability: Capability<auth(FungibleToken.Withdraw) &FlowToken.Vault>
-    
+
     prepare(signer: auth(Capabilities, BorrowValue, IssueStorageCapabilityController) &Account) {
         self.admin = signer.storage.borrow<&FlowALPRebalancerPaidv1.Admin>(from: paidRebalancerAdminStoragePath)!
         self.vaultCapability = signer.capabilities.storage.issue<auth(FungibleToken.Withdraw) &FlowToken.Vault>(/storage/flowTokenVault)
@@ -25,7 +25,7 @@ transaction(paidRebalancerAdminStoragePath: StoragePath) {
             executionEffort: 1000,
             estimationMargin: 1.05,
             forceRebalance: false,
-            txnFunder: sinkSource
+            txFunder: sinkSource
         )
         self.admin.updateDefaultRecurringConfig(recurringConfig: config)
     }

@@ -8,8 +8,8 @@ import "FlowTransactionScheduler"
 // on behalf of users. Instead of users storing and configuring Rebalancer resources themselves,
 // they call createPaidRebalancer with a position rebalance capability and receive a lightweight
 // RebalancerPaid resource. The contract stores the underlying Rebalancer, wires it to the
-// FlowTransactionScheduler, and applies defaultRecurringConfig (interval, priority, txnFunder, etc.).
-// The admin's txnFunder in that config is used to pay for rebalance transactions. Users can
+// FlowTransactionScheduler, and applies defaultRecurringConfig (interval, priority, txFunder, etc.).
+// The admin's txFunder in that config is used to pay for rebalance transactions. Users can
 // fixReschedule (via their RebalancerPaid) or delete RebalancerPaid to stop. Admins control the
 // default config and can update or remove individual paid rebalancers. See RebalanceArchitecture.md.
 access(all) contract FlowALPRebalancerPaidv1 {
@@ -25,7 +25,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
     )
 
     /// Default RecurringConfig for all newly created paid rebalancers. Must be set by Admin before
-    /// createPaidRebalancer is used. Includes txnFunder, which pays for scheduled rebalance transactions.
+    /// createPaidRebalancer is used. Includes txFunder, which pays for scheduled rebalance transactions.
     access(all) var defaultRecurringConfig: FlowALPRebalancerv1.RecurringConfig?
     access(all) var adminStoragePath: StoragePath
 
@@ -37,7 +37,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
     ): @RebalancerPaid {
         assert(positionRebalanceCapability.check(), message: "Invalid position rebalance capability")
         let rebalancer <- FlowALPRebalancerv1.createRebalancer(
-            recurringConfig: self.defaultRecurringConfig!, 
+            recurringConfig: self.defaultRecurringConfig!,
             positionRebalanceCapability: positionRebalanceCapability
         )
         let uuid = rebalancer.uuid
@@ -49,7 +49,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
 
     /// Admin resource: controls default config and per-rebalancer config; can remove paid rebalancers.
     access(all) resource Admin {
-        /// Set the default RecurringConfig for all newly created paid rebalancers (interval, txnFunder, etc.).
+        /// Set the default RecurringConfig for all newly created paid rebalancers (interval, txFunder, etc.).
         access(all) fun updateDefaultRecurringConfig(recurringConfig: FlowALPRebalancerv1.RecurringConfig) {
             FlowALPRebalancerPaidv1.defaultRecurringConfig = recurringConfig
             emit UpdatedDefaultRecurringConfig(
@@ -68,7 +68,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
             return FlowALPRebalancerPaidv1.borrowRebalancer(uuid: uuid)
         }
 
-        /// Update the RecurringConfig for a specific paid rebalancer (interval, txnFunder, etc.).
+        /// Update the RecurringConfig for a specific paid rebalancer (interval, txFunder, etc.).
         access(all) fun updateRecurringConfig(
             uuid: UInt64,
             recurringConfig: FlowALPRebalancerv1.RecurringConfig)
@@ -77,7 +77,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
             rebalancer.setRecurringConfig(recurringConfig)
         }
 
-        /// Remove a paid rebalancer: cancel scheduled transactions (refund to txnFunder) and destroy it.
+        /// Remove a paid rebalancer: cancel scheduled transactions (refund to txFunder) and destroy it.
         access(account) fun removePaidRebalancer(uuid: UInt64) {
             FlowALPRebalancerPaidv1.removePaidRebalancer(uuid: uuid)
             emit RemovedRebalancerPaid(uuid: uuid)
@@ -96,7 +96,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
             self.rebalancerUUID = rebalancerUUID
         }
 
-        /// Stop and remove the paid rebalancer; scheduled transactions are cancelled and fees refunded to the admin txnFunder.
+        /// Stop and remove the paid rebalancer; scheduled transactions are cancelled and fees refunded to the admin txFunder.
         access(Delete) fun delete() {
             FlowALPRebalancerPaidv1.removePaidRebalancer(uuid: self.rebalancerUUID)
         }

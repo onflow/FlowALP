@@ -20,7 +20,7 @@ transaction(uuid: UInt64, interval: UInt64) {
 
     execute {
         let sinkSource = FungibleTokenConnectors.VaultSinkAndSource(min: nil, max: nil, vault: self.vaultCapability, uniqueID: nil)
-        
+
         let borrowedRebalancer = self.adminPaidRebalancerCap.borrow()!.borrowAuthorizedRebalancer(uuid: uuid)!
         let config = FlowALPRebalancerv1.RecurringConfig(
             interval: interval,
@@ -28,7 +28,7 @@ transaction(uuid: UInt64, interval: UInt64) {
             executionEffort: 1000,
             estimationMargin: 1.05,
             forceRebalance: false,
-            txnFunder: sinkSource
+            txFunder: sinkSource
         )
         borrowedRebalancer.setRecurringConfig(config)
     }

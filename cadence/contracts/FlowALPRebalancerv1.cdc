@@ -8,11 +8,11 @@ import "FlowFees"
 // FlowALPRebalancerv1 — Self-custody scheduled rebalancer for Flow ALP positions.
 //
 // Users create and store a Rebalancer resource in their own account. They supply a RecurringConfig
-// (interval, priority, executionEffort, estimationMargin, forceRebalance, txnFunder) and a
+// (interval, priority, executionEffort, estimationMargin, forceRebalance, txFunder) and a
 // capability to a position. After saving the Rebalancer, users must issue a capability to it
 // and call setSelfCapability so it can register with the FlowTransactionScheduler. The scheduler
 // then invokes executeTransaction on the configured interval; each run rebalances the position
-// (using the txnFunder for fees) and schedules the next run. If scheduling the next run fails
+// (using the txFunder for fees) and schedules the next run. If scheduling the next run fails
 // (e.g. insufficient fees), fixReschedule() can be called by anyone—including an off-chain
 // supervisor—to retry; it is idempotent. See RebalanceArchitecture.md for an architecture overview.
 access(all) contract FlowALPRebalancerv1 {
@@ -21,9 +21,8 @@ access(all) contract FlowALPRebalancerv1 {
         uuid: UInt64,
         positionID: UInt64,
         force: Bool,
-        scheduledTimestamp: UFix64,
         currentTimestamp: UFix64,
-        nextScheduledTimestamp: UFix64,
+        nextScheduledTimestamp: UFix64?,
         scheduledTransactionID: UInt64,
     )
     access(all) event FixedReschedule(
@@ -36,7 +35,6 @@ access(all) contract FlowALPRebalancerv1 {
     )
     access(all) event FailedRecurringSchedule(
         uuid: UInt64,
-        whileExecuting: UInt64,
         address: Address?,
         error: String,
     )
@@ -52,8 +50,8 @@ access(all) contract FlowALPRebalancerv1 {
         access(all) let estimationMargin: UFix64
         /// The force rebalance flag
         access(all) let forceRebalance: Bool
-        /// The txnFunder used to fund the rebalance - must provide FLOW and accept FLOW
-        access(contract) var txnFunder: {DeFiActions.Sink, DeFiActions.Source}
+        /// The txFunder used to fund the rebalance - must provide FLOW and accept FLOW
+        access(contract) var txFunder: {DeFiActions.Sink, DeFiActions.Source}
 
         init(
             interval: UInt64,
@@ -61,7 +59,7 @@ access(all) contract FlowALPRebalancerv1 {
             executionEffort: UInt64,
             estimationMargin: UFix64,
             forceRebalance: Bool,
-            txnFunder: {DeFiActions.Sink, DeFiActions.Source}
+            txFunder: {DeFiActions.Sink, DeFiActions.Source}
         ) {
             pre {
                 interval > UInt64(0):
@@ -70,10 +68,10 @@ access(all) contract FlowALPRebalancerv1 {
                 "Invalid interval: \(interval) - must be less than the maximum interval of \(UInt64(UFix64.max) - UInt64(getCurrentBlock().timestamp))"
                 priority != FlowTransactionScheduler.Priority.High:
                 "Invalid priority: \(priority.rawValue) - must not be High"
-                txnFunder.getSourceType() == Type<@FlowToken.Vault>():
-                "Invalid txnFunder: \(txnFunder.getSourceType().identifier) - must provide FLOW but provides \(txnFunder.getSourceType().identifier)"
-                txnFunder.getSinkType() == Type<@FlowToken.Vault>():
-                "Invalid txnFunder: \(txnFunder.getSinkType().identifier) - must accept FLOW but accepts \(txnFunder.getSinkType().identifier)"
+                txFunder.getSourceType() == Type<@FlowToken.Vault>():
+                "Invalid txFunder: \(txFunder.getSourceType().identifier) - must provide FLOW but provides \(txFunder.getSourceType().identifier)"
+                txFunder.getSinkType() == Type<@FlowToken.Vault>():
+                "Invalid txFunder: \(txFunder.getSinkType().identifier) - must accept FLOW but accepts \(txFunder.getSinkType().identifier)"
             }
             let schedulerConfig = FlowTransactionScheduler.getConfig()
             let minEffort = schedulerConfig.minimumExecutionEffort
@@ -87,7 +85,7 @@ access(all) contract FlowALPRebalancerv1 {
             self.executionEffort = executionEffort
             self.estimationMargin = estimationMargin
             self.forceRebalance = forceRebalance
-            self.txnFunder = txnFunder
+            self.txFunder = txFunder
         }
     }
 
@@ -97,7 +95,6 @@ access(all) contract FlowALPRebalancerv1 {
     access(all) resource Rebalancer : FlowTransactionScheduler.TransactionHandler {
 
         access(all) var lastRebalanceTimestamp: UFix64
-        access(all) var nextScheduledRebalanceTimestamp: UFix64?
         access(all) var recurringConfig: RecurringConfig
 
         access(self) var _selfCapability: Capability<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>?
@@ -119,7 +116,6 @@ access(all) contract FlowALPRebalancerv1 {
             self.recurringConfig = recurringConfig
             self.scheduledTransactions <- {}
             self._positionRebalanceCapability = positionRebalanceCapability
-            self.nextScheduledRebalanceTimestamp = nil
 
             emit CreatedRebalancer(
                 uuid: self.uuid,
@@ -135,7 +131,7 @@ access(all) contract FlowALPRebalancerv1 {
             }
             self._selfCapability = cap
         }
-        
+
         /// Intended to be used by the FlowTransactionScheduler to execute the rebalance.
         ///
         /// @param id: The id of the scheduled transaction
@@ -146,69 +142,71 @@ access(all) contract FlowALPRebalancerv1 {
             let positionRebalanceCap = self._positionRebalanceCapability.borrow()!
             positionRebalanceCap.rebalance(force: self.recurringConfig.forceRebalance)
             self.lastRebalanceTimestamp = getCurrentBlock().timestamp
+            let nextScheduledTimestamp = self.scheduleNextRebalance()
             emit Rebalanced(
                 uuid: self.uuid,
                 positionID: positionRebalanceCap.id,
                 force: self.recurringConfig.forceRebalance,
-                scheduledTimestamp: self.nextScheduledRebalanceTimestamp!,
                 currentTimestamp: getCurrentBlock().timestamp,
-                nextScheduledTimestamp: self.nextExecutionTimestamp(),
+                nextScheduledTimestamp: nextScheduledTimestamp,
                 scheduledTransactionID: id,
             )
 
-            let err = self.scheduleNextRebalance()
-            if err != nil {
-                emit FailedRecurringSchedule(
-                    uuid: self.uuid,
-                    whileExecuting: id,
-                    address: self.owner?.address,
-                    error: err!,
-                )
-            }
             self.removeAllNonScheduledTransactions()
         }
-        
+
         /// Schedules the next execution of the rebalance. This method is written to fail as gracefully as
-        /// possible, reporting any failures to schedule the next execution to the calling function as a string to be emitted in an event. 
+        /// possible, emitting any failures to schedule the next execution as an event.
         /// This allows `executeTransaction` to continue execution even if the next execution cannot be scheduled while still
         /// informing of the failure via `FailedRecurringSchedule` event.
-        /// Custom code of the txnFunder is called which can panic the transaction. But this is purely a quality of live improvement, 
-        /// making sure the last rebalancing does not get reverted.
+        /// Custom code of the txFunder is called which can panic the transaction. But since this is purely a quality of live improvement,
+        /// making sure the last rebalancing does not get reverted, it's not a critical error.
         ///
-        /// @return String?: The error message, or nil if the next execution was scheduled
+        /// @return UFix64?: The next execution timestamp, or nil if the next execution was not scheduled
         ///
-        access(self) fun scheduleNextRebalance(): String? {
+        access(self) fun scheduleNextRebalance(): UFix64? {
             var nextTimestamp = self.nextExecutionTimestamp()
-            self.nextScheduledRebalanceTimestamp = nextTimestamp
 
             let flowFee = self.transactionSchedulerCalculateFee(priority: self.recurringConfig.priority, executionEffort: self.recurringConfig.executionEffort)
             let feeWithMargin = flowFee * self.recurringConfig.estimationMargin
-            if self.recurringConfig.txnFunder.minimumAvailable() < feeWithMargin {
-                return "INSUFFICIENT_FEES_AVAILABLE"
-            }
-
-            let fees <- self.recurringConfig.txnFunder.withdrawAvailable(maxAmount: feeWithMargin) as! @FlowToken.Vault
-            if fees.balance < feeWithMargin {
-                self.recurringConfig.txnFunder.depositCapacity(from: &fees as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-                if fees.balance > 0.0 {
-                    panic("can't deposit full amount of fees back to the txnFunder, remaining: \(fees.balance)")
-                }
-                destroy fees
-                return "INSUFFICIENT_FEES_PROVIDED"
-            } else {
-                // all checks passed - schedule the transaction & capture the scheduled transaction
-                let txn <- FlowTransactionScheduler.schedule(
-                        handlerCap: self._selfCapability!,
-                        data: nil,
-                        timestamp: nextTimestamp,
-                        priority: self.recurringConfig.priority,
-                        executionEffort: self.recurringConfig.executionEffort,
-                        fees: <-fees
-                    )
-                let txnID = txn.id
-                self.scheduledTransactions[txnID] <-! txn
+            let minimumAvailable = self.recurringConfig.txFunder.minimumAvailable()
+            if minimumAvailable < feeWithMargin {
+                emit FailedRecurringSchedule(
+                    uuid: self.uuid,
+                    address: self.owner?.address,
+                    error: "insufficient fees available, expected: \(feeWithMargin) but available: \(minimumAvailable)",
+                )
                 return nil
             }
+
+            let fees <- self.recurringConfig.txFunder.withdrawAvailable(maxAmount: feeWithMargin) as! @FlowToken.Vault
+            if fees.balance != feeWithMargin {
+                let givenBalance = fees.balance
+                self.recurringConfig.txFunder.depositCapacity(from: &fees as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
+                if fees.balance > 0.0 {
+                    panic("can't deposit full amount of fees back to the txFunder, remaining: \(fees.balance)")
+                }
+                destroy fees
+                emit FailedRecurringSchedule(
+                    uuid: self.uuid,
+                    address: self.owner?.address,
+                    error: "invalid fees balance: \(givenBalance) - expected: \(feeWithMargin)",
+                )
+                return nil
+            }
+
+            // all checks passed - schedule the transaction & capture the scheduled transaction
+            let tx <- FlowTransactionScheduler.schedule(
+                    handlerCap: self._selfCapability!,
+                    data: nil,
+                    timestamp: nextTimestamp,
+                    priority: self.recurringConfig.priority,
+                    executionEffort: self.recurringConfig.executionEffort,
+                    fees: <-fees
+                )
+            let txID = tx.id
+            self.scheduledTransactions[txID] <-! tx
+            return nextTimestamp
         }
 
         /// Calculates the FLOW fee for scheduling a transaction using the official FlowFees calculation.
@@ -226,25 +224,18 @@ access(all) contract FlowALPRebalancerv1 {
         }
 
         /// Idempotent, schedules a new transaction if there is no scheduled transaction.
-        /// 
+        ///
         /// This function is designed to be safely callable by any account, including an off-chain supervisor,
         /// to help recover from issues where the next scheduled transaction could not be scheduled.
         access(all) fun fixReschedule() {
             self.removeAllNonScheduledTransactions()
-           
+
             if self.scheduledTransactions.keys.length == 0 {
-                let err = self.scheduleNextRebalance()
-                if err != nil {
-                    emit FailedRecurringSchedule(
-                        uuid: self.uuid,
-                        whileExecuting: 0,
-                        address: self.owner?.address,
-                        error: err!,
-                    )
-                } else {
+                let nextScheduledTimestamp = self.scheduleNextRebalance()
+                if let nextScheduledTimestamp = nextScheduledTimestamp {
                     emit FixedReschedule(
                         uuid: self.uuid,
-                        nextScheduledTimestamp: self.nextExecutionTimestamp(),
+                        nextScheduledTimestamp: nextScheduledTimestamp,
                     )
                 }
             }
@@ -273,30 +264,30 @@ access(all) contract FlowALPRebalancerv1 {
         access(Configure) fun setRecurringConfig(_ config: RecurringConfig) {
             self.recurringConfig = config
             self.cancelAllScheduledTransactions()
-            let err = self.scheduleNextRebalance()
-            if err != nil {
-                panic("Failed to schedule next rebalance after setting recurring config: \(err!)")
+            let nextScheduledTimestamp = self.scheduleNextRebalance()
+            if nextScheduledTimestamp == nil {
+                panic("Failed to schedule next rebalance after setting recurring config")
             }
         }
 
-        /// Cancel all scheduled rebalance transactions and refund fees to the txnFunder.
+        /// Cancel all scheduled rebalance transactions and refund fees to the txFunder.
         access(FlowTransactionScheduler.Cancel) fun cancelAllScheduledTransactions() {
             while self.scheduledTransactions.keys.length > 0 {
                 self.cancelScheduledTransaction(id: self.scheduledTransactions.keys[0])
             }
         }
 
-        /// Cancel one scheduled transaction, remove it from the map, and refund its fees to the txnFunder.
+        /// Cancel one scheduled transaction, remove it from the map, and refund its fees to the txFunder.
         access(FlowTransactionScheduler.Cancel) fun cancelScheduledTransaction(id: UInt64) {
-            let txn <- self.scheduledTransactions.remove(key: id)!
-            if txn.status() != FlowTransactionScheduler.Status.Scheduled {
-                destroy txn
+            let tx <- self.scheduledTransactions.remove(key: id)!
+            if tx.status() != FlowTransactionScheduler.Status.Scheduled {
+                destroy tx
                 return
             }
-            let refund <- FlowTransactionScheduler.cancel(scheduledTx: <-txn)
-            self.recurringConfig.txnFunder.depositCapacity(from: &refund as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
+            let refund <- FlowTransactionScheduler.cancel(scheduledTx: <-tx)
+            self.recurringConfig.txFunder.depositCapacity(from: &refund as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
             if refund.balance > 0.0 {
-                panic("can't deposit full amount of refund back to the txnFunder, remaining: \(refund.balance)")
+                panic("can't deposit full amount of refund back to the txFunder, remaining: \(refund.balance)")
             }
             destroy refund
         }
@@ -304,8 +295,8 @@ access(all) contract FlowALPRebalancerv1 {
         /// Drop any scheduled transactions that are no longer Scheduled (e.g. already executed or cancelled).
         access(self) fun removeAllNonScheduledTransactions() {
             for id in self.scheduledTransactions.keys {
-                let txn = self.borrowScheduledTransaction(id: id)!
-                if txn.status() != FlowTransactionScheduler.Status.Scheduled {
+                let tx = self.borrowScheduledTransaction(id: id)!
+                if tx.status() != FlowTransactionScheduler.Status.Scheduled {
                     destroy self.scheduledTransactions.remove(key: id)
                 }
             }
@@ -319,7 +310,7 @@ access(all) contract FlowALPRebalancerv1 {
         positionRebalanceCapability: Capability<auth(FlowALPv1.ERebalance) &FlowALPv1.Position>,
     ): @Rebalancer {
         let rebalancer <- create Rebalancer(
-            recurringConfig: recurringConfig, 
+            recurringConfig: recurringConfig,
             positionRebalanceCapability: positionRebalanceCapability
         )
         return <- rebalancer
