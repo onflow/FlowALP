@@ -96,13 +96,13 @@ fun test_pool_pause_deposit_withdrawal() {
     )
     Test.expect(depositRes2, Test.beSucceeded())
 
-    // Withdrawing from position should now succeed
+    // Withdrawing from position should still fail during warmup period
     let withdrawRes2 = _executeTransaction(
         "./transactions/position-manager/withdraw_from_position.cdc",
         [0 as UInt64, FLOW_TOKEN_IDENTIFIER, 50.0, false],
         user1
     )
-    Test.expect(withdrawRes2, Test.beSucceeded())
+    Test.expect(withdrawRes2, Test.beFailed())
 
     // Creating new position (for user2) should now succeed
     let openRes2 = _executeTransaction(
@@ -111,5 +111,18 @@ fun test_pool_pause_deposit_withdrawal() {
         user2
     )
     Test.expect(openRes2, Test.beSucceeded())
+
+    // Wait for the warmup period to end
+    Test.moveTime(by: Fix64(300.0))
+    // ---------------------------------------------------------
+
+    // Withdrawing from position should now succeed
+    let withdrawRes3 = _executeTransaction(
+        "./transactions/position-manager/withdraw_from_position.cdc",
+        [0 as UInt64, FLOW_TOKEN_IDENTIFIER, 50.0, false],
+        user1
+    )
+    Test.expect(withdrawRes3, Test.beSucceeded())
+
 
 }
