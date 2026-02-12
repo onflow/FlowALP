@@ -28,6 +28,12 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"FlowALPModels": {
+			"source": "./cadence/contracts/FlowALPModels.cdc",
+			"aliases": {
+				"testing": "0000000000000008"
+			}
+		},
 		"FlowALPv1": {
 			"source": "./cadence/contracts/FlowALPv1.cdc",
 			"aliases": {
@@ -232,6 +238,7 @@
 						}
 					]
 				},
+				"FlowALPModels",
 				"FlowALPv1"
 			]
 		},
@@ -248,6 +255,7 @@
 						}
 					]
 				},
+				"FlowALPModels",
 				"FlowALPv1"
 			]
 		},
@@ -264,6 +272,7 @@
 						}
 					]
 				},
+				"FlowALPModels",
 				"FlowALPv1"
 			]
 		}

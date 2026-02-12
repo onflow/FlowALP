@@ -7,6 +7,7 @@ import "DeFiActions"
 import "MOET"
 import "FlowALPMath"
 import "FlowALPInterestRates"
+import "FlowALPModels"
 
 access(all) contract FlowALPv1 {
 
@@ -1373,51 +1374,7 @@ access(all) contract FlowALPv1 {
         access(self) var paused: Bool
 
         /// Pool Config
-        ///
-
-        /// A price oracle that will return the price of each token in terms of the default token.
-        access(self) var priceOracle: {DeFiActions.PriceOracle}
-
-        /// Together with borrowFactor, collateralFactor determines borrowing limits for each token.
-        ///
-        /// When determining the withdrawable loan amount, the value of the token (provided by the PriceOracle)
-        /// is multiplied by the collateral factor.
-        ///
-        /// The total "effective collateral" for a position is the value of each token deposited to the position
-        /// multiplied by its collateral factor.
-        access(self) var collateralFactor: {Type: UFix64}
-
-        /// Together with collateralFactor, borrowFactor determines borrowing limits for each token.
-        ///
-        /// The borrowFactor determines how much of a position's "effective collateral" can be borrowed against as a
-        /// percentage between 0.0 and 1.0
-        access(self) var borrowFactor: {Type: UFix64}
-
-        /// The count of positions to update per asynchronous update
-        access(self) var positionsProcessedPerCallback: UInt64
-
-        /// Liquidation target health and controls (global)
-
-        /// The target health factor when liquidating a position, which limits how much collateral can be liquidated.
-        /// After a liquidation, the position's health factor must be less than or equal to this target value.
-        access(self) var liquidationTargetHF: UFix128
-
-        /// Period (s) following unpause in which liquidations are still not allowed
-        access(self) var warmupSec: UInt64
-        /// Time this pool most recently was unpaused
-        access(self) var lastUnpausedAt: UInt64?
-
-        /// A trusted DEX (or set of DEXes) used by FlowALPv1 as a pricing oracle and trading counterparty for liquidations.
-        /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
-        /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
-        ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
-        ///
-        /// FlowALPv1 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
-        /// It relies directly on the Swapper's returned by the configured SwapperProvider.
-        access(self) var dex: {DeFiActions.SwapperProvider}
-
-        /// Max allowed deviation in basis points between DEX-implied price and oracle price.
-        access(self) var dexOracleDeviationBps: UInt16
+        access(self) var config: FlowALPModels.PoolConfigImpl
 
         init(
         	defaultToken: Type,
@@ -1443,18 +1400,20 @@ access(all) contract FlowALPv1 {
             self.insuranceFund <- MOET.createEmptyVault(vaultType: Type<@MOET.Vault>())
             self.stabilityFunds <- {}
             self.defaultToken = defaultToken
-            self.priceOracle = priceOracle
-            self.collateralFactor = {defaultToken: 1.0}
-            self.borrowFactor = {defaultToken: 1.0}
+            self.config = FlowALPModels.PoolConfigImpl(
+                priceOracle: priceOracle,
+                collateralFactor: {defaultToken: 1.0},
+                borrowFactor: {defaultToken: 1.0},
+                positionsProcessedPerCallback: 100,
+                liquidationTargetHF: 1.05,
+                warmupSec: 300,
+                lastUnpausedAt: nil,
+                dex: dex,
+                dexOracleDeviationBps: 300
+            )
             self.nextPositionID = 0
             self.positionsNeedingUpdates = []
-            self.positionsProcessedPerCallback = 100
-            self.liquidationTargetHF = 1.05
             self.paused = false
-            self.warmupSec = 300
-            self.lastUnpausedAt = nil
-            self.dex = dex
-            self.dexOracleDeviationBps = 300 // 3% default
             self.positionLock = {}
 
             // The pool starts with an empty reserves map.
@@ -1501,9 +1460,9 @@ access(all) contract FlowALPv1 {
             if self.paused {
                 return true
             }
-            if let lastUnpausedAt = self.lastUnpausedAt {
+            if let lastUnpausedAt = self.config.getLastUnpausedAt() {
                 let now = UInt64(getCurrentBlock().timestamp)
-                return now < lastUnpausedAt + self.warmupSec
+                return now < lastUnpausedAt + self.config.getWarmupSec()
             }
             return false
         }
@@ -1569,15 +1528,15 @@ access(all) contract FlowALPv1 {
         access(all) fun getPauseParams(): FlowALPv1.PauseParamsView {
             return FlowALPv1.PauseParamsView(
                 paused: self.paused,
-                warmupSec: self.warmupSec,
-                lastUnpausedAt: self.lastUnpausedAt,
+                warmupSec: self.config.getWarmupSec(),
+                lastUnpausedAt: self.config.getLastUnpausedAt(),
             )
         }
 
         /// Returns current liquidation parameters
         access(all) fun getLiquidationParams(): FlowALPv1.LiquidationParamsView {
             return FlowALPv1.LiquidationParamsView(
-                targetHF: self.liquidationTargetHF,
+                targetHF: self.config.getLiquidationTargetHF(),
                 triggerHF: 1.0,
             )
         }
@@ -1585,7 +1544,7 @@ access(all) contract FlowALPv1 {
         /// Returns Oracle-DEX guards and allowlists for frontends/keepers
         access(all) fun getDexLiquidationConfig(): {String: AnyStruct} {
             return {
-                "dexOracleDeviationBps": self.dexOracleDeviationBps
+                "dexOracleDeviationBps": self.config.getDexOracleDeviationBps()
             }
         }
 
@@ -1660,12 +1619,12 @@ access(all) contract FlowALPv1 {
             // Build a TokenSnapshot for the requested withdraw type (may not exist in view.snapshots)
             let tokenState = self._borrowUpdatedTokenState(type: type)
             let snap = FlowALPv1.TokenSnapshot(
-                price: UFix128(self.priceOracle.price(ofToken: type)!),
+                price: UFix128(self.config.getPriceOracle().price(ofToken: type)!),
                 credit: tokenState.creditInterestIndex,
                 debit: tokenState.debitInterestIndex,
                 risk: FlowALPv1.RiskParams(
-                    collateralFactor: UFix128(self.collateralFactor[type]!),
-                    borrowFactor: UFix128(self.borrowFactor[type]!),
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: type)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: type)),
                 )
             )
 
@@ -1695,9 +1654,9 @@ access(all) contract FlowALPv1 {
                 let balance = position.balances[type]!
                 let tokenState = self._borrowUpdatedTokenState(type: type)
 
-                let collateralFactor = UFix128(self.collateralFactor[type]!)
-                let borrowFactor = UFix128(self.borrowFactor[type]!)
-                let price = UFix128(self.priceOracle.price(ofToken: type)!)
+                let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
+                let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
+                let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
                 switch balance.direction {
                     case BalanceDirection.Credit:
                         let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
@@ -1829,8 +1788,8 @@ access(all) contract FlowALPv1 {
             assert(UFix128(repayAmount) <= Nd, message: "Cannot repay more debt than is in position: debt balance (\(Nd)) is less than repay amount (\(repayAmount))")
 
             // Oracle prices
-            let Pd_oracle = self.priceOracle.price(ofToken: debtType)!  // debt price given by oracle ($/D)
-            let Pc_oracle = self.priceOracle.price(ofToken: seizeType)! // collateral price given by oracle ($/C)
+            let Pd_oracle = self.config.getPriceOracle().price(ofToken: debtType)!  // debt price given by oracle ($/D)
+            let Pc_oracle = self.config.getPriceOracle().price(ofToken: seizeType)! // collateral price given by oracle ($/C)
             // Price of collateral, denominated in debt token, implied by oracle (D/C)
             // Oracle says: "1 unit of collateral is worth `Pcd_oracle` units of debt"
             let Pcd_oracle = Pc_oracle / Pd_oracle 
@@ -1848,7 +1807,7 @@ access(all) contract FlowALPv1 {
             let Ce_post = Ce_pre - Ce_seize // position's total effective collateral after liquidation ($)
             let De_post = De_pre - De_seize // position's total effective debt after liquidation ($)
             let postHealth = FlowALPv1.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
-            assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: post-liquidation health (\(postHealth)) is greater than target health (\(self.liquidationTargetHF))")
+            assert(postHealth <= self.config.getLiquidationTargetHF(), message: "Liquidation must not exceed target health: post-liquidation health (\(postHealth)) is greater than target health (\(self.config.getLiquidationTargetHF()))")
 
             // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
             let swapper = self._getSwapperForLiquidation(seizeType: seizeType, debtType: debtType)
@@ -1859,7 +1818,7 @@ access(all) contract FlowALPv1 {
             // Compare the DEX price to the oracle price and revert if they diverge beyond configured threshold.
             let Pcd_dex = quote.outAmount / quote.inAmount // price of collateral, denominated in debt token, implied by dex quote (D/C)
             assert(
-                FlowALPv1.dexOraclePriceDeviationInRange(dexPrice: Pcd_dex, oraclePrice: Pcd_oracle, maxDeviationBps: self.dexOracleDeviationBps),
+                FlowALPv1.dexOraclePriceDeviationInRange(dexPrice: Pcd_dex, oraclePrice: Pcd_oracle, maxDeviationBps: self.config.getDexOracleDeviationBps()),
                 message: "DEX/oracle price deviation too large. Dex price: \(Pcd_dex), Oracle price: \(Pcd_oracle)")
             // Execute the liquidation
             let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
@@ -1881,7 +1840,7 @@ access(all) contract FlowALPv1 {
         /// @param debtType: The debt token type to swap to
         /// @return The swapper for the given token pair
         access(self) fun _getSwapperForLiquidation(seizeType: Type, debtType: Type): {DeFiActions.Swapper} {
-            return self.dex.getSwapper(inType: seizeType, outType: debtType)
+            return self.config.getDex().getSwapper(inType: seizeType, outType: debtType)
                 ?? panic("No DEX swapper configured for liquidation pair: \(seizeType.identifier) -> \(debtType.identifier)")
         }
 
@@ -1993,8 +1952,8 @@ access(all) contract FlowALPv1 {
             }
 
             let withdrawAmountU = UFix128(withdrawAmount)
-            let withdrawPrice2 = UFix128(self.priceOracle.price(ofToken: withdrawType)!)
-            let withdrawBorrowFactor2 = UFix128(self.borrowFactor[withdrawType]!)
+            let withdrawPrice2 = UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!)
+            let withdrawBorrowFactor2 = UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
             let balance = position.balances[withdrawType]
             let direction = balance?.direction ?? BalanceDirection.Debit
             let scaledBalance = balance?.scaledBalance ?? 0.0
@@ -2015,7 +1974,7 @@ access(all) contract FlowALPv1 {
                         scaledBalance,
                         interestIndex: withdrawTokenState.creditInterestIndex
                     )
-                    let collateralFactor = UFix128(self.collateralFactor[withdrawType]!)
+                    let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: withdrawType))
                     if trueCollateral >= withdrawAmountU {
                         // This withdrawal will draw down collateral, but won't create debt, we just need to account
                         // for the collateral decrease.
@@ -2073,9 +2032,9 @@ access(all) contract FlowALPv1 {
             // For situations where the required deposit will BOTH pay off debt and accumulate collateral, we keep
             // track of the number of tokens that went towards paying off debt.
             var debtTokenCount: UFix128 = 0.0
-            let depositPrice = UFix128(self.priceOracle.price(ofToken: depositType)!)
-            let depositBorrowFactor = UFix128(self.borrowFactor[depositType]!)
-            let withdrawBorrowFactor = UFix128(self.borrowFactor[withdrawType]!)
+            let depositPrice = UFix128(self.config.getPriceOracle().price(ofToken: depositType)!)
+            let depositBorrowFactor = UFix128(self.config.getBorrowFactor(tokenType: depositType))
+            let withdrawBorrowFactor = UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
             let maybeBalance = position.balances[depositType]
             if maybeBalance?.direction == BalanceDirection.Debit {
                 // The user has a debt position in the given token, we start by looking at the health impact of paying off
@@ -2143,7 +2102,7 @@ access(all) contract FlowALPv1 {
             // multiply the required health change by the effective debt, and turn that into a token amount.
             let healthChangeU = targetHealth - healthAfterWithdrawal
             // TODO: apply the same logic as below to the early return blocks above
-            let depositCollateralFactor = UFix128(self.collateralFactor[depositType]!)
+            let depositCollateralFactor = UFix128(self.config.getCollateralFactor(tokenType: depositType))
             let requiredEffectiveCollateral = (healthChangeU * effectiveDebtAfterWithdrawal) / depositCollateralFactor
 
             // The amount of the token to deposit, in units of the token.
@@ -2236,9 +2195,9 @@ access(all) contract FlowALPv1 {
             }
 
             let depositAmountCasted = UFix128(depositAmount)
-            let depositPriceCasted = UFix128(self.priceOracle.price(ofToken: depositType)!)
-            let depositBorrowFactorCasted = UFix128(self.borrowFactor[depositType]!)
-            let depositCollateralFactorCasted = UFix128(self.collateralFactor[depositType]!)
+            let depositPriceCasted = UFix128(self.config.getPriceOracle().price(ofToken: depositType)!)
+            let depositBorrowFactorCasted = UFix128(self.config.getBorrowFactor(tokenType: depositType))
+            let depositCollateralFactorCasted = UFix128(self.config.getCollateralFactor(tokenType: depositType))
             let balance = position.balances[depositType]
             let direction = balance?.direction ?? BalanceDirection.Credit
             let scaledBalance = balance?.scaledBalance ?? 0.0
@@ -2322,9 +2281,9 @@ access(all) contract FlowALPv1 {
             // track of the number of tokens that are available from collateral
             var collateralTokenCount: UFix128 = 0.0
 
-            let withdrawPrice = UFix128(self.priceOracle.price(ofToken: withdrawType)!)
-            let withdrawCollateralFactor = UFix128(self.collateralFactor[withdrawType]!)
-            let withdrawBorrowFactor = UFix128(self.borrowFactor[withdrawType]!)
+            let withdrawPrice = UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!)
+            let withdrawCollateralFactor = UFix128(self.config.getCollateralFactor(tokenType: withdrawType))
+            let withdrawBorrowFactor = UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
 
             let maybeBalance = position.balances[withdrawType]
             if maybeBalance?.direction == BalanceDirection.Credit {
@@ -2409,9 +2368,9 @@ access(all) contract FlowALPv1 {
             var effectiveDebtDecrease: UFix128 = 0.0
 
             let amountU = UFix128(amount)
-            let price = UFix128(self.priceOracle.price(ofToken: type)!)
-            let collateralFactor = UFix128(self.collateralFactor[type]!)
-            let borrowFactor = UFix128(self.borrowFactor[type]!)
+            let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
+            let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
+            let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
             let balance = position.balances[type]
             let direction = balance?.direction ?? BalanceDirection.Credit
             let scaledBalance = balance?.scaledBalance ?? 0.0
@@ -2460,9 +2419,9 @@ access(all) contract FlowALPv1 {
             var effectiveDebtIncrease: UFix128 = 0.0
 
             let amountU = UFix128(amount)
-            let price = UFix128(self.priceOracle.price(ofToken: type)!)
-            let collateralFactor = UFix128(self.collateralFactor[type]!)
-            let borrowFactor = UFix128(self.borrowFactor[type]!)
+            let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
+            let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
+            let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
             let balance = position.balances[type]
             let direction = balance?.direction ?? BalanceDirection.Debit
             let scaledBalance = balance?.scaledBalance ?? 0.0
@@ -2922,11 +2881,7 @@ access(all) contract FlowALPv1 {
         access(EGovernance) fun setLiquidationParams(
             targetHF: UFix128,
         ) {
-            assert(
-                targetHF > 1.0,
-                message: "targetHF must be > 1.0"
-            )
-            self.liquidationTargetHF = targetHF
+            self.config.setLiquidationTargetHF(targetHF)
             emit LiquidationParamsUpdated(
                 poolUUID: self.uuid,
                 targetHF: targetHF,
@@ -2937,7 +2892,7 @@ access(all) contract FlowALPv1 {
         access(EGovernance) fun setPauseParams(
             warmupSec: UInt64,
         ) {
-            self.warmupSec = warmupSec
+            self.config.setWarmupSec(warmupSec)
             emit PauseParamsUpdated(
                 poolUUID: self.uuid,
                 warmupSec: warmupSec,
@@ -2949,7 +2904,7 @@ access(all) contract FlowALPv1 {
             pre {
                 // TODO(jord): sanity check here?
             }
-            self.dexOracleDeviationBps = dexOracleDeviationBps
+            self.config.setDexOracleDeviationBps(dexOracleDeviationBps)
         }
 
         /// Updates the DEX (AMM) interface used for liquidations and insurance collection.
@@ -2961,7 +2916,7 @@ access(all) contract FlowALPv1 {
         /// FlowALPv1 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
         /// It relies directly on the Swapper's returned by the configured SwapperProvider.
         access(EGovernance) fun setDEX(dex: {DeFiActions.SwapperProvider}) {
-            self.dex = dex
+            self.config.setDex(dex)
         }
 
         /// Pauses the pool, temporarily preventing further withdrawals, deposits, and liquidations
@@ -2980,10 +2935,10 @@ access(all) contract FlowALPv1 {
             }
             self.paused = false
             let now = UInt64(getCurrentBlock().timestamp)
-            self.lastUnpausedAt = now
+            self.config.setLastUnpausedAt(now)
             emit PoolUnpaused(
                 poolUUID: self.uuid,
-                warmupEndsAt: now + self.warmupSec
+                warmupEndsAt: now + self.config.getWarmupSec()
             )
         }
 
@@ -3023,10 +2978,10 @@ access(all) contract FlowALPv1 {
             )
 
             // Set collateral factor (what percentage of value can be used as collateral)
-            self.collateralFactor[tokenType] = collateralFactor
+            self.config.setCollateralFactor(tokenType: tokenType, factor: collateralFactor)
 
             // Set borrow factor (risk adjustment for borrowed amounts)
-            self.borrowFactor[tokenType] = borrowFactor
+            self.config.setBorrowFactor(tokenType: tokenType, factor: borrowFactor)
         }
 
         /// Updates the insurance rate for a given token (fraction in [0,1])
@@ -3380,7 +3335,7 @@ access(all) contract FlowALPv1 {
             // it should schedule each update to run in its own callback, so a revert() call from one update (for example, if a source or
             // sink aborts) won't prevent other positions from being updated.
             var processed: UInt64 = 0
-            while self.positionsNeedingUpdates.length > 0 && processed < self.positionsProcessedPerCallback {
+            while self.positionsNeedingUpdates.length > 0 && processed < self.config.getPositionsProcessedPerCallback() {
                 let pid = self.positionsNeedingUpdates.removeFirst()
                 self.asyncUpdatePosition(pid: pid)
                 self._queuePositionForUpdateIfNecessary(pid: pid)
@@ -3519,10 +3474,10 @@ access(all) contract FlowALPv1 {
                             interestIndex: tokenState.creditInterestIndex
                         )
 
-                        let convertedPrice = UFix128(self.priceOracle.price(ofToken: type)!)
+                        let convertedPrice = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
                         let value = convertedPrice * trueBalance
 
-                        let convertedCollateralFactor = UFix128(self.collateralFactor[type]!)
+                        let convertedCollateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
                         effectiveCollateral = effectiveCollateral + (value * convertedCollateralFactor)
 
                     case BalanceDirection.Debit:
@@ -3531,10 +3486,10 @@ access(all) contract FlowALPv1 {
                             interestIndex: tokenState.debitInterestIndex
                         )
 
-                        let convertedPrice = UFix128(self.priceOracle.price(ofToken: type)!)
+                        let convertedPrice = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
                         let value = convertedPrice * trueBalance
 
-                        let convertedBorrowFactor = UFix128(self.borrowFactor[type]!)
+                        let convertedBorrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
                         effectiveDebt = effectiveDebt + (value / convertedBorrowFactor)
 
                 }
@@ -3572,11 +3527,11 @@ access(all) contract FlowALPv1 {
             // Get reference to reserves
             if let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?) {
                 // Collect insurance and get MOET vault
-                let oraclePrice = self.priceOracle.price(ofToken: tokenType)!
+                let oraclePrice = self.config.getPriceOracle().price(ofToken: tokenType)!
                 if let collectedMOET <- tokenState.collectInsurance(
                     reserveVault: reserveRef,
                     oraclePrice: oraclePrice,
-                    maxDeviationBps: self.dexOracleDeviationBps
+                    maxDeviationBps: self.config.getDexOracleDeviationBps()
                 ) {
                     let collectedMOETBalance = collectedMOET.balance
                     // Deposit collected MOET into insurance fund
@@ -3612,12 +3567,12 @@ access(all) contract FlowALPv1 {
             for t in position.balances.keys {
                 let tokenState = self._borrowUpdatedTokenState(type: t)
                 snaps[t] = FlowALPv1.TokenSnapshot(
-                    price: UFix128(self.priceOracle.price(ofToken: t)!),
+                    price: UFix128(self.config.getPriceOracle().price(ofToken: t)!),
                     credit: tokenState.creditInterestIndex,
                     debit: tokenState.debitInterestIndex,
                     risk: FlowALPv1.RiskParams(
-                        collateralFactor: UFix128(self.collateralFactor[t]!),
-                        borrowFactor: UFix128(self.borrowFactor[t]!),
+                        collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: t)),
+                        borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: t)),
                     )
                 )
             }
@@ -3631,11 +3586,7 @@ access(all) contract FlowALPv1 {
         }
 
         access(EGovernance) fun setPriceOracle(_ newOracle: {DeFiActions.PriceOracle}) {
-            pre {
-                newOracle.unitOfAccount() == self.defaultToken:
-                    "Price oracle must return prices in terms of the pool's default token"
-            }
-            self.priceOracle = newOracle
+            self.config.setPriceOracle(newOracle, defaultToken: self.defaultToken)
             self.positionsNeedingUpdates = self.positions.keys
 
             emit PriceOracleUpdated(
