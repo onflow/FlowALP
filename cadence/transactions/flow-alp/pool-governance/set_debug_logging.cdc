@@ -11,7 +11,7 @@ transaction(
     }
 
     execute {
-        self.pool.setDebugLogging(enabled)
+        self.pool.borrowConfig().setDebugLogging(enabled)
     }
 }
 

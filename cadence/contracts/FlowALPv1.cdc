@@ -67,22 +67,6 @@ access(all) contract FlowALPv1 {
         fromUnder: Bool
     )
 
-    /// Consolidated liquidation params update event including all updated values
-    access(all) event LiquidationParamsUpdated(
-        poolUUID: UInt64,
-        targetHF: UFix128,
-    )
-
-    access(all) event PauseParamsUpdated(
-        poolUUID: UInt64,
-        warmupSec: UInt64,
-    )
-
-    /// Emitted when the pool is paused, which temporarily prevents liquidations, withdrawals, and deposits.
-    access(all) event PoolPaused(
-        poolUUID: UInt64
-    )
-
     /// Emitted when the pool is unpaused, which re-enables all functionality when the Pool was previously paused.
     access(all) event PoolUnpaused(
         poolUUID: UInt64,
@@ -1015,16 +999,6 @@ access(all) contract FlowALPv1 {
 
         /// Returns a reference to the reserve vault for the given type, if the token type is supported.
         /// If no reserve vault exists yet, and the token type is supported, the reserve vault is created.
-        access(self) fun _borrowOrCreateReserveVault(type: Type): &{FungibleToken.Vault} {
-            pre {
-                self.isTokenSupported(tokenType: type): "Cannot borrow reserve for unsupported token \(type.identifier)"
-            }
-            if !self.state.hasReserve(type) {
-                self.state.initReserve(type, <-DeFiActionsUtils.getEmptyVault(type))
-            }
-            return self.state.borrowReserve(type)!
-        }
-
         /// Returns a position's balance available for withdrawal of a given Vault type.
         /// Phase 0 refactor: compute via pure helpers using a PositionView and TokenSnapshot for the base path.
         /// When `pullFromTopUpSource` is true and a topUpSource exists, preserve deposit-assisted semantics.
@@ -1248,7 +1222,7 @@ access(all) contract FlowALPv1 {
             assert(postHealth <= self.config.getLiquidationTargetHF(), message: "Liquidation must not exceed target health: post-liquidation health (\(postHealth)) is greater than target health (\(self.config.getLiquidationTargetHF()))")
 
             // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
-            let swapper = self._getSwapperForLiquidation(seizeType: seizeType, debtType: debtType)
+            let swapper = self.config.getSwapperForLiquidation(seizeType: seizeType, debtType: debtType)
             // Get a quote: "how much collateral do I need to give you to get `repayAmount` debt tokens"
             let quote = swapper.quoteIn(forDesired: repayAmount, reverse: false)
             assert(seizeAmount < quote.inAmount, message: "Liquidation offer must be better than that offered by DEX")
@@ -1275,13 +1249,6 @@ access(all) contract FlowALPv1 {
         /// - No swapper is configured for the given token pair (seizeType -> debtType)
         ///
         /// @param seizeType: The collateral token type to swap from
-        /// @param debtType: The debt token type to swap to
-        /// @return The swapper for the given token pair
-        access(self) fun _getSwapperForLiquidation(seizeType: Type, debtType: Type): {DeFiActions.Swapper} {
-            return self.config.getDex().getSwapper(inType: seizeType, outType: debtType)
-                ?? panic("No DEX swapper configured for liquidation pair: \(seizeType.identifier) -> \(debtType.identifier)")
-        }
-
         /// Internal liquidation function which performs a liquidation.
         /// The balance of `repayment` is deposited to the debt token reserve, and `seizeAmount` units of collateral are returned.
         /// Callers are responsible for checking preconditions.
@@ -1293,7 +1260,7 @@ access(all) contract FlowALPv1 {
 
             let repayAmount = repayment.balance
             assert(repayment.getType() == debtType, message: "Vault type mismatch for repay. Repayment type is \(repayment.getType().identifier) but debt type is \(debtType.identifier)")
-            let debtReserveRef = self._borrowOrCreateReserveVault(type: debtType)
+            let debtReserveRef = self.state.borrowOrCreateReserve(debtType)
             debtReserveRef.deposit(from: <-repayment)
 
             // Reduce borrower's debt position by repayAmount
@@ -2315,41 +2282,10 @@ access(all) contract FlowALPv1 {
         // POOL MANAGEMENT
         ///////////////////////
 
-        /// Updates liquidation-related parameters
-        access(EGovernance) fun setLiquidationParams(
-            targetHF: UFix128,
-        ) {
-            self.config.setLiquidationTargetHF(targetHF)
-            emit LiquidationParamsUpdated(
-                poolUUID: self.uuid,
-                targetHF: targetHF,
-            )
-        }
-
-        /// Updates pause-related parameters
-        access(EGovernance) fun setPauseParams(
-            warmupSec: UInt64,
-        ) {
-            self.config.setWarmupSec(warmupSec)
-            emit PauseParamsUpdated(
-                poolUUID: self.uuid,
-                warmupSec: warmupSec,
-            )
-        }
-
         /// Returns a mutable reference to the pool's configuration.
         /// Use this to update config fields that don't require events or side effects.
         access(EGovernance) fun borrowConfig(): &{FlowALPModels.PoolConfig} {
             return &self.config
-        }
-
-        /// Pauses the pool, temporarily preventing further withdrawals, deposits, and liquidations
-        access(EGovernance) fun pausePool() {
-            if self.config.isPaused() {
-                return
-            }
-            self.config.setPaused(true)
-            emit PoolPaused(poolUUID: self.uuid)
         }
 
         /// Unpauses the pool, and starts the warm-up window
@@ -2609,11 +2545,6 @@ access(all) contract FlowALPv1 {
                 tokenType: tokenType.identifier,
                 curveType: interestCurve.getType().identifier
             )
-        }
-
-        /// Enables or disables verbose logging inside the Pool for testing and diagnostics
-        access(EGovernance) fun setDebugLogging(_ enabled: Bool) {
-            self.config.setDebugLogging(enabled)
         }
 
         /// Rebalances the position to the target health value, if the position is under- or over-collateralized,

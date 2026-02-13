@@ -1,5 +1,6 @@
 import "FungibleToken"
 import "DeFiActions"
+import "DeFiActionsUtils"
 import "MOET"
 import "FlowALPMath"
 import "FlowALPInterestRates"
@@ -34,6 +35,7 @@ access(all) contract FlowALPModels {
         access(all) view fun isDebugLogging(): Bool
         access(all) view fun getSupportedTokens(): [Type]
         access(all) view fun isTokenSupported(tokenType: Type): Bool
+        access(all) fun getSwapperForLiquidation(seizeType: Type, debtType: Type): {DeFiActions.Swapper}
 
         // Setters
 
@@ -179,6 +181,11 @@ access(all) contract FlowALPModels {
 
         access(all) view fun isTokenSupported(tokenType: Type): Bool {
             return self.collateralFactor[tokenType] != nil
+        }
+
+        access(all) fun getSwapperForLiquidation(seizeType: Type, debtType: Type): {DeFiActions.Swapper} {
+            return self.dex.getSwapper(inType: seizeType, outType: debtType)
+                ?? panic("No DEX swapper configured for liquidation pair: ".concat(seizeType.identifier).concat(" -> ").concat(debtType.identifier))
         }
 
         // Setters
@@ -642,6 +649,7 @@ access(all) contract FlowALPModels {
         access(all) view fun getGlobalLedgerKeys(): [Type]
 
         // --- Reserves ---
+        access(EImplementation) fun borrowOrCreateReserve(_ type: Type): auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
         access(EImplementation) fun borrowReserve(_ type: Type): auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
         access(all) view fun hasReserve(_ type: Type): Bool
         access(all) view fun getReserveBalance(_ type: Type): UFix64
@@ -729,6 +737,13 @@ access(all) contract FlowALPModels {
         }
 
         // --- Reserves ---
+
+        access(EImplementation) fun borrowOrCreateReserve(_ type: Type): auth(FungibleToken.Withdraw) &{FungibleToken.Vault} {
+            if self.reserves[type] == nil {
+                self.reserves[type] <-! DeFiActionsUtils.getEmptyVault(type)
+            }
+            return (&self.reserves[type])!
+        }
 
         access(EImplementation) fun borrowReserve(_ type: Type): auth(FungibleToken.Withdraw) &{FungibleToken.Vault}? {
             return &self.reserves[type]

@@ -17,7 +17,7 @@ transaction(pause: Bool) {
 
     execute {
         if (pause) {
-            self.pool.pausePool()
+            self.pool.borrowConfig().setPaused(true)
         } else {
             self.pool.unpausePool()
         }
