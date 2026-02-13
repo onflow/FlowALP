@@ -181,18 +181,7 @@ access(all) contract FlowALPRebalancerv1 {
 
             let fees <- self.recurringConfig.txFunder.withdrawAvailable(maxAmount: feeWithMargin) as! @FlowToken.Vault
             if fees.balance != feeWithMargin {
-                let givenBalance = fees.balance
-                self.recurringConfig.txFunder.depositCapacity(from: &fees as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-                if fees.balance > 0.0 {
-                    panic("can't deposit full amount of fees back to the txFunder, remaining: \(fees.balance)")
-                }
-                destroy fees
-                emit FailedRecurringSchedule(
-                    uuid: self.uuid,
-                    address: self.owner?.address,
-                    error: "invalid fees balance: \(givenBalance) - expected: \(feeWithMargin)",
-                )
-                return nil
+                panic("invalid fees balance: \(fees.balance) - expected: \(feeWithMargin)")
             }
 
             // all checks passed - schedule the transaction & capture the scheduled transaction
