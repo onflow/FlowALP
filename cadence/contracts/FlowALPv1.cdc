@@ -528,19 +528,30 @@ access(all) contract FlowALPv1 {
             self.topUpSource = nil
         }
 
-        /// Sets the Position's target health
-        access(EImplementation) fun setTargetHealth(_ value: UFix128) {
-            self.targetHealth = value
+        /// Sets the Position's target health. See InternalPosition.targetHealth for details.
+        access(EImplementation) fun setTargetHealth(_ targetHealth: UFix128) {
+            pre {
+                targetHealth > self.minHealth: "Target health (\(targetHealth)) must be greater than min health (\(self.minHealth))"
+                targetHealth < self.maxHealth: "Target health (\(targetHealth)) must be less than max health (\(self.maxHealth))"
+            }
+            self.targetHealth = targetHealth
         }
 
-        /// Sets the Position's minimum health
-        access(EImplementation) fun setMinHealth(_ value: UFix128) {
-            self.minHealth = value
+        /// Sets the Position's minimum health. See InternalPosition.minHealth for details.
+        access(EImplementation) fun setMinHealth(_ minHealth: UFix128) {
+            pre {
+                minHealth > 1.0: "Min health (\(minHealth)) must be >1"
+                minHealth < self.targetHealth: "Min health (\(minHealth)) must be greater than target health (\(self.targetHealth))"
+            }
+            self.minHealth = minHealth
         }
 
-        /// Sets the Position's maximum health
-        access(EImplementation) fun setMaxHealth(_ value: UFix128) {
-            self.maxHealth = value
+        /// Sets the Position's maximum health. See InternalPosition.maxHealth for details.
+        access(EImplementation) fun setMaxHealth(_ maxHealth: UFix128) {
+            pre {
+                maxHealth > self.targetHealth: "Max health (\(maxHealth)) must be greater than target health (\(self.targetHealth))"
+            }
+            self.maxHealth = maxHealth
         }
 
         /// Returns a value-copy of `balances` suitable for constructing a `PositionView`.
@@ -1582,6 +1593,16 @@ access(all) contract FlowALPv1 {
             self.positionLock.remove(key: pid)
         }
 
+        /// Locks a position. Used by Position resources to acquire the position lock.
+        access(EPosition) fun lockPosition(_ pid: UInt64) {
+            self._lockPosition(pid)
+        }
+
+        /// Unlocks a position. Used by Position resources to release the position lock.
+        access(EPosition) fun unlockPosition(_ pid: UInt64) {
+            self._unlockPosition(pid)
+        }
+
         ///////////////
         // GETTERS
         ///////////////
@@ -2043,6 +2064,10 @@ access(all) contract FlowALPv1 {
             withdrawType: Type,
             withdrawAmount: UFix64
         ): UFix64 {
+            pre {
+                targetHealth >= 1.0: "Target health (\(targetHealth)) must be >=1 after any withdrawal"
+            }
+
             if self.debugLogging {
                 log("    [CONTRACT] fundsRequiredForTargetHealthAfterWithdrawing(pid: \(pid), depositType: \(depositType.contractName!), targetHealth: \(targetHealth), withdrawType: \(withdrawType.contractName!), withdrawAmount: \(withdrawAmount))")
             }
@@ -2971,11 +2996,11 @@ access(all) contract FlowALPv1 {
             )
             // Attempt to pull additional collateral from the top-up source (if configured)
             // to keep the position above minHealth after the withdrawal.
-            // Regardless of whether a top-up occurs, the final post-call health must satisfy minHealth.
+            // Regardless of whether a top-up occurs, the position must be healthy post-withdrawal.
             let postHealth = self.positionHealth(pid: pid)
             assert(
-                position.minHealth <= postHealth,
-                message: "Post-withdrawal position health (\(postHealth)) is below min health threshold (\(position.minHealth))"
+                postHealth >= 1.0,
+                message: "Post-withdrawal position health (\(postHealth)) is unhealthy"
             )
 
             // Ensure that the remaining balance meets the minimum requirement (or is zero)
@@ -3008,80 +3033,6 @@ access(all) contract FlowALPv1 {
 
             self._unlockPosition(pid)
             return <- withdrawn
-        }
-
-        /// Sets the InternalPosition's drawDownSink. If `nil`, the Pool will not be able to push overflown value when
-        /// the position exceeds its maximum health. Note, if a non-nil value is provided, the Sink MUST accept the
-        /// Pool's default deposits or the operation will revert.
-        access(EPosition) fun provideDrawDownSink(pid: UInt64, sink: {DeFiActions.Sink}?) {
-            post {
-                self.positionLock[pid] == nil: "Position is not unlocked"
-            }
-            self._lockPosition(pid)
-            let position = self._borrowPosition(pid: pid)
-            position.setDrawDownSink(sink)
-            self._unlockPosition(pid)
-        }
-
-        /// Sets the InternalPosition's topUpSource.
-        /// If `nil`, the Pool will not be able to pull underflown value when
-        /// the position falls below its minimum health which may result in liquidation.
-        access(EPosition) fun provideTopUpSource(pid: UInt64, source: {DeFiActions.Source}?) {
-            post {
-                self.positionLock[pid] == nil: "Position is not unlocked"
-            }
-            self._lockPosition(pid)
-            let position = self._borrowPosition(pid: pid)
-            position.setTopUpSource(source)
-            self._unlockPosition(pid)
-        }
-
-        // ---- Position health accessors (called via Position using EPosition capability) ----
-
-        access(EPosition) view fun readTargetHealth(pid: UInt64): UFix128 {
-            let pos = self._borrowPosition(pid: pid)
-            return pos.targetHealth
-        }
-
-        access(EPosition) view fun readMinHealth(pid: UInt64): UFix128 {
-            let pos = self._borrowPosition(pid: pid)
-            return pos.minHealth
-        }
-
-        access(EPosition) view fun readMaxHealth(pid: UInt64): UFix128 {
-            let pos = self._borrowPosition(pid: pid)
-            return pos.maxHealth
-        }
-
-        access(EPosition) fun writeTargetHealth(pid: UInt64, targetHealth: UFix128) {
-            let pos = self._borrowPosition(pid: pid)
-            assert(
-                targetHealth >= pos.minHealth,
-                message: "targetHealth must be ≥ minHealth"
-            )
-            assert(
-                targetHealth <= pos.maxHealth,
-                message: "targetHealth must be ≤ maxHealth"
-            )
-            pos.setTargetHealth(targetHealth)
-        }
-
-        access(EPosition) fun writeMinHealth(pid: UInt64, minHealth: UFix128) {
-            let pos = self._borrowPosition(pid: pid)
-            assert(
-                minHealth <= pos.targetHealth,
-                message: "minHealth must be ≤ targetHealth"
-            )
-            pos.setMinHealth(minHealth)
-        }
-
-        access(EPosition) fun writeMaxHealth(pid: UInt64, maxHealth: UFix128) {
-            let pos = self._borrowPosition(pid: pid)
-            assert(
-                maxHealth >= pos.targetHealth,
-                message: "maxHealth must be ≥ targetHealth"
-            )
-            pos.setMaxHealth(maxHealth)
         }
 
         ///////////////////////
@@ -3768,6 +3719,12 @@ access(all) contract FlowALPv1 {
                 ?? panic("Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool")
         }
 
+        /// Returns an authorized reference to the InternalPosition for the given position ID.
+        /// Used by Position resources to directly access their InternalPosition.
+        access(EPosition) view fun borrowPosition(pid: UInt64): auth(EImplementation) &InternalPosition {
+            return self._borrowPosition(pid: pid)
+        }
+
         /// Build a PositionView for the given position ID.
         access(all) fun buildPositionView(pid: UInt64): FlowALPv1.PositionView {
             let position = self._borrowPosition(pid: pid)
@@ -3910,43 +3867,43 @@ access(all) contract FlowALPv1 {
         /// Returns the Position's target health (unitless ratio ≥ 1.0)
         access(all) fun getTargetHealth(): UFix64 {
             let pool = self.pool.borrow()!
-            let uint = pool.readTargetHealth(pid: self.id)
-            return FlowALPMath.toUFix64Round(uint)
+            let pos = pool.borrowPosition(pid: self.id)
+            return FlowALPMath.toUFix64Round(pos.targetHealth)
         }
 
         /// Sets the target health of the Position
         access(EPositionAdmin) fun setTargetHealth(targetHealth: UFix64) {
             let pool = self.pool.borrow()!
-            let uint = UFix128(targetHealth)
-            pool.writeTargetHealth(pid: self.id, targetHealth: uint)
+            let pos = pool.borrowPosition(pid: self.id)
+            pos.setTargetHealth(UFix128(targetHealth))
         }
 
         /// Returns the minimum health of the Position
         access(all) fun getMinHealth(): UFix64 {
             let pool = self.pool.borrow()!
-            let uint = pool.readMinHealth(pid: self.id)
-            return FlowALPMath.toUFix64Round(uint)
+            let pos = pool.borrowPosition(pid: self.id)
+            return FlowALPMath.toUFix64Round(pos.minHealth)
         }
 
         /// Sets the minimum health of the Position
         access(EPositionAdmin) fun setMinHealth(minHealth: UFix64) {
             let pool = self.pool.borrow()!
-            let uint = UFix128(minHealth)
-            pool.writeMinHealth(pid: self.id, minHealth: uint)
+            let pos = pool.borrowPosition(pid: self.id)
+            pos.setMinHealth(UFix128(minHealth))
         }
 
         /// Returns the maximum health of the Position
         access(all) fun getMaxHealth(): UFix64 {
             let pool = self.pool.borrow()!
-            let uint = pool.readMaxHealth(pid: self.id)
-            return FlowALPMath.toUFix64Round(uint)
+            let pos = pool.borrowPosition(pid: self.id)
+            return FlowALPMath.toUFix64Round(pos.maxHealth)
         }
 
         /// Sets the maximum health of the position
         access(EPositionAdmin) fun setMaxHealth(maxHealth: UFix64) {
             let pool = self.pool.borrow()!
-            let uint = UFix128(maxHealth)
-            pool.writeMaxHealth(pid: self.id, maxHealth: uint)
+            let pos = pool.borrowPosition(pid: self.id)
+            pos.setMaxHealth(UFix128(maxHealth))
         }
 
         /// Returns the maximum amount of the given token type that could be deposited into this position
@@ -4079,7 +4036,10 @@ access(all) contract FlowALPv1 {
         /// Pass nil to configure the position to not push tokens when the Position exceeds its maximum health.
         access(EPositionAdmin) fun provideSink(sink: {DeFiActions.Sink}?) {
             let pool = self.pool.borrow()!
-            pool.provideDrawDownSink(pid: self.id, sink: sink)
+            pool.lockPosition(self.id)
+            let pos = pool.borrowPosition(pid: self.id)
+            pos.setDrawDownSink(sink)
+            pool.unlockPosition(self.id)
         }
 
         /// Provides a source to the Position that will have tokens proactively pulled from it
@@ -4092,7 +4052,10 @@ access(all) contract FlowALPv1 {
         /// Pass nil to configure the position to not pull tokens.
         access(EPositionAdmin) fun provideSource(source: {DeFiActions.Source}?) {
             let pool = self.pool.borrow()!
-            pool.provideTopUpSource(pid: self.id, source: source)
+            pool.lockPosition(self.id)
+            let pos = pool.borrowPosition(pid: self.id)
+            pos.setTopUpSource(source)
+            pool.unlockPosition(self.id)
         }
 
         /// Rebalances the position to the target health value, if the position is under- or over-collateralized,
