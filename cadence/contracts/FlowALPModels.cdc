@@ -30,6 +30,8 @@ access(all) contract FlowALPModels {
         access(all) view fun getLastUnpausedAt(): UInt64?
         access(all) view fun getDex(): {DeFiActions.SwapperProvider}
         access(all) view fun getDexOracleDeviationBps(): UInt16
+        access(all) view fun isPaused(): Bool
+        access(all) view fun isDebugLogging(): Bool
 
         // Setters
 
@@ -42,6 +44,8 @@ access(all) contract FlowALPModels {
         access(all) fun setLastUnpausedAt(_ time: UInt64?)
         access(all) fun setDex(_ dex: {DeFiActions.SwapperProvider})
         access(all) fun setDexOracleDeviationBps(_ bps: UInt16)
+        access(all) fun setPaused(_ paused: Bool)
+        access(all) fun setDebugLogging(_ enabled: Bool)
     }
 
     /// PoolConfigImpl is the concrete implementation of PoolConfig.
@@ -89,6 +93,12 @@ access(all) contract FlowALPModels {
         /// Max allowed deviation in basis points between DEX-implied price and oracle price.
         access(self) var dexOracleDeviationBps: UInt16
 
+        /// Whether the pool is currently paused
+        access(self) var paused: Bool
+
+        /// Enable or disable verbose contract logging for debugging.
+        access(self) var debugLogging: Bool
+
         init(
             priceOracle: {DeFiActions.PriceOracle},
             collateralFactor: {Type: UFix64},
@@ -99,6 +109,8 @@ access(all) contract FlowALPModels {
             lastUnpausedAt: UInt64?,
             dex: {DeFiActions.SwapperProvider},
             dexOracleDeviationBps: UInt16,
+            paused: Bool,
+            debugLogging: Bool,
         ) {
             self.priceOracle = priceOracle
             self.collateralFactor = collateralFactor
@@ -109,6 +121,8 @@ access(all) contract FlowALPModels {
             self.lastUnpausedAt = lastUnpausedAt
             self.dex = dex
             self.dexOracleDeviationBps = dexOracleDeviationBps
+            self.paused = paused
+            self.debugLogging = debugLogging
         }
 
         // Getters
@@ -147,6 +161,14 @@ access(all) contract FlowALPModels {
 
         access(all) view fun getDexOracleDeviationBps(): UInt16 {
             return self.dexOracleDeviationBps
+        }
+
+        access(all) view fun isPaused(): Bool {
+            return self.paused
+        }
+
+        access(all) view fun isDebugLogging(): Bool {
+            return self.debugLogging
         }
 
         // Setters
@@ -201,6 +223,14 @@ access(all) contract FlowALPModels {
 
         access(all) fun setDexOracleDeviationBps(_ bps: UInt16) {
             self.dexOracleDeviationBps = bps
+        }
+
+        access(all) fun setPaused(_ paused: Bool) {
+            self.paused = paused
+        }
+
+        access(all) fun setDebugLogging(_ enabled: Bool) {
+            self.debugLogging = enabled
         }
     }
 
@@ -723,9 +753,6 @@ access(all) contract FlowALPModels {
     /// Pool references its state via this interface to allow future upgrades.
     access(all) resource interface PoolState {
 
-        /// Enable or disable verbose contract logging for debugging.
-        access(EImplementation) var debugLogging: Bool
-
         /// Global state for tracking each token
         access(EImplementation) var globalLedger: {Type: TokenState}
 
@@ -750,12 +777,7 @@ access(all) contract FlowALPModels {
         /// Reentrancy guards keyed by position id.
         access(EImplementation) var positionLock: {UInt64: Bool}
 
-        /// Whether the pool is currently paused
-        access(EImplementation) var paused: Bool
-
         access(EImplementation) fun incrementNextPositionID()
-        access(EImplementation) fun setPaused(_ paused: Bool)
-        access(EImplementation) fun setDebugLogging(_ enabled: Bool)
         access(EImplementation) fun setPositionsNeedingUpdates(_ positions: [UInt64])
     }
 
@@ -763,9 +785,6 @@ access(all) contract FlowALPModels {
     /// This extraction enables future upgrades and testing of state management in isolation.
     access(all) resource PoolStateImpl: PoolState {
 
-        /// Enable or disable verbose contract logging for debugging.
-        access(EImplementation) var debugLogging: Bool
-
         /// Global state for tracking each token
         access(EImplementation) var globalLedger: {Type: TokenState}
 
@@ -790,11 +809,7 @@ access(all) contract FlowALPModels {
         /// Reentrancy guards keyed by position id.
         access(EImplementation) var positionLock: {UInt64: Bool}
 
-        /// Whether the pool is currently paused
-        access(EImplementation) var paused: Bool
-
         init(
-            debugLogging: Bool,
             globalLedger: {Type: TokenState},
             reserves: @{Type: {FungibleToken.Vault}},
             insuranceFund: @MOET.Vault,
@@ -802,10 +817,8 @@ access(all) contract FlowALPModels {
             defaultToken: Type,
             stabilityFunds: @{Type: {FungibleToken.Vault}},
             positionsNeedingUpdates: [UInt64],
-            positionLock: {UInt64: Bool},
-            paused: Bool
+            positionLock: {UInt64: Bool}
         ) {
-            self.debugLogging = debugLogging
             self.globalLedger = globalLedger
             self.reserves <- reserves
             self.insuranceFund <- insuranceFund
@@ -814,19 +827,10 @@ access(all) contract FlowALPModels {
             self.stabilityFunds <- stabilityFunds
             self.positionsNeedingUpdates = positionsNeedingUpdates
             self.positionLock = positionLock
-            self.paused = paused
         }
 
         access(EImplementation) fun incrementNextPositionID() {
             self.nextPositionID = self.nextPositionID + 1
-        }
-
-        access(EImplementation) fun setPaused(_ paused: Bool) {
-            self.paused = paused
-        }
-
-        access(EImplementation) fun setDebugLogging(_ enabled: Bool) {
-            self.debugLogging = enabled
         }
 
         access(EImplementation) fun setPositionsNeedingUpdates(_ positions: [UInt64]) {
@@ -837,7 +841,6 @@ access(all) contract FlowALPModels {
     /// Factory function to create a new PoolStateImpl resource.
     /// Required because Cadence resources can only be created within their containing contract.
     access(all) fun createPoolState(
-        debugLogging: Bool,
         globalLedger: {Type: TokenState},
         reserves: @{Type: {FungibleToken.Vault}},
         insuranceFund: @MOET.Vault,
@@ -845,11 +848,9 @@ access(all) contract FlowALPModels {
         defaultToken: Type,
         stabilityFunds: @{Type: {FungibleToken.Vault}},
         positionsNeedingUpdates: [UInt64],
-        positionLock: {UInt64: Bool},
-        paused: Bool
+        positionLock: {UInt64: Bool}
     ): @{PoolState} {
         return <- create PoolStateImpl(
-            debugLogging: debugLogging,
             globalLedger: globalLedger,
             reserves: <-reserves,
             insuranceFund: <-insuranceFund,
@@ -857,8 +858,7 @@ access(all) contract FlowALPModels {
             defaultToken: defaultToken,
             stabilityFunds: <-stabilityFunds,
             positionsNeedingUpdates: positionsNeedingUpdates,
-            positionLock: positionLock,
-            paused: paused
+            positionLock: positionLock
         )
     }
 }

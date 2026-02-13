@@ -830,7 +830,6 @@ access(all) contract FlowALPv1 {
             }
 
             self.state <- FlowALPModels.createPoolState(
-                debugLogging: false,
                 globalLedger: {
                     defaultToken: FlowALPModels.TokenState(
                         tokenType: defaultToken,
@@ -845,8 +844,7 @@ access(all) contract FlowALPv1 {
                 defaultToken: defaultToken,
                 stabilityFunds: <-{},
                 positionsNeedingUpdates: [],
-                positionLock: {},
-                paused: false
+                positionLock: {}
             )
             self.positions <- {}
             self.config = FlowALPModels.PoolConfigImpl(
@@ -858,9 +856,13 @@ access(all) contract FlowALPv1 {
                 warmupSec: 300,
                 lastUnpausedAt: nil,
                 dex: dex,
-                dexOracleDeviationBps: 300
+                dexOracleDeviationBps: 300,
+                paused: false,
+                debugLogging: false
             )
         }
+
+        // TODO(jord): consolidate locking functions.
 
         /// Marks the position as locked. Panics if the position is already locked.
         access(self) fun _lockPosition(_ pid: UInt64) {
@@ -893,13 +895,13 @@ access(all) contract FlowALPv1 {
         /// Returns whether sensitive pool actions are paused by governance,
         /// including withdrawals, deposits, and liquidations
         access(all) view fun isPaused(): Bool {
-            return self.state.paused
+            return self.config.isPaused()
         }
 
         /// Returns whether liquidations are paused - liquidations have an additional warmup after a global pause,
         /// to allow users time to improve position health and avoid liquidation.
         access(all) view fun isPausedOrWarmup(): Bool {
-            if self.state.paused {
+            if self.isPaused() {
                 return true
             }
             if let lastUnpausedAt = self.config.getLastUnpausedAt() {
@@ -969,7 +971,7 @@ access(all) contract FlowALPv1 {
         /// Returns current pause parameters
         access(all) fun getPauseParams(): FlowALPv1.PauseParamsView {
             return FlowALPv1.PauseParamsView(
-                paused: self.state.paused,
+                paused: self.config.isPaused(),
                 warmupSec: self.config.getWarmupSec(),
                 lastUnpausedAt: self.config.getLastUnpausedAt(),
             )
@@ -1033,7 +1035,7 @@ access(all) contract FlowALPv1 {
         /// Phase 0 refactor: compute via pure helpers using a PositionView and TokenSnapshot for the base path.
         /// When `pullFromTopUpSource` is true and a topUpSource exists, preserve deposit-assisted semantics.
         access(all) fun availableBalance(pid: UInt64, type: Type, pullFromTopUpSource: Bool): UFix64 {
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] availableBalance(pid: \(pid), type: \(type.contractName!), pullFromTopUpSource: \(pullFromTopUpSource))")
             }
             let position = self._borrowPosition(pid: pid)
@@ -1042,7 +1044,7 @@ access(all) contract FlowALPv1 {
                 if let topUpSource = position.topUpSource {
                     let sourceType = topUpSource.getSourceType()
                     let sourceAmount = topUpSource.minimumAvailable()
-                    if self.state.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] Calling to fundsAvailableAboveTargetHealthAfterDepositing with sourceAmount \(sourceAmount) and targetHealth \(position.minHealth)")
                     }
 
@@ -1145,7 +1147,7 @@ access(all) contract FlowALPv1 {
 
         /// Returns the details of a given position as a PositionDetails external struct
         access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] getPositionDetails(pid: \(pid))")
             }
             let position = self._borrowPosition(pid: pid)
@@ -1351,7 +1353,7 @@ access(all) contract FlowALPv1 {
                 targetHealth >= 1.0: "Target health (\(targetHealth)) must be >=1 after any withdrawal"
             }
 
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] fundsRequiredForTargetHealthAfterWithdrawing(pid: \(pid), depositType: \(depositType.contractName!), targetHealth: \(targetHealth), withdrawType: \(withdrawType.contractName!), withdrawAmount: \(withdrawAmount))")
             }
 
@@ -1388,7 +1390,7 @@ access(all) contract FlowALPv1 {
             if withdrawAmount == 0.0 {
                 return BalanceSheet(effectiveCollateral: effectiveCollateralAfterWithdrawal, effectiveDebt: effectiveDebtAfterWithdrawal)
             }
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
                 log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
             }
@@ -1450,7 +1452,7 @@ access(all) contract FlowALPv1 {
             let effectiveCollateralAfterWithdrawal = effectiveCollateral
             var effectiveDebtAfterWithdrawal = effectiveDebt
 
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
                 log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
             }
@@ -1462,7 +1464,7 @@ access(all) contract FlowALPv1 {
                 effectiveCollateral: effectiveCollateralAfterWithdrawal,
                 effectiveDebt: effectiveDebtAfterWithdrawal
             )
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] healthAfterWithdrawal: \(healthAfterWithdrawal)")
             }
 
@@ -1513,7 +1515,7 @@ access(all) contract FlowALPv1 {
                     // The amount of the token to pay back, in units of the token.
                     let paybackAmount = (requiredEffectiveDebt * depositBorrowFactor) / depositPrice
 
-                    if self.state.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] paybackAmount: \(paybackAmount)")
                     }
 
@@ -1549,7 +1551,7 @@ access(all) contract FlowALPv1 {
 
             // The amount of the token to deposit, in units of the token.
             let collateralTokenCount = requiredEffectiveCollateral / depositPrice
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] requiredEffectiveCollateral: \(requiredEffectiveCollateral)")
                 log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
                 log("    [CONTRACT] debtTokenCount: \(debtTokenCount)")
@@ -1582,7 +1584,7 @@ access(all) contract FlowALPv1 {
             depositType: Type,
             depositAmount: UFix64
         ): UFix64 {
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] fundsAvailableAboveTargetHealthAfterDepositing(pid: \(pid), withdrawType: \(withdrawType.contractName!), targetHealth: \(targetHealth), depositType: \(depositType.contractName!), depositAmount: \(depositAmount))")
             }
             if depositType == withdrawType && depositAmount > 0.0 {
@@ -1625,7 +1627,7 @@ access(all) contract FlowALPv1 {
             var effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral
             var effectiveDebtAfterDeposit = balanceSheet.effectiveDebt
 
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
                 log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
             }
@@ -1660,7 +1662,7 @@ access(all) contract FlowALPv1 {
                         scaledBalance,
                         interestIndex: depositTokenState.debitInterestIndex
                     )
-                    if self.state.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] trueDebt: \(trueDebt)")
                     }
 
@@ -1680,7 +1682,7 @@ access(all) contract FlowALPv1 {
                     }
             }
 
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
                 log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
             }
@@ -1710,7 +1712,7 @@ access(all) contract FlowALPv1 {
                 effectiveCollateral: effectiveCollateralAfterDeposit,
                 effectiveDebt: effectiveDebtAfterDeposit
             )
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] healthAfterDeposit: \(healthAfterDeposit)")
             }
 
@@ -1752,13 +1754,13 @@ access(all) contract FlowALPv1 {
                     // We will hit the health target before using up all available withdraw credit.
 
                     let availableEffectiveValue = effectiveCollateralAfterDeposit - (targetHealth * effectiveDebtAfterDeposit)
-                    if self.state.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] availableEffectiveValue: \(availableEffectiveValue)")
                     }
 
                     // The amount of the token we can take using that amount of health
                     let availableTokenCount = (availableEffectiveValue / withdrawCollateralFactor) / withdrawPrice
-                    if self.state.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] availableTokenCount: \(availableTokenCount)")
                     }
 
@@ -1769,7 +1771,7 @@ access(all) contract FlowALPv1 {
                     // with an added handling for the case where the health after deposit is an edgecase
                     collateralTokenCount = trueCredit
                     effectiveCollateralAfterDeposit = effectiveCollateralAfterDeposit - collateralEffectiveValue
-                    if self.state.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
                         log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
                     }
@@ -1777,7 +1779,7 @@ access(all) contract FlowALPv1 {
                     // We can calculate the available debt increase that would bring us to the target health
                     let availableDebtIncrease = (effectiveCollateralAfterDeposit / targetHealth) - effectiveDebtAfterDeposit
                     let availableTokens = (availableDebtIncrease * withdrawBorrowFactor) / withdrawPrice
-                    if self.state.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
                         log("    [CONTRACT] availableTokens: \(availableTokens)")
                         log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
@@ -1792,7 +1794,7 @@ access(all) contract FlowALPv1 {
             // We can calculate the available debt increase that would bring us to the target health
             let availableDebtIncrease = (effectiveCollateralAfterDeposit / targetHealth) - effectiveDebtAfterDeposit
             let availableTokens = (availableDebtIncrease * withdrawBorrowFactor) / withdrawPrice
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
                 log("    [CONTRACT] availableTokens: \(availableTokens)")
                 log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
@@ -2120,7 +2122,7 @@ access(all) contract FlowALPv1 {
             post {
                 self.state.positionLock[pid] == nil: "Position is not unlocked"
             }
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] depositAndPush(pid: \(pid), pushToDrawDownSink: \(pushToDrawDownSink))")
             }
 
@@ -2177,7 +2179,7 @@ access(all) contract FlowALPv1 {
                 self.state.positionLock[pid] == nil: "Position is not unlocked"
             }
             self._lockPosition(pid)
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] withdrawAndPull(pid: \(pid), type: \(type.identifier), amount: \(amount), pullFromTopUpSource: \(pullFromTopUpSource))")
             }
             if amount == 0.0 {
@@ -2247,7 +2249,7 @@ access(all) contract FlowALPv1 {
 
             if !canWithdraw {
                 // Log detailed information about the failed withdrawal (only if debugging enabled)
-                if self.state.debugLogging {
+                if self.config.isDebugLogging() {
                     let availableBalance = self.availableBalance(pid: pid, type: type, pullFromTopUpSource: false)
                     log("    [CONTRACT] WITHDRAWAL FAILED:")
                     log("    [CONTRACT] Position ID: \(pid)")
@@ -2344,24 +2346,24 @@ access(all) contract FlowALPv1 {
         /// Returns a mutable reference to the pool's configuration.
         /// Use this to update config fields that don't require events or side effects.
         access(EGovernance) fun borrowConfig(): &{FlowALPModels.PoolConfig} {
-            return &self.config as &{FlowALPModels.PoolConfig}
+            return &self.config
         }
 
         /// Pauses the pool, temporarily preventing further withdrawals, deposits, and liquidations
         access(EGovernance) fun pausePool() {
-            if self.state.paused {
+            if self.config.isPaused() {
                 return
             }
-            self.state.setPaused(true)
+            self.config.setPaused(true)
             emit PoolPaused(poolUUID: self.uuid)
         }
 
         /// Unpauses the pool, and starts the warm-up window
         access(EGovernance) fun unpausePool() {
-            if !self.state.paused {
+            if !self.config.isPaused() {
                 return
             }
-            self.state.setPaused(false)
+            self.config.setPaused(false)
             let now = UInt64(getCurrentBlock().timestamp)
             self.config.setLastUnpausedAt(now)
             emit PoolUnpaused(
@@ -2617,7 +2619,7 @@ access(all) contract FlowALPv1 {
 
         /// Enables or disables verbose logging inside the Pool for testing and diagnostics
         access(EGovernance) fun setDebugLogging(_ enabled: Bool) {
-            self.state.setDebugLogging(enabled)
+            self.config.setDebugLogging(enabled)
         }
 
         /// Rebalances the position to the target health value, if the position is under- or over-collateralized,
@@ -2651,7 +2653,7 @@ access(all) contract FlowALPv1 {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
-            if self.state.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
             }
             let position = self._borrowPosition(pid: pid)
@@ -2672,7 +2674,7 @@ access(all) contract FlowALPv1 {
                         type: topUpSource.getSourceType(),
                         targetHealth: position.targetHealth
                     )
-                    if self.state.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] idealDeposit: \(idealDeposit)")
                     }
 
@@ -2704,7 +2706,7 @@ access(all) contract FlowALPv1 {
                         type: sinkType,
                         targetHealth: position.targetHealth
                     )
-                    if self.state.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] idealWithdrawal: \(idealWithdrawal)")
                     }
 
