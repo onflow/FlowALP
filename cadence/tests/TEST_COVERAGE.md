@@ -1,16 +1,63 @@
-# Test Coverage Analysis - TidalProtocol (FlowALPv1)
+# Test Inventory and Coverage Notes (FlowALP / FlowALPv1)
 
-**Analysis Date:** 2026-01-28
-**Repository:** TidalProtocol
-**Core Contract:** FlowALPv1.cdc
-**Test Coverage:** 89.7%
-**Total Core Tests:** 31 test files
+**Last Reviewed:** 2026-02-13  
+**Core Contract:** `cadence/contracts/FlowALPv1.cdc`  
+**Test Files:** Git-tracked tests under `cadence/tests/*_test.cdc`  
+**Coverage:** Coverage artifacts are generated locally (e.g. `coverage.json`, `coverage.lcov`) and are ignored by git.
+
+## Current Test File Inventory
+
+```text
+cadence/tests/MockDexSwapper_quote_test.cdc
+cadence/tests/adversarial_recursive_withdraw_source_test.cdc
+cadence/tests/adversarial_type_spoofing_test.cdc
+cadence/tests/async_update_position_test.cdc
+cadence/tests/auto_borrow_behavior_test.cdc
+cadence/tests/cap_test.cdc
+cadence/tests/deposit_capacity_test.cdc
+cadence/tests/flowALPMath_pow_test.cdc
+cadence/tests/funds_available_above_target_health_test.cdc
+cadence/tests/funds_required_for_target_health_test.cdc
+cadence/tests/governance_parameters_test.cdc
+cadence/tests/insolvency_redemption_test.cdc
+cadence/tests/insurance_collection_formula_test.cdc
+cadence/tests/insurance_collection_test.cdc
+cadence/tests/insurance_rate_test.cdc
+cadence/tests/insurance_swapper_test.cdc
+cadence/tests/interest_accrual_integration_test.cdc
+cadence/tests/interest_curve_advanced_test.cdc
+cadence/tests/interest_curve_test.cdc
+cadence/tests/liquidation_phase1_test.cdc
+cadence/tests/paid_auto_balance_test.cdc
+cadence/tests/phase0_pure_math_test.cdc
+cadence/tests/platform_integration_test.cdc
+cadence/tests/pool_creation_workflow_test.cdc
+cadence/tests/pool_pause_test.cdc
+cadence/tests/position_health_constraints_test.cdc
+cadence/tests/position_lifecycle_happy_test.cdc
+cadence/tests/position_lifecycle_unhappy_test.cdc
+cadence/tests/rebalance_overcollateralised_test.cdc
+cadence/tests/rebalance_undercollateralised_test.cdc
+cadence/tests/reserve_withdrawal_test.cdc
+cadence/tests/stability_collection_formula_test.cdc
+cadence/tests/stability_collection_test.cdc
+cadence/tests/stability_fee_rate_test.cdc
+cadence/tests/token_governance_addition_test.cdc
+cadence/tests/update_interest_rate_test.cdc
+cadence/tests/withdraw_stability_funds_test.cdc
+cadence/tests/zero_debt_withdrawal_test.cdc
+```
 
 ---
 
+## Historical Narrative (May Be Outdated)
+
+The sections below were written as a narrative-style coverage analysis (original draft date: 2026-01-28).
+Treat any specific coverage percentages, repository labels, and file counts below as non-authoritative unless re-validated.
+
 ## Executive Summary
 
-This document provides a comprehensive analysis of the existing test coverage for the FlowALPv1 lending protocol, an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The protocol has achieved 89.7% code coverage with 31 core test files covering fundamental operations, interest mechanics, liquidations, and edge cases.
+This document provides a narrative-style analysis of the existing test coverage for the FlowALPv1 lending protocol, an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The protocol has an extensive test suite covering fundamental operations, interest mechanics, liquidations, and edge cases.
 
 This analysis identifies areas of strong test coverage and highlights high-priority gaps that should be addressed to improve protocol security, resilience, and robustness.
 
@@ -177,7 +224,7 @@ The `test_helpers.cdc` file provides:
 
 ---
 
-#### interest_mechanics_test.cdc
+#### interest_accrual_integration_test.cdc
 **Purpose:** Core interest calculation mechanics
 
 **Coverage:**
@@ -218,7 +265,8 @@ The `test_helpers.cdc` file provides:
 
 **Formula Tested:**
 ```
-insuranceAmount = totalDebitBalance * insuranceRate * (timeElapsed / secondsPerYear)
+insuranceAmount = debitIncome * insuranceRate
+debitIncome = totalDebitBalance * (currentDebitRate^timeElapsed - 1.0)
 ```
 
 **Example Values:**
@@ -1113,7 +1161,7 @@ Test: Connector provides false quote, transaction validates and reverts
 
 ## Conclusion
 
-The FlowALPv1 protocol has achieved strong test coverage (89.7%) across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
+The FlowALPv1 protocol has strong test coverage across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
 
 However, significant gaps exist in multi-collateral scenarios, oracle failure handling, advanced liquidation cases, and adversarial attack vectors. Addressing these high-priority gaps will substantially improve protocol robustness and production readiness.
 

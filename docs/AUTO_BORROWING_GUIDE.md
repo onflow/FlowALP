@@ -6,7 +6,7 @@ FlowALPv1 includes an auto-borrowing feature that automatically optimizes your p
 
 ## What is Auto-Borrowing?
 
-When you deposit collateral into FlowALPv1, the system can automatically borrow against that collateral to achieve a target health ratio. This maximizes capital efficiency by ensuring your position is neither too risky nor too conservative.
+When you create a position with collateral in FlowALPv1, the system can automatically borrow against that collateral to achieve a target health ratio. This maximizes capital efficiency by ensuring your position is neither too risky nor too conservative.
 
 ### Example
 - You deposit 1000 Flow tokens as collateral
@@ -17,19 +17,29 @@ When you deposit collateral into FlowALPv1, the system can automatically borrow 
 
 ## When to Use Auto-Borrowing
 
-### Use `openPosition` with `pushToDrawDownSink=true` when:
+### Use `pushToDrawDownSink=true` when creating a position if:
 - You want immediate capital efficiency
 - You're comfortable with the protocol's target health ratio
 - You want to receive borrowed funds immediately for other DeFi activities
 - You're implementing automated strategies that require consistent leverage
 
-### Example:
+### How to Enable It (Repo Transaction Template)
+
+In this repo, the simplest way to open a position is the transaction template:
+
+- `cadence/transactions/flow-alp/position/create_position.cdc`
+
+It takes `pushToDrawDownSink: Bool`. Set it to `true` to enable auto-borrowing at open.
+
+**Prerequisite:** the signer must have an authorized Pool capability stored at `FlowALPv1.PoolCapStoragePath` (granted via the beta access transactions in `cadence/transactions/flow-alp/beta/`).
+
+### Example (Cadence)
 ```cadence
-let position = FlowALPv1.openPosition(
-    collateral: <-myFlowVault,
-    issuanceSink: mySink,
-    repaymentSource: mySource,
-    pushToDrawDownSink: true  // Enable auto-borrowing
+let position <- poolRef.createPosition(
+    funds: <-myCollateralVault,
+    issuanceSink: myIssuanceSink,
+    repaymentSource: myRepaymentSource,
+    pushToDrawDownSink: true // Enable auto-borrowing
 )
 ```
 
@@ -43,17 +53,17 @@ let position = FlowALPv1.openPosition(
 
 ### Example:
 ```cadence
-// Use openPosition with pushToDrawDownSink=false to disable auto-borrowing
-let position = FlowALPv1.openPosition(
-    collateral: <-myFlowVault,
-    issuanceSink: mySink,
-    repaymentSource: mySource,
-    pushToDrawDownSink: false  // Disable auto-borrowing
+// Set pushToDrawDownSink=false to disable auto-borrowing at open
+let position <- poolRef.createPosition(
+    funds: <-myCollateralVault,
+    issuanceSink: myIssuanceSink,
+    repaymentSource: myRepaymentSource,
+    pushToDrawDownSink: false // Disable auto-borrowing
 )
 ```
 
 ### Proposed Enhancement
-We're considering adding a convenience function `openPositionWithoutAutoBorrow()` that would make it even easier to create positions without auto-borrowing. This would provide a cleaner API for users who prefer manual control over their borrowing.
+If we want a simpler developer experience, we can add a dedicated transaction template (or helper) that hardcodes `pushToDrawDownSink=false` for "no auto-borrow" position opens.
 
 ## Manual Borrowing After Position Creation
 

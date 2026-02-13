@@ -118,4 +118,4 @@ The liquidator's incentive is implicit: they can acquire the position's collater
 
 ### Automatic DEX Liquidation
 
-A future update will add infrastructure for automatic liquidation via DEX (https://github.com/onflow/FlowCreditMarket/issues/97). Like automatic rebalancing, this will be implemented using scheduled transactions. 
+A future update will add infrastructure for automatic liquidation via DEX. Like automatic rebalancing, this will be implemented using scheduled transactions.
