@@ -56,6 +56,8 @@ fun test_pool_pause_deposit_withdrawal() {
     // Pause the pool
     let pauseRes = setPoolPauseState(signer: PROTOCOL_ACCOUNT, pause: true)
     Test.expect(pauseRes, Test.beSucceeded())
+    let pauseEvents = Test.eventsOfType(Type<FlowALPv1.PoolPaused>())
+    Test.expect(pauseEvents.length, Test.equal(1))
     // ---------------------------------------------------------
 
     // Can't deposit to an existing position
@@ -69,7 +71,7 @@ fun test_pool_pause_deposit_withdrawal() {
     // Can't withdraw from existing position
     let withdrawRes = _executeTransaction(
         "./transactions/position-manager/withdraw_from_position.cdc",
-        [0, FLOW_TOKEN_IDENTIFIER, 50.0, false],
+        [0, FLOW_TOKEN_IDENTIFIER, initialDepositAmount/2.0, false],
         user1
     )
     Test.expect(withdrawRes, Test.beFailed())
@@ -86,6 +88,8 @@ fun test_pool_pause_deposit_withdrawal() {
     // Unpause the pool
     let unpauseRes = setPoolPauseState(signer: PROTOCOL_ACCOUNT, pause: false)
     Test.expect(unpauseRes, Test.beSucceeded())
+    let unpauseEvents = Test.eventsOfType(Type<FlowALPv1.PoolUnpaused>())
+    Test.expect(unpauseEvents.length, Test.equal(1))
     // ---------------------------------------------------------
 
     // Depositing to position should now succeed
@@ -99,7 +103,7 @@ fun test_pool_pause_deposit_withdrawal() {
     // Withdrawing from position should still fail during warmup period
     let withdrawRes2 = _executeTransaction(
         "./transactions/position-manager/withdraw_from_position.cdc",
-        [0 as UInt64, FLOW_TOKEN_IDENTIFIER, 50.0, false],
+        [0 as UInt64, FLOW_TOKEN_IDENTIFIER, initialDepositAmount/2.0, false],
         user1
     )
     Test.expect(withdrawRes2, Test.beFailed())
@@ -112,14 +116,14 @@ fun test_pool_pause_deposit_withdrawal() {
     )
     Test.expect(openRes2, Test.beSucceeded())
 
-    // Wait for the warmup period to end
+    // Wait for the warmup period to end (the default warmupSec of FlowALPv1.Pool is 300.0)
     Test.moveTime(by: Fix64(300.0))
     // ---------------------------------------------------------
 
     // Withdrawing from position should now succeed
     let withdrawRes3 = _executeTransaction(
         "./transactions/position-manager/withdraw_from_position.cdc",
-        [0 as UInt64, FLOW_TOKEN_IDENTIFIER, 50.0, false],
+        [0 as UInt64, FLOW_TOKEN_IDENTIFIER, initialDepositAmount/2.0, false],
         user1
     )
     Test.expect(withdrawRes3, Test.beSucceeded())
