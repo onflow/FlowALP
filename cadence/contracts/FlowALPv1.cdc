@@ -910,12 +910,12 @@ access(all) contract FlowALPv1 {
 
         /// Returns an array of the supported token Types
         access(all) view fun getSupportedTokens(): [Type] {
-            return self.state.getGlobalLedgerKeys()
+            return self.config.getSupportedTokens()
         }
 
         /// Returns whether a given token Type is supported or not
         access(all) view fun isTokenSupported(tokenType: Type): Bool {
-            return self.state.getTokenState(tokenType) != nil
+            return self.config.isTokenSupported(tokenType: tokenType)
         }
 
         /// Returns the current balance of the stability fund for a given token type.

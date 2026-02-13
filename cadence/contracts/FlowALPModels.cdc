@@ -32,6 +32,8 @@ access(all) contract FlowALPModels {
         access(all) view fun getDexOracleDeviationBps(): UInt16
         access(all) view fun isPaused(): Bool
         access(all) view fun isDebugLogging(): Bool
+        access(all) view fun getSupportedTokens(): [Type]
+        access(all) view fun isTokenSupported(tokenType: Type): Bool
 
         // Setters
 
@@ -169,6 +171,14 @@ access(all) contract FlowALPModels {
 
         access(all) view fun isDebugLogging(): Bool {
             return self.debugLogging
+        }
+
+        access(all) view fun getSupportedTokens(): [Type] {
+            return self.collateralFactor.keys
+        }
+
+        access(all) view fun isTokenSupported(tokenType: Type): Bool {
+            return self.collateralFactor[tokenType] != nil
         }
 
         // Setters
