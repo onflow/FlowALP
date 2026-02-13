@@ -193,8 +193,7 @@ access(all) contract FlowALPRebalancerv1 {
                     executionEffort: self.recurringConfig.executionEffort,
                     fees: <-fees
                 )
-            let txID = tx.id
-            self.scheduledTransactions[txID] <-! tx
+            self.scheduledTransactions[tx.id] <-! tx
             return nextTimestamp
         }
 
