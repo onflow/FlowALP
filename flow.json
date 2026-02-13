@@ -34,6 +34,24 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"FlowALPRebalancerPaidv1": {
+			"source": "./cadence/contracts/FlowALPRebalancerPaidv1.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"FlowALPRebalancerv1": {
+			"source": "./cadence/contracts/FlowALPRebalancerv1.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"FlowALPSupervisorv1": {
+			"source": "./cadence/contracts/FlowALPSupervisorv1.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"FungibleTokenConnectors": {
 			"source": "./FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
 			"aliases": {
@@ -88,6 +106,38 @@
 				"testnet": "9a0766d93b6608b7"
 			}
 		},
+		"EVM": {
+			"source": "mainnet://e467b9dd11fa00df.EVM",
+			"hash": "960b0c7df7ee536956af196fba8c8d5dd4f7a89a4ecc61467e31287c4617b0dd",
+			"block_height": 141019535,
+			"aliases": {
+				"emulator": "f8d6e0586b0a20c7",
+				"mainnet": "e467b9dd11fa00df",
+				"testnet": "8c5303eaa26202d6"
+			}
+		},
+		"FlowCron": {
+			"source": "mainnet://6dec6e64a13b881e.FlowCron",
+			"hash": "ab570aabfb4d3ee01537ad85ad789ed13ac193ba447bc037365d51d748272cd5",
+			"block_height": 141024643,
+			"aliases": {
+				"emulator": "f8d6e0586b0a20c7",
+				"mainnet": "6dec6e64a13b881e",
+				"testnet": "5cbfdec870ee216d",
+				"testing": "0000000000000007"
+			}
+		},
+		"FlowCronUtils": {
+			"source": "mainnet://6dec6e64a13b881e.FlowCronUtils",
+			"hash": "498c32c1345b9b1db951a18e4ea94325b8c9c05ea691f2d9b6af75b886ab51a2",
+			"block_height": 141024643,
+			"aliases": {
+				"emulator": "f8d6e0586b0a20c7",
+				"mainnet": "6dec6e64a13b881e",
+				"testnet": "5cbfdec870ee216d",
+				"testing": "0000000000000007"
+			}
+		},
 		"FlowFees": {
 			"source": "mainnet://f919ee77447b7497.FlowFees",
 			"hash": "341cc0f3cc847d6b787c390133f6a5e6c867c111784f09c5c0083c47f2f1df64",
@@ -126,6 +176,14 @@
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "e467b9dd11fa00df",
 				"testnet": "8c5303eaa26202d6"
+			}
+		},
+		"FlowTransactionSchedulerUtils": {
+			"source": "mainnet://e467b9dd11fa00df.FlowTransactionSchedulerUtils",
+			"hash": "71a1febab6b9ba76abec36dab1e61b1c377e44fbe627e5fac649deb71b727877",
+			"block_height": 141019535,
+			"aliases": {
+				"mainnet": "e467b9dd11fa00df"
 			}
 		},
 		"FungibleToken": {
