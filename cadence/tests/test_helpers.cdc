@@ -155,6 +155,41 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowALPRebalancerv1",
+        path: "../contracts/FlowALPRebalancerv1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowALPRebalancerPaidv1",
+        path: "../contracts/FlowALPRebalancerPaidv1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowCronUtils",
+        path: "../../imports/6dec6e64a13b881e/FlowCronUtils.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowCron",
+        path: "../../imports/6dec6e64a13b881e/FlowCron.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowALPSupervisorv1",
+        path: "../contracts/FlowALPSupervisorv1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 }
 
 /* --- Script Helpers --- */
@@ -455,10 +490,33 @@ fun createPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: S
 }
 
 access(all)
+fun createPositionNotManaged(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool, positionStoragePath: StoragePath) {
+    // Grant beta access to the signer if they don't have it yet
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, signer)
+
+    let openRes = _executeTransaction(
+        "../transactions/flow-alp/position/create_position_not_managed.cdc",
+        [amount, vaultStoragePath, pushToDrawDownSink, positionStoragePath],
+        signer
+    )
+    Test.expect(openRes, Test.beSucceeded())
+}
+
+access(all)
 fun depositToPosition(signer: Test.TestAccount, positionID: UInt64, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     let depositRes = _executeTransaction(
         "./transactions/position-manager/deposit_to_position.cdc",
         [positionID, amount, vaultStoragePath, pushToDrawDownSink],
+        signer
+    )
+    Test.expect(depositRes, Test.beSucceeded())
+}
+
+access(all)
+fun depositToPositionNotManaged(signer: Test.TestAccount, positionStoragePath: StoragePath, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+    let depositRes = _executeTransaction(
+        "./transactions/position/deposit_to_position.cdc",
+        [positionStoragePath, amount, vaultStoragePath, pushToDrawDownSink],
         signer
     )
     Test.expect(depositRes, Test.beSucceeded())
@@ -680,6 +738,18 @@ fun transferFlowTokens(to: Test.TestAccount, amount: UFix64) {
         code: Test.readFile("../transactions/flowtoken/transfer_flowtoken.cdc"),
         authorizers: [Test.serviceAccount().address],
         signers: [Test.serviceAccount()],
+        arguments: [to.address, amount]
+    )
+    let res = Test.executeTransaction(transferTx)
+    Test.expect(res, Test.beSucceeded())
+}
+
+access(all)
+fun sendFlow(from: Test.TestAccount, to: Test.TestAccount, amount: UFix64) {
+    let transferTx = Test.Transaction(
+        code: Test.readFile("../transactions/flowtoken/transfer_flowtoken.cdc"),
+        authorizers: [from.address],
+        signers: [from],
         arguments: [to.address, amount]
     )
     let res = Test.executeTransaction(transferTx)
