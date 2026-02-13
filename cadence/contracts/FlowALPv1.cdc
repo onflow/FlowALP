@@ -2830,7 +2830,7 @@ access(all) contract FlowALPv1 {
             let reserveRef = self.state.borrowReserve(tokenType)!
 
             // Collect stability and get token vault
-            if let collectedVault <- tokenState.collectStability(reserveVault: reserveRef) {
+            if let collectedVault <- self._collectStability(tokenState: tokenState, reserveVault: reserveRef) {
                 let collectedBalance = collectedVault.balance
                 // Deposit collected token into stability fund
                 if !self.state.hasStabilityFund(tokenType) {
@@ -2839,7 +2839,7 @@ access(all) contract FlowALPv1 {
                     let fundRef = self.state.borrowStabilityFund(tokenType)!
                     fundRef.deposit(from: <-collectedVault)
                 }
-                
+
                 emit StabilityFeeCollected(
                     poolUUID: self.uuid,
                     tokenType: tokenType.identifier,
@@ -2847,6 +2847,98 @@ access(all) contract FlowALPv1 {
                     collectionTime: tokenState.lastStabilityFeeCollectionTime
                 )
             }
+        }
+
+        /// Collects insurance by withdrawing from reserves and swapping to MOET.
+        access(self) fun _collectInsurance(
+            tokenState: auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState,
+            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
+            oraclePrice: UFix64,
+            maxDeviationBps: UInt16
+        ): @MOET.Vault? {
+            let currentTime = getCurrentBlock().timestamp
+
+            if tokenState.insuranceRate == 0.0 {
+                tokenState.setLastInsuranceCollectionTime(currentTime)
+                return nil
+            }
+
+            let timeElapsed = currentTime - tokenState.lastInsuranceCollectionTime
+            if timeElapsed <= 0.0 {
+                return nil
+            }
+
+            let debitIncome = tokenState.totalDebitBalance * (FlowALPMath.powUFix128(tokenState.currentDebitRate, timeElapsed) - 1.0)
+            let insuranceAmount = debitIncome * UFix128(tokenState.insuranceRate)
+            let insuranceAmountUFix64 = FlowALPMath.toUFix64RoundDown(insuranceAmount)
+
+            if insuranceAmountUFix64 == 0.0 {
+                tokenState.setLastInsuranceCollectionTime(currentTime)
+                return nil
+            }
+
+            if reserveVault.balance == 0.0 {
+                tokenState.setLastInsuranceCollectionTime(currentTime)
+                return nil
+            }
+
+            let amountToCollect = insuranceAmountUFix64 > reserveVault.balance ? reserveVault.balance : insuranceAmountUFix64
+            var insuranceVault <- reserveVault.withdraw(amount: amountToCollect)
+
+            let insuranceSwapper = tokenState.insuranceSwapper ?? panic("missing insurance swapper")
+
+            assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
+            assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
+
+            let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
+            let dexPrice = quote.outAmount / quote.inAmount
+            assert(
+                FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
+                message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
+            var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
+
+            tokenState.setLastInsuranceCollectionTime(currentTime)
+            return <-moetVault
+        }
+
+        /// Collects stability funds by withdrawing from reserves.
+        access(self) fun _collectStability(
+            tokenState: auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState,
+            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+        ): @{FungibleToken.Vault}? {
+            let currentTime = getCurrentBlock().timestamp
+
+            if tokenState.stabilityFeeRate == 0.0 {
+                tokenState.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            let timeElapsed = currentTime - tokenState.lastStabilityFeeCollectionTime
+            if timeElapsed <= 0.0 {
+                return nil
+            }
+
+            let stabilityFeeRate = UFix128(tokenState.stabilityFeeRate)
+            let interestIncome = tokenState.totalDebitBalance * (FlowALPMath.powUFix128(tokenState.currentDebitRate, timeElapsed) - 1.0)
+            let stabilityAmount = interestIncome * stabilityFeeRate
+            let stabilityAmountUFix64 = FlowALPMath.toUFix64RoundDown(stabilityAmount)
+
+            if stabilityAmountUFix64 == 0.0 {
+                tokenState.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            if reserveVault.balance == 0.0 {
+                tokenState.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            let reserveVaultBalance = reserveVault.balance
+            let amountToCollect = stabilityAmountUFix64 > reserveVaultBalance ? reserveVaultBalance : stabilityAmountUFix64
+            let stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
+
+            tokenState.setLastStabilityFeeCollectionTime(currentTime)
+            return <-stabilityVault
         }
 
         ////////////////
@@ -2952,7 +3044,8 @@ access(all) contract FlowALPv1 {
             if let reserveRef = self.state.borrowReserve(tokenType) {
                 // Collect insurance and get MOET vault
                 let oraclePrice = self.config.getPriceOracle().price(ofToken: tokenType)!
-                if let collectedMOET <- tokenState.collectInsurance(
+                if let collectedMOET <- self._collectInsurance(
+                    tokenState: tokenState,
                     reserveVault: reserveRef,
                     oraclePrice: oraclePrice,
                     maxDeviationBps: self.config.getDexOracleDeviationBps()
