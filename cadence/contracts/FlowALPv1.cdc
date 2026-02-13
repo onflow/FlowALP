@@ -811,7 +811,7 @@ access(all) contract FlowALPv1 {
     access(all) resource Pool {
 
         /// Pool state (extracted fields)
-        access(self) var state: @FlowALPModels.PoolStateImpl
+        access(self) var state: @{FlowALPModels.PoolState}
 
         /// Individual user positions (stays on Pool because InternalPosition is FlowALPv1-internal)
         access(self) var positions: @{UInt64: InternalPosition}

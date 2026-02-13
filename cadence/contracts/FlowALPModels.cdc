@@ -719,9 +719,49 @@ access(all) contract FlowALPModels {
 
     /* --- POOL STATE --- */
 
-    /// PoolStateImpl is a resource that holds the movable state fields of the Pool.
+    /// PoolState defines the interface for pool-level state fields.
+    /// Pool references its state via this interface to allow future upgrades.
+    access(all) resource interface PoolState {
+
+        /// Enable or disable verbose contract logging for debugging.
+        access(EImplementation) var debugLogging: Bool
+
+        /// Global state for tracking each token
+        access(EImplementation) var globalLedger: {Type: TokenState}
+
+        /// The actual reserves of each token
+        access(EImplementation) var reserves: @{Type: {FungibleToken.Vault}}
+
+        /// The insurance fund vault storing MOET tokens collected from insurance rates
+        access(EImplementation) var insuranceFund: @MOET.Vault
+
+        /// Auto-incrementing position identifier counter
+        access(EImplementation) var nextPositionID: UInt64
+
+        /// The default token type used as the "unit of account" for the pool.
+        access(all) let defaultToken: Type
+
+        /// The stability fund vaults storing tokens collected from stability fee rates.
+        access(EImplementation) var stabilityFunds: @{Type: {FungibleToken.Vault}}
+
+        /// Position update queue to be processed as an asynchronous update
+        access(EImplementation) var positionsNeedingUpdates: [UInt64]
+
+        /// Reentrancy guards keyed by position id.
+        access(EImplementation) var positionLock: {UInt64: Bool}
+
+        /// Whether the pool is currently paused
+        access(EImplementation) var paused: Bool
+
+        access(EImplementation) fun incrementNextPositionID()
+        access(EImplementation) fun setPaused(_ paused: Bool)
+        access(EImplementation) fun setDebugLogging(_ enabled: Bool)
+        access(EImplementation) fun setPositionsNeedingUpdates(_ positions: [UInt64])
+    }
+
+    /// PoolStateImpl is the concrete implementation of PoolState.
     /// This extraction enables future upgrades and testing of state management in isolation.
-    access(all) resource PoolStateImpl {
+    access(all) resource PoolStateImpl: PoolState {
 
         /// Enable or disable verbose contract logging for debugging.
         access(EImplementation) var debugLogging: Bool
@@ -807,7 +847,7 @@ access(all) contract FlowALPModels {
         positionsNeedingUpdates: [UInt64],
         positionLock: {UInt64: Bool},
         paused: Bool
-    ): @PoolStateImpl {
+    ): @{PoolState} {
         return <- create PoolStateImpl(
             debugLogging: debugLogging,
             globalLedger: globalLedger,
