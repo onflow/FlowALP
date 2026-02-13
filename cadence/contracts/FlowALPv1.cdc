@@ -866,16 +866,13 @@ access(all) contract FlowALPv1 {
 
         /// Marks the position as locked. Panics if the position is already locked.
         access(self) fun _lockPosition(_ pid: UInt64) {
-            // If key absent => unlocked
-            let locked = self.state.positionLock[pid] ?? false
-            assert(!locked, message: "Reentrancy: position \(pid) is locked")
-            self.state.positionLock[pid] = true
+            assert(!self.state.isPositionLocked(pid), message: "Reentrancy: position \(pid) is locked")
+            self.state.setPositionLock(pid, true)
         }
 
         /// Marks the position as unlocked. No-op if the position is already unlocked.
         access(self) fun _unlockPosition(_ pid: UInt64) {
-            // Always unlock (even if missing)
-            self.state.positionLock.remove(key: pid)
+            self.state.removePositionLock(pid)
         }
 
         /// Locks a position. Used by Position resources to acquire the position lock.
@@ -913,28 +910,27 @@ access(all) contract FlowALPv1 {
 
         /// Returns an array of the supported token Types
         access(all) view fun getSupportedTokens(): [Type] {
-            return self.state.globalLedger.keys
+            return self.state.getGlobalLedgerKeys()
         }
 
         /// Returns whether a given token Type is supported or not
         access(all) view fun isTokenSupported(tokenType: Type): Bool {
-            return self.state.globalLedger[tokenType] != nil
-        } 
+            return self.state.getTokenState(tokenType) != nil
+        }
 
         /// Returns the current balance of the stability fund for a given token type.
         /// Returns nil if the token type is not supported.
         access(all) view fun getStabilityFundBalance(tokenType: Type): UFix64? {
-            if let fundRef = &self.state.stabilityFunds[tokenType] as &{FungibleToken.Vault}? {
-                return fundRef.balance
+            if self.state.hasStabilityFund(tokenType) {
+                return self.state.getStabilityFundBalance(tokenType)
             }
-            
             return nil
         }
 
         /// Returns the stability fee rate for a given token type.
         /// Returns nil if the token type is not supported.
         access(all) view fun getStabilityFeeRate(tokenType: Type): UFix64? {
-            if let tokenState = self.state.globalLedger[tokenType] {
+            if let tokenState = self.state.getTokenState(tokenType) {
                 return tokenState.stabilityFeeRate
             }
 
@@ -944,7 +940,7 @@ access(all) contract FlowALPv1 {
         /// Returns the timestamp of the last stability collection for a given token type.
         /// Returns nil if the token type is not supported.
         access(all) view fun getLastStabilityCollectionTime(tokenType: Type): UFix64? {
-            if let tokenState = self.state.globalLedger[tokenType] {
+            if let tokenState = self.state.getTokenState(tokenType) {
                 return tokenState.lastStabilityFeeCollectionTime
             }
 
@@ -953,7 +949,7 @@ access(all) contract FlowALPv1 {
 
         /// Returns whether an insurance swapper is configured for a given token type
         access(all) view fun isInsuranceSwapperConfigured(tokenType: Type): Bool {
-            if let tokenState = self.state.globalLedger[tokenType] {
+            if let tokenState = self.state.getTokenState(tokenType) {
                 return tokenState.insuranceSwapper != nil
             }
             return false
@@ -962,7 +958,7 @@ access(all) contract FlowALPv1 {
         /// Returns the timestamp of the last insurance collection for a given token type
         /// Returns nil if the token type is not supported
         access(all) view fun getLastInsuranceCollectionTime(tokenType: Type): UFix64? {
-            if let tokenState = self.state.globalLedger[tokenType] {
+            if let tokenState = self.state.getTokenState(tokenType) {
                 return tokenState.lastInsuranceCollectionTime
             }
             return nil
@@ -1000,18 +996,17 @@ access(all) contract FlowALPv1 {
 
         /// Returns the current reserve balance for the specified token type.
         access(all) view fun reserveBalance(type: Type): UFix64 {
-            let vaultRef = &self.state.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
-            return vaultRef?.balance ?? 0.0
+            return self.state.getReserveBalance(type)
         }
 
         /// Returns the balance of the MOET insurance fund
         access(all) view fun insuranceFundBalance(): UFix64 {
-            return self.state.insuranceFund.balance
+            return self.state.getInsuranceFundBalance()
         }
 
         /// Returns the insurance rate for a given token type
         access(all) view fun getInsuranceRate(tokenType: Type): UFix64? {
-            if let tokenState = self.state.globalLedger[tokenType] {
+            if let tokenState = self.state.getTokenState(tokenType) {
                 return tokenState.insuranceRate
             }
             
@@ -1024,11 +1019,10 @@ access(all) contract FlowALPv1 {
             pre {
                 self.isTokenSupported(tokenType: type): "Cannot borrow reserve for unsupported token \(type.identifier)"
             }
-            if self.state.reserves[type] == nil {
-                self.state.reserves[type] <-! DeFiActionsUtils.getEmptyVault(type)
+            if !self.state.hasReserve(type) {
+                self.state.initReserve(type, <-DeFiActionsUtils.getEmptyVault(type))
             }
-            let vaultRef = &self.state.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
-            return vaultRef!
+            return self.state.borrowReserve(type)!
         }
 
         /// Returns a position's balance available for withdrawal of a given Vault type.
@@ -1140,7 +1134,7 @@ access(all) contract FlowALPv1 {
                 pid: pid,
                 depositType: type,
                 targetHealth: targetHealth,
-                withdrawType: self.state.defaultToken,
+                withdrawType: self.state.getDefaultToken(),
                 withdrawAmount: 0.0
             )
         }
@@ -1173,13 +1167,13 @@ access(all) contract FlowALPv1 {
             let health = self.positionHealth(pid: pid)
             let defaultTokenAvailable = self.availableBalance(
                 pid: pid,
-                type: self.state.defaultToken,
+                type: self.state.getDefaultToken(),
                 pullFromTopUpSource: false
             )
 
             return PositionDetails(
                 balances: balances,
-                poolDefaultToken: self.state.defaultToken,
+                poolDefaultToken: self.state.getDefaultToken(),
                 defaultTokenAvailableBalance: defaultTokenAvailable,
                 health: health
             )
@@ -1214,7 +1208,7 @@ access(all) contract FlowALPv1 {
                 // TODO(jord): liquidation paused / post-pause warm
             }
             post {
-                self.state.positionLock[pid] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
             
             self._lockPosition(pid)
@@ -1317,7 +1311,7 @@ access(all) contract FlowALPv1 {
                 position.balances[seizeType] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0)
             }
             position.balances[seizeType]!.recordWithdrawal(amount: UFix128(seizeAmount), tokenState: seizeState)
-            let seizeReserveRef = (&self.state.reserves[seizeType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let seizeReserveRef = self.state.borrowReserve(seizeType)!
             let seizedCollateral <- seizeReserveRef.withdraw(amount: seizeAmount)
 
             let newHealth = self.positionHealth(pid: pid)
@@ -1569,7 +1563,7 @@ access(all) contract FlowALPv1 {
                 pid: pid,
                 withdrawType: type,
                 targetHealth: targetHealth,
-                depositType: self.state.defaultToken,
+                depositType: self.state.getDefaultToken(),
                 depositAmount: 0.0
             )
         }
@@ -1922,17 +1916,17 @@ access(all) contract FlowALPv1 {
         ): @Position {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
-                self.state.globalLedger[funds.getType()] != nil:
+                self.state.getTokenState(funds.getType()) != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
                 self.positionSatisfiesMinimumBalance(type: funds.getType(), balance: UFix128(funds.balance)):
-                    "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.state.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition)"
+                    "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.state.getTokenState(funds.getType())!.minimumTokenBalancePerPosition)"
                 // TODO(jord): Sink/source should be valid
             }
             post {
-                self.state.positionLock[result.id] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(result.id): "Position is not unlocked"
             }
             // construct a new InternalPosition, assigning it the current position ID
-            let id = self.state.nextPositionID
+            let id = self.state.getNextPositionID()
             self.state.incrementNextPositionID()
             self.positions[id] <-! create InternalPosition()
 
@@ -1983,7 +1977,7 @@ access(all) contract FlowALPv1 {
         /// @param balance: The balance amount to validate
         /// @return true if the balance meets or exceeds the minimum requirement, false otherwise
         access(self) view fun positionSatisfiesMinimumBalance(type: Type, balance: UFix128): Bool {
-            return balance >= UFix128(self.state.globalLedger[type]!.minimumTokenBalancePerPosition)
+            return balance >= UFix128(self.state.getTokenState(type)!.minimumTokenBalancePerPosition)
         }
 
         /// Allows anyone to deposit funds into any position.
@@ -2069,10 +2063,10 @@ access(all) contract FlowALPv1 {
             }
 
             // Create vault if it doesn't exist yet
-            if self.state.reserves[type] == nil {
-                self.state.reserves[type] <-! from.createEmptyVault()
+            if !self.state.hasReserve(type) {
+                self.state.initReserve(type, <-from.createEmptyVault())
             }
-            let reserveVault = (&self.state.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let reserveVault = self.state.borrowReserve(type)!
 
             // Reflect the deposit in the position's balance.
             //
@@ -2116,11 +2110,11 @@ access(all) contract FlowALPv1 {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.positions[pid] != nil:
                     "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
-                self.state.globalLedger[from.getType()] != nil:
+                self.state.getTokenState(from.getType()) != nil:
                     "Invalid token type \(from.getType().identifier) - not supported by this Pool"
             }
             post {
-                self.state.positionLock[pid] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
             if self.config.isDebugLogging() {
                 log("    [CONTRACT] depositAndPush(pid: \(pid), pushToDrawDownSink: \(pushToDrawDownSink))")
@@ -2172,11 +2166,11 @@ access(all) contract FlowALPv1 {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.positions[pid] != nil:
                     "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
-                self.state.globalLedger[type] != nil:
+                self.state.getTokenState(type) != nil:
                     "Invalid token type \(type.identifier) - not supported by this Pool"
             }
             post {
-                self.state.positionLock[pid] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
             self._lockPosition(pid)
             if self.config.isDebugLogging() {
@@ -2195,7 +2189,7 @@ access(all) contract FlowALPv1 {
 
             // Preflight to see if the funds are available
             let topUpSource = position.topUpSource as auth(FungibleToken.Withdraw) &{DeFiActions.Source}?
-            let topUpType = topUpSource?.getSourceType() ?? self.state.defaultToken
+            let topUpType = topUpSource?.getSourceType() ?? self.state.getDefaultToken()
 
             let requiredDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
                 pid: pid,
@@ -2271,7 +2265,7 @@ access(all) contract FlowALPv1 {
                 )
             }
 
-            let reserveVault = (&self.state.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let reserveVault = self.state.borrowReserve(type)!
 
             // Reflect the withdrawal in the position's balance
             let uintAmount = UFix128(amount)
@@ -2297,7 +2291,7 @@ access(all) contract FlowALPv1 {
             // This is applied to both credit and debit balances, with the main goal being to avoid dust positions.
             assert(
                 remainingBalance == 0.0 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
-                message: "Withdrawal would leave position below minimum balance requirement of \(self.state.globalLedger[type]!.minimumTokenBalancePerPosition). Remaining balance would be \(remainingBalance)."
+                message: "Withdrawal would leave position below minimum balance requirement of \(self.state.getTokenState(type)!.minimumTokenBalancePerPosition). Remaining balance would be \(remainingBalance)."
             )
 
             // Queue for update if necessary
@@ -2383,7 +2377,7 @@ access(all) contract FlowALPv1 {
             depositCapacityCap: UFix64
         ) {
             pre {
-                self.state.globalLedger[tokenType] == nil:
+                self.state.getTokenState(tokenType) == nil:
                     "Token type already supported"
                 tokenType.isSubtype(of: Type<@{FungibleToken.Vault}>()):
                     "Invalid token type \(tokenType.identifier) - tokenType must be a FungibleToken Vault implementation"
@@ -2400,12 +2394,12 @@ access(all) contract FlowALPv1 {
             }
 
             // Add token to global ledger with its interest curve and deposit parameters
-            self.state.globalLedger[tokenType] = FlowALPModels.TokenState(
+            self.state.setTokenState(tokenType, FlowALPModels.TokenState(
                 tokenType: tokenType,
                 interestCurve: interestCurve,
                 depositRate: depositRate,
                 depositCapacityCap: depositCapacityCap
-            )
+            ))
 
             // Set collateral factor (what percentage of value can be used as collateral)
             self.config.setCollateralFactor(tokenType: tokenType, factor: collateralFactor)
@@ -2424,7 +2418,7 @@ access(all) contract FlowALPv1 {
                 insuranceRate + (self.getStabilityFeeRate(tokenType: tokenType) ?? 0.0) < 1.0:
                     "insuranceRate + stabilityFeeRate must be in range [0, 1) to avoid underflow in credit rate calculation"
             }
-            let tsRef = &self.state.globalLedger[tokenType] as auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
 
             // Validate constraint: non-zero rate requires swapper
@@ -2448,7 +2442,7 @@ access(all) contract FlowALPv1 {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
-            let tsRef = &self.state.globalLedger[tokenType] as auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")   
 
             if let swapper = swapper {
@@ -2485,7 +2479,7 @@ access(all) contract FlowALPv1 {
                 fraction > 0.0 && fraction <= 1.0:
                     "fraction must be in (0,1]"
             }
-            let tsRef = &self.state.globalLedger[tokenType] as auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositLimitFraction(fraction)
         }
@@ -2495,7 +2489,7 @@ access(all) contract FlowALPv1 {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
-            let tsRef = &self.state.globalLedger[tokenType] as auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositRate(hourlyRate)
         }
@@ -2505,7 +2499,7 @@ access(all) contract FlowALPv1 {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
-            let tsRef = &self.state.globalLedger[tokenType] as auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositCapacityCap(cap)
         }
@@ -2515,7 +2509,7 @@ access(all) contract FlowALPv1 {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
-            let tsRef = &self.state.globalLedger[tokenType] as auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
             tsRef.setMinimumTokenBalancePerPosition(minimum)
         }
@@ -2536,7 +2530,7 @@ access(all) contract FlowALPv1 {
                 stabilityFeeRate + (self.getInsuranceRate(tokenType: tokenType) ?? 0.0) < 1.0:
                     "stabilityFeeRate + insuranceRate must be in range [0, 1) to avoid underflow in credit rate calculation"
             }
-            let tsRef = &self.state.globalLedger[tokenType] as auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
             tsRef.setStabilityFeeRate(stabilityFeeRate)
             
@@ -2552,10 +2546,10 @@ access(all) contract FlowALPv1 {
         /// Emits: StabilityFundWithdrawn
         access(EGovernance) fun withdrawStabilityFund(tokenType: Type, amount: UFix64, recipient: &{FungibleToken.Receiver}) {
             pre {
-                self.state.stabilityFunds[tokenType] != nil: "No stability fund exists for token type \(tokenType.identifier)"
+                self.state.hasStabilityFund(tokenType): "No stability fund exists for token type \(tokenType.identifier)"
                 amount > 0.0: "Withdrawal amount must be positive"
             }
-            let fundRef = (&self.state.stabilityFunds[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let fundRef = self.state.borrowStabilityFund(tokenType)!
             assert(
                 fundRef.balance >= amount,
                 message: "Insufficient stability fund balance. Available: \(fundRef.balance), requested: \(amount)"
@@ -2586,8 +2580,8 @@ access(all) contract FlowALPv1 {
         /// approximately once per hour, up to its respective depositCapacityCap
         /// When capacity regenerates, user deposit usage is reset for that token type
         access(FlowALPModels.EImplementation) fun regenerateAllDepositCapacities() {
-            for tokenType in self.state.globalLedger.keys {
-                let tsRef = &self.state.globalLedger[tokenType] as auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState?
+            for tokenType in self.state.getGlobalLedgerKeys() {
+                let tsRef = self.state.borrowTokenState(tokenType)
                     ?? panic("Invariant: token state missing")
                 tsRef.regenerateDepositCapacity()
             }
@@ -2635,7 +2629,7 @@ access(all) contract FlowALPv1 {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
             post {
-                self.state.positionLock[pid] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
             self._lockPosition(pid)
             self._rebalancePositionNoLock(pid: pid, force: force)
@@ -2765,8 +2759,8 @@ access(all) contract FlowALPv1 {
             // it should schedule each update to run in its own callback, so a revert() call from one update (for example, if a source or
             // sink aborts) won't prevent other positions from being updated.
             var processed: UInt64 = 0
-            while self.state.positionsNeedingUpdates.length > 0 && processed < self.config.getPositionsProcessedPerCallback() {
-                let pid = self.state.positionsNeedingUpdates.removeFirst()
+            while self.state.getPositionsNeedingUpdatesLength() > 0 && processed < self.config.getPositionsProcessedPerCallback() {
+                let pid = self.state.removeFirstPositionNeedingUpdate()
                 self.asyncUpdatePosition(pid: pid)
                 self._queuePositionForUpdateIfNecessary(pid: pid)
                 processed = processed + 1
@@ -2779,7 +2773,7 @@ access(all) contract FlowALPv1 {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
             post {
-                self.state.positionLock[pid] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
             self._lockPosition(pid)
             let position = self._borrowPosition(pid: pid)
@@ -2828,21 +2822,21 @@ access(all) contract FlowALPv1 {
             tokenState.updateInterestRates()
 
             // Ensure reserves exist for this token type
-            if self.state.reserves[tokenType] == nil {
+            if !self.state.hasReserve(tokenType) {
                 return
             }
 
             // Get reference to reserves
-            let reserveRef = (&self.state.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let reserveRef = self.state.borrowReserve(tokenType)!
 
             // Collect stability and get token vault
-            if let collectedVault <- tokenState.collectStability(reserveVault: reserveRef) {  
-                let collectedBalance = collectedVault.balance     
+            if let collectedVault <- tokenState.collectStability(reserveVault: reserveRef) {
+                let collectedBalance = collectedVault.balance
                 // Deposit collected token into stability fund
-                if self.state.stabilityFunds[tokenType] == nil {
-                    self.state.stabilityFunds[tokenType] <-! collectedVault
+                if !self.state.hasStabilityFund(tokenType) {
+                    self.state.initStabilityFund(tokenType, <-collectedVault)
                 } else {
-                    let fundRef = (&self.state.stabilityFunds[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                    let fundRef = self.state.borrowStabilityFund(tokenType)!
                     fundRef.deposit(from: <-collectedVault)
                 }
                 
@@ -2861,7 +2855,7 @@ access(all) contract FlowALPv1 {
 
         /// Queues a position for asynchronous updates if the position has been marked as requiring an update
         access(self) fun _queuePositionForUpdateIfNecessary(pid: UInt64) {
-            if self.state.positionsNeedingUpdates.contains(pid) {
+            if self.state.positionsNeedingUpdatesContains(pid) {
                 // If this position is already queued for an update, no need to check anything else
                 return
             }
@@ -2871,7 +2865,7 @@ access(all) contract FlowALPv1 {
 
             if position.queuedDeposits.length > 0 {
                 // This position has deposits that need to be processed, so we need to queue it for an update
-                self.state.positionsNeedingUpdates.append(pid)
+                self.state.appendPositionNeedingUpdate(pid)
                 return
             }
 
@@ -2879,7 +2873,7 @@ access(all) contract FlowALPv1 {
 
             if positionHealth < position.minHealth || positionHealth > position.maxHealth {
                 // This position is outside the configured health bounds, we queue it for an update
-                self.state.positionsNeedingUpdates.append(pid)
+                self.state.appendPositionNeedingUpdate(pid)
                 return
             }
         }
@@ -2935,7 +2929,7 @@ access(all) contract FlowALPv1 {
         /// the passage of time. This should always be used when accessing a token state to avoid missing interest
         /// updates (duplicate calls to updateForTimeChange() are a nop within a single block).
         access(self) fun _borrowUpdatedTokenState(type: Type): auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState {
-            let state = &self.state.globalLedger[type]! as auth(FlowALPModels.EImplementation) &FlowALPModels.TokenState
+            let state = self.state.borrowTokenState(type)!
             state.updateForTimeChange()
             return state
         }
@@ -2950,12 +2944,12 @@ access(all) contract FlowALPv1 {
             
             // Collect insurance if swapper is configured
             // Ensure reserves exist for this token type
-            if self.state.reserves[tokenType] == nil {
+            if !self.state.hasReserve(tokenType) {
                 return
             }
 
             // Get reference to reserves
-            if let reserveRef = (&self.state.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?) {
+            if let reserveRef = self.state.borrowReserve(tokenType) {
                 // Collect insurance and get MOET vault
                 let oraclePrice = self.config.getPriceOracle().price(ofToken: tokenType)!
                 if let collectedMOET <- tokenState.collectInsurance(
@@ -2965,7 +2959,7 @@ access(all) contract FlowALPv1 {
                 ) {
                     let collectedMOETBalance = collectedMOET.balance
                     // Deposit collected MOET into insurance fund
-                    self.state.insuranceFund.deposit(from: <-collectedMOET)
+                    self.state.depositToInsuranceFund(from: <-collectedMOET)
 
                     emit InsuranceFeeCollected(
                         poolUUID: self.uuid,
@@ -3009,14 +3003,14 @@ access(all) contract FlowALPv1 {
             return FlowALPv1.PositionView(
                 balances: balancesCopy,
                 snapshots: snaps,
-                defaultToken: self.state.defaultToken,
+                defaultToken: self.state.getDefaultToken(),
                 min: position.minHealth,
                 max: position.maxHealth
             )
         }
 
         access(EGovernance) fun setPriceOracle(_ newOracle: {DeFiActions.PriceOracle}) {
-            self.config.setPriceOracle(newOracle, defaultToken: self.state.defaultToken)
+            self.config.setPriceOracle(newOracle, defaultToken: self.state.getDefaultToken())
             self.state.setPositionsNeedingUpdates(self.positions.keys)
 
             emit PriceOracleUpdated(
@@ -3026,7 +3020,7 @@ access(all) contract FlowALPv1 {
         }
 
         access(all) fun getDefaultToken(): Type {
-            return self.state.defaultToken
+            return self.state.getDefaultToken()
         }
         
         /// Returns the deposit capacity and deposit capacity cap for a given token type

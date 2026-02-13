@@ -99,14 +99,20 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
-    let moetBalance = positionDetails.balances[1]
-    let flowPositionBalance = positionDetails.balances[0]
-    Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
+    // Find balances by direction rather than relying on array ordering
+    var flowPositionBalance: FlowALPv1.PositionBalance? = nil
+    var moetBalance: FlowALPv1.PositionBalance? = nil
+    for b in positionDetails.balances {
+        if b.direction == FlowALPv1.BalanceDirection.Credit {
+            flowPositionBalance = b
+        } else {
+            moetBalance = b
+        }
+    }
+    Test.assertEqual(positionFundingAmount, flowPositionBalance!.balance)
 
-    Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance.balance),
-        message: "Expected borrow amount to be \(expectedBorrowAmount), but got \(moetBalance.balance)")
-    Test.assertEqual(FlowALPv1.BalanceDirection.Credit, flowPositionBalance.direction)
-    Test.assertEqual(FlowALPv1.BalanceDirection.Debit, moetBalance.direction)
+    Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance!.balance),
+        message: "Expected borrow amount to be \(expectedBorrowAmount), but got \(moetBalance!.balance)")
 
     Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)")

@@ -751,63 +751,63 @@ access(all) contract FlowALPModels {
 
     /// PoolState defines the interface for pool-level state fields.
     /// Pool references its state via this interface to allow future upgrades.
+    /// All state is accessed via getter/setter functions (no field declarations).
     access(all) resource interface PoolState {
 
-        /// Global state for tracking each token
-        access(EImplementation) var globalLedger: {Type: TokenState}
+        // --- Global Ledger (TokenState per token type) ---
+        access(EImplementation) fun borrowTokenState(_ type: Type): auth(EImplementation) &TokenState?
+        access(all) view fun getTokenState(_ type: Type): TokenState?
+        access(EImplementation) fun setTokenState(_ type: Type, _ state: TokenState)
+        access(all) view fun getGlobalLedgerKeys(): [Type]
 
-        /// The actual reserves of each token
-        access(EImplementation) var reserves: @{Type: {FungibleToken.Vault}}
+        // --- Reserves ---
+        access(EImplementation) fun borrowReserve(_ type: Type): auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
+        access(all) view fun hasReserve(_ type: Type): Bool
+        access(all) view fun getReserveBalance(_ type: Type): UFix64
+        access(EImplementation) fun initReserve(_ type: Type, _ vault: @{FungibleToken.Vault})
 
-        /// The insurance fund vault storing MOET tokens collected from insurance rates
-        access(EImplementation) var insuranceFund: @MOET.Vault
+        // --- Insurance Fund ---
+        access(all) view fun getInsuranceFundBalance(): UFix64
+        access(EImplementation) fun depositToInsuranceFund(from: @MOET.Vault)
 
-        /// Auto-incrementing position identifier counter
-        access(EImplementation) var nextPositionID: UInt64
-
-        /// The default token type used as the "unit of account" for the pool.
-        access(all) let defaultToken: Type
-
-        /// The stability fund vaults storing tokens collected from stability fee rates.
-        access(EImplementation) var stabilityFunds: @{Type: {FungibleToken.Vault}}
-
-        /// Position update queue to be processed as an asynchronous update
-        access(EImplementation) var positionsNeedingUpdates: [UInt64]
-
-        /// Reentrancy guards keyed by position id.
-        access(EImplementation) var positionLock: {UInt64: Bool}
-
+        // --- Next Position ID ---
+        access(all) view fun getNextPositionID(): UInt64
         access(EImplementation) fun incrementNextPositionID()
+
+        // --- Default Token ---
+        access(all) view fun getDefaultToken(): Type
+
+        // --- Stability Funds ---
+        access(EImplementation) fun borrowStabilityFund(_ type: Type): auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
+        access(all) view fun hasStabilityFund(_ type: Type): Bool
+        access(all) view fun getStabilityFundBalance(_ type: Type): UFix64
+        access(EImplementation) fun initStabilityFund(_ type: Type, _ vault: @{FungibleToken.Vault})
+
+        // --- Position Update Queue ---
+        access(all) view fun getPositionsNeedingUpdatesLength(): Int
+        access(EImplementation) fun removeFirstPositionNeedingUpdate(): UInt64
+        access(all) view fun positionsNeedingUpdatesContains(_ pid: UInt64): Bool
+        access(EImplementation) fun appendPositionNeedingUpdate(_ pid: UInt64)
         access(EImplementation) fun setPositionsNeedingUpdates(_ positions: [UInt64])
+
+        // --- Position Lock ---
+        access(all) view fun isPositionLocked(_ pid: UInt64): Bool
+        access(EImplementation) fun setPositionLock(_ pid: UInt64, _ locked: Bool)
+        access(EImplementation) fun removePositionLock(_ pid: UInt64)
     }
 
     /// PoolStateImpl is the concrete implementation of PoolState.
     /// This extraction enables future upgrades and testing of state management in isolation.
     access(all) resource PoolStateImpl: PoolState {
 
-        /// Global state for tracking each token
-        access(EImplementation) var globalLedger: {Type: TokenState}
-
-        /// The actual reserves of each token
-        access(EImplementation) var reserves: @{Type: {FungibleToken.Vault}}
-
-        /// The insurance fund vault storing MOET tokens collected from insurance rates
-        access(EImplementation) var insuranceFund: @MOET.Vault
-
-        /// Auto-incrementing position identifier counter
-        access(EImplementation) var nextPositionID: UInt64
-
-        /// The default token type used as the "unit of account" for the pool.
-        access(all) let defaultToken: Type
-
-        /// The stability fund vaults storing tokens collected from stability fee rates.
-        access(EImplementation) var stabilityFunds: @{Type: {FungibleToken.Vault}}
-
-        /// Position update queue to be processed as an asynchronous update
-        access(EImplementation) var positionsNeedingUpdates: [UInt64]
-
-        /// Reentrancy guards keyed by position id.
-        access(EImplementation) var positionLock: {UInt64: Bool}
+        access(self) var globalLedger: {Type: TokenState}
+        access(self) var reserves: @{Type: {FungibleToken.Vault}}
+        access(self) var insuranceFund: @MOET.Vault
+        access(self) var nextPositionID: UInt64
+        access(self) let defaultToken: Type
+        access(self) var stabilityFunds: @{Type: {FungibleToken.Vault}}
+        access(self) var positionsNeedingUpdates: [UInt64]
+        access(self) var positionLock: {UInt64: Bool}
 
         init(
             globalLedger: {Type: TokenState},
@@ -829,12 +829,126 @@ access(all) contract FlowALPModels {
             self.positionLock = positionLock
         }
 
+        // --- Global Ledger ---
+
+        access(EImplementation) fun borrowTokenState(_ type: Type): auth(EImplementation) &TokenState? {
+            return &self.globalLedger[type]
+        }
+
+        access(all) view fun getTokenState(_ type: Type): TokenState? {
+            return self.globalLedger[type]
+        }
+
+        access(EImplementation) fun setTokenState(_ type: Type, _ state: TokenState) {
+            self.globalLedger[type] = state
+        }
+
+        access(all) view fun getGlobalLedgerKeys(): [Type] {
+            return self.globalLedger.keys
+        }
+
+        // --- Reserves ---
+
+        access(EImplementation) fun borrowReserve(_ type: Type): auth(FungibleToken.Withdraw) &{FungibleToken.Vault}? {
+            return &self.reserves[type]
+        }
+
+        access(all) view fun hasReserve(_ type: Type): Bool {
+            return self.reserves[type] != nil
+        }
+
+        access(all) view fun getReserveBalance(_ type: Type): UFix64 {
+            if let ref = &self.reserves[type] as &{FungibleToken.Vault}? {
+                return ref.balance
+            }
+            return 0.0
+        }
+
+        access(EImplementation) fun initReserve(_ type: Type, _ vault: @{FungibleToken.Vault}) {
+            self.reserves[type] <-! vault
+        }
+
+        // --- Insurance Fund ---
+
+        access(all) view fun getInsuranceFundBalance(): UFix64 {
+            return self.insuranceFund.balance
+        }
+
+        access(EImplementation) fun depositToInsuranceFund(from: @MOET.Vault) {
+            self.insuranceFund.deposit(from: <-from)
+        }
+
+        // --- Next Position ID ---
+
+        access(all) view fun getNextPositionID(): UInt64 {
+            return self.nextPositionID
+        }
+
         access(EImplementation) fun incrementNextPositionID() {
             self.nextPositionID = self.nextPositionID + 1
         }
 
+        // --- Default Token ---
+
+        access(all) view fun getDefaultToken(): Type {
+            return self.defaultToken
+        }
+
+        // --- Stability Funds ---
+
+        access(EImplementation) fun borrowStabilityFund(_ type: Type): auth(FungibleToken.Withdraw) &{FungibleToken.Vault}? {
+            return &self.stabilityFunds[type]
+        }
+
+        access(all) view fun hasStabilityFund(_ type: Type): Bool {
+            return self.stabilityFunds[type] != nil
+        }
+
+        access(all) view fun getStabilityFundBalance(_ type: Type): UFix64 {
+            if let ref = &self.stabilityFunds[type] as &{FungibleToken.Vault}? {
+                return ref.balance
+            }
+            return 0.0
+        }
+
+        access(EImplementation) fun initStabilityFund(_ type: Type, _ vault: @{FungibleToken.Vault}) {
+            self.stabilityFunds[type] <-! vault
+        }
+
+        // --- Position Update Queue ---
+
+        access(all) view fun getPositionsNeedingUpdatesLength(): Int {
+            return self.positionsNeedingUpdates.length
+        }
+
+        access(EImplementation) fun removeFirstPositionNeedingUpdate(): UInt64 {
+            return self.positionsNeedingUpdates.removeFirst()
+        }
+
+        access(all) view fun positionsNeedingUpdatesContains(_ pid: UInt64): Bool {
+            return self.positionsNeedingUpdates.contains(pid)
+        }
+
+        access(EImplementation) fun appendPositionNeedingUpdate(_ pid: UInt64) {
+            self.positionsNeedingUpdates.append(pid)
+        }
+
         access(EImplementation) fun setPositionsNeedingUpdates(_ positions: [UInt64]) {
             self.positionsNeedingUpdates = positions
+        }
+
+        // --- Position Lock ---
+
+        access(all) view fun isPositionLocked(_ pid: UInt64): Bool {
+            return self.positionLock[pid] ?? false
+        }
+
+        access(EImplementation) fun setPositionLock(_ pid: UInt64, _ locked: Bool) {
+            self.positionLock[pid] = locked
+        }
+
+        access(EImplementation) fun removePositionLock(_ pid: UInt64) {
+            self.positionLock.remove(key: pid)
         }
     }
 
