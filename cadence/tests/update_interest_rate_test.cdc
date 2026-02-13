@@ -1,6 +1,7 @@
 import Test
 import "MOET"
 import "FlowALPv1"
+import "FlowALPModels"
 import "FlowALPInterestRates"
 import "FlowALPMath"
 import "test_helpers.cdc"
@@ -34,7 +35,7 @@ fun test_FixedCurve_uses_spread_model() {
     // For FixedCurve, credit rate = debit rate * (1 - protocolFeeRate)
     // where protocolFeeRate = insuranceRate + stabilityFeeRate
     let debitRate: UFix128 = 0.10  // 10% yearly
-    var tokenState = FlowALPv1.TokenState(
+    var tokenState = FlowALPModels.TokenState(
         tokenType: Type<@MOET.Vault>(),
         interestCurve: FlowALPInterestRates.FixedCurve(yearlyRate: debitRate),
         depositRate: 1.0,
@@ -67,7 +68,7 @@ fun test_KinkCurve_uses_reserve_factor_model() {
     // For non-FixedRate curves, protocol fee is a percentage of debit income
     // protocolFeeRate = insuranceRate + stabilityFeeRate
     let debitRate: UFix128 = 0.20  // 20% yearly
-    var tokenState = FlowALPv1.TokenState(
+    var tokenState = FlowALPModels.TokenState(
         tokenType: Type<@MOET.Vault>(),
         interestCurve: CustomFixedCurve(debitRate),  // Custom curve triggers reserve factor path
         depositRate: 1.0,
@@ -97,7 +98,7 @@ access(all)
 fun test_KinkCurve_zero_credit_rate_when_no_borrowing() {
     // When there's no debit balance, credit rate should be 0 (no income to distribute)
     let debitRate: UFix128 = 0.10
-    var tokenState = FlowALPv1.TokenState(
+    var tokenState = FlowALPModels.TokenState(
         tokenType: Type<@MOET.Vault>(),
         interestCurve: CustomFixedCurve(debitRate),
         depositRate: 1.0,

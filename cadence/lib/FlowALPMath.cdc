@@ -90,6 +90,38 @@ access(all) contract FlowALPMath {
         return scaledInt % 2 == 1 ? self.roundUp(base) : base
     }
 
+    /// Checks that the DEX price does not deviate from the oracle price by more than the given threshold.
+    /// The deviation is computed as the absolute difference divided by the smaller price, expressed in basis points.
+    access(all) view fun dexOraclePriceDeviationInRange(dexPrice: UFix64, oraclePrice: UFix64, maxDeviationBps: UInt16): Bool {
+        let diff: UFix64 = dexPrice < oraclePrice ? oraclePrice - dexPrice : dexPrice - oraclePrice
+        let diffPct: UFix64 = dexPrice < oraclePrice ? diff / dexPrice : diff / oraclePrice
+        let diffBps = UInt16(diffPct * 10_000.0)
+        return diffBps <= maxDeviationBps
+    }
+
+    /// Converts a yearly interest rate to a per-second multiplication factor (stored in a UFix128 as a fixed point
+    /// number with 18 decimal places). The input to this function will be just the relative annual interest rate
+    /// (e.g. 0.05 for 5% interest), and the result will be the per-second multiplier (e.g. 1.000000000001).
+    access(all) view fun perSecondInterestRate(yearlyRate: UFix128): UFix128 {
+        let perSecondScaledValue = yearlyRate / 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
+        assert(
+            perSecondScaledValue < UFix128.max,
+            message: "Per-second interest rate \(perSecondScaledValue) is too high"
+        )
+        return perSecondScaledValue + 1.0
+    }
+
+    /// Returns the compounded interest index reflecting the passage of time
+    /// The result is: newIndex = oldIndex * perSecondRate ^ seconds
+    access(all) view fun compoundInterestIndex(
+        oldIndex: UFix128,
+        perSecondRate: UFix128,
+        elapsedSeconds: UFix64
+    ): UFix128 {
+        let pow = FlowALPMath.powUFix128(perSecondRate, elapsedSeconds)
+        return oldIndex * pow
+    }
+
     init() {
         self.ufix64Step = 0.00000001
         self.ufix64HalfStep = self.ufix64Step / 2.0

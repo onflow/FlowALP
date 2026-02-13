@@ -1,6 +1,7 @@
 import Test
 import "FlowToken"
 import "FlowALPv1"
+import "FlowALPModels"
 import "FlowALPInterestRates"
 import "FlowALPMath"
 import "test_helpers.cdc"
@@ -153,7 +154,7 @@ access(all)
 fun test_TokenState_with_FixedCurve() {
     // Create a TokenState with a fixed rate curve
     let fixedCurve = FlowALPInterestRates.FixedCurve(yearlyRate: 0.10)
-    var tokenState = FlowALPv1.TokenState(
+    var tokenState = FlowALPModels.TokenState(
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: fixedCurve,
         depositRate: 1.0,
@@ -188,7 +189,7 @@ fun test_TokenState_with_KinkCurve() {
         slope1: 0.05,
         slope2: 0.50
     )
-    var tokenState = FlowALPv1.TokenState(
+    var tokenState = FlowALPModels.TokenState(
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
@@ -218,7 +219,7 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
         slope1: 0.05,
         slope2: 0.50
     )
-    var tokenState = FlowALPv1.TokenState(
+    var tokenState = FlowALPModels.TokenState(
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
