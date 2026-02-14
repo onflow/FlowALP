@@ -183,7 +183,7 @@ FlowALP/
 
 ### Creating a Position
 
-FlowALPv1 uses entitlements and capability-based access. This repo provides transaction templates for common operations:
+FlowALP uses entitlements and capability-based access. This repo provides transaction templates for common operations:
 
 - Create and store the Pool (admin): `cadence/transactions/flow-alp/pool-factory/create_and_store_pool.cdc`
 - Grant and claim the beta Pool capability (admin/user): `cadence/transactions/flow-alp/beta/publish_beta_cap.cdc` and `cadence/transactions/flow-alp/beta/claim_and_save_beta_cap.cdc`
