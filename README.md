@@ -1,4 +1,6 @@
-# FlowALPv1 - DeFi Lending Protocol on Flow
+# FlowALP (FlowALPv1) - DeFi Lending Protocol on Flow
+
+**Naming:** FlowALP refers to the protocol. The current Cadence implementation in this repo is the `FlowALPv1` contract (plus supporting v1 contracts like `FlowALPRebalancerv1`, `FlowALPRebalancerPaidv1`, and `FlowALPSupervisorv1`).
 
 ## 📊 Project Status
 
@@ -7,7 +9,7 @@
 - **Coverage**: 🔎 Run `flow test --cover` locally (coverage artifacts are not committed)
 - **Documentation**: ✅ Complete
 - **Standards**: ✅ Uses `FungibleToken` + integrates with `DeFiActions`
-- **FlowVault Removal**: ✅ FlowVault is not required by the current protocol implementation (legacy `cadence/contracts/AlpenFlow_dete_original.cdc` remains for reference)
+- **FlowVault Removal**: ✅ FlowVault is not required by the `FlowALPv1` implementation (legacy `cadence/contracts/AlpenFlow_dete_original.cdc` remains for reference)
 
 ## 🎯 Integration Milestones
 
@@ -32,9 +34,9 @@
 - 💛 **Documentation**: Improved documentation and tutorials
 - ✅ **Sample Code**: Complete tutorials for DefiActions integration
 
-## 🏦 About FlowALPv1
+## 🏦 About FlowALP
 
-FlowALPv1 is a decentralized lending and borrowing protocol built on the Flow blockchain. It is token-agnostic (operates over any `FungibleToken.Vault`) and integrates with DeFi Actions for composability.
+FlowALP is a decentralized lending and borrowing protocol built on the Flow blockchain. This repository contains the v1 Cadence implementation deployed as the `FlowALPv1` contract. It is token-agnostic (operates over any `FungibleToken.Vault`) and integrates with DeFi Actions for composability.
 
 ### Key Features
 
@@ -183,7 +185,7 @@ FlowALP/
 
 ### Creating a Position
 
-FlowALP uses entitlements and capability-based access. This repo provides transaction templates for common operations:
+The `FlowALPv1` contract uses entitlements and capability-based access. This repo provides transaction templates for common operations:
 
 - Create and store the Pool (admin): `cadence/transactions/flow-alp/pool-factory/create_and_store_pool.cdc`
 - Grant and claim the beta Pool capability (admin/user): `cadence/transactions/flow-alp/beta/publish_beta_cap.cdc` and `cadence/transactions/flow-alp/beta/claim_and_save_beta_cap.cdc`

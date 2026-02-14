@@ -1,4 +1,4 @@
-# Test Running Instructions for FlowALPv1
+# Test Running Instructions for FlowALP (FlowALPv1)
 
 ## ⚠️ CRITICAL: Install Dependencies First
 

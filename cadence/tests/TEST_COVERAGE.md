@@ -1,9 +1,11 @@
-# Test Inventory and Coverage Notes (FlowALP / FlowALPv1)
+# Test Inventory and Coverage Notes (FlowALP; `FlowALPv1` Implementation)
 
-**Last Reviewed:** 2026-02-13  
+**Last Reviewed:** 2026-02-14  
 **Core Contract:** `cadence/contracts/FlowALPv1.cdc`  
 **Test Files:** Git-tracked tests under `cadence/tests/*_test.cdc`  
 **Coverage:** Coverage artifacts are generated locally (e.g. `coverage.json`, `coverage.lcov`) and are ignored by git.
+
+**Naming:** FlowALP refers to the protocol; the Cadence implementation under test in this repo is deployed as the `FlowALPv1` contract.
 
 ## Current Test File Inventory
 
@@ -52,12 +54,12 @@ cadence/tests/zero_debt_withdrawal_test.cdc
 
 ## Historical Narrative (May Be Outdated)
 
-The sections below were written as a narrative-style coverage analysis (original draft date: 2026-01-28).
+The sections below are a walkthrough of the test suite (original draft date: 2026-01-28).
 Treat any specific coverage percentages, repository labels, and file counts below as non-authoritative unless re-validated.
 
 ## Executive Summary
 
-This document provides a narrative-style analysis of the existing test coverage for the FlowALPv1 lending protocol, an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The protocol has an extensive test suite covering fundamental operations, interest mechanics, liquidations, and edge cases.
+This document provides a walkthrough of the existing test coverage for the FlowALP protocol as implemented by the `FlowALPv1` contract: an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The implementation has an extensive test suite covering fundamental operations, interest mechanics, liquidations, and edge cases.
 
 This analysis identifies areas of strong test coverage and highlights high-priority gaps that should be addressed to improve protocol security, resilience, and robustness.
 
@@ -77,23 +79,26 @@ This analysis identifies areas of strong test coverage and highlights high-prior
 
 ### Overview
 
-The FlowALPv1 protocol has comprehensive test coverage across the following categories:
+The FlowALP protocol (as implemented by `FlowALPv1`) has comprehensive test coverage across the following categories:
 
-| Category | Number of Tests | Coverage Level |
-|----------|----------------|----------------|
-| Position Lifecycle & Basic Operations | 5 files | High |
-| Interest Mechanics & Accrual | 6 files | Very High |
-| Liquidation System | 1 file (multiple scenarios) | High |
-| Rebalancing & Health Management | 5 files | High |
-| Deposit Capacity & Rate Limiting | 1 file (5 sub-tests) | High |
-| Reserve & Fee Management | 1 file | Medium |
-| Edge Cases & Validation | 3 files | High |
-| Integration & Platform Tests | 1 file (4 tests) | Medium |
-| Mathematical Operations | 15+ files | Very High |
+| Category                              | Number of Tests             | Coverage Level |
+| ------------------------------------- | --------------------------- | -------------- |
+| Position Lifecycle & Basic Operations | 5 files                     | High           |
+| Interest Mechanics & Accrual          | 6 files                     | Very High      |
+| Liquidation System                    | 1 file (multiple scenarios) | High           |
+| Rebalancing & Health Management       | 5 files                     | High           |
+| Deposit Capacity & Rate Limiting      | 1 file (5 sub-tests)        | High           |
+| Reserve & Fee Management              | 1 file                      | Medium         |
+| Edge Cases & Validation               | 3 files                     | High           |
+| Integration & Platform Tests          | 1 file (4 tests)            | Medium         |
+| Mathematical Operations               | 15+ files                   | Very High      |
+
+Note: categories overlap (a single file can contribute to multiple rows), and the file counts are intended as a navigation aid rather than an authoritative breakdown.
 
 ### Test Execution Framework
 
 The protocol uses Cadence's native Test framework with:
+
 - Flow CLI's built-in `flow test` command
 - Custom test helpers (`test_helpers.cdc`) for common operations
 - Mock contracts for external dependencies (MockOracle, MockDexSwapper, etc.)
@@ -106,11 +111,12 @@ The protocol uses Cadence's native Test framework with:
 
 ### Test File Location
 
-All core FlowALPv1 tests are located in `/cadence/tests/` directory.
+All core `FlowALPv1` implementation tests are located in `cadence/tests/`.
 
 ### Common Test Patterns
 
 Tests follow these patterns:
+
 1. **Setup Phase:** Deploy contracts, configure parameters, create accounts
 2. **Execution Phase:** Perform operations (deposits, borrows, liquidations)
 3. **Validation Phase:** Assert expected outcomes using:
@@ -1161,11 +1167,12 @@ Test: Connector provides false quote, transaction validates and reverts
 
 ## Conclusion
 
-The FlowALPv1 protocol has strong test coverage across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
+The `FlowALPv1` implementation of the FlowALP protocol has strong test coverage across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
 
 However, significant gaps exist in multi-collateral scenarios, oracle failure handling, advanced liquidation cases, and adversarial attack vectors. Addressing these high-priority gaps will substantially improve protocol robustness and production readiness.
 
 The recommended testing additions focus on:
+
 - Multi-asset operations and cross-collateral borrowing
 - Oracle resilience and manipulation resistance
 - Complex liquidation scenarios with multiple assets
@@ -1177,6 +1184,6 @@ Implementing these test enhancements will increase confidence in the protocol's 
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2026-01-28
+**Document Version:** 1.1
+**Last Updated:** 2026-02-14
 **Next Review:** After implementation of high-priority test gaps
