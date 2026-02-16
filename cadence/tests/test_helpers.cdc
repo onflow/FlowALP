@@ -312,7 +312,7 @@ fun getLastStabilityCollectionTime(tokenTypeIdentifier: String): UFix64? {
 access(all)
 fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String, beFailed: Bool) {
     let createRes = _executeTransaction(
-        "../transactions/flow-credit-market/pool-factory/create_and_store_pool.cdc",
+        "transactions/flow-credit-market/pool-factory/create_and_store_pool.cdc",
         [defaultTokenIdentifier],
         signer
     )
@@ -624,6 +624,11 @@ fun setupMoetVault(_ signer: Test.TestAccount, beFailed: Bool) {
 }
 
 access(all)
+fun setupGenericVault(_ signer: Test.TestAccount, vaultIdentifier: String): Test.TransactionResult {
+    return _executeTransaction("../transactions/fungible-tokens/setup_generic_vault.cdc", [vaultIdentifier], signer)
+}
+
+access(all)
 fun mintMoet(signer: Test.TestAccount, to: Address, amount: UFix64, beFailed: Bool) {
     let mintRes = _executeTransaction("../transactions/moet/mint_moet.cdc", [to, amount], signer)
     Test.expect(mintRes, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -655,6 +660,23 @@ fun transferFlowTokens(to: Test.TestAccount, amount: UFix64) {
     Test.expect(res, Test.beSucceeded())
 }
 
+/// Transfers any fungible token from one account to another using the token identifier
+access(all)
+fun transferFungibleTokens(
+    tokenIdentifier: String,
+    from: Test.TestAccount,
+    to: Test.TestAccount,
+    amount: UFix64
+) {
+    let transferTx = Test.Transaction(
+        code: Test.readFile("../transactions/fungible-tokens/generic_transfer.cdc"),
+        authorizers: [from.address],
+        signers: [from],
+        arguments: [tokenIdentifier, amount, to.address]
+    )
+    let res = Test.executeTransaction(transferTx)
+    Test.expect(res, Test.beSucceeded())
+}
 
 access(all)
 fun expectEvents(eventType: Type, expectedCount: Int) {
