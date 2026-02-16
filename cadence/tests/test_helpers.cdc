@@ -618,6 +618,22 @@ fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFail
 }
 
 access(all)
+fun manualLiquidation(
+    signer: Test.TestAccount, 
+    pid: UInt64, 
+    debtVaultIdentifier: String, 
+    seizeVaultIdentifier: String, 
+    seizeAmount: UFix64, 
+    repayAmount: UFix64,
+): Test.TransactionResult {
+    return _executeTransaction(
+        "../transactions/flow-credit-market/pool-management/manual_liquidation.cdc",
+        [pid, debtVaultIdentifier, seizeVaultIdentifier, seizeAmount, repayAmount],
+        signer
+    )
+}
+
+access(all)
 fun setupMoetVault(_ signer: Test.TestAccount, beFailed: Bool) {
     let setupRes = _executeTransaction("../transactions/moet/setup_vault.cdc", [], signer)
     Test.expect(setupRes, beFailed ? Test.beFailed() : Test.beSucceeded())
