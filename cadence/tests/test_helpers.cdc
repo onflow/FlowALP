@@ -421,9 +421,9 @@ fun setDepositLimitFraction(signer: Test.TestAccount, tokenTypeIdentifier: Strin
 }
 
 access(all)
-fun createPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+fun createPosition(admin: Test.TestAccount, signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     // Grant beta access to the signer if they don't have it yet
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, signer)
+    grantBetaPoolParticipantAccess(admin, signer)
 
     let openRes = _executeTransaction(
         "../transactions/flow-credit-market/position/create_position.cdc",
