@@ -308,7 +308,7 @@ fun test_collectInsurance_multipleTokens() {
     // FLOW borrower deposits MOET as collateral
     createPosition(admin: PROTOCOL_ACCOUNT, signer: flowBorrower, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     // Then borrow FLOW (creates FLOW debit balance)
-    borrowFromPosition(signer: flowBorrower, positionId: 3, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 500.0, beFailed: false)
+    borrowFromPosition(signer: flowBorrower, positionId: 3, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 500.0, beFailed: false)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)

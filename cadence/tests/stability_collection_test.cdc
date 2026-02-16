@@ -206,7 +206,7 @@ fun test_collectStability_multipleTokens() {
     // FLOW borrower deposits MOET as collateral
     createPosition(admin: PROTOCOL_ACCOUNT, signer: flowBorrower, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     // Then borrow FLOW (creates FLOW debit balance)
-    borrowFromPosition(signer: flowBorrower, positionId: 3, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 500.0, beFailed: false)
+    borrowFromPosition(signer: flowBorrower, positionId: 3, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 500.0, beFailed: false)
 
     // set 10% annual debit rates
     // Stability is calculated on interest income, not debit balance directly

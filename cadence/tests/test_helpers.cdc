@@ -444,10 +444,10 @@ fun depositToPosition(signer: Test.TestAccount, positionID: UInt64, amount: UFix
 }
 
 access(all)
-fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, beFailed: Bool) {
+fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, vaultStoragePath: StoragePath, amount: UFix64, beFailed: Bool) {
     let borrowRes = _executeTransaction(
         "./transactions/position-manager/borrow_from_position.cdc",
-        [positionId, tokenTypeIdentifier, amount],
+        [positionId, tokenTypeIdentifier, vaultStoragePath, amount],
         signer
     )
     Test.expect(borrowRes, beFailed ? Test.beFailed() : Test.beSucceeded())
