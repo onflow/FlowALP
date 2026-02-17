@@ -154,7 +154,7 @@ fun setup() {
 // Covers: weighted collateral factors, health calculations, and asset correlations
 // -----------------------------------------------------------------------------
 access(all)
-fun test_three_asset_collateral_position() {
+fun test_multi_collateral_position() {
     safeReset()
     
     // STEP 1: Setup MOET liquidity provider for borrowing
@@ -231,9 +231,9 @@ fun test_three_asset_collateral_position() {
     let availableMoet = getAvailableBalance(pid: pid, vaultIdentifier: MOET_TOKEN_ID, pullFromTopUpSource: false, beFailed: false)
     Test.assertEqual(expectedMaxMoet, availableMoet)
     
-    // STEP 7: Borrow 1000 MOET to create debt
-    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MOET_TOKEN_ID, vaultStoragePath: MOET_STORAGE_PATH, amount: 1000.0, beFailed: false)
-    
+    // STEP 7: Borrow 1204 MOET to create debt
+    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MOET_TOKEN_ID, vaultStoragePath: MOET_STORAGE_PATH, amount: 1204.0, beFailed: false)
+
     // Position state after borrow:
     // Collateral (effectiveCollateral = balance * price * collateralFactor):
     //   FLOW: 1000 * $1.00 * CF(0.8) = $800
@@ -242,13 +242,13 @@ fun test_three_asset_collateral_position() {
     // Total collateral: $1325
     //
     // Debt (effectiveDebt = balance * price / borrowFactor):
-    //   MOET: 1000 * $1.00 / BF(1.0) = $1000
+    //   MOET: 1204 * $1.00 / BF(1.0) = $1204
     // Total debt: $1000
     //
-    // Health = $1325 / $1000 = 1.325
+    // Health = $1325 / $1204 = 1.100498338870431893687707
     
     health = getPositionHealth(pid: pid, beFailed: false)
-    let expectedHealth3: UFix128 = 1.325
+    let expectedHealth3: UFix128 = 1.100498338870431893687707
     Test.assertEqual(expectedHealth3, health)
 }
 
@@ -257,7 +257,7 @@ fun test_three_asset_collateral_position() {
 // Deposit FLOW, borrow USDF
 // -----------------------------------------------------------------------------
 access(all)
-fun test_flow_to_usdf_borrowing() {
+fun test_cross_asset_flow_to_usdf_borrowing() {
     safeReset()
     
     // STEP 1: Setup USDF liquidity provider
@@ -326,7 +326,7 @@ fun test_flow_to_usdf_borrowing() {
 // Step 2: Deposit borrowed USDF, borrow WETH
 // -----------------------------------------------------------------------------
 access(all)
-fun test_flow_usdf_weth_chain() {
+fun test_cross_asset_flow_usdf_weth_borrowing() {
     safeReset()
     
     // STEP 1: Setup liquidity providers for USDF and WETH
@@ -364,6 +364,7 @@ fun test_flow_usdf_weth_chain() {
     
     // Collateral (effectiveCollateral = balance * price * collateralFactor): 
     //   FLOW: 1000 * $1.00 * 0.8 = $800
+    // Total collateral: $800
     //
     // Max borrow = (effectiveCollateral / minHealth) * borrowFactor / price
     //   Max USDF: ($800 / 1.1) * 0.95 = 690.90909091 USDF
@@ -390,7 +391,7 @@ fun test_flow_usdf_weth_chain() {
     
     // Max borrow = (effectiveCollateral / minHealth) * borrowFactor / price
     // Max WETH: ($1250 / 1.1) * 0.85 / $2000 = ~0.48295454545 WETH
-    // But we only have 0.05 WETH available, so borrow 0.04
+    // But we only have 0.05 WETH on pool available, so borrow 0.04
     let wethBorrowAmount: UFix64 = 0.04
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: WETH_TOKEN_ID, vaultStoragePath: WETH_STORAGE_PATH, amount: wethBorrowAmount, beFailed: false)
     
@@ -422,7 +423,7 @@ fun test_flow_usdf_weth_chain() {
 // Complete swap path through protocol
 // -----------------------------------------------------------------------------
 access(all)
-fun test_complete_cross_asset_chain() {
+fun test_cross_asset_chain() {
     safeReset()
     
     // STEP 1: Setup all liquidity providers
@@ -493,7 +494,8 @@ fun test_complete_cross_asset_chain() {
     // Max borrow = (effectiveCollateral / minHealth) * borrowFactor / price
     //   Max WETH = ($800 / 1.1) * 0.85 / $2000 = ~0.30909090 WETH
 
-    let wethBorrow: UFix64 = 0.0005 // limited by available liquidity: 0.0005 max
+    // limited by available liquidity: 0.0005 max
+    let wethBorrow: UFix64 = 0.0005 
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: WETH_TOKEN_ID, vaultStoragePath: WETH_STORAGE_PATH, amount: wethBorrow, beFailed: false)
     
     // Step 6: Deposit WETH, borrow WBTC
@@ -509,7 +511,9 @@ fun test_complete_cross_asset_chain() {
     //
     // Max borrow = (effectiveCollateral / minHealth) * borrowFactor / price
     //   Max WBTC = ($800 / 1.1) * 0.8 / $40000 = ~0.014545 WBTC
-    let wbtcBorrow: UFix64 = 0.0004  // Limited by available liquidity (0.0004 total)
+
+    // Limited by available liquidity (0.0004 total)
+    let wbtcBorrow: UFix64 = 0.0004
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: WBTC_TOKEN_ID, vaultStoragePath: WBTC_STORAGE_PATH, amount: wbtcBorrow, beFailed: false)
     
     // Final position:
@@ -548,7 +552,7 @@ fun test_complete_cross_asset_chain() {
 // Price: FLOW +10%, USDF -5%, WETH +20%
 // -----------------------------------------------------------------------------
 access(all)
-fun test_uncorrelated_price_movements_multi_asset() {
+fun test_multi_asset_uncorrelated_price_movements() {
     safeReset()
     
     // STEP 1: Setup liquidity providers for MOET
@@ -638,7 +642,7 @@ fun test_uncorrelated_price_movements_multi_asset() {
 // Partial Collateral Withdrawal
 // -----------------------------------------------------------------------------
 access(all)
-fun test_partial_withdrawal_multi_asset() {
+fun test_multi_asset_partial_withdrawal() {
     safeReset()
     
     // STEP 1: Setup MOET liquidity provider
@@ -769,13 +773,13 @@ fun test_cross_collateral_borrowing_capacity() {
     //
     // Health: ∞ (no debt)
     
-    // STEP 4: Calculate max borrowing capacity for DIFFERENT tokens
+    // STEP 4: Calculate position's balance available for withdrawal for each token
     // maxBorrow = (effectiveCollateral / minHealth) * borrowFactor / price
     // Using default minHealth = 1.1
     //
-    //  MOET (same as collateral) = 900 MOET (credit amount, not calculated from health). This is withdrawal, not true borrowing
-    //  USDF (different from collateral): maxBorrow = ($1700 / 1.1) * 0.95 / $1.00 = ~1468.18181818 USDF
-    //  Max FLOW (partial collateral): maxBorrow = 1000 FLOW (limited to your credit amount)
+    //  MOET (credit token) -> 900 MOET (credit amount, not calculated from health). This is withdrawal, not true borrowing
+    //  USDF (no balance, different from collateral): maxBorrow = ($1700 / 1.1) * 0.95 / $1.00 = ~1468.18181818 USDF
+    //  FLOW (credit token): -> 1000 FLOW. This is withdrawal, not true borrowing
     
     // Test MOET borrowing (limited by credit amount)
     let expectedMaxMoet: UFix64 = 900.0
@@ -849,11 +853,35 @@ fun test_multi_asset_liquidation_collateral_selection() {
     // First borrow MOET
     // maxBorrow = (effectiveCollateral / minHealth) * borrowFactor / price
     //   MOET: maxBorrow = ($1325 / 1.1) * 1.0 / $1.00 = 1204.54545455 MOET
-    //   USDF: maxBorrow = 500 USDF (limited to your credit amount)
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MOET_TOKEN_ID, vaultStoragePath: MOET_STORAGE_PATH, amount: 700.0, beFailed: false)
-    // Then borrow USDF (limited)
+    // Collateral (effectiveCollateral = balance * price * collateralFactor):
+    //   FLOW: 1000 * $1.00 * 0.8 = $800
+    //   USDF: 500 * $1.00 * 0.9 = $450
+    //   WETH: 0.05 * $2000 * 0.75 = $75
+    // Total collateral: $1325
+    //
+    // Debt (effectiveDebt = balance * price / borrowFactor):
+    //   MOET: 700 * $1.00 / BF(1.0) = $700
+    // Total debt: $700
+    //
+    // Health = $1325 / $700 = 1.89285714 (healthy)
+
+    // Then borrow USDF
+    // First checks: what if we drain all 500 USDF credit
+    // Collateral (effectiveCollateral = balance * price * collateralFactor):
+    //   FLOW: 1000 * $1.00 * 0.8 = $800
+    //   WETH: 0.05 * $2000 * 0.75 = $75
+    // Total collateral: $875
+    //
+    // Debt (effectiveDebt = balance * price / borrowFactor):
+    //   MOET: 700 * $1.00 / BF(1.0) = $700
+    // Total debt: $700
+    //
+    // Health = $875 / $700 = 1.25 (still healthy)
+
+    // USDF: availableDebtToIncrease = ($875 / 1.1) - $700 = $795.454... - $700 = $95.454
+    // USDF: maxBorrow = ($95.454... * 0.95 / $1.00) + $500 = 590.68 USDF
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: USDF_TOKEN_ID, vaultStoragePath: USDF_STORAGE_PATH, amount: 550.0, beFailed: false)
-    // Then borrow USDF to create USDF debit
 
     // Position now has:
     // Collateral (effectiveCollateral = balance * price * collateralFactor):
@@ -862,7 +890,7 @@ fun test_multi_asset_liquidation_collateral_selection() {
     // Total collateral: $875
     //
     // Debt (effectiveDebt = balance * price / borrowFactor):
-    //   MOET: 700 * $1.00 / BF(1.0) = $700, 
+    //   MOET: 700 * $1.00 / BF(1.0) = $700
     //   USDF: 50 * $1.00 / BF(0.95) = $52.63
     // Total debt: $752.63
     //
@@ -1006,6 +1034,10 @@ fun test_multi_asset_complex_workflow() {
     //   USDF: 500 * $1.00 * 0.9 = $450 (unchanged)
     // Total collateral: $1090 (was $1250)
     //
+    // Debt:
+    //   MOET: 300 * $1.00 / 1.0 = $300
+    // Total debt: $300
+    //
     // Health: $1090 / $300 = 3.633 (still healthy but reduced)
     
     let healthAfterDrop = getPositionHealth(pid: pid, beFailed: false)
@@ -1015,8 +1047,13 @@ fun test_multi_asset_complex_workflow() {
     // Max MOET borrow = ($1090 / 1.1) * 1.0 / $1.0 = ~990.9090 MOET
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MOET_TOKEN_ID, vaultStoragePath: MOET.VaultStoragePath, amount: 600.0, beFailed: false)
     
-    // New debt: 300 + 600 = 900 MOET
-    //   MOET: 900 * $1.00 / 1.0 = $900
+    // Collateral (effectiveCollateral = balance * price * collateralFactor):
+    //   FLOW: 1000 * $0.80 * 0.8 = $640 (was $800)
+    //   USDF: 500 * $1.00 * 0.9 = $450 (unchanged)
+    // Debt:
+    //   MOET: (300 + 600) * $1.00 / 1.0 = $900
+    //
+    // Total debt: $900
     //
     // Health: $1090 / $900 = 1.211111111111111111111111 (close to minimum)
     
