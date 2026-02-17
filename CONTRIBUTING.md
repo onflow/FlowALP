@@ -1,6 +1,6 @@
-# Contributing to the Flow Credit Market Smart Contracts
+# Contributing to FlowALP (FlowALPv1 Contracts)
 
-The following is a set of guidelines for contributing to Flow Credit Market.
+The following is a set of guidelines for contributing to FlowALP (specifically the `FlowALPv1` implementation in this repo).
 These are mostly guidelines, not rules.
 Use your best judgment, and feel free to propose changes to this document in a pull request.
 
@@ -125,4 +125,4 @@ Before contributing, make sure to examine the project to get familiar with the p
 
 ### Additional Notes
 
-Thank you for your interest in contributing to Flow Credit Market!
+Thank you for your interest in contributing to FlowALPv1!

@@ -1,6 +1,5 @@
 import Test
 import BlockchainHelpers
-import "FlowCreditMarket"
 
 import "test_helpers.cdc"
 
@@ -42,7 +41,7 @@ fun testUpdatePosition() {
     depositToPosition(signer: user, positionID: 0, amount: 600.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     let updatePositionRes = _executeTransaction(
-        "./transactions/flow-credit-market/pool-management/async_update_position.cdc",
+        "./transactions/flow-alp/pool-management/async_update_position.cdc",
         [ 0 as UInt64 ],
         PROTOCOL_ACCOUNT
     )

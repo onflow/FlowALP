@@ -10,7 +10,7 @@ TEST_DIR="$ROOT_DIR/cadence/tests"
 
 EXIT_CODE=0
 
-for test_file in $(ls "$TEST_DIR"/*_test.cdc); do
+while IFS= read -r -d '' test_file; do
   echo "📝 Running: ${test_file#$ROOT_DIR/}"
   if flow test "$test_file"; then
     echo "✅ PASSED: ${test_file#$ROOT_DIR/}"
@@ -20,6 +20,6 @@ for test_file in $(ls "$TEST_DIR"/*_test.cdc); do
   fi
   # Clean emulator state between tests to avoid contract collisions
   rm -rf "$HOME/.flow"
-done
+done < <(find "$TEST_DIR" -maxdepth 1 -type f -name '*_test.cdc' -print0)
 
-exit $EXIT_CODE 
+exit $EXIT_CODE

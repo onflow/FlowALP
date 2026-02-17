@@ -6,7 +6,7 @@ import BlockchainHelpers
 import "FlowToken"
 import "FungibleToken"
 import "MOET"
-import "FlowCreditMarket"
+import "FlowALPv1"
 
 import "test_helpers.cdc"
 
@@ -14,8 +14,7 @@ import "test_helpers.cdc"
 // Multi-Collateral Position Tests with EVM Bridged Tokens
 // -----------------------------------------------------------------------------
 
-access(all) let protocolAccount = Test.getAccount(0x47f544294e3b7656)
-access(all) let moetMinterAccount = Test.getAccount(0x6b00ff876c299c61)
+access(all) let protocolAccount = Test.getAccount(0x6b00ff876c299c61)
 
 access(all) let usdfHolder = Test.getAccount(0xf18b50870aed46ad)
 access(all) let wethHolder = Test.getAccount(0xf62e3381a164f993)
@@ -55,8 +54,8 @@ fun setup() {
     Test.expect(err, Test.beNil())
     
     err = Test.deployContract(
-        name: "FlowCreditMarketMath",
-        path: "../lib/FlowCreditMarketMath.cdc",
+        name: "FlowALPMath",
+        path: "../lib/FlowALPMath.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -75,6 +74,14 @@ fun setup() {
     )
     Test.expect(err, Test.beNil())
 
+    // Deploy FungibleTokenConnectors
+    err = Test.deployContract(
+        name: "FungibleTokenConnectors",
+        path: "../../FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
     err = Test.deployContract(
         name: "MockDexSwapper",
         path: "../contracts/mocks/MockDexSwapper.cdc",
@@ -82,9 +89,9 @@ fun setup() {
     )
     Test.expect(err, Test.beNil())
 
-    err = Test.deployContract(
-        name: "FlowCreditMarket",
-        path: "../contracts/FlowCreditMarket.cdc",
+     err = Test.deployContract(
+        name: "FlowALPv1",
+        path: "../contracts/FlowALPv1.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -153,7 +160,7 @@ fun test_three_asset_collateral_position() {
     // STEP 1: Setup MOET liquidity provider for borrowing
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: moetMinterAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
+    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
     createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     let FLOWAmount = 1000.0
@@ -184,8 +191,8 @@ fun test_three_asset_collateral_position() {
     // STEP 3: Create position with FLOW collateral
     createPosition(admin: protocolAccount, signer: user, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowCreditMarket.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPv1.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPv1.Opened).pid
 
     // Health should be infinite (no debt)
     var health = getPositionHealth(pid: pid, beFailed: false)
@@ -278,8 +285,8 @@ fun test_flow_to_usdf_borrowing() {
     // STEP 3: Create position with FLOW collateral
     createPosition(admin: protocolAccount, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowCreditMarket.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPv1.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPv1.Opened).pid
     
     // Collateral (effectiveCollateral = balance * price * collateralFactor):
     //   FLOW: 1000 * $1.00 * CF(0.8) = $800
@@ -349,8 +356,8 @@ fun test_flow_usdf_weth_chain() {
     // STEP 3: Create position with FLOW
     createPosition(admin: protocolAccount, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowCreditMarket.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPv1.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPv1.Opened).pid
     
     // Collateral (effectiveCollateral = balance * price * collateralFactor): 
     //   FLOW: 1000 * $1.00 * 0.8 = $800
@@ -453,8 +460,8 @@ fun test_complete_cross_asset_chain() {
     // STEP 3: Create position and execute complete chain
     createPosition(admin: protocolAccount, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowCreditMarket.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPv1.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPv1.Opened).pid
     
     // Collateral (effectiveCollateral = balance * price * collateralFactor): 
     //   FLOW: 1000 * $1.00 * 0.8 = $800
@@ -478,7 +485,7 @@ fun test_complete_cross_asset_chain() {
     // Max borrow = (effectiveCollateral / minHealth) * borrowFactor / price
     //   Max WETH = ($800 / 1.1) * 0.85 / $2000 = ~0.30909090 WETH
 
-    let wethBorrow: UFix64 = 0.0005 //limited by available liquidity: 0.0005 max
+    let wethBorrow: UFix64 = 0.0005 //limited by available liquidity: git  max
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: WETH_TOKEN_ID, vaultStoragePath: WETH_STORAGE_PATH, amount: wethBorrow, beFailed: false)
     
     // Step 6: Deposit WETH, borrow WBTC
@@ -539,7 +546,7 @@ fun test_uncorrelated_price_movements_multi_asset() {
     // STEP 1: Setup liquidity providers for MOET
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: moetMinterAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
+    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
     createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // STEP 2: Setup test user with FLOW, USDF, and WETH
@@ -561,8 +568,8 @@ fun test_uncorrelated_price_movements_multi_asset() {
     // STEP 3: Create position with FLOW collateral
     createPosition(admin: protocolAccount, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowCreditMarket.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPv1.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPv1.Opened).pid
     
     // STEP 4: Add USDF and WETH collateral
     depositToPosition(signer: user, positionID: pid, amount: usdfAmount, vaultStoragePath: USDF_STORAGE_PATH, pushToDrawDownSink: false)
@@ -630,7 +637,7 @@ fun test_partial_withdrawal_multi_asset() {
     // We need someone else to deposit MOET so there's liquidity for borrowing
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: moetMinterAccount, to: moetLp.address, amount: 10000.0, beFailed: false)
+    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 10000.0, beFailed: false)
     
     // MOET LP deposits MOET (creates MOET credit balance = provides liquidity)
     createPosition(admin: protocolAccount, signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
@@ -639,13 +646,13 @@ fun test_partial_withdrawal_multi_asset() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
-    mintMoet(signer: moetMinterAccount, to: user.address, amount: 500.0, beFailed: false)
+    mintMoet(signer: protocolAccount, to: user.address, amount: 500.0, beFailed: false)
     
     // STEP 3: Create position with FLOW
     createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowCreditMarket.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPv1.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPv1.Opened).pid
     
     // STEP 4: Add MOET collateral
     depositToPosition(signer: user, positionID: pid, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
@@ -725,7 +732,7 @@ fun test_cross_collateral_borrowing_capacity() {
     // STEP 1: Setup MOET and USDF liquidity providers
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: moetMinterAccount, to: moetLp.address, amount: 10000.0, beFailed: false)
+    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 10000.0, beFailed: false)
     createPosition(admin: protocolAccount, signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     createPosition(admin: protocolAccount, signer: usdfHolder, amount: 10000.0, vaultStoragePath: USDF_STORAGE_PATH, pushToDrawDownSink: false)
     
@@ -735,13 +742,13 @@ fun test_cross_collateral_borrowing_capacity() {
     var res = setupGenericVault(user, vaultIdentifier: USDF_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFlowTokens(to: user, amount: 1000.0)
-    mintMoet(signer: moetMinterAccount, to: user.address, amount: 900.0, beFailed: false)
+    mintMoet(signer: protocolAccount, to: user.address, amount: 900.0, beFailed: false)
     
     // STEP 3: Create position with FLOW + MOET collateral
     createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowCreditMarket.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPv1.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPv1.Opened).pid
     
     depositToPosition(signer: user, positionID: pid, amount: 900.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
@@ -790,7 +797,7 @@ fun test_multi_asset_liquidation_collateral_selection() {
     // STEP 1: Setup liquidity providers
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: moetMinterAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
+    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
     createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     let usdfLp = Test.createAccount()
@@ -818,8 +825,8 @@ fun test_multi_asset_liquidation_collateral_selection() {
     // STEP 3: Create position with all collateral
     createPosition(admin: protocolAccount, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowCreditMarket.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPv1.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPv1.Opened).pid
     
     depositToPosition(signer: user, positionID: pid, amount: usdfAmount, vaultStoragePath: USDF_STORAGE_PATH, pushToDrawDownSink: false)
     depositToPosition(signer: user, positionID: pid, amount: wethAmount, vaultStoragePath: WETH_STORAGE_PATH, pushToDrawDownSink: false)
@@ -886,7 +893,7 @@ fun test_multi_asset_liquidation_collateral_selection() {
     // STEP 6: Liquidator chooses to seize FLOW collateral by repaying MOET debt
     let liquidator = Test.createAccount()
     setupMoetVault(liquidator, beFailed: false)
-    mintMoet(signer: moetMinterAccount, to: liquidator.address, amount: 1000.0, beFailed: false)
+    mintMoet(signer: protocolAccount, to: liquidator.address, amount: 1000.0, beFailed: false)
     
     // Repay 100 MOET, seize FLOW
     // DEX quote: 100 / 0.70 = 142.86 FLOW
@@ -932,7 +939,7 @@ fun test_multi_asset_complex_workflow() {
     // STEP 1: Setup liquidity providers
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: moetMinterAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
+    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
     createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // STEP 2: User deposits FLOW collateral
@@ -948,8 +955,8 @@ fun test_multi_asset_complex_workflow() {
     // STEP 3: Create position with FLOW
     createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowCreditMarket.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPv1.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPv1.Opened).pid
     
     // Collateral(effectiveCollateral = balance * price * collateralFactor): 
     //  FLOW: 1000 * $1.00 * 0.8 = $800
@@ -1030,9 +1037,9 @@ fun test_multi_asset_complex_workflow() {
     let expectedPushedAmount: UFix64 = 3.84615385
 
     // Check if rebalance event was emitted
-    let rebalanceEvents = Test.eventsOfType(Type<FlowCreditMarket.Rebalanced>())
+    let rebalanceEvents = Test.eventsOfType(Type<FlowALPv1.Rebalanced>())
     Test.assertEqual(1, rebalanceEvents.length) 
-    let lastRebalance = rebalanceEvents[rebalanceEvents.length - 1] as! FlowCreditMarket.Rebalanced
+    let lastRebalance = rebalanceEvents[rebalanceEvents.length - 1] as! FlowALPv1.Rebalanced
     Test.assertEqual(pid, lastRebalance.pid)
     Test.assertEqual(expectedPushedAmount, lastRebalance.amount)
     

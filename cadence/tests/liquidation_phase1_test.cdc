@@ -1,11 +1,11 @@
 import Test
 import BlockchainHelpers
 import "test_helpers.cdc"
-import "FlowCreditMarket"
+import "FlowALPv1"
 import "MOET"
 import "MockYieldToken"
 import "FlowToken"
-import "FlowCreditMarketMath"
+import "FlowALPMath"
 
 access(all) let MOCK_YIELD_TOKEN_IDENTIFIER = "A.0000000000000007.MockYieldToken.Vault"
 access(all) var snapshot: UInt64 = 0
@@ -179,7 +179,7 @@ fun testManualLiquidation_repayExceedsDebt() {
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER)
-    Test.assert(debtPositionBalance.direction == FlowCreditMarket.BalanceDirection.Debit)
+    Test.assert(debtPositionBalance.direction == FlowALPv1.BalanceDirection.Debit)
     var debtBalance = debtPositionBalance.balance
 
     // execute liquidation
@@ -499,7 +499,7 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER)
-    Test.assert(debtPositionBalance.direction == FlowCreditMarket.BalanceDirection.Debit)
+    Test.assert(debtPositionBalance.direction == FlowALPv1.BalanceDirection.Debit)
     var debtBalance = debtPositionBalance.balance
 
     // execute liquidation, attempting to pass in FLOW instead of MOET
@@ -510,7 +510,7 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
     let liqRes = _executeTransaction(
-        "../tests/transactions/flow-credit-market/pool-management/manual_liquidation_chosen_vault.cdc",
+        "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
@@ -552,7 +552,7 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER)
-    Test.assert(debtPositionBalance.direction == FlowCreditMarket.BalanceDirection.Debit)
+    Test.assert(debtPositionBalance.direction == FlowALPv1.BalanceDirection.Debit)
     var debtBalance = debtPositionBalance.balance
 
     // execute liquidation, attempting to pass in MockYieldToken instead of MOET
@@ -566,7 +566,7 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
     let liqRes = _executeTransaction(
-        "../tests/transactions/flow-credit-market/pool-management/manual_liquidation_chosen_vault.cdc",
+        "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
         [pid, Type<@MOET.Vault>().identifier, MOCK_YIELD_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
@@ -607,7 +607,7 @@ fun testManualLiquidation_unsupportedDebtType() {
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER)
-    Test.assert(debtPositionBalance.direction == FlowCreditMarket.BalanceDirection.Debit)
+    Test.assert(debtPositionBalance.direction == FlowALPv1.BalanceDirection.Debit)
     var debtBalance = debtPositionBalance.balance
 
     // execute liquidation, attempting to pass in MockYieldToken instead of MOET
@@ -621,7 +621,7 @@ fun testManualLiquidation_unsupportedDebtType() {
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
     let liqRes = _executeTransaction(
-        "../tests/transactions/flow-credit-market/pool-management/manual_liquidation_chosen_vault.cdc",
+        "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
         [pid, MOCK_YIELD_TOKEN_IDENTIFIER, MOCK_YIELD_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
@@ -959,7 +959,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexBelowOracle() {
     )
     // Should fail because divergence exceeds threshold
     Test.expect(liqRes, Test.beFailed())
-    Test.assertError(liqRes, errorMessage: "Too large difference between dex/oracle prices")
+    Test.assertError(liqRes, errorMessage: "DEX/oracle price deviation too large")
 }
 
 /// Liquidations should fail when DEX price is above oracle and divergence exceeds threshold.
@@ -998,7 +998,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexAboveOracle() {
     )
     // Should fail because divergence exceeds threshold
     Test.expect(liqRes, Test.beFailed())
-    Test.assertError(liqRes, errorMessage: "Too large difference between dex/oracle prices")
+    Test.assertError(liqRes, errorMessage: "DEX/oracle price deviation too large")
 }
 
 /// Liquidation should fail if liquidator offer is worse than DEX price.
@@ -1108,6 +1108,6 @@ fun testManualLiquidation_combinedEdgeCase() {
     )
     // Should fail because DEX/oracle divergence is too high, even though liquidator offer is competitive
     Test.expect(liqRes, Test.beFailed())
-    Test.assertError(liqRes, errorMessage: "Too large difference between dex/oracle prices")
+    Test.assertError(liqRes, errorMessage: "DEX/oracle price deviation too large")
 }
 
