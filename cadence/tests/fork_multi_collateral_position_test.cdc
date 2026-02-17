@@ -340,6 +340,9 @@ fun test_flow_usdf_weth_chain() {
     res = setupGenericVault(wethLp, vaultIdentifier: WETH_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFungibleTokens(tokenIdentifier: WETH_TOKEN_ID, from: wethHolder, to: wethLp, amount: 0.05)
+    
+    let tinyDeposit = 0.00000001
+    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: WETH_TOKEN_ID, minimum: tinyDeposit)
     createPosition(admin: protocolAccount, signer: wethLp, amount: 0.05, vaultStoragePath: WETH_STORAGE_PATH, pushToDrawDownSink: false)
 
     // STEP 2: Setup user with FLOW
@@ -377,7 +380,7 @@ fun test_flow_usdf_weth_chain() {
     // New collateral (effectiveCollateral = balance * price * collateralFactor):
     //   FLOW: 1000 * $1.00 * 0.8 = $800
     //   USDF: 500 * $1.00 * 0.9 = $450
-    //   Total: $1250
+    //   Total collateral: $1250
     //
     // Debt (effectiveDebt = balance * price / borrowFactor): 
     //   USDF: 500 * $1.00 / 0.9 = $450
@@ -422,7 +425,7 @@ access(all)
 fun test_complete_cross_asset_chain() {
     safeReset()
     
-    // STEP 1: Setup all liquidity providers with realistic amounts    
+    // STEP 1: Setup all liquidity providers
     // USDF LP
     let usdfLp = Test.createAccount()
     var res = setupGenericVault(usdfLp, vaultIdentifier: USDF_TOKEN_ID)
@@ -430,18 +433,23 @@ fun test_complete_cross_asset_chain() {
     transferFungibleTokens(tokenIdentifier: USDF_TOKEN_ID, from: usdfHolder, to: usdfLp, amount: 1000.0)
     createPosition(admin: protocolAccount, signer: usdfLp, amount: 1000.0, vaultStoragePath: USDF_STORAGE_PATH, pushToDrawDownSink: false)
     
-    // WETH LP - realistic amount (0.05 WETH available)
+    // WETH LP (0.05 WETH available)
     let wethLp = Test.createAccount()
     res = setupGenericVault(wethLp, vaultIdentifier: WETH_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFungibleTokens(tokenIdentifier: WETH_TOKEN_ID, from: wethHolder, to: wethLp, amount: 0.05)
+
+    let tinyDeposit = 0.0000001
+    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: WETH_TOKEN_ID, minimum: tinyDeposit)
     createPosition(admin: protocolAccount, signer: wethLp, amount: 0.05, vaultStoragePath: WETH_STORAGE_PATH, pushToDrawDownSink: false)
     
-    // WBTC LP - realistic amount (0.00049 WBTC available)
+    // WBTC LP (0.00049 WBTC available)
     let wbtcLp = Test.createAccount()
     res = setupGenericVault(wbtcLp, vaultIdentifier: WBTC_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFungibleTokens(tokenIdentifier: WBTC_TOKEN_ID, from: wbtcHolder, to: wbtcLp, amount: 0.0004)
+
+    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: WBTC_TOKEN_ID, minimum: tinyDeposit)
     createPosition(admin: protocolAccount, signer: wbtcLp, amount: 0.0004, vaultStoragePath: WBTC_STORAGE_PATH, pushToDrawDownSink: false)
         
     // STEP 2: Setup user with FLOW position
@@ -466,7 +474,7 @@ fun test_complete_cross_asset_chain() {
     // Collateral (effectiveCollateral = balance * price * collateralFactor): 
     //   FLOW: 1000 * $1.00 * 0.8 = $800
     // Max borrow ((effectiveCollateral / minHealth) * borrowFactor / price):
-    //   Max USDF = ($800 / 1.1) * 0.95 / $1.0 = ~690.9090 WETH
+    //   Max USDF = ($800 / 1.1) * 0.95 / $1.0 = ~690.9090 USDF
     
     // Step 4: Borrow USDF
     let usdfBorrow: UFix64 = 600.0
@@ -485,7 +493,7 @@ fun test_complete_cross_asset_chain() {
     // Max borrow = (effectiveCollateral / minHealth) * borrowFactor / price
     //   Max WETH = ($800 / 1.1) * 0.85 / $2000 = ~0.30909090 WETH
 
-    let wethBorrow: UFix64 = 0.0005 //limited by available liquidity: git  max
+    let wethBorrow: UFix64 = 0.0005 // limited by available liquidity: 0.0005 max
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: WETH_TOKEN_ID, vaultStoragePath: WETH_STORAGE_PATH, amount: wethBorrow, beFailed: false)
     
     // Step 6: Deposit WETH, borrow WBTC
@@ -493,7 +501,7 @@ fun test_complete_cross_asset_chain() {
     
     // Collateral (effectiveCollateral = balance * price * collateralFactor): 
     //   FLOW: 1000 * $1.00 * 0.8 = $800
-    // Total: $800
+    // Total collateral: $800
     //
     // Debt: 
     //   USDF (0 netted)
