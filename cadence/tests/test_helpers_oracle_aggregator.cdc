@@ -32,17 +32,24 @@ access(all) struct CreateAggregatorInfo {
 }
 
 access(all) fun createAggregator(
+    signer: Test.TestAccount,
     oracleCount: Int,
     maxSpread: UFix64,
     maxGradient: UFix64,
     priceHistorySize: Int,
     priceHistoryInterval: UFix64,
+    maxPriceHistoryAge: UFix64,
     unitOfAccount: Type,
+    cronExpression: String,
+    cronHandlerStoragePath: StoragePath,
+    keeperExecutionEffort: UInt64,
+    executorExecutionEffort: UInt64,
+    aggregatorCronHandlerStoragePath: StoragePath
 ): CreateAggregatorInfo {
     let res = _executeTransaction(
         "./transactions/oracle-aggregator/create_aggregator.cdc",
-        [oracleCount, maxSpread, maxGradient, priceHistorySize, priceHistoryInterval, unitOfAccount],
-        []
+        [oracleCount, maxSpread, maxGradient, priceHistorySize, priceHistoryInterval, maxPriceHistoryAge, unitOfAccount, cronExpression, cronHandlerStoragePath, keeperExecutionEffort, executorExecutionEffort, aggregatorCronHandlerStoragePath],
+        [signer]
     )
     Test.expect(res, Test.beSucceeded())
     let aggregatorCreatedEvents = Test.eventsOfType(Type<FlowOracleAggregatorv1.AggregatorCreated>())
@@ -64,7 +71,7 @@ access(all) fun createAggregator(
 access(all) fun setPrice(
     priceOracleStorageID: UInt64,
     forToken: Type,
-    price: UFix64,
+    price: UFix64?,
 ) {
     let res = _executeTransaction(
         "./transactions/oracle-aggregator/set_price.cdc",
@@ -92,4 +99,15 @@ access(all) fun getPrice(
     )
     Test.expect(res2, Test.beSucceeded())
     return res2.returnValue as! UFix64?
+}
+
+access(all) fun getPriceHistory(
+    uuid: UInt64,
+): [FlowOracleAggregatorv1.PriceHistoryEntry] {
+    let res = _executeScript(
+        "./scripts/oracle_aggregator_history.cdc",
+        [uuid]
+    )
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! [FlowOracleAggregatorv1.PriceHistoryEntry]
 }

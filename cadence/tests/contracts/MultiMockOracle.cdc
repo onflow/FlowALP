@@ -14,9 +14,9 @@ access(all) contract MultiMockOracle {
 
     access(all) resource PriceOracleStorage {
         access(contract) var unitOfAccountType: Type
-        access(contract) var prices: {Type: UFix64}
+        access(contract) var prices: {Type: UFix64?}
 
-        access(all) fun setPrice(forToken: Type, price: UFix64) {
+        access(all) fun setPrice(forToken: Type, price: UFix64?) {
             self.prices[forToken] = price
         }
 
@@ -38,7 +38,7 @@ access(all) contract MultiMockOracle {
             if ofToken == self.borrowPriceOracleStorage().unitOfAccountType {
                 return 1.0
             }
-            return self.borrowPriceOracleStorage().prices[ofToken]
+            return self.borrowPriceOracleStorage().prices[ofToken] ?? nil
         }
 
         access(all) fun getComponentInfo(): DeFiActions.ComponentInfo {
@@ -80,7 +80,7 @@ access(all) contract MultiMockOracle {
         return &self.priceOracleStorages[priceOracleStorageID]
     }
 
-    access(all) fun setPrice(priceOracleStorageID: UInt64, forToken: Type, price: UFix64) {
+    access(all) fun setPrice(priceOracleStorageID: UInt64, forToken: Type, price: UFix64?) {
         let oracleStorage = self.borrowPriceOracleStorage(priceOracleStorageID: priceOracleStorageID)!
         oracleStorage.setPrice(forToken: forToken, price: price)
     }
