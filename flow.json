@@ -92,8 +92,8 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowOracleAggregatorV1": {
-			"source": "./cadence/contracts/FlowOracleAggregatorV1.cdc",
+		"FlowOracleAggregatorv1": {
+			"source": "./cadence/contracts/FlowOracleAggregatorv1.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
@@ -110,6 +110,12 @@
 			"aliases": {
 				"testing": "0000000000000007",
 				"testnet": "d2580caf2ef07c2f"
+			}
+		},
+		"MultiMockOracle": {
+			"source": "./cadence/tests/contracts/MultiMockOracle.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
 			}
 		},
 		"MockYieldToken": {

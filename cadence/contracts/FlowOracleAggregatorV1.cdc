@@ -1,76 +1,82 @@
 import "FlowToken"
 import "DeFiActions"
+import "FlowTransactionScheduler"
 
-access(all) contract FlowOracleAggregatorV1 {
+access(all) contract FlowOracleAggregatorv1 {
 
     access(all) entitlement Governance
 
-    access(all) struct PriceOracleAggregator: DeFiActions.PriceOracle {
-        access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
-        access(self) let unit: Type
+    access(all) event AggregatorCreated(uuid: UInt64)
+    access(all) event PriceNotAvailable()
+    access(all) event PriceNotWithinSpreadTolerance(spread: UFix64)
+    access(all) event PriceNotStable(gradient: UFix64)
+
+    access(self) var oracleAggregators: @{UInt64: PriceOracleAggregatorStorage}
+
+    access(all) resource PriceOracleAggregatorStorage: FlowTransactionScheduler.TransactionHandler{
+        access(all) let priceHistory: [PriceHistoryEntry]
+
+        // constants intentional to avoid stupid bugs
         access(all) let oracles: [{DeFiActions.PriceOracle}]
+        access(all) let maxSpread: UFix64
+        access(all) let maxGradient: UFix64
+        access(all) let priceHistorySize: Int
+        access(all) let priceHistoryInterval: UFix64
 
-        access(all) var maxSpread: UFix64
+        access(all) let unit: Type
 
-        init(uniqueID: DeFiActions.UniqueIdentifier?, unitOfAccount: Type, maxSpread: UFix64) {
-            self.uniqueID = uniqueID
-            self.unit = unitOfAccount
-            self.oracles = []
+        init(
+            oracles: [{DeFiActions.PriceOracle}],
+            maxSpread: UFix64,
+            maxGradient: UFix64,
+            priceHistorySize: Int,
+            priceHistoryInterval: UFix64,
+            unitOfAccount: Type,
+        ) {
+            self.oracles = oracles
+            self.priceHistory = []
             self.maxSpread = maxSpread
-        }
-
-        access(all) view fun unitOfAccount(): Type {
-            return self.unit
-        }
-
-        access(all) view fun id(): UInt64? {
-            return self.uniqueID?.id
+            self.maxGradient = maxGradient
+            self.priceHistorySize = priceHistorySize
+            self.priceHistoryInterval = priceHistoryInterval
+            self.unit = unitOfAccount
         }
 
         access(all) fun price(ofToken: Type): UFix64? {
-            let prices = self.getPrices()
-            if prices.length == 0 {
+            let price = self.getPriceUncheckedGradient(ofToken: ofToken)
+            if price == nil {
                 return nil
             }
-            let minAndMaxPrices = self.getMinAndMaxPrices(prices: prices)
-            if !self.isWithinSpreadTolerance(minPrice: minAndMaxPrices.minPrice, maxPrice: minAndMaxPrices.maxPrice) {
+            if !self.isGradientStable(currentPrice: price!) {
                 return nil
             }
-            return self.trimmedMeanPrice(prices: prices, minPrice: minAndMaxPrices.minPrice, maxPrice: minAndMaxPrices.maxPrice)
+            return price
         }
 
-        access(all) fun getID(): DeFiActions.UniqueIdentifier? {
-            return self.uniqueID
-        }
-
-        access(contract) fun setID(_ id: DeFiActions.UniqueIdentifier?) {
-            self.uniqueID = id
-        }
-
-        access(all) fun getComponentInfo(): DeFiActions.ComponentInfo {
-            return DeFiActions.ComponentInfo(
-                type: self.getType(),
-                id: self.id(),
-                innerComponents: []
+        access(self) fun getPriceUncheckedGradient(ofToken: Type): UFix64? {
+            let prices = self.getPrices(ofToken: ofToken)
+            if prices == nil || prices!.length == 0 {
+                return nil
+            }
+            let minAndMaxPrices = self.getMinAndMaxPrices(prices: prices!)
+            if !self.isWithinSpreadTolerance(minPrice: minAndMaxPrices.min, maxPrice: minAndMaxPrices.max) {
+                return nil
+            }
+            return self.trimmedMeanPrice(
+                prices: prices!,
+                minPrice: minAndMaxPrices.min,
+                maxPrice: minAndMaxPrices.max,
             )
         }
 
-        access(contract) view fun copyID(): DeFiActions.UniqueIdentifier? {
-            return self.uniqueID
-        }
-
-        access(Governance) fun setMaxSpread(_ maxSpread: UFix64) {
-            self.maxSpread = maxSpread
-        }
-
-        access(self) fun getMaxSpread(): UFix64 {
-            return self.maxSpread
-        }
-
-        access(self) fun getPrices(): [UFix64] {
+        access(self) fun getPrices(ofToken: Type): [UFix64]? {
             let prices: [UFix64] = []
             for oracle in self.oracles {
-                let price = oracle.price(ofToken: self.unit)
+                let price = oracle.price(ofToken: ofToken)
+                if price == nil {
+                    emit PriceNotAvailable()
+                    return nil
+                }
                 prices.append(price!)
             }
             return prices
@@ -81,51 +87,161 @@ access(all) contract FlowOracleAggregatorV1 {
             var maxPrice = UFix64.min
             for price in prices {
                 if price < minPrice {
-                    minPrice = price   
+                    minPrice = price
                 }
                 if price > maxPrice {
                     maxPrice = price
                 }
             }
-            return MinAndMaxPrices(minPrice: minPrice, maxPrice: maxPrice)
-        }
-
-        access(self) view fun trimmedMeanPrice(prices: [UFix64], minPrice: UFix64, maxPrice: UFix64): UFix64? {
-            switch prices.length {
-            case 0:
-                return nil
-            case 1:
-                return prices[0]
-            case 2:
-                return (prices[0] + prices[1]) / 2.0
-            }
-            var sum = 0.0
-            for price in prices {
-                if price != minPrice && price != maxPrice {
-                    sum = sum + price
-                }
-            }
-            sum = sum - (minPrice + maxPrice)
-            return sum / UFix64(prices.length - 2)
+            return MinAndMaxPrices(min: minPrice, max: maxPrice)
         }
 
         access(self) view fun isWithinSpreadTolerance(minPrice: UFix64, maxPrice: UFix64): Bool {
             let spread = (maxPrice - minPrice) / minPrice
-            return spread <= self.maxSpread
+            if spread > self.maxSpread {
+                emit PriceNotWithinSpreadTolerance(spread: spread)
+                return false
+            }
+            return true
+        }
+
+        access(self) view fun trimmedMeanPrice(prices: [UFix64], minPrice: UFix64, maxPrice: UFix64): UFix64? {
+            let count = prices.length
+
+            // Handle edge cases where trimming isn't possible
+            if count == 0 { return nil }
+            if count == 1 { return prices[0] }
+            if count == 2 { return (prices[0] + prices[1]) / 2.0 }
+
+            var totalSum = 0.0
+            for price in prices {
+                totalSum = totalSum + price
+            }
+            let trimmedSum = totalSum - minPrice - maxPrice
+            return trimmedSum / UFix64(count - 2)
+        }
+
+        access(self) fun isGradientStable(currentPrice: UFix64): Bool {
+            let now = getCurrentBlock().timestamp
+            for entry in self.priceHistory {
+                var deltaT = now - UFix64(entry.timestamp)
+                if deltaT == 0.0 {
+                    // if price got measured in the same block allow for some price jitter
+                    deltaT = 1.0
+                }
+                let gradient = (currentPrice - entry.price) / (entry.price * deltaT)
+                if gradient > self.maxGradient {
+                    return false
+                }
+            }
+            return true
+        }
+
+        access(FlowTransactionScheduler.Execute) fun executeTransaction(id: UInt64, data: AnyStruct?) {
+            let price = self.getPriceUncheckedGradient(ofToken: self.unit)
+            if price == nil {
+                return
+            }
+            self.priceHistory.append(PriceHistoryEntry(price: price!, timestamp: getCurrentBlock().timestamp))
+            if self.priceHistory.length > self.priceHistorySize {
+                self.priceHistory.removeFirst()
+            }
         }
     }
 
-    access(all) fun createPriceOracleAggregator(uniqueID: DeFiActions.UniqueIdentifier?, unitOfAccount: Type, maxSpread: UFix64): PriceOracleAggregator {
-        return PriceOracleAggregator(uniqueID: uniqueID, unitOfAccount: unitOfAccount, maxSpread: maxSpread)
+    access(all) struct PriceOracleAggregator: DeFiActions.PriceOracle {
+        access(all) let PriceOracleID: UInt64
+        access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
+
+        init(PriceOracleID: UInt64) {
+            self.PriceOracleID = PriceOracleID
+            self.uniqueID = nil
+        }
+
+        access(all) fun price(ofToken: Type): UFix64? {
+            return self.borrowPriceOracleAggregator().price(ofToken: ofToken)
+        }
+
+        access(all) view fun unitOfAccount(): Type {
+            return self.borrowPriceOracleAggregator().unit
+        }
+
+        access(all) view fun id(): UInt64 {
+            return self.uniqueID!.id
+        }
+
+        access(all) fun getID(): DeFiActions.UniqueIdentifier? {
+            return self.uniqueID
+        }
+
+        access(all) fun getComponentInfo(): DeFiActions.ComponentInfo {
+            return DeFiActions.ComponentInfo(
+                type: self.getType(),
+                id: self.id(),
+                innerComponents: []
+            )
+        }
+
+        access(contract) fun setID(_ id: DeFiActions.UniqueIdentifier?) {
+            self.uniqueID = id
+        }
+
+        access(contract) view fun copyID(): DeFiActions.UniqueIdentifier? {
+            return self.uniqueID
+        }
+
+        access(self) view fun borrowPriceOracleAggregator(): &PriceOracleAggregatorStorage {
+            return (&FlowOracleAggregatorv1.oracleAggregators[self.PriceOracleID])!
+        }
+    }
+
+    access(all) fun createPriceOracleAggregatorStorage(
+        oracles: [{DeFiActions.PriceOracle}],
+        maxSpread: UFix64,
+        maxGradient: UFix64,
+        priceHistorySize: Int,
+        priceHistoryInterval: UFix64,
+        unitOfAccount: Type,
+    ): UInt64 {
+        let priceOracleAggregator <- create PriceOracleAggregatorStorage(
+            oracles: oracles,
+            maxSpread: maxSpread,
+            maxGradient: maxGradient,
+            priceHistorySize: priceHistorySize,
+            priceHistoryInterval: priceHistoryInterval,
+            unitOfAccount: unitOfAccount
+        )
+        let id = priceOracleAggregator.uuid
+        self.oracleAggregators[id] <-! priceOracleAggregator
+        emit AggregatorCreated(uuid: id)
+        return id
+    }
+
+    access(all) fun createPriceOracleAggregator(id: UInt64): PriceOracleAggregator {
+        return PriceOracleAggregator(PriceOracleID: id)
     }
 
     access(all) struct MinAndMaxPrices {
-        access(all) let minPrice: UFix64
-        access(all) let maxPrice: UFix64
+        access(all) let min: UFix64
+        access(all) let max: UFix64
 
-        init(minPrice: UFix64, maxPrice: UFix64) {
-            self.minPrice = minPrice
-            self.maxPrice = maxPrice
+        init(min: UFix64, max: UFix64) {
+            self.min = min
+            self.max = max
         }
+    }
+
+    access(all) struct PriceHistoryEntry {
+        access(all) let price: UFix64
+        access(all) let timestamp: UFix64
+
+        init(price: UFix64, timestamp: UFix64) {
+            self.price = price
+            self.timestamp = timestamp
+        }
+    }
+
+    init() {
+        self.oracleAggregators <- {}
     }
 }
