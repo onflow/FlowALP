@@ -1,6 +1,6 @@
 ## Cadence Testing Patterns & Best Practices
 
-This document distills the patterns, idioms, and general "know-how" exhibited by the experienced Cadence developer who authored the current test-suite for **FlowALPv0**.  Use it as a practical checklist and style-guide when writing or reviewing Cadence tests.
+This document distills the patterns, idioms, and general "know-how" exhibited by the experienced Cadence developer who authored the current test-suite for **FlowALP**.  Use it as a practical checklist and style-guide when writing or reviewing Cadence tests.
 
 ### 1. Harness, Organisation & Discovery
 

@@ -1,4 +1,4 @@
-# Contributing to FlowALP (FlowALPv0 Contracts)
+# Contributing to FlowALP (FlowALP Contracts)
 
 The following is a set of guidelines for contributing to FlowALP (specifically the `FlowALPv0` implementation in this repo).
 These are mostly guidelines, not rules.
@@ -125,4 +125,4 @@ Before contributing, make sure to examine the project to get familiar with the p
 
 ### Additional Notes
 
-Thank you for your interest in contributing to FlowALPv0!
+Thank you for your interest in contributing to FlowALP!

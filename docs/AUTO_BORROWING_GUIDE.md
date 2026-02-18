@@ -1,12 +1,12 @@
-# FlowALPv0 Auto-Borrowing Guide
+# FlowALP Auto-Borrowing Guide
 
 ## Overview
 
-FlowALPv0 includes an auto-borrowing feature that automatically optimizes your position's capital efficiency when creating a new position. This guide explains how it works and when to use it.
+FlowALP includes an auto-borrowing feature that automatically optimizes your position's capital efficiency when creating a new position. This guide explains how it works and when to use it.
 
 ## What is Auto-Borrowing?
 
-When you create a position with collateral in FlowALPv0, the system can automatically borrow against that collateral to achieve a target health ratio. This maximizes capital efficiency by ensuring your position is neither too risky nor too conservative.
+When you create a position with collateral in FlowALP, the system can automatically borrow against that collateral to achieve a target health ratio. This maximizes capital efficiency by ensuring your position is neither too risky nor too conservative.
 
 ### Example
 - You deposit 1000 Flow tokens as collateral

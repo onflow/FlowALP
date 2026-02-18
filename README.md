@@ -15,22 +15,22 @@
 
 ### Current Status (Tracer Bullet Phase)
 
-- ✅ **Smart Contract Integration**: FlowALPv0 provides sink/source interfaces for token swapping
-- ✅ **Development & Testing**: Automated testing framework for FlowALPv0 and DefiActions
-- ✅ **Repository Structure**: FlowALPv0 code in this repo; DeFiActions comes from the `FlowActions/` submodule
+- ✅ **Smart Contract Integration**: FlowALP provides sink/source interfaces for token swapping
+- ✅ **Development & Testing**: Automated testing framework for FlowALP and DefiActions
+- ✅ **Repository Structure**: FlowALP code in this repo; DeFiActions comes from the `FlowActions/` submodule
 - 💛 **Test Coverage**: Working towards comprehensive test suite
 - 👌 **AMM Integration**: Currently using dummy swapper, real AMM deployment planned
 
 ### Upcoming (Limited Beta)
 
-- ✅ **Documentation**: First pass documentation of FlowALPv0 (this README)
-- ✅ **Testing**: Extensive test suite for FlowALPv0 and DefiActions
+- ✅ **Documentation**: First pass documentation of FlowALP (this README)
+- ✅ **Testing**: Extensive test suite for FlowALP and DefiActions
 - 💛 **Sample Code**: DefiActions sample code and tutorials needed
 - 👌 **Advanced Features**: Per-user limits and controlled testing capabilities
 
 ### Future (Open Beta)
 
-- ✅ **Open Access**: Full public access to FlowALPv0 and DefiActions
+- ✅ **Open Access**: Full public access to FlowALP and DefiActions
 - 💛 **Documentation**: Improved documentation and tutorials
 - ✅ **Sample Code**: Complete tutorials for DefiActions integration
 
@@ -173,7 +173,7 @@ FlowALP/
 1. **Pool**: Main lending pool managing positions and reserves
 2. **Position**: User positions tracking deposits and borrows
 3. **TokenState**: Per-token state including interest indices
-4. **FlowALPv0Sink/Source**: DeFi Actions integration for composability
+4. **FlowALP Sink/Source**: DeFi Actions integration for composability
 
 ### Key Interfaces
 

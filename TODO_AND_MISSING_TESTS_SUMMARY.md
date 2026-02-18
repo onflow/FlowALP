@@ -13,12 +13,12 @@
 
 ### Transaction Files
 1. **`repay_and_close_position.cdc`** (Line 13)
-   - TODO: Implement when FlowALPv0.Pool exposes position info and repayAndClosePosition
+   - TODO: Implement when `FlowALPv0.Pool` exposes position info and repayAndClosePosition
    - Currently just a placeholder that panics
 
 2. **`withdraw_reserve.cdc`** (Lines 16, 22)
    - TODO: Implement proper governance control
-   - TODO: Once FlowALPv0.Pool exposes a withdrawReserve function
+   - TODO: Once `FlowALPv0.Pool` exposes a withdrawReserve function
    - Currently using a workaround that creates empty vaults
 
 ### Contract Files

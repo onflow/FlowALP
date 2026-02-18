@@ -1,6 +1,6 @@
-# FlowALPv0 Future Features and Tests
+# FlowALP Future Features and Tests
 
-This document lists features that are not yet implemented in the FlowALPv0 contract:
+This document lists features that are not yet implemented in the `FlowALPv0` contract:
 
 - ✅ **Must Have** - Critical features required for launch
 - 💛 **Should Have** - Important features that significantly enhance the product
