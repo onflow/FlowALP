@@ -1,5 +1,6 @@
 import Test
 import "FlowALPv1"
+import "FlowALPModels"
 import "FungibleToken"
 import "MOET"
 import "test_helpers.cdc"
@@ -50,7 +51,7 @@ fun test_healthFactor_zeroCollateral_positiveDebt_returnsZero() {
 
     let balances: {Type: FlowALPv1.InternalBalance} = {}
     balances[tDebt] = FlowALPv1.InternalBalance(
-        direction: FlowALPv1.BalanceDirection.Debit,
+        direction: FlowALPModels.BalanceDirection.Debit,
         scaledBalance: 50.0
     )
 
@@ -80,11 +81,11 @@ fun test_healthFactor_simpleCollateralAndDebt() {
     // Balances: +100 collateral units, -50 debt units
     let balances: {Type: FlowALPv1.InternalBalance} = {}
     balances[tColl] = FlowALPv1.InternalBalance(
-        direction: FlowALPv1.BalanceDirection.Credit,
+        direction: FlowALPModels.BalanceDirection.Credit,
         scaledBalance: 100.0
     )
     balances[tDebt] = FlowALPv1.InternalBalance(
-        direction: FlowALPv1.BalanceDirection.Debit,
+        direction: FlowALPModels.BalanceDirection.Debit,
         scaledBalance: 50.0
     )
 
@@ -113,7 +114,7 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     // Balances: +100 collateral units on tColl, no entry for t (debt token)
     let balances: {Type: FlowALPv1.InternalBalance} = {}
     balances[tColl] = FlowALPv1.InternalBalance(
-        direction: FlowALPv1.BalanceDirection.Credit,
+        direction: FlowALPModels.BalanceDirection.Credit,
         scaledBalance: 100.0
     )
 
@@ -150,7 +151,7 @@ fun test_maxWithdraw_fromCollateralLimitedByHealth() {
 
     let balances: {Type: FlowALPv1.InternalBalance} = {}
     balances[t] = FlowALPv1.InternalBalance(
-        direction: FlowALPv1.BalanceDirection.Credit,
+        direction: FlowALPModels.BalanceDirection.Credit,
         scaledBalance: 100.0
     )
 

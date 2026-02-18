@@ -5,6 +5,7 @@ import "test_helpers.cdc"
 
 import "MOET"
 import "FlowALPv1"
+import "FlowALPModels"
 
 access(all) let userAccount = Test.createAccount()
 
@@ -103,7 +104,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     var flowPositionBalance: FlowALPv1.PositionBalance? = nil
     var moetBalance: FlowALPv1.PositionBalance? = nil
     for b in positionDetails.balances {
-        if b.direction == FlowALPv1.BalanceDirection.Credit {
+        if b.direction == FlowALPModels.BalanceDirection.Credit {
             flowPositionBalance = b
         } else {
             moetBalance = b
@@ -184,7 +185,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     let health = positionDetails.health
     let flowPositionBalance = positionDetails.balances[0]
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
-    Test.assertEqual(FlowALPv1.BalanceDirection.Credit, flowPositionBalance.direction)
+    Test.assertEqual(FlowALPModels.BalanceDirection.Credit, flowPositionBalance.direction)
 
     Test.assertEqual(CEILING_HEALTH, health)
 
@@ -255,7 +256,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     let health = positionDetails.health
     let flowPositionBalance = positionDetails.balances[0]
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
-    Test.assertEqual(FlowALPv1.BalanceDirection.Credit, flowPositionBalance.direction)
+    Test.assertEqual(FlowALPModels.BalanceDirection.Credit, flowPositionBalance.direction)
 
     let priceIncrease = 0.25
     let newPrice = flowStartPrice * (1.0 + priceIncrease)

@@ -1,5 +1,6 @@
 import Test
 import "FlowALPv1"
+import "FlowALPModels"
 
 /* --- Global test constants --- */
 
@@ -762,7 +763,7 @@ fun getBlockTimestamp(): UFix64 {
 access(all)
 fun getDebitBalanceForType(details: FlowALPv1.PositionDetails, vaultType: Type): UFix64 {
     for balance in details.balances {
-        if balance.vaultType == vaultType && balance.direction == FlowALPv1.BalanceDirection.Debit {
+        if balance.vaultType == vaultType && balance.direction == FlowALPModels.BalanceDirection.Debit {
             return balance.balance
         }
     }
@@ -772,7 +773,7 @@ fun getDebitBalanceForType(details: FlowALPv1.PositionDetails, vaultType: Type):
 access(all)
 fun getCreditBalanceForType(details: FlowALPv1.PositionDetails, vaultType: Type): UFix64 {
     for balance in details.balances {
-        if balance.vaultType == vaultType && balance.direction == FlowALPv1.BalanceDirection.Credit {
+        if balance.vaultType == vaultType && balance.direction == FlowALPModels.BalanceDirection.Credit {
             return balance.balance
         }
     }

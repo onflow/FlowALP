@@ -17,6 +17,18 @@ access(all) contract FlowALPModels {
     /// and process queued operations. It should not be granted to external users.
     access(all) entitlement EImplementation
 
+    /// BalanceDirection
+    ///
+    /// The direction of a given balance
+    access(all) enum BalanceDirection: UInt8 {
+
+        /// Denotes that a balance that is withdrawable from the protocol
+        access(all) case Credit
+
+        /// Denotes that a balance that is due to the protocol
+        access(all) case Debit
+    }
+
     /// PoolConfig defines the interface for pool-level configuration parameters.
     access(all) struct interface PoolConfig {
 
