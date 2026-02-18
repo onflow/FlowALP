@@ -200,36 +200,6 @@ access(all) contract FlowALPv1 {
         - We convert at boundaries via type casting to UFix128 or FlowALPMath.toUFix64.
     */
 
-    access(all) struct PauseParamsView {
-        access(all) let paused: Bool
-        access(all) let warmupSec: UInt64
-        access(all) let lastUnpausedAt: UInt64?
-
-        init(
-            paused: Bool,
-            warmupSec: UInt64,
-            lastUnpausedAt: UInt64?,
-        ) {
-            self.paused = paused
-            self.warmupSec = warmupSec
-            self.lastUnpausedAt = lastUnpausedAt
-        }
-    }
-
-    /// Liquidation parameters view (global)
-    access(all) struct LiquidationParamsView {
-        access(all) let targetHF: UFix128
-        access(all) let triggerHF: UFix128
-
-        init(
-            targetHF: UFix128,
-            triggerHF: UFix128,
-        ) {
-            self.targetHF = targetHF
-            self.triggerHF = triggerHF
-        }
-    }
-
     /// ImplementationUpdates
     ///
     /// Entitlement mapping that enables authorized references on nested resources within InternalPosition.
@@ -571,8 +541,8 @@ access(all) contract FlowALPv1 {
         }
 
         /// Returns current pause parameters
-        access(all) fun getPauseParams(): FlowALPv1.PauseParamsView {
-            return FlowALPv1.PauseParamsView(
+        access(all) fun getPauseParams(): FlowALPModels.PauseParamsView {
+            return FlowALPModels.PauseParamsView(
                 paused: self.config.isPaused(),
                 warmupSec: self.config.getWarmupSec(),
                 lastUnpausedAt: self.config.getLastUnpausedAt(),
@@ -580,8 +550,8 @@ access(all) contract FlowALPv1 {
         }
 
         /// Returns current liquidation parameters
-        access(all) fun getLiquidationParams(): FlowALPv1.LiquidationParamsView {
-            return FlowALPv1.LiquidationParamsView(
+        access(all) fun getLiquidationParams(): FlowALPModels.LiquidationParamsView {
+            return FlowALPModels.LiquidationParamsView(
                 targetHF: self.config.getLiquidationTargetHF(),
                 triggerHF: 1.0,
             )
@@ -735,13 +705,13 @@ access(all) contract FlowALPv1 {
             )
         }
 
-        /// Returns the details of a given position as a PositionDetails external struct
-        access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
+        /// Returns the details of a given position as a FlowALPModels.PositionDetails external struct
+        access(all) fun getPositionDetails(pid: UInt64): FlowALPModels.PositionDetails {
             if self.config.isDebugLogging() {
                 log("    [CONTRACT] getPositionDetails(pid: \(pid))")
             }
             let position = self._borrowPosition(pid: pid)
-            let balances: [PositionBalance] = []
+            let balances: [FlowALPModels.PositionBalance] = []
 
             for type in position.balances.keys {
                 let balance = position.balances[type]!
@@ -753,7 +723,7 @@ access(all) contract FlowALPv1 {
                         : tokenState.debitInterestIndex
                 )
 
-                balances.append(PositionBalance(
+                balances.append(FlowALPModels.PositionBalance(
                     vaultType: type,
                     direction: balance.direction,
                     balance: FlowALPMath.toUFix64Round(trueBalance)
@@ -767,7 +737,7 @@ access(all) contract FlowALPv1 {
                 pullFromTopUpSource: false
             )
 
-            return PositionDetails(
+            return FlowALPModels.PositionDetails(
                 balances: balances,
                 poolDefaultToken: self.state.getDefaultToken(),
                 defaultTokenAvailableBalance: defaultTokenAvailable,
@@ -2744,7 +2714,7 @@ access(all) contract FlowALPv1 {
         }
 
         /// Returns the balances (both positive and negative) for all tokens in this position.
-        access(all) fun getBalances(): [PositionBalance] {
+        access(all) fun getBalances(): [FlowALPModels.PositionBalance] {
             let pool = self.pool.borrow()!
             return pool.getPositionDetails(pid: self.id).balances
         }
@@ -3197,63 +3167,6 @@ access(all) contract FlowALPv1 {
 
         access(contract) fun setID(_ id: DeFiActions.UniqueIdentifier?) {
             self.uniqueID = id
-        }
-    }
-
-    /// PositionBalance
-    ///
-    /// A structure returned externally to report a position's balance for a particular token.
-    /// This structure is NOT used internally.
-    access(all) struct PositionBalance {
-
-        /// The token type for which the balance details relate to
-        access(all) let vaultType: Type
-
-        /// Whether the balance is a Credit or Debit
-        access(all) let direction: FlowALPModels.BalanceDirection
-
-        /// The balance of the token for the related Position
-        access(all) let balance: UFix64
-
-        init(
-            vaultType: Type,
-            direction: FlowALPModels.BalanceDirection,
-            balance: UFix64
-        ) {
-            self.vaultType = vaultType
-            self.direction = direction
-            self.balance = balance
-        }
-    }
-
-    /// PositionDetails
-    ///
-    /// A structure returned externally to report all of the details associated with a position.
-    /// This structure is NOT used internally.
-    access(all) struct PositionDetails {
-
-        /// Balance details about each Vault Type deposited to the related Position
-        access(all) let balances: [PositionBalance]
-
-        /// The default token Type of the Pool in which the related position is held
-        access(all) let poolDefaultToken: Type
-
-        /// The available balance of the Pool's default token Type
-        access(all) let defaultTokenAvailableBalance: UFix64
-
-        /// The current health of the related position
-        access(all) let health: UFix128
-
-        init(
-            balances: [PositionBalance],
-            poolDefaultToken: Type,
-            defaultTokenAvailableBalance: UFix64,
-            health: UFix128
-        ) {
-            self.balances = balances
-            self.poolDefaultToken = poolDefaultToken
-            self.defaultTokenAvailableBalance = defaultTokenAvailableBalance
-            self.health = health
         }
     }
 

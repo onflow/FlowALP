@@ -332,6 +332,79 @@ access(all) contract FlowALPModels {
         }
     }
 
+    access(all) struct PauseParamsView {
+        access(all) let paused: Bool
+        access(all) let warmupSec: UInt64
+        access(all) let lastUnpausedAt: UInt64?
+
+        init(
+            paused: Bool,
+            warmupSec: UInt64,
+            lastUnpausedAt: UInt64?,
+        ) {
+            self.paused = paused
+            self.warmupSec = warmupSec
+            self.lastUnpausedAt = lastUnpausedAt
+        }
+    }
+
+    /// Liquidation parameters view (global)
+    access(all) struct LiquidationParamsView {
+        access(all) let targetHF: UFix128
+        access(all) let triggerHF: UFix128
+
+        init(
+            targetHF: UFix128,
+            triggerHF: UFix128,
+        ) {
+            self.targetHF = targetHF
+            self.triggerHF = triggerHF
+        }
+    }
+
+    /// PositionBalance
+    ///
+    /// A structure returned externally to report a position's balance for a particular token.
+    access(all) struct PositionBalance {
+
+        access(all) let vaultType: Type
+        access(all) let direction: BalanceDirection
+        access(all) let balance: UFix64
+
+        init(
+            vaultType: Type,
+            direction: BalanceDirection,
+            balance: UFix64
+        ) {
+            self.vaultType = vaultType
+            self.direction = direction
+            self.balance = balance
+        }
+    }
+
+    /// PositionDetails
+    ///
+    /// A structure returned externally to report all of the details associated with a position.
+    access(all) struct PositionDetails {
+
+        access(all) let balances: [PositionBalance]
+        access(all) let poolDefaultToken: Type
+        access(all) let defaultTokenAvailableBalance: UFix64
+        access(all) let health: UFix128
+
+        init(
+            balances: [PositionBalance],
+            poolDefaultToken: Type,
+            defaultTokenAvailableBalance: UFix64,
+            health: UFix128
+        ) {
+            self.balances = balances
+            self.poolDefaultToken = poolDefaultToken
+            self.defaultTokenAvailableBalance = defaultTokenAvailableBalance
+            self.health = health
+        }
+    }
+
     /// PoolConfig defines the interface for pool-level configuration parameters.
     access(all) struct interface PoolConfig {
 

@@ -207,16 +207,16 @@ fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix128 {
 }
 
 access(all)
-fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALPv1.PositionDetails {
+fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALPModels.PositionDetails {
     let res = _executeScript("../scripts/flow-alp/position_details.cdc",
             [pid]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-    return res.returnValue as! FlowALPv1.PositionDetails
+    return res.returnValue as! FlowALPModels.PositionDetails
 }
 
 access(all)
-fun getPositionBalance(pid: UInt64, vaultID: String): FlowALPv1.PositionBalance {
+fun getPositionBalance(pid: UInt64, vaultID: String): FlowALPModels.PositionBalance {
     let positionDetails = getPositionDetails(pid: pid, beFailed: false)
     for bal in positionDetails.balances {
         if bal.vaultType == CompositeType(vaultID) {
@@ -761,7 +761,7 @@ fun getBlockTimestamp(): UFix64 {
 }
 
 access(all)
-fun getDebitBalanceForType(details: FlowALPv1.PositionDetails, vaultType: Type): UFix64 {
+fun getDebitBalanceForType(details: FlowALPModels.PositionDetails, vaultType: Type): UFix64 {
     for balance in details.balances {
         if balance.vaultType == vaultType && balance.direction == FlowALPModels.BalanceDirection.Debit {
             return balance.balance
@@ -771,7 +771,7 @@ fun getDebitBalanceForType(details: FlowALPv1.PositionDetails, vaultType: Type):
 }
 
 access(all)
-fun getCreditBalanceForType(details: FlowALPv1.PositionDetails, vaultType: Type): UFix64 {
+fun getCreditBalanceForType(details: FlowALPModels.PositionDetails, vaultType: Type): UFix64 {
     for balance in details.balances {
         if balance.vaultType == vaultType && balance.direction == FlowALPModels.BalanceDirection.Credit {
             return balance.balance

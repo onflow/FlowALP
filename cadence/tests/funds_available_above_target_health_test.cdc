@@ -101,8 +101,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
     // Find balances by direction rather than relying on array ordering
-    var flowPositionBalance: FlowALPv1.PositionBalance? = nil
-    var moetBalance: FlowALPv1.PositionBalance? = nil
+    var flowPositionBalance: FlowALPModels.PositionBalance? = nil
+    var moetBalance: FlowALPModels.PositionBalance? = nil
     for b in positionDetails.balances {
         if b.direction == FlowALPModels.BalanceDirection.Credit {
             flowPositionBalance = b
