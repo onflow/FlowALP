@@ -1,12 +1,12 @@
-# FlowALPv1 Auto-Borrowing Guide
+# FlowALPv0 Auto-Borrowing Guide
 
 ## Overview
 
-FlowALPv1 includes an auto-borrowing feature that automatically optimizes your position's capital efficiency when creating a new position. This guide explains how it works and when to use it.
+FlowALPv0 includes an auto-borrowing feature that automatically optimizes your position's capital efficiency when creating a new position. This guide explains how it works and when to use it.
 
 ## What is Auto-Borrowing?
 
-When you create a position with collateral in FlowALPv1, the system can automatically borrow against that collateral to achieve a target health ratio. This maximizes capital efficiency by ensuring your position is neither too risky nor too conservative.
+When you create a position with collateral in FlowALPv0, the system can automatically borrow against that collateral to achieve a target health ratio. This maximizes capital efficiency by ensuring your position is neither too risky nor too conservative.
 
 ### Example
 - You deposit 1000 Flow tokens as collateral
@@ -31,7 +31,7 @@ In this repo, the simplest way to open a position is the transaction template:
 
 It takes `pushToDrawDownSink: Bool`. Set it to `true` to enable auto-borrowing at open.
 
-**Prerequisite:** the signer must have an authorized Pool capability stored at `FlowALPv1.PoolCapStoragePath` (granted via the beta access transactions in `cadence/transactions/flow-alp/beta/`).
+**Prerequisite:** the signer must have an authorized Pool capability stored at `FlowALPv0.PoolCapStoragePath` (granted via the beta access transactions in `cadence/transactions/flow-alp/beta/`).
 
 ### Example (Cadence)
 ```cadence

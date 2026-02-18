@@ -1,4 +1,4 @@
-import "FlowALPv1"
+import "FlowALPv0"
 
 transaction() {
 
@@ -6,18 +6,18 @@ transaction() {
         admin: auth(Capabilities, Storage) &Account,
         tester: auth(Storage) &Account
     ) {
-        let poolCap: Capability<auth(FlowALPv1.EParticipant, FlowALPv1.EPosition) &FlowALPv1.Pool> =
+        let poolCap: Capability<auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool> =
             admin.capabilities.storage.issue<
-                auth(FlowALPv1.EParticipant, FlowALPv1.EPosition) &FlowALPv1.Pool
-            >(FlowALPv1.PoolStoragePath)
+                auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool
+            >(FlowALPv0.PoolStoragePath)
         // assert(poolCap.check(), message: "Failed to issue Pool capability")
 
-        if tester.storage.type(at: FlowALPv1.PoolCapStoragePath) != nil {
-            tester.storage.load<Capability<auth(FlowALPv1.EParticipant, FlowALPv1.EPosition) &FlowALPv1.Pool>>(
-                from: FlowALPv1.PoolCapStoragePath
+        if tester.storage.type(at: FlowALPv0.PoolCapStoragePath) != nil {
+            tester.storage.load<Capability<auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool>>(
+                from: FlowALPv0.PoolCapStoragePath
             )
         }
 
-        tester.storage.save(poolCap, to: FlowALPv1.PoolCapStoragePath)
+        tester.storage.save(poolCap, to: FlowALPv0.PoolCapStoragePath)
     }
 }

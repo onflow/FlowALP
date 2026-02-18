@@ -5,7 +5,7 @@ import "MOET"
 import "test_helpers.cdc"
 
 /*
-    Platform integration tests covering the path used by platforms using FlowALPv1 to create
+    Platform integration tests covering the path used by platforms using FlowALPv0 to create
     and manage new positions. These tests currently only cover the happy path, ensuring that
     transactions creating & updating positions succeed.
  */

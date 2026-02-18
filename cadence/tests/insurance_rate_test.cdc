@@ -2,7 +2,7 @@ import Test
 import BlockchainHelpers
 
 import "test_helpers.cdc"
-import "FlowALPv1"
+import "FlowALPv0"
 
 access(all) let alice = Test.createAccount()
 access(all) var snapshot: UInt64 = 0

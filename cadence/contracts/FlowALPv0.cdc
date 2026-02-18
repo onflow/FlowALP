@@ -7,7 +7,7 @@ import "DeFiActions"
 import "MOET"
 import "FlowALPMath"
 
-access(all) contract FlowALPv1 {
+access(all) contract FlowALPv0 {
 
     // Design notes: Fixed-point and 128-bit usage:
     // - Interest indices and rates are maintained in 128-bit fixed-point to avoid precision loss during compounding.
@@ -15,13 +15,13 @@ access(all) contract FlowALPv1 {
     //   Promotions to 128-bit occur only for internal math that multiplies by indices/rates.
     //   This strikes a balance between precision and ergonomics while keeping on-chain math safe.
 
-    /// The canonical StoragePath where the primary FlowALPv1 Pool is stored
+    /// The canonical StoragePath where the primary FlowALPv0 Pool is stored
     access(all) let PoolStoragePath: StoragePath
 
     /// The canonical StoragePath where the PoolFactory resource is stored
     access(all) let PoolFactoryPath: StoragePath
 
-    /// The canonical PublicPath where the primary FlowALPv1 Pool can be accessed publicly
+    /// The canonical PublicPath where the primary FlowALPv0 Pool can be accessed publicly
     access(all) let PoolPublicPath: PublicPath
 
     access(all) let PoolCapStoragePath: StoragePath
@@ -286,7 +286,7 @@ access(all) contract FlowALPv1 {
                     // so we save computational cycles by just scaling the deposit amount
                     // and adding it directly to the scaled balance.
 
-                    let scaledDeposit = FlowALPv1.trueBalanceToScaledBalance(
+                    let scaledDeposit = FlowALPv0.trueBalanceToScaledBalance(
                         amount,
                         interestIndex: tokenState.creditInterestIndex
                     )
@@ -300,7 +300,7 @@ access(all) contract FlowALPv1 {
                     // When depositing into a debit position, we first need to compute the true balance
                     // to see if this deposit will flip the position from debit to credit.
 
-                    let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                         self.scaledBalance,
                         interestIndex: tokenState.debitInterestIndex
                     )
@@ -311,7 +311,7 @@ access(all) contract FlowALPv1 {
                         // so we just decrement the debt.
                         let updatedBalance = trueBalance - amount
 
-                        self.scaledBalance = FlowALPv1.trueBalanceToScaledBalance(
+                        self.scaledBalance = FlowALPv0.trueBalanceToScaledBalance(
                             updatedBalance,
                             interestIndex: tokenState.debitInterestIndex
                         )
@@ -325,7 +325,7 @@ access(all) contract FlowALPv1 {
                         let updatedBalance = amount - trueBalance
 
                         self.direction = BalanceDirection.Credit
-                        self.scaledBalance = FlowALPv1.trueBalanceToScaledBalance(
+                        self.scaledBalance = FlowALPv0.trueBalanceToScaledBalance(
                             updatedBalance,
                             interestIndex: tokenState.creditInterestIndex
                         )
@@ -359,7 +359,7 @@ access(all) contract FlowALPv1 {
                     // so we save computational cycles by just scaling the withdrawal amount
                     // and subtracting it directly from the scaled balance.
 
-                    let scaledWithdrawal = FlowALPv1.trueBalanceToScaledBalance(
+                    let scaledWithdrawal = FlowALPv0.trueBalanceToScaledBalance(
                         amount,
                         interestIndex: tokenState.debitInterestIndex
                     )
@@ -373,7 +373,7 @@ access(all) contract FlowALPv1 {
                     // When withdrawing from a credit position,
                     // we first need to compute the true balance
                     // to see if this withdrawal will flip the position from credit to debit.
-                    let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                         self.scaledBalance,
                         interestIndex: tokenState.creditInterestIndex
                     )
@@ -383,7 +383,7 @@ access(all) contract FlowALPv1 {
                         // so we just decrement the credit balance.
                         let updatedBalance = trueBalance - amount
 
-                        self.scaledBalance = FlowALPv1.trueBalanceToScaledBalance(
+                        self.scaledBalance = FlowALPv0.trueBalanceToScaledBalance(
                             updatedBalance,
                             interestIndex: tokenState.creditInterestIndex
                         )
@@ -396,7 +396,7 @@ access(all) contract FlowALPv1 {
                         let updatedBalance = amount - trueBalance
 
                         self.direction = BalanceDirection.Debit
-                        self.scaledBalance = FlowALPv1.trueBalanceToScaledBalance(
+                        self.scaledBalance = FlowALPv0.trueBalanceToScaledBalance(
                             updatedBalance,
                             interestIndex: tokenState.debitInterestIndex
                         )
@@ -432,7 +432,7 @@ access(all) contract FlowALPv1 {
         ) {
             self.effectiveCollateral = effectiveCollateral
             self.effectiveDebt = effectiveDebt
-            self.health = FlowALPv1.healthComputation(
+            self.health = FlowALPv0.healthComputation(
                 effectiveCollateral: effectiveCollateral,
                 effectiveDebt: effectiveDebt
             )
@@ -969,12 +969,12 @@ access(all) contract FlowALPv1 {
             }
 
             // Update interest indices (dt > 0 ensures sensible compounding)
-            self.creditInterestIndex = FlowALPv1.compoundInterestIndex(
+            self.creditInterestIndex = FlowALPv0.compoundInterestIndex(
                 oldIndex: self.creditInterestIndex,
                 perSecondRate: self.currentCreditRate,
                 elapsedSeconds: dt
             )
-            self.debitInterestIndex = FlowALPv1.compoundInterestIndex(
+            self.debitInterestIndex = FlowALPv0.compoundInterestIndex(
                 oldIndex: self.debitInterestIndex,
                 perSecondRate: self.currentDebitRate,
                 elapsedSeconds: dt
@@ -1054,7 +1054,7 @@ access(all) contract FlowALPv1 {
             // 2. KinkInterestCurve (and others): reserve factor model
             //    Insurance and stability are percentages of interest income, not a fixed spread
             // TODO(jord): seems like InterestCurve abstraction could be improved if we need to check specific types here.
-            if self.interestCurve.getType() == Type<FlowALPv1.FixedRateInterestCurve>() {
+            if self.interestCurve.getType() == Type<FlowALPv0.FixedRateInterestCurve>() {
                 // FixedRate path: creditRate = debitRate * (1 - protocolFeeRate))
                 // This provides a fixed, predictable spread between borrower and lender rates
                 creditRate = debitRate * (1.0 - protocolFeeRate) 
@@ -1070,8 +1070,8 @@ access(all) contract FlowALPv1 {
                 }
             }
 
-            self.currentCreditRate = FlowALPv1.perSecondInterestRate(yearlyRate: creditRate)
-            self.currentDebitRate = FlowALPv1.perSecondInterestRate(yearlyRate: debitRate)
+            self.currentCreditRate = FlowALPv0.perSecondInterestRate(yearlyRate: creditRate)
+            self.currentDebitRate = FlowALPv0.perSecondInterestRate(yearlyRate: debitRate)
         }
 
         /// Collects insurance by withdrawing from reserves and swapping to MOET.
@@ -1136,7 +1136,7 @@ access(all) contract FlowALPv1 {
             let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
             let dexPrice = quote.outAmount / quote.inAmount
             assert(
-                FlowALPv1.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
+                FlowALPv0.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
                 message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
             var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
 
@@ -1213,10 +1213,10 @@ access(all) contract FlowALPv1 {
     /// - borrowFactor: the factor used to derive effective debt
     access(all) struct RiskParams {
         /// The factor (Fc) used to determine effective collateral, in the range [0, 1]
-        /// See FlowALPv1.effectiveCollateral for additional detail.
+        /// See FlowALPv0.effectiveCollateral for additional detail.
         access(all) let collateralFactor: UFix128
         /// The factor (Fd) used to determine effective debt, in the range [0, 1]
-        /// See FlowALPv1.effectiveDebt for additional detail.
+        /// See FlowALPv0.effectiveDebt for additional detail.
         access(all) let borrowFactor: UFix128
 
         init(
@@ -1252,15 +1252,15 @@ access(all) contract FlowALPv1 {
         }
 
         /// Returns the effective debt (denominated in $) for the given debit balance of this snapshot's token.
-        /// See FlowALPv1.effectiveDebt for additional details.
+        /// See FlowALPv0.effectiveDebt for additional details.
         access(all) view fun effectiveDebt(debitBalance: UFix128): UFix128 {
-            return FlowALPv1.effectiveDebt(debit: debitBalance, price: self.price, borrowFactor: self.risk.borrowFactor)
+            return FlowALPv0.effectiveDebt(debit: debitBalance, price: self.price, borrowFactor: self.risk.borrowFactor)
         }
 
         /// Returns the effective collateral (denominated in $) for the given credit balance of this snapshot's token.
-        /// See FlowALPv1.effectiveCollateral for additional details.
+        /// See FlowALPv0.effectiveCollateral for additional details.
         access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128 {
-            return FlowALPv1.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.collateralFactor)
+            return FlowALPv0.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.collateralFactor)
         }
     }
 
@@ -1297,10 +1297,10 @@ access(all) contract FlowALPv1 {
                 if let tokenSnapshot = self.snapshots[ofToken] {
                     switch balance.direction {
                     case BalanceDirection.Debit:
-                        return FlowALPv1.scaledBalanceToTrueBalance(
+                        return FlowALPv0.scaledBalanceToTrueBalance(
                             balance.scaledBalance, interestIndex: tokenSnapshot.debitIndex)
                     case BalanceDirection.Credit:
-                        return FlowALPv1.scaledBalanceToTrueBalance(
+                        return FlowALPv0.scaledBalanceToTrueBalance(
                             balance.scaledBalance, interestIndex: tokenSnapshot.creditIndex)
                     }
                     panic("unreachable")
@@ -1359,7 +1359,7 @@ access(all) contract FlowALPv1 {
 
             switch balance.direction {
                 case BalanceDirection.Credit:
-                    let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                         balance.scaledBalance,
                         interestIndex: snap.creditIndex
                     )
@@ -1367,7 +1367,7 @@ access(all) contract FlowALPv1 {
                         + snap.effectiveCollateral(creditBalance: trueBalance)
 
                 case BalanceDirection.Debit:
-                    let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                         balance.scaledBalance,
                         interestIndex: snap.debitIndex
                     )
@@ -1375,7 +1375,7 @@ access(all) contract FlowALPv1 {
                         + snap.effectiveDebt(debitBalance: trueBalance)
             }
         }
-        return FlowALPv1.healthComputation(
+        return FlowALPv0.healthComputation(
             effectiveCollateral: effectiveCollateralTotal,
             effectiveDebt: effectiveDebtTotal
         )
@@ -1388,7 +1388,7 @@ access(all) contract FlowALPv1 {
         withdrawBal: InternalBalance?,
         targetHealth: UFix128
     ): UFix128 {
-        let preHealth = FlowALPv1.healthFactor(view: view)
+        let preHealth = FlowALPv0.healthFactor(view: view)
         if preHealth <= targetHealth {
             return 0.0
         }
@@ -1404,7 +1404,7 @@ access(all) contract FlowALPv1 {
 
             switch balance.direction {
                 case BalanceDirection.Credit:
-                    let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                         balance.scaledBalance,
                         interestIndex: snap.creditIndex
                     )
@@ -1412,7 +1412,7 @@ access(all) contract FlowALPv1 {
                         + snap.effectiveCollateral(creditBalance: trueBalance)
 
                 case BalanceDirection.Debit:
-                    let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                         balance.scaledBalance,
                         interestIndex: snap.debitIndex
                     )
@@ -1434,7 +1434,7 @@ access(all) contract FlowALPv1 {
             return (deltaDebt * borrowFactor) / withdrawSnap.price
         } else {
             // withdrawing reduces collateral
-            let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+            let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                 withdrawBal!.scaledBalance,
                 interestIndex: withdrawSnap.creditIndex
             )
@@ -1517,12 +1517,12 @@ access(all) contract FlowALPv1 {
         /// Time this pool most recently was unpaused
         access(self) var lastUnpausedAt: UInt64?
 
-        /// A trusted DEX (or set of DEXes) used by FlowALPv1 as a pricing oracle and trading counterparty for liquidations.
+        /// A trusted DEX (or set of DEXes) used by FlowALPv0 as a pricing oracle and trading counterparty for liquidations.
         /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
         /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
         ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
         ///
-        /// FlowALPv1 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
+        /// FlowALPv0 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
         /// It relies directly on the Swapper's returned by the configured SwapperProvider.
         access(self) var dex: {DeFiActions.SwapperProvider}
 
@@ -1686,8 +1686,8 @@ access(all) contract FlowALPv1 {
         }
 
         /// Returns current pause parameters
-        access(all) fun getPauseParams(): FlowALPv1.PauseParamsView {
-            return FlowALPv1.PauseParamsView(
+        access(all) fun getPauseParams(): FlowALPv0.PauseParamsView {
+            return FlowALPv0.PauseParamsView(
                 paused: self.paused,
                 warmupSec: self.warmupSec,
                 lastUnpausedAt: self.lastUnpausedAt,
@@ -1695,8 +1695,8 @@ access(all) contract FlowALPv1 {
         }
 
         /// Returns current liquidation parameters
-        access(all) fun getLiquidationParams(): FlowALPv1.LiquidationParamsView {
-            return FlowALPv1.LiquidationParamsView(
+        access(all) fun getLiquidationParams(): FlowALPv0.LiquidationParamsView {
+            return FlowALPv0.LiquidationParamsView(
                 targetHF: self.liquidationTargetHF,
                 triggerHF: 1.0,
             )
@@ -1779,18 +1779,18 @@ access(all) contract FlowALPv1 {
 
             // Build a TokenSnapshot for the requested withdraw type (may not exist in view.snapshots)
             let tokenState = self._borrowUpdatedTokenState(type: type)
-            let snap = FlowALPv1.TokenSnapshot(
+            let snap = FlowALPv0.TokenSnapshot(
                 price: UFix128(self.priceOracle.price(ofToken: type)!),
                 credit: tokenState.creditInterestIndex,
                 debit: tokenState.debitInterestIndex,
-                risk: FlowALPv1.RiskParams(
+                risk: FlowALPv0.RiskParams(
                     collateralFactor: UFix128(self.collateralFactor[type]!),
                     borrowFactor: UFix128(self.borrowFactor[type]!),
                 )
             )
 
             let withdrawBal = view.balances[type]
-            let uintMax = FlowALPv1.maxWithdraw(
+            let uintMax = FlowALPv0.maxWithdraw(
                 view: view,
                 withdrawSnap: snap,
                 withdrawBal: withdrawBal,
@@ -1820,7 +1820,7 @@ access(all) contract FlowALPv1 {
                 let price = UFix128(self.priceOracle.price(ofToken: type)!)
                 switch balance.direction {
                     case BalanceDirection.Credit:
-                        let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+                        let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                             balance.scaledBalance,
                             interestIndex: tokenState.creditInterestIndex
                         )
@@ -1830,7 +1830,7 @@ access(all) contract FlowALPv1 {
                         effectiveCollateral = effectiveCollateral + effectiveCollateralValue
 
                     case BalanceDirection.Debit:
-                        let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+                        let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                             balance.scaledBalance,
                             interestIndex: tokenState.debitInterestIndex
                         )
@@ -1842,7 +1842,7 @@ access(all) contract FlowALPv1 {
             }
 
             // Calculate the health as the ratio of collateral to debt.
-            return FlowALPv1.healthComputation(
+            return FlowALPv0.healthComputation(
                 effectiveCollateral: effectiveCollateral,
                 effectiveDebt: effectiveDebt
             )
@@ -1873,7 +1873,7 @@ access(all) contract FlowALPv1 {
             for type in position.balances.keys {
                 let balance = position.balances[type]!
                 let tokenState = self._borrowUpdatedTokenState(type: type)
-                let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+                let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                     balance.scaledBalance,
                     interestIndex: balance.direction == BalanceDirection.Credit
                         ? tokenState.creditInterestIndex
@@ -1962,12 +1962,12 @@ access(all) contract FlowALPv1 {
             let Fd = positionView.snapshots[debtType]!.risk.borrowFactor
 
             // Ce_seize = effective value of seized collateral ($)
-            let Ce_seize = FlowALPv1.effectiveCollateral(credit: UFix128(seizeAmount), price: UFix128(Pc_oracle), collateralFactor: Fc)
+            let Ce_seize = FlowALPv0.effectiveCollateral(credit: UFix128(seizeAmount), price: UFix128(Pc_oracle), collateralFactor: Fc)
             // De_seize = effective value of repaid debt ($)
-            let De_seize = FlowALPv1.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd) 
+            let De_seize = FlowALPv0.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd) 
             let Ce_post = Ce_pre - Ce_seize // position's total effective collateral after liquidation ($)
             let De_post = De_pre - De_seize // position's total effective debt after liquidation ($)
-            let postHealth = FlowALPv1.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
+            let postHealth = FlowALPv0.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
             assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: post-liquidation health (\(postHealth)) is greater than target health (\(self.liquidationTargetHF))")
 
             // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
@@ -1979,7 +1979,7 @@ access(all) contract FlowALPv1 {
             // Compare the DEX price to the oracle price and revert if they diverge beyond configured threshold.
             let Pcd_dex = quote.outAmount / quote.inAmount // price of collateral, denominated in debt token, implied by dex quote (D/C)
             assert(
-                FlowALPv1.dexOraclePriceDeviationInRange(dexPrice: Pcd_dex, oraclePrice: Pcd_oracle, maxDeviationBps: self.dexOracleDeviationBps),
+                FlowALPv0.dexOraclePriceDeviationInRange(dexPrice: Pcd_dex, oraclePrice: Pcd_oracle, maxDeviationBps: self.dexOracleDeviationBps),
                 message: "DEX/oracle price deviation too large. Dex price: \(Pcd_dex), Oracle price: \(Pcd_oracle)")
             // Execute the liquidation
             let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
@@ -2131,7 +2131,7 @@ access(all) contract FlowALPv1 {
 
                     // The user has a collateral position in the given token, we need to figure out if this withdrawal
                     // will flip over into debt, or just draw down the collateral.
-                    let trueCollateral = FlowALPv1.scaledBalanceToTrueBalance(
+                    let trueCollateral = FlowALPv0.scaledBalanceToTrueBalance(
                         scaledBalance,
                         interestIndex: withdrawTokenState.creditInterestIndex
                     )
@@ -2177,7 +2177,7 @@ access(all) contract FlowALPv1 {
             // We now have new effective collateral and debt values that reflect the proposed withdrawal (if any!)
             // Now we can figure out how many of the given token would need to be deposited to bring the position
             // to the target health value.
-            var healthAfterWithdrawal = FlowALPv1.healthComputation(
+            var healthAfterWithdrawal = FlowALPv0.healthComputation(
                 effectiveCollateral: effectiveCollateralAfterWithdrawal,
                 effectiveDebt: effectiveDebtAfterWithdrawal
             )
@@ -2202,7 +2202,7 @@ access(all) contract FlowALPv1 {
                 // the entire debt.
                 let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
                 let debtBalance = maybeBalance!.scaledBalance
-                let trueDebtTokenCount = FlowALPv1.scaledBalanceToTrueBalance(
+                let trueDebtTokenCount = FlowALPv0.scaledBalanceToTrueBalance(
                     debtBalance,
                     interestIndex: depositTokenState.debitInterestIndex
                 )
@@ -2216,7 +2216,7 @@ access(all) contract FlowALPv1 {
                 }
 
                 // Check what the new health would be if we paid off all of this debt
-                let potentialHealth = FlowALPv1.healthComputation(
+                let potentialHealth = FlowALPv0.healthComputation(
                     effectiveCollateral: effectiveCollateralAfterWithdrawal,
                     effectiveDebt: effectiveDebtAfterPayment
                 )
@@ -2375,7 +2375,7 @@ access(all) contract FlowALPv1 {
 
                     // The user has a debt position in the given token, we need to figure out if this deposit
                     // will result in net collateral, or just bring down the debt.
-                    let trueDebt = FlowALPv1.scaledBalanceToTrueBalance(
+                    let trueDebt = FlowALPv0.scaledBalanceToTrueBalance(
                         scaledBalance,
                         interestIndex: depositTokenState.debitInterestIndex
                     )
@@ -2425,7 +2425,7 @@ access(all) contract FlowALPv1 {
             var effectiveCollateralAfterDeposit = effectiveCollateral
             let effectiveDebtAfterDeposit = effectiveDebt
 
-            let healthAfterDeposit = FlowALPv1.healthComputation(
+            let healthAfterDeposit = FlowALPv0.healthComputation(
                 effectiveCollateral: effectiveCollateralAfterDeposit,
                 effectiveDebt: effectiveDebtAfterDeposit
             )
@@ -2452,14 +2452,14 @@ access(all) contract FlowALPv1 {
                 // of that collateral
                 let withdrawTokenState = self._borrowUpdatedTokenState(type: withdrawType)
                 let creditBalance = maybeBalance!.scaledBalance
-                let trueCredit = FlowALPv1.scaledBalanceToTrueBalance(
+                let trueCredit = FlowALPv0.scaledBalanceToTrueBalance(
                     creditBalance,
                     interestIndex: withdrawTokenState.creditInterestIndex
                 )
                 let collateralEffectiveValue = (withdrawPrice * trueCredit) * withdrawCollateralFactor
 
                 // Check what the new health would be if we took out all of this collateral
-                let potentialHealth = FlowALPv1.healthComputation(
+                let potentialHealth = FlowALPv0.healthComputation(
                     effectiveCollateral: effectiveCollateralAfterDeposit - collateralEffectiveValue, // ??? - why subtract?
                     effectiveDebt: effectiveDebtAfterDeposit
                 )
@@ -2545,7 +2545,7 @@ access(all) contract FlowALPv1 {
                     // The user has a debit position in the given token,
                     // we need to figure out if this deposit will only pay off some of the debt,
                     // or if it will also create new collateral.
-                    let trueDebt = FlowALPv1.scaledBalanceToTrueBalance(
+                    let trueDebt = FlowALPv0.scaledBalanceToTrueBalance(
                         scaledBalance,
                         interestIndex: tokenState.debitInterestIndex
                     )
@@ -2561,7 +2561,7 @@ access(all) contract FlowALPv1 {
                     }
             }
 
-            return FlowALPv1.healthComputation(
+            return FlowALPv0.healthComputation(
                 effectiveCollateral: balanceSheet.effectiveCollateral + effectiveCollateralIncrease,
                 effectiveDebt: balanceSheet.effectiveDebt - effectiveDebtDecrease
             )
@@ -2597,7 +2597,7 @@ access(all) contract FlowALPv1 {
                     // The user has a credit position in the given token,
                     // we need to figure out if this withdrawal will only draw down some of the collateral,
                     // or if it will also create new debt.
-                    let trueCredit = FlowALPv1.scaledBalanceToTrueBalance(
+                    let trueCredit = FlowALPv0.scaledBalanceToTrueBalance(
                         scaledBalance,
                         interestIndex: tokenState.creditInterestIndex
                     )
@@ -2613,7 +2613,7 @@ access(all) contract FlowALPv1 {
                     }
             }
 
-            return FlowALPv1.healthComputation(
+            return FlowALPv0.healthComputation(
                 effectiveCollateral: balanceSheet.effectiveCollateral - effectiveCollateralDecrease,
                 effectiveDebt: balanceSheet.effectiveDebt + effectiveDebtIncrease
             )
@@ -2677,9 +2677,9 @@ access(all) contract FlowALPv1 {
             }
 
             // Create a capability to the Pool for the Position resource
-            // The Pool is stored in the FlowALPv1 contract account
-            let poolCap = FlowALPv1.account.capabilities.storage.issue<auth(EPosition) &Pool>(
-                FlowALPv1.PoolStoragePath
+            // The Pool is stored in the FlowALPv0 contract account
+            let poolCap = FlowALPv0.account.capabilities.storage.issue<auth(EPosition) &Pool>(
+                FlowALPv0.PoolStoragePath
             )
 
             // Create and return the Position resource
@@ -3078,7 +3078,7 @@ access(all) contract FlowALPv1 {
         /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
         ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
         ///
-        /// FlowALPv1 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
+        /// FlowALPv0 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
         /// It relies directly on the Swapper's returned by the configured SwapperProvider.
         access(EGovernance) fun setDEX(dex: {DeFiActions.SwapperProvider}) {
             self.dex = dex
@@ -3468,7 +3468,7 @@ access(all) contract FlowALPv1 {
                             amount: uintSinkAmount,
                             tokenState: tokenState
                         )
-                        let sinkVault <- FlowALPv1._borrowMOETMinter().mintTokens(amount: sinkAmount)
+                        let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
 
                         emit Rebalanced(
                             pid: pid,
@@ -3638,7 +3638,7 @@ access(all) contract FlowALPv1 {
 
                 switch balance.direction {
                     case BalanceDirection.Credit:
-                        let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+                        let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                             balance.scaledBalance,
                             interestIndex: tokenState.creditInterestIndex
                         )
@@ -3650,7 +3650,7 @@ access(all) contract FlowALPv1 {
                         effectiveCollateral = effectiveCollateral + (value * convertedCollateralFactor)
 
                     case BalanceDirection.Debit:
-                        let trueBalance = FlowALPv1.scaledBalanceToTrueBalance(
+                        let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
                             balance.scaledBalance,
                             interestIndex: tokenState.debitInterestIndex
                         )
@@ -3729,23 +3729,23 @@ access(all) contract FlowALPv1 {
         }
 
         /// Build a PositionView for the given position ID.
-        access(all) fun buildPositionView(pid: UInt64): FlowALPv1.PositionView {
+        access(all) fun buildPositionView(pid: UInt64): FlowALPv0.PositionView {
             let position = self._borrowPosition(pid: pid)
-            let snaps: {Type: FlowALPv1.TokenSnapshot} = {}
+            let snaps: {Type: FlowALPv0.TokenSnapshot} = {}
             let balancesCopy = position.copyBalances()
             for t in position.balances.keys {
                 let tokenState = self._borrowUpdatedTokenState(type: t)
-                snaps[t] = FlowALPv1.TokenSnapshot(
+                snaps[t] = FlowALPv0.TokenSnapshot(
                     price: UFix128(self.priceOracle.price(ofToken: t)!),
                     credit: tokenState.creditInterestIndex,
                     debit: tokenState.debitInterestIndex,
-                    risk: FlowALPv1.RiskParams(
+                    risk: FlowALPv0.RiskParams(
                         collateralFactor: UFix128(self.collateralFactor[t]!),
                         borrowFactor: UFix128(self.borrowFactor[t]!),
                     )
                 )
             }
-            return FlowALPv1.PositionView(
+            return FlowALPv0.PositionView(
                 balances: balancesCopy,
                 snapshots: snaps,
                 defaultToken: self.defaultToken,
@@ -3800,18 +3800,18 @@ access(all) contract FlowALPv1 {
         	dex: {DeFiActions.SwapperProvider}
         ) {
             pre {
-                FlowALPv1.account.storage.type(at: FlowALPv1.PoolStoragePath) == nil:
-                    "Storage collision - Pool has already been created & saved to \(FlowALPv1.PoolStoragePath)"
+                FlowALPv0.account.storage.type(at: FlowALPv0.PoolStoragePath) == nil:
+                    "Storage collision - Pool has already been created & saved to \(FlowALPv0.PoolStoragePath)"
             }
             let pool <- create Pool(
             	defaultToken: defaultToken,
             	priceOracle: priceOracle,
             	dex: dex
             )
-            FlowALPv1.account.storage.save(<-pool, to: FlowALPv1.PoolStoragePath)
-            let cap = FlowALPv1.account.capabilities.storage.issue<&Pool>(FlowALPv1.PoolStoragePath)
-            FlowALPv1.account.capabilities.unpublish(FlowALPv1.PoolPublicPath)
-            FlowALPv1.account.capabilities.publish(cap, at: FlowALPv1.PoolPublicPath)
+            FlowALPv0.account.storage.save(<-pool, to: FlowALPv0.PoolStoragePath)
+            let cap = FlowALPv0.account.capabilities.storage.issue<&Pool>(FlowALPv0.PoolStoragePath)
+            FlowALPv0.account.capabilities.unpublish(FlowALPv0.PoolPublicPath)
+            FlowALPv0.account.capabilities.publish(cap, at: FlowALPv0.PoolPublicPath)
         }
     }
 

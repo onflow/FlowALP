@@ -2,23 +2,23 @@ import "FungibleToken"
 import "FungibleTokenMetadataViews"
 import "MetadataViews"
 
-import "FlowALPv1"
+import "FlowALPv0"
 
 /// Attempt to liquidation a position by repaying `repayAmount`.
 ///
 /// debtVaultIdentifier: e.g., Type<@MOET.Vault>().identifier
 /// seizeVaultIdentifier: e.g., Type<@FlowToken.Vault>().identifier
 transaction(pid: UInt64, debtVaultIdentifier: String, seizeVaultIdentifier: String, seizeAmount: UFix64, repayAmount: UFix64) {
-    let pool: &FlowALPv1.Pool
+    let pool: &FlowALPv0.Pool
     let receiver: &{FungibleToken.Receiver}
     let debtType: Type
     let seizeType: Type
     let repay: @{FungibleToken.Vault}
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
-        let protocolAddress = Type<@FlowALPv1.Pool>().address!
-        self.pool = getAccount(protocolAddress).capabilities.borrow<&FlowALPv1.Pool>(FlowALPv1.PoolPublicPath)
-            ?? panic("Could not borrow Pool at \(FlowALPv1.PoolPublicPath)")
+        let protocolAddress = Type<@FlowALPv0.Pool>().address!
+        self.pool = getAccount(protocolAddress).capabilities.borrow<&FlowALPv0.Pool>(FlowALPv0.PoolPublicPath)
+            ?? panic("Could not borrow Pool at \(FlowALPv0.PoolPublicPath)")
 
         // Resolve types
         self.debtType = CompositeType(debtVaultIdentifier) ?? panic("Invalid debtVaultIdentifier: \(debtVaultIdentifier)")

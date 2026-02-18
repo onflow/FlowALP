@@ -22,8 +22,8 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowALPv1": {
-			"source": "./cadence/contracts/FlowALPv1.cdc",
+		"FlowALPv0": {
+			"source": "./cadence/contracts/FlowALPv0.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
@@ -283,7 +283,7 @@
 						}
 					]
 				},
-				"FlowALPv1"
+				"FlowALPv0"
 			]
 		},
 		"mainnet": {
@@ -298,7 +298,7 @@
 						}
 					]
 				},
-				"FlowALPv1"
+				"FlowALPv0"
 			]
 		},
 		"testnet": {
@@ -313,7 +313,7 @@
 						}
 					]
 				},
-				"FlowALPv1"
+				"FlowALPv0"
 			]
 		}
 	}
