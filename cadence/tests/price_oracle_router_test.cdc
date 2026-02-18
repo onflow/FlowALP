@@ -23,60 +23,67 @@ access(all) fun beforeEach() {
 
 access(all) fun test_router_add_oracle() {
     let info = [
-        createRouterInfo(
+        createPriceOracleRouterInfo(
             unitOfAccount: Type<@MOET.Vault>(),
             oracleOfToken: Type<@FlowToken.Vault>(),
             prices: 1.0
         )
     ]
-    createRouter(
+    createPriceOracleRouter(
         unitOfAccount: Type<@MOET.Vault>(),
         createRouterInfo: info,
         expectSucceeded: true
     )
-    Test.assertEqual(price(ofToken: Type<@FlowToken.Vault>()), 1.0 as UFix64?)
-    Test.assertEqual(price(ofToken: Type<@ExampleToken1.Vault>()), nil as UFix64?)
+    var price = 0.0 as UFix64?
+    price = priceOracleRouterPrice(ofToken: Type<@FlowToken.Vault>())
+    Test.assertEqual(price, 1.0 as UFix64?)
+    price = priceOracleRouterPrice(ofToken: Type<@ExampleToken1.Vault>())
+    Test.assertEqual(price, nil as UFix64?)
 }
 
 access(all) fun test_router_add_multiple_oracles() {
     let info = [
-        createRouterInfo(
+        createPriceOracleRouterInfo(
             unitOfAccount: Type<@MOET.Vault>(),
             oracleOfToken: Type<@FlowToken.Vault>(),
             prices: 1.0
         ),
-        createRouterInfo(
+        createPriceOracleRouterInfo(
             unitOfAccount: Type<@MOET.Vault>(),
             oracleOfToken: Type<@ExampleToken1.Vault>(),
             prices: 2.0
         ),
-        createRouterInfo(
+        createPriceOracleRouterInfo(
             unitOfAccount: Type<@MOET.Vault>(),
             oracleOfToken: Type<@ExampleToken2.Vault>(),
             prices: 3.0
         )
     ]
-    createRouter(
+    createPriceOracleRouter(
         unitOfAccount: Type<@MOET.Vault>(),
         createRouterInfo: info,
         expectSucceeded: true
     )
-    Test.assertEqual(price(ofToken: Type<@FlowToken.Vault>()), 1.0 as UFix64?)
-    Test.assertEqual(price(ofToken: Type<@ExampleToken1.Vault>()), 2.0 as UFix64?)
-    Test.assertEqual(price(ofToken: Type<@ExampleToken2.Vault>()), 3.0 as UFix64?)
+    var price = 0.0 as UFix64?
+    price = priceOracleRouterPrice(ofToken: Type<@FlowToken.Vault>())
+    Test.assertEqual(price, 1.0 as UFix64?)
+    price = priceOracleRouterPrice(ofToken: Type<@ExampleToken1.Vault>())
+    Test.assertEqual(price, 2.0 as UFix64?)
+    price = priceOracleRouterPrice(ofToken: Type<@ExampleToken2.Vault>())
+    Test.assertEqual(price, 3.0 as UFix64?)
 }
 
 access(all) fun test_router_add_wrong_unit_of_account() {
-    let createRouterInfo = [
-        createRouterInfo(
+    let info = [
+        createPriceOracleRouterInfo(
             unitOfAccount: Type<@ExampleToken1.Vault>(),
             oracleOfToken: Type<@FlowToken.Vault>(),
             prices: 1.0
         )
     ]
-    createRouter(
+    createPriceOracleRouter(
         unitOfAccount: Type<@MOET.Vault>(),
-        createRouterInfo: createRouterInfo,
+        createRouterInfo: info,
         expectSucceeded: false
     )
 }

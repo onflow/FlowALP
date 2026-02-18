@@ -1,6 +1,6 @@
 import Test
 
-access(all) fun createRouter(
+access(all) fun createPriceOracleRouter(
     unitOfAccount: Type,
     createRouterInfo: [{String: AnyStruct}],
     expectSucceeded: Bool
@@ -14,7 +14,7 @@ access(all) fun createRouter(
 }
 
 // need this because can't define struct here to pass to transaction
-access(all) fun createRouterInfo(
+access(all) fun createPriceOracleRouterInfo(
     unitOfAccount: Type,
     oracleOfToken: Type,
     prices: UFix64?
@@ -26,7 +26,7 @@ access(all) fun createRouterInfo(
     }
 }
 
-access(all) fun price(ofToken: Type): UFix64? {
+access(all) fun priceOracleRouterPrice(ofToken: Type): UFix64? {
     let res = _executeScript(
         "./scripts/price-oracle-router/price.cdc",
         [ofToken],

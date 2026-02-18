@@ -10,6 +10,7 @@ import "MultiMockOracle"
 import "MOET"
 
 transaction(
+    ofToken: Type,
     oracleCount: Int,
     maxSpread: UFix64,
     maxGradient: UFix64,
@@ -40,6 +41,7 @@ transaction(
 
     execute {
         let uuid = FlowPriceOracleAggregatorv1.createPriceOracleAggregatorStorage(
+            ofToken: ofToken,
             oracles: self.oracles,
             maxSpread: maxSpread,
             maxGradient: maxGradient,
@@ -51,7 +53,7 @@ transaction(
 
         // Create cron handler for the aggregator, look at flow-cron for reference
 
-        let aggregatorCronHandler <- FlowPriceOracleAggregatorv1.createPriceOracleCronHandler(id: uuid)
+        let aggregatorCronHandler <- FlowPriceOracleAggregatorv1.createPriceOracleCronHandler(storageID: uuid)
         self.signer.storage.save(<-aggregatorCronHandler, to: aggregatorCronHandlerStoragePath)
         let wrappedHandlerCap = self.signer.capabilities.storage.issue<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>(aggregatorCronHandlerStoragePath)
         assert(wrappedHandlerCap.check(), message: "Invalid wrapped handler capability")
@@ -95,7 +97,7 @@ transaction(
             ?? panic("Flow token vault not found")
 
         if feeVault.balance < totalFee {
-            panic("Insufficient funds: required ".concat(totalFee.toString()).concat(" FLOW (executor: ").concat(executorFlowFee.toString()).concat(", keeper: ").concat(keeperFlowFee.toString()).concat("), available ").concat(feeVault.balance.toString()))
+            panic("Insufficient funds: required \(totalFee.toString()) FLOW (executor: \(executorFlowFee.toString()), keeper: \(keeperFlowFee.toString())), available \(feeVault.balance.toString())")
         }
 
         // Withdraw fees for BOTH transactions

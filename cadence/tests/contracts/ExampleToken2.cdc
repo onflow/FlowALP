@@ -2,6 +2,7 @@ import "FungibleToken"
 import "MetadataViews"
 import "FungibleTokenMetadataViews"
 
+/// Test-only: example FungibleToken contract for testing.
 access(all) contract ExampleToken2: FungibleToken {
 
     /// The event that is emitted when new tokens are minted

@@ -1,13 +1,13 @@
 import "MultiMockOracle"
 
 transaction(
-    oracleStorageID: UInt64,
+    storageID: UInt64,
     forToken: Type,
     price: UFix64?,
 ) {
     execute {
         MultiMockOracle.setPrice(
-            priceOracleStorageID: oracleStorageID,
+            storageID: storageID,
             forToken: forToken,
             price: price,
         )

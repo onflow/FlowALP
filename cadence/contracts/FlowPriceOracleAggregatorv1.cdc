@@ -2,32 +2,62 @@ import "FlowToken"
 import "DeFiActions"
 import "FlowTransactionScheduler"
 
+/// FlowPriceOracleAggregatorv1 combines multiple `DeFiActions.PriceOracle`
+/// sources into a single trusted oracle. A price is returned only when:
+/// - All oracles return a value (no missing data),
+/// - The spread between min and max oracle prices is within `maxSpread`,
+/// - Short-term price gradient vs. recent history is within `maxGradient`.
+///
+/// One aggregator instance = one market (one token type). For multiple
+/// markets, create one storage per market and use a router to expose them.
+/// Config is immutable at creation to avoid accidental changes in production.
 access(all) contract FlowPriceOracleAggregatorv1 {
 
-    access(all) entitlement Governance
-
-    access(all) event AggregatorCreated(uuid: UInt64)
+    /// Emitted when a new aggregator storage is created.
+    access(all) event StorageCreated(storageID: UInt64)
+    /// At least one underlying oracle did not return a price for the requested
+    /// token.
     access(all) event PriceNotAvailable()
+    /// Spread between min and max oracle prices exceeded the configured
+    /// tolerance.
     access(all) event PriceNotWithinSpreadTolerance(spread: UFix64)
-    access(all) event PriceNotStable(gradient: UFix64)
+    /// Short-term price change (gradient) exceeded the configured tolerance.
+    access(all) event PriceNotWithinGradientTolerance(gradient: UFix64)
+    /// storageID -> PriceOracleAggregatorStorage
+    access(self) var storage: @{UInt64: PriceOracleAggregatorStorage}
 
-    access(self) var oracleAggregators: @{UInt64: PriceOracleAggregatorStorage}
+    init() {
+        self.storage <- {}
+    }
 
+    /// Storage resource for one aggregated oracle (single market): a fixed
+    /// set of oracles, tolerances, and an array of recent prices for gradient
+    /// (stability) checks. Immutable: no post-creation config change to avoid
+    /// accidental misconfiguration in production.
     access(all) resource PriceOracleAggregatorStorage {
+        /// Token type for this oracle.
+        access(all) let ofToken: Type
+        /// Recent prices for gradient (stability) checks.
         access(all) let priceHistory: [PriceHistoryEntry]
-
-        // constants intentional to avoid stupid bugs
+        /// Fixed set of oracles.
         access(all) let oracles: [{DeFiActions.PriceOracle}]
+        /// Max allowed relative spread (max-min)/min between oracle prices.
         access(all) let maxSpread: UFix64
-        // % change per minute
+        /// Max allowed short-term gradient (effective % change per minute).
         access(all) let maxGradient: UFix64
+        /// Length of the price history array for gradient stability checks.
         access(all) let priceHistorySize: Int
+        /// Min time between two consecutive history entries.
         access(all) let priceHistoryInterval: UFix64
+        /// Maximum age of a price history entry.
+        /// History entries older than this are ignored when computing gradient
+        /// stability.
         access(all) let maxPriceHistoryAge: UFix64
-
-        access(all) let unit: Type
+        /// Unit of account type for this oracle.
+        access(all) let unitOfAccountType: Type
 
         init(
+            ofToken: Type,
             oracles: [{DeFiActions.PriceOracle}],
             maxSpread: UFix64,
             maxGradient: UFix64,
@@ -36,6 +66,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             maxPriceHistoryAge: UFix64,
             unitOfAccount: Type,
         ) {
+            self.ofToken = ofToken
             self.oracles = oracles
             self.priceHistory = []
             self.maxSpread = maxSpread
@@ -43,11 +74,19 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             self.priceHistorySize = priceHistorySize
             self.priceHistoryInterval = priceHistoryInterval
             self.maxPriceHistoryAge = maxPriceHistoryAge
-            self.unit = unitOfAccount
+            self.unitOfAccountType = unitOfAccount
         }
 
+        /// Returns aggregated price for `ofToken` or nil if
+        /// - no oracle defined for `ofToken`,
+        /// - oracle returned nil,
+        /// - spread between min and max prices is too high,
+        /// - gradient is too high.
         access(all) fun price(ofToken: Type): UFix64? {
-            let price = self.getPriceUncheckedGradient(ofToken: ofToken)
+            pre {
+                self.ofToken == ofToken: "ofToken type mismatch"
+            }
+            let price = self.getPriceUncheckedGradient()
             if price == nil {
                 return nil
             }
@@ -58,13 +97,27 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             return price
         }
 
-        access(self) fun getPriceUncheckedGradient(ofToken: Type): UFix64? {
-            let prices = self.getPrices(ofToken: ofToken)
+        /// Permissionless: anyone may call. Appends current aggregated price
+        /// to history if available and interval has elapsed.
+        /// Idempotent; safe to call from a cron/scheduler.
+        access(all) fun tryAddPriceToHistory() {
+            let price = self.getPriceUncheckedGradient()
+            if price == nil {
+                return
+            }
+            self.tryAddPriceToHistoryInternal(price: price!)
+        }
+
+        access(self) fun getPriceUncheckedGradient(): UFix64? {
+            let prices = self.getPrices()
             if prices == nil || prices!.length == 0 {
                 return nil
             }
             let minAndMaxPrices = self.getMinAndMaxPrices(prices: prices!)
-            if !self.isWithinSpreadTolerance(minPrice: minAndMaxPrices.min, maxPrice: minAndMaxPrices.max) {
+            if !self.isWithinSpreadTolerance(
+                minPrice: minAndMaxPrices.min,
+                maxPrice: minAndMaxPrices.max,
+            ) {
                 return nil
             }
             return self.trimmedMeanPrice(
@@ -74,10 +127,10 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             )
         }
 
-        access(self) fun getPrices(ofToken: Type): [UFix64]? {
+        access(self) fun getPrices(): [UFix64]? {
             let prices: [UFix64] = []
             for oracle in self.oracles {
-                let price = oracle.price(ofToken: ofToken)
+                let price = oracle.price(ofToken: self.ofToken)
                 if price == nil {
                     emit PriceNotAvailable()
                     return nil
@@ -101,7 +154,10 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             return MinAndMaxPrices(min: minPrice, max: maxPrice)
         }
 
-        access(self) view fun isWithinSpreadTolerance(minPrice: UFix64, maxPrice: UFix64): Bool {
+        access(self) view fun isWithinSpreadTolerance(
+            minPrice: UFix64,
+            maxPrice: UFix64,
+        ): Bool {
             let spread = (maxPrice - minPrice) / minPrice
             if spread > self.maxSpread {
                 emit PriceNotWithinSpreadTolerance(spread: spread)
@@ -110,7 +166,11 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             return true
         }
 
-        access(self) view fun trimmedMeanPrice(prices: [UFix64], minPrice: UFix64, maxPrice: UFix64): UFix64? {
+        access(self) view fun trimmedMeanPrice(
+            prices: [UFix64],
+            minPrice: UFix64,
+            maxPrice: UFix64,
+        ): UFix64? {
             let count = prices.length
 
             // Handle edge cases where trimming isn't possible
@@ -131,7 +191,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             for entry in self.priceHistory {
                 var deltaT = now - UFix64(entry.timestamp)
                 if deltaT == 0.0 {
-                    // if price got measured in the same block allow for some price jitter
+                    // Same block: allow some jitter (avoid div by zero).
                     deltaT = 1.0
                 }
                 if deltaT > self.maxPriceHistoryAge {
@@ -139,49 +199,49 @@ access(all) contract FlowPriceOracleAggregatorv1 {
                 }
                 var gradient = 0.0
                 if currentPrice > entry.price {
-                    gradient = (currentPrice - entry.price) / (entry.price * deltaT) * 6000.0
+                    gradient = ((currentPrice - entry.price) * 6000.0)
+                            / (entry.price * deltaT)
                 } else {
-                    gradient = (entry.price - currentPrice) / (currentPrice * deltaT) * 6000.0
+                    gradient = ((entry.price - currentPrice) * 6000.0)
+                            / (currentPrice * deltaT)
                 }
                 if gradient > self.maxGradient {
-                    emit PriceNotStable(gradient: gradient)
+                    emit PriceNotWithinGradientTolerance(gradient: gradient)
                     return false
                 }
             }
             return true
         }
 
-        // Permissionless can be called by anyone, idempotent
-        access(all) fun tryAddPriceToHistory() {
-            let price = self.getPriceUncheckedGradient(ofToken: self.unit)
-            if price == nil {
-                return
-            }
-            self.tryAddPriceToHistoryInternal(price: price!)
-        }
-
         access(self) fun tryAddPriceToHistoryInternal(price: UFix64) {
-            // Check if enough time has passed since the last entry
+            let now = getCurrentBlock().timestamp
+            // Only append if enough time has passed since the last entry.
             if self.priceHistory.length > 0 {
                 let lastEntry = self.priceHistory[self.priceHistory.length - 1]
-                let timeSinceLastEntry = getCurrentBlock().timestamp - lastEntry.timestamp
+                let timeSinceLastEntry = now - lastEntry.timestamp
                 if timeSinceLastEntry < self.priceHistoryInterval {
                     return
                 }
             }
-            self.priceHistory.append(PriceHistoryEntry(price: price, timestamp: getCurrentBlock().timestamp))
+            let newEntry = PriceHistoryEntry(price: price, timestamp: now)
+            self.priceHistory.append(newEntry)
             if self.priceHistory.length > self.priceHistorySize {
                 self.priceHistory.removeFirst()
             }
         }
     }
 
+    /// Struct over a `PriceOracleAggregatorStorage`
+    /// See `DeFiActions.PriceOracle` for interface documentation.
+    ///
+    /// Additionaly implements `priceHistory()` to return the price history
+    /// array.
     access(all) struct PriceOracleAggregator: DeFiActions.PriceOracle {
-        access(all) let priceOracleID: UInt64
+        access(all) let storageID: UInt64
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
 
-        init(priceOracleID: UInt64) {
-            self.priceOracleID = priceOracleID
+        init(storageID: UInt64) {
+            self.storageID = storageID
             self.uniqueID = DeFiActions.createUniqueIdentifier()
         }
 
@@ -190,7 +250,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         }
 
         access(all) view fun unitOfAccount(): Type {
-            return self.borrowPriceOracleAggregator().unit
+            return self.borrowPriceOracleAggregator().unitOfAccountType
         }
 
         access(all) fun priceHistory(): &[PriceHistoryEntry] {
@@ -222,28 +282,37 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         }
 
         access(self) view fun borrowPriceOracleAggregator(): &PriceOracleAggregatorStorage {
-            return (&FlowPriceOracleAggregatorv1.oracleAggregators[self.priceOracleID])!
+            return (&FlowPriceOracleAggregatorv1.storage[self.storageID])!
         }
     }
 
-    access(all) resource PriceOracleCronHandler: FlowTransactionScheduler.TransactionHandler{
-        access(all) let priceOracleID: UInt64
+    /// Scheduler handler that calls `tryAddPriceToHistory()` on the given
+    /// aggregator storage each tick. Use FlowCron for scheduling of this
+    /// handler.
+    access(all) resource PriceOracleCronHandler: FlowTransactionScheduler.TransactionHandler {
+        /// Storage ID of the aggregator to update.
+        access(all) let storageID: UInt64
 
-        init(priceOracleID: UInt64) {
-            self.priceOracleID = priceOracleID
+        init(storageID: UInt64) {
+            self.storageID = storageID
         }
 
+        /// Function called by the scheduler to update the price history.
         access(FlowTransactionScheduler.Execute) fun executeTransaction(id: UInt64, data: AnyStruct?) {
             let priceOracleAggregator = self.borrowPriceOracleAggregator()
             priceOracleAggregator.tryAddPriceToHistory()
         }
 
         access(self) view fun borrowPriceOracleAggregator(): &PriceOracleAggregatorStorage {
-            return (&FlowPriceOracleAggregatorv1.oracleAggregators[self.priceOracleID])!
+            return (&FlowPriceOracleAggregatorv1.storage[self.storageID])!
         }
     }
 
+    /// Creates a new aggregator storage with the given oracles and tolerances.
+    /// Returns the storage ID (resource UUID) for `createPriceOracleAggregator`
+    /// and `createPriceOracleCronHandler`. Config is immutable after creation.
     access(all) fun createPriceOracleAggregatorStorage(
+        ofToken: Type,
         oracles: [{DeFiActions.PriceOracle}],
         maxSpread: UFix64,
         maxGradient: UFix64,
@@ -253,6 +322,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         unitOfAccount: Type,
     ): UInt64 {
         let priceOracleAggregator <- create PriceOracleAggregatorStorage(
+            ofToken: ofToken,
             oracles: oracles,
             maxSpread: maxSpread,
             maxGradient: maxGradient,
@@ -262,19 +332,24 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             unitOfAccount: unitOfAccount
         )
         let id = priceOracleAggregator.uuid
-        self.oracleAggregators[id] <-! priceOracleAggregator
-        emit AggregatorCreated(uuid: id)
+        self.storage[id] <-! priceOracleAggregator
+        emit StorageCreated(storageID: id)
         return id
     }
 
-    access(all) fun createPriceOracleAggregator(id: UInt64): PriceOracleAggregator {
-        return PriceOracleAggregator(priceOracleID: id)
+    /// Returns a `PriceOracleAggregator` which implements
+    /// `DeFiActions.PriceOracle` for the given storage.
+    access(all) fun createPriceOracleAggregator(storageID: UInt64): PriceOracleAggregator {
+        return PriceOracleAggregator(storageID: storageID)
     }
 
-    access(all) fun createPriceOracleCronHandler(id: UInt64): @PriceOracleCronHandler {
-        return <- create PriceOracleCronHandler(priceOracleID: id)
+    /// Creates a cron handler that can be used to update the price history
+    /// for the given storage. Must be stored and registered with FlowCron.
+    access(all) fun createPriceOracleCronHandler(storageID: UInt64): @PriceOracleCronHandler {
+        return <- create PriceOracleCronHandler(storageID: storageID)
     }
 
+    /// Helper struct to store the min and max of a set of prices.
     access(all) struct MinAndMaxPrices {
         access(all) let min: UFix64
         access(all) let max: UFix64
@@ -285,6 +360,8 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         }
     }
 
+    /// Struct to store one entry in the aggregator's price history array for
+    /// gradient stability checks.
     access(all) struct PriceHistoryEntry {
         access(all) let price: UFix64
         access(all) let timestamp: UFix64
@@ -295,7 +372,5 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         }
     }
 
-    init() {
-        self.oracleAggregators <- {}
-    }
+
 }

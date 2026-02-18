@@ -1,8 +1,20 @@
 import "DeFiActions"
 
+/// FlowPriceOracleRouterv1 exposes a single `DeFiActions.PriceOracle` that
+/// routes by token type: one oracle per token. All oracles must share the
+/// same unit of account. Config (oracles, unit of account) is immutable at
+/// creation to avoid accidental changes in production.
+/// Use this when the protocol needs one oracle reference but prices come 
+/// from different sources per token.
 access(all) contract FlowPriceOracleRouterv1 {
 
+    /// Router implementing `DeFiActions.PriceOracle`: dispatches
+    /// `price(ofToken)` to the oracle for that token type. All oracles must
+    /// have the same `unitOfAccount` (enforced at creation). Immutable.
+    ///
+    /// See `DeFiActions.PriceOracle` for interface documentation.
     access(all) struct PriceOracleRouter: DeFiActions.PriceOracle {
+        /// Token type -> oracle for that token type.
         access(self) let oracles: {Type: {DeFiActions.PriceOracle}}
         access(self) let unitOfAccountType: Type
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
@@ -51,6 +63,8 @@ access(all) contract FlowPriceOracleRouterv1 {
         }
     }
 
+    /// Creates a router with the given unit of account and token-type -> oracle
+    /// map. All oracles must report in `unitOfAccount`.
     access(all) fun createPriceOracleRouter(
         unitOfAccount: Type,
         oracles: {Type: {DeFiActions.PriceOracle}},

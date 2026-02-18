@@ -1,11 +1,11 @@
 import "FlowPriceOracleAggregatorv1"
 
 transaction(
-    oracleStorageID: UInt64,
+    storageID: UInt64,
     forToken: Type,
 ) {
     execute {
-        FlowPriceOracleAggregatorv1.createPriceOracleAggregator(id: oracleStorageID).price(
+        let _ = FlowPriceOracleAggregatorv1.createPriceOracleAggregator(storageID: storageID).price(
             ofToken: forToken,
         )
     }

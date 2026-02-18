@@ -9,11 +9,11 @@ import "test_helpers.cdc"
 import "test_helpers_price_oracle_aggregator.cdc"
 
 access(all) var snapshot: UInt64 = 0
-access(all) var signer: Test.TestAccount = Test.getAccount(0x0000000000000001)
+access(all) var signer = Test.getAccount(0x0000000000000001)
 
 access(all) fun setup() {
     deployContracts()
-    mintFlow(to: signer, amount: 100.0)
+    let _ = mintFlow(to: signer, amount: 100.0)
     snapshot = getCurrentBlockHeight()
 }
 
@@ -25,6 +25,7 @@ access(all) fun beforeEach() {
 access(all) fun test_single_oracle() {
     let info = createAggregator(
         signer: signer,
+        ofToken: Type<@FlowToken.Vault>(),
         oracleCount: 1,
         maxSpread: 0.0,
         maxGradient: 0.0,
@@ -40,13 +41,13 @@ access(all) fun test_single_oracle() {
     )
     let prices: [UFix64?] = [1.0, 0.0001, 1337.0]
     for p in prices {
-        setPrice(
-            priceOracleStorageID: info.oracleIDs[0],
+        setMultiMockOraclePrice(
+            storageID: info.mockOracleStorageIDs[0],
             forToken: Type<@FlowToken.Vault>(),
             price: p,
         )
-        var price = getPrice(
-            uuid: info.aggregatorID,
+        var price = oracleAggregatorPrice(
+            storageID: info.aggregatorStorageID,
             ofToken: Type<@FlowToken.Vault>()
         )
         Test.assertEqual(price, p)
@@ -61,6 +62,7 @@ access(all) fun test_multiple_oracles() {
         }
         let info = createAggregator(
             signer: signer,
+            ofToken: Type<@FlowToken.Vault>(),
             oracleCount: oracleCount,
             maxSpread: 0.0,
             maxGradient: 0.0,
@@ -76,15 +78,15 @@ access(all) fun test_multiple_oracles() {
         )
         let prices: [UFix64?] = [1.0, 0.0001, 1337.0]
         for p in prices {
-            for oracleID in info.oracleIDs {
-                setPrice(
-                    priceOracleStorageID: oracleID,
+            for oracleID in info.mockOracleStorageIDs {
+                setMultiMockOraclePrice(
+                    storageID: oracleID,
                     forToken: Type<@FlowToken.Vault>(),
                     price: p,
                 )
             }
-            var price = getPrice(
-                uuid: info.aggregatorID,
+            var price = oracleAggregatorPrice(
+                storageID: info.aggregatorStorageID,
                 ofToken: Type<@FlowToken.Vault>()
             )
             Test.assertEqual(price, p)
@@ -151,6 +153,7 @@ access(all) fun test_average_price() {
         }
         let info = createAggregator(
             signer: signer,
+            ofToken: Type<@FlowToken.Vault>(),
             oracleCount: testRun.prices.length,
             maxSpread: UFix64.max,
             maxGradient: UFix64.max,
@@ -165,8 +168,8 @@ access(all) fun test_average_price() {
             aggregatorCronHandlerStoragePath: /storage/aggregatorCronHandler
         )
         set_prices(info: info, prices: testRun.prices)
-        var price = getPrice(
-            uuid: info.aggregatorID,
+        var price = oracleAggregatorPrice(
+            storageID: info.aggregatorStorageID,
             ofToken: Type<@FlowToken.Vault>()
         )
         if price != testRun.expectedPrice {
@@ -238,6 +241,7 @@ access(all) fun test_spread() {
         }
         let info = createAggregator(
             signer: signer,
+            ofToken: Type<@FlowToken.Vault>(),
             oracleCount: testRun.prices.length,
             maxSpread: testRun.maxSpread,
             maxGradient: UFix64.max,
@@ -252,8 +256,8 @@ access(all) fun test_spread() {
             aggregatorCronHandlerStoragePath: /storage/aggregatorCronHandler
         )
         set_prices(info: info, prices: testRun.prices)
-        var price = getPrice(
-            uuid: info.aggregatorID,
+        var price = oracleAggregatorPrice(
+            storageID: info.aggregatorStorageID,
             ofToken: Type<@FlowToken.Vault>()
         )
         if price != testRun.expectedPrice {
@@ -327,6 +331,7 @@ access(all) fun test_gradient() {
         }
         let info = createAggregator(
             signer: signer,
+            ofToken: Type<@FlowToken.Vault>(),
             oracleCount: 1,
             maxSpread: UFix64.max,
             maxGradient: testRun.maxGradient,
@@ -343,19 +348,19 @@ access(all) fun test_gradient() {
         // need to move time to avoid race condition of the cron job
         Test.moveTime(by: 10.0)
         for price in testRun.priceHistory {
-            setPrice(
-                priceOracleStorageID: info.oracleIDs[0],
+            setMultiMockOraclePrice(
+                storageID: info.mockOracleStorageIDs[0],
                 forToken: Type<@FlowToken.Vault>(),
                 price: price,
             )
             Test.moveTime(by: testRun.priceHistoryDelay)
-            var price = getPrice(
-                uuid: info.aggregatorID,
+            var price = oracleAggregatorPrice(
+                storageID: info.aggregatorStorageID,
                 ofToken: Type<@FlowToken.Vault>()
             )
         }
         // make sure prices are correctly recorded
-        let priceHistory = getPriceHistory(uuid: info.aggregatorID,)
+        let priceHistory = oracleAggregatorPriceHistory(storageID: info.aggregatorStorageID)
         Test.assertEqual(testRun.priceHistory.length, priceHistory.length)
         var i = 0
         for price in testRun.priceHistory {
@@ -363,8 +368,8 @@ access(all) fun test_gradient() {
             i = i + 1
         }
 
-        var price = getPrice(
-            uuid: info.aggregatorID,
+        var price = oracleAggregatorPrice(
+            storageID: info.aggregatorStorageID,
             ofToken: Type<@FlowToken.Vault>()
         )
         let priceIsStable = price != nil
@@ -380,6 +385,7 @@ access(self) fun test_gradient_incomplete_price_history() {
     let priceHistory = [1.0, nil, nil, 4.0]
     let info = createAggregator(
         signer: signer,
+        ofToken: Type<@FlowToken.Vault>(),
         oracleCount: 1,
         maxSpread: UFix64.max,
         maxGradient: 100.0,
@@ -395,19 +401,19 @@ access(self) fun test_gradient_incomplete_price_history() {
     )
     Test.moveTime(by: 10.0)
     for price in priceHistory {
-        setPrice(
-            priceOracleStorageID: info.oracleIDs[0],
+        setMultiMockOraclePrice(
+            storageID: info.mockOracleStorageIDs[0],
             forToken: Type<@FlowToken.Vault>(),
             price: price,
         )
         Test.moveTime(by: 60.0)
-        var price = getPrice(
-            uuid: info.aggregatorID,
+        var price = oracleAggregatorPrice(
+            storageID: info.aggregatorStorageID,
             ofToken: Type<@FlowToken.Vault>()
         )
     }
-    var price = getPrice(
-        uuid: info.aggregatorID,
+    var price = oracleAggregatorPrice(
+        storageID: info.aggregatorStorageID,
         ofToken: Type<@FlowToken.Vault>()
     )
     let priceIsStable = price != nil
@@ -418,6 +424,7 @@ access(self) fun test_gradient_old_price_history() {
     let priceHistory = [1.0, nil, nil, 40.0]
     let info = createAggregator(
         signer: signer,
+        ofToken: Type<@FlowToken.Vault>(),
         oracleCount: 1,
         maxSpread: UFix64.max,
         maxGradient: 1.0,
@@ -433,19 +440,19 @@ access(self) fun test_gradient_old_price_history() {
     )
     Test.moveTime(by: 10.0)
     for price in priceHistory {
-        setPrice(
-            priceOracleStorageID: info.oracleIDs[0],
+        setMultiMockOraclePrice(
+            storageID: info.mockOracleStorageIDs[0],
             forToken: Type<@FlowToken.Vault>(),
             price: price,
         )
         Test.moveTime(by: 60.0)
-        var price = getPrice(
-            uuid: info.aggregatorID,
+        var price = oracleAggregatorPrice(
+            storageID: info.aggregatorStorageID,
             ofToken: Type<@FlowToken.Vault>()
         )
     }
-    var price = getPrice(
-        uuid: info.aggregatorID,
+    var price = oracleAggregatorPrice(
+        storageID: info.aggregatorStorageID,
         ofToken: Type<@FlowToken.Vault>()
     )
     let priceIsStable = price != nil
@@ -455,8 +462,8 @@ access(self) fun test_gradient_old_price_history() {
 access(self) fun set_prices(info: CreateAggregatorInfo, prices: [UFix64?]) {
     var i = 0
     for p in prices {
-        setPrice(
-            priceOracleStorageID: info.oracleIDs[i],
+        setMultiMockOraclePrice(
+            storageID: info.mockOracleStorageIDs[i],
             forToken: Type<@FlowToken.Vault>(),
             price: p,
         )
@@ -468,7 +475,7 @@ access(self) fun log_fail_events() {
     let failureEvents = [
         Type<FlowPriceOracleAggregatorv1.PriceNotAvailable>(),
         Type<FlowPriceOracleAggregatorv1.PriceNotWithinSpreadTolerance>(),
-        Type<FlowPriceOracleAggregatorv1.PriceNotStable>()
+        Type<FlowPriceOracleAggregatorv1.PriceNotWithinGradientTolerance>()
     ]
     for eventType in failureEvents {
         let events = Test.eventsOfType(eventType)
