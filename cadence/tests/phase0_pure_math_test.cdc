@@ -28,7 +28,7 @@ fun snap(price: UFix128, creditIdx: UFix128, debitIdx: UFix128, cf: UFix128, bf:
 
 access(all)
 fun test_healthFactor_zeroBalances_returnsInfinite() {  // Renamed for clarity
-    let balances: {Type: FlowALPv1.InternalBalance} = {}
+    let balances: {Type: FlowALPModels.InternalBalance} = {}
     let snaps: {Type: FlowALPv1.TokenSnapshot} = {}
     let view = FlowALPv1.PositionView(
         balances: balances,
@@ -49,8 +49,8 @@ fun test_healthFactor_zeroCollateral_positiveDebt_returnsZero() {
     let snapshots: {Type: FlowALPv1.TokenSnapshot} = {}
     snapshots[tDebt] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.5, bf: 1.0)
 
-    let balances: {Type: FlowALPv1.InternalBalance} = {}
-    balances[tDebt] = FlowALPv1.InternalBalance(
+    let balances: {Type: FlowALPModels.InternalBalance} = {}
+    balances[tDebt] = FlowALPModels.InternalBalance(
         direction: FlowALPModels.BalanceDirection.Debit,
         scaledBalance: 50.0
     )
@@ -79,12 +79,12 @@ fun test_healthFactor_simpleCollateralAndDebt() {
     snapshots[tDebt] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.5, bf: 1.0)
 
     // Balances: +100 collateral units, -50 debt units
-    let balances: {Type: FlowALPv1.InternalBalance} = {}
-    balances[tColl] = FlowALPv1.InternalBalance(
+    let balances: {Type: FlowALPModels.InternalBalance} = {}
+    balances[tColl] = FlowALPModels.InternalBalance(
         direction: FlowALPModels.BalanceDirection.Credit,
         scaledBalance: 100.0
     )
-    balances[tDebt] = FlowALPv1.InternalBalance(
+    balances[tDebt] = FlowALPModels.InternalBalance(
         direction: FlowALPModels.BalanceDirection.Debit,
         scaledBalance: 50.0
     )
@@ -112,8 +112,8 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     snapshots[tColl] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.8, bf: 1.0)
 
     // Balances: +100 collateral units on tColl, no entry for t (debt token)
-    let balances: {Type: FlowALPv1.InternalBalance} = {}
-    balances[tColl] = FlowALPv1.InternalBalance(
+    let balances: {Type: FlowALPModels.InternalBalance} = {}
+    balances[tColl] = FlowALPModels.InternalBalance(
         direction: FlowALPModels.BalanceDirection.Credit,
         scaledBalance: 100.0
     )
@@ -149,8 +149,8 @@ fun test_maxWithdraw_fromCollateralLimitedByHealth() {
     let snapshots: {Type: FlowALPv1.TokenSnapshot} = {}
     snapshots[t] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.5, bf: 1.0)
 
-    let balances: {Type: FlowALPv1.InternalBalance} = {}
-    balances[t] = FlowALPv1.InternalBalance(
+    let balances: {Type: FlowALPModels.InternalBalance} = {}
+    balances[t] = FlowALPModels.InternalBalance(
         direction: FlowALPModels.BalanceDirection.Credit,
         scaledBalance: 100.0
     )

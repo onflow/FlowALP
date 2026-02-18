@@ -29,6 +29,124 @@ access(all) contract FlowALPModels {
         access(all) case Debit
     }
 
+    /// InternalBalance
+    ///
+    /// A structure used internally to track a position's balance for a particular token
+    access(all) struct InternalBalance {
+
+        /// The current direction of the balance - Credit (owed to borrower) or Debit (owed to protocol)
+        access(all) var direction: BalanceDirection
+
+        /// Internally, position balances are tracked using a "scaled balance".
+        /// The "scaled balance" is the actual balance divided by the current interest index for the associated token.
+        /// This means we don't need to update the balance of a position as time passes, even as interest rates change.
+        /// We only need to update the scaled balance when the user deposits or withdraws funds.
+        /// The interest index is a number relatively close to 1.0,
+        /// so the scaled balance will be roughly of the same order of magnitude as the actual balance.
+        /// We store the scaled balance as UFix128 to align with UFix128 interest indices
+        // and to reduce rounding during true ↔ scaled conversions.
+        access(all) var scaledBalance: UFix128
+
+        // Single initializer that can handle both cases
+        init(
+            direction: BalanceDirection,
+            scaledBalance: UFix128
+        ) {
+            self.direction = direction
+            self.scaledBalance = scaledBalance
+        }
+
+        /// Records a deposit of the defined amount, updating the inner scaledBalance as well as relevant values
+        /// in the provided TokenState.
+        access(all) fun recordDeposit(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
+            switch self.direction {
+                case BalanceDirection.Credit:
+                    let scaledDeposit = FlowALPMath.trueBalanceToScaledBalance(
+                        amount,
+                        interestIndex: tokenState.creditInterestIndex
+                    )
+
+                    self.scaledBalance = self.scaledBalance + scaledDeposit
+
+                    // Increase the total credit balance for the token
+                    tokenState.increaseCreditBalance(by: amount)
+
+                case BalanceDirection.Debit:
+                    let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
+                        self.scaledBalance,
+                        interestIndex: tokenState.debitInterestIndex
+                    )
+
+                    if trueBalance >= amount {
+                        let updatedBalance = trueBalance - amount
+
+                        self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
+                            updatedBalance,
+                            interestIndex: tokenState.debitInterestIndex
+                        )
+
+                        tokenState.decreaseDebitBalance(by: amount)
+
+                    } else {
+                        let updatedBalance = amount - trueBalance
+
+                        self.direction = BalanceDirection.Credit
+                        self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
+                            updatedBalance,
+                            interestIndex: tokenState.creditInterestIndex
+                        )
+
+                        tokenState.increaseCreditBalance(by: updatedBalance)
+                        tokenState.decreaseDebitBalance(by: trueBalance)
+                    }
+            }
+        }
+
+        /// Records a withdrawal of the defined amount, updating the inner scaledBalance
+        /// as well as relevant values in the provided TokenState.
+        access(all) fun recordWithdrawal(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
+            switch self.direction {
+                case BalanceDirection.Debit:
+                    let scaledWithdrawal = FlowALPMath.trueBalanceToScaledBalance(
+                        amount,
+                        interestIndex: tokenState.debitInterestIndex
+                    )
+
+                    self.scaledBalance = self.scaledBalance + scaledWithdrawal
+
+                    tokenState.increaseDebitBalance(by: amount)
+
+                case BalanceDirection.Credit:
+                    let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
+                        self.scaledBalance,
+                        interestIndex: tokenState.creditInterestIndex
+                    )
+
+                    if trueBalance >= amount {
+                        let updatedBalance = trueBalance - amount
+
+                        self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
+                            updatedBalance,
+                            interestIndex: tokenState.creditInterestIndex
+                        )
+
+                        tokenState.decreaseCreditBalance(by: amount)
+                    } else {
+                        let updatedBalance = amount - trueBalance
+
+                        self.direction = BalanceDirection.Debit
+                        self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
+                            updatedBalance,
+                            interestIndex: tokenState.debitInterestIndex
+                        )
+
+                        tokenState.decreaseCreditBalance(by: trueBalance)
+                        tokenState.increaseDebitBalance(by: updatedBalance)
+                    }
+            }
+        }
+    }
+
     /// PoolConfig defines the interface for pool-level configuration parameters.
     access(all) struct interface PoolConfig {
 
