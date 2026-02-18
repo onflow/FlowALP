@@ -372,45 +372,18 @@ access(all) contract FlowALPv1 {
         }
     }
 
-    /// Risk parameters for a token used in effective collateral/debt computations.
-    /// The collateral and borrow factors are fractional values which represent a discount to the "true/market" value of the token.
-    /// The size of this discount indicates a subjective assessment of risk for the token.
-    /// The difference between the effective value and "true" value represents the safety buffer available to prevent loss.
-    /// - collateralFactor: the factor used to derive effective collateral
-    /// - borrowFactor: the factor used to derive effective debt
-    access(all) struct RiskParams {
-        /// The factor (Fc) used to determine effective collateral, in the range [0, 1]
-        /// See FlowALPMath.effectiveCollateral for additional detail.
-        access(all) let collateralFactor: UFix128
-        /// The factor (Fd) used to determine effective debt, in the range [0, 1]
-        /// See FlowALPMath.effectiveDebt for additional detail.
-        access(all) let borrowFactor: UFix128
-
-        init(
-            collateralFactor: UFix128,
-            borrowFactor: UFix128,
-        ) {
-            pre {
-                collateralFactor <= 1.0: "collateral factor must be <=1"
-                borrowFactor <= 1.0: "borrow factor must be <=1"
-            }
-            self.collateralFactor = collateralFactor
-            self.borrowFactor = borrowFactor
-        }
-    }
-
     /// Immutable snapshot of token-level data required for pure math operations
     access(all) struct TokenSnapshot {
         access(all) let price: UFix128
         access(all) let creditIndex: UFix128
         access(all) let debitIndex: UFix128
-        access(all) let risk: RiskParams
+        access(all) let risk: {FlowALPModels.RiskParams}
 
         init(
             price: UFix128,
             credit: UFix128,
             debit: UFix128,
-            risk: RiskParams
+            risk: {FlowALPModels.RiskParams}
         ) {
             self.price = price
             self.creditIndex = credit
@@ -421,13 +394,13 @@ access(all) contract FlowALPv1 {
         /// Returns the effective debt (denominated in $) for the given debit balance of this snapshot's token.
         /// See FlowALPMath.effectiveDebt for additional details.
         access(all) view fun effectiveDebt(debitBalance: UFix128): UFix128 {
-            return FlowALPMath.effectiveDebt(debit: debitBalance, price: self.price, borrowFactor: self.risk.borrowFactor)
+            return FlowALPMath.effectiveDebt(debit: debitBalance, price: self.price, borrowFactor: self.risk.getBorrowFactor())
         }
 
         /// Returns the effective collateral (denominated in $) for the given credit balance of this snapshot's token.
         /// See FlowALPMath.effectiveCollateral for additional details.
         access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128 {
-            return FlowALPMath.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.collateralFactor)
+            return FlowALPMath.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.getCollateralFactor())
         }
     }
 
@@ -554,8 +527,8 @@ access(all) contract FlowALPv1 {
             }
         }
 
-        let collateralFactor = withdrawSnap.risk.collateralFactor
-        let borrowFactor = withdrawSnap.risk.borrowFactor
+        let collateralFactor = withdrawSnap.risk.getCollateralFactor()
+        let borrowFactor = withdrawSnap.risk.getBorrowFactor()
 
         if withdrawBal == nil || withdrawBal!.direction == FlowALPModels.BalanceDirection.Debit {
             // withdrawing increases debt
@@ -828,7 +801,7 @@ access(all) contract FlowALPv1 {
                 price: UFix128(self.config.getPriceOracle().price(ofToken: type)!),
                 credit: tokenState.creditInterestIndex,
                 debit: tokenState.debitInterestIndex,
-                risk: FlowALPv1.RiskParams(
+                risk: FlowALPModels.RiskParamsImplv1(
                     collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: type)),
                     borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: type)),
                 )
@@ -1003,8 +976,8 @@ access(all) contract FlowALPv1 {
             // Compute the health factor which would result if we were to accept this liquidation
             let Ce_pre = balanceSheet.effectiveCollateral // effective collateral pre-liquidation
             let De_pre = balanceSheet.effectiveDebt       // effective debt pre-liquidation
-            let Fc = positionView.snapshots[seizeType]!.risk.collateralFactor
-            let Fd = positionView.snapshots[debtType]!.risk.borrowFactor
+            let Fc = positionView.snapshots[seizeType]!.risk.getCollateralFactor()
+            let Fd = positionView.snapshots[debtType]!.risk.getBorrowFactor()
 
             // Ce_seize = effective value of seized collateral ($)
             let Ce_seize = FlowALPMath.effectiveCollateral(credit: UFix128(seizeAmount), price: UFix128(Pc_oracle), collateralFactor: Fc)
@@ -2812,7 +2785,7 @@ access(all) contract FlowALPv1 {
                     price: UFix128(self.config.getPriceOracle().price(ofToken: t)!),
                     credit: tokenState.creditInterestIndex,
                     debit: tokenState.debitInterestIndex,
-                    risk: FlowALPv1.RiskParams(
+                    risk: FlowALPModels.RiskParamsImplv1(
                         collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: t)),
                         borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: t)),
                     )

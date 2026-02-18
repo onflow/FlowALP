@@ -19,7 +19,7 @@ fun snap(price: UFix128, creditIdx: UFix128, debitIdx: UFix128, cf: UFix128, bf:
         price: price,
         credit: creditIdx,
         debit: debitIdx,
-        risk: FlowALPv1.RiskParams(
+        risk: FlowALPModels.RiskParamsImplv1(
             collateralFactor: cf,
             borrowFactor: bf,
         )

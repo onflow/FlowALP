@@ -147,6 +147,38 @@ access(all) contract FlowALPModels {
         }
     }
 
+    /// RiskParams interface for token risk parameters used in effective collateral/debt computations.
+    access(all) struct interface RiskParams {
+        access(all) view fun getCollateralFactor(): UFix128
+        access(all) view fun getBorrowFactor(): UFix128
+    }
+
+    /// RiskParamsImplv1 is the concrete implementation of RiskParams.
+    access(all) struct RiskParamsImplv1: RiskParams {
+        access(self) let collateralFactor: UFix128
+        access(self) let borrowFactor: UFix128
+
+        init(
+            collateralFactor: UFix128,
+            borrowFactor: UFix128,
+        ) {
+            pre {
+                collateralFactor <= 1.0: "collateral factor must be <=1"
+                borrowFactor <= 1.0: "borrow factor must be <=1"
+            }
+            self.collateralFactor = collateralFactor
+            self.borrowFactor = borrowFactor
+        }
+
+        access(all) view fun getCollateralFactor(): UFix128 {
+            return self.collateralFactor
+        }
+
+        access(all) view fun getBorrowFactor(): UFix128 {
+            return self.borrowFactor
+        }
+    }
+
     /// PoolConfig defines the interface for pool-level configuration parameters.
     access(all) struct interface PoolConfig {
 
