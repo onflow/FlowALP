@@ -93,7 +93,13 @@
 			}
 		},
 		"FlowPriceOracleAggregatorv1": {
-			"source": "./cadence/contracts/FlowPriceOracleAggregatorV1.cdc",
+			"source": "./cadence/contracts/FlowPriceOracleAggregatorv1.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"FlowPriceOracleRouterv1": {
+			"source": "./cadence/contracts/FlowPriceOracleRouterv1.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}

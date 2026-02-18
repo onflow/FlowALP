@@ -182,7 +182,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
 
         init(priceOracleID: UInt64) {
             self.priceOracleID = priceOracleID
-            self.uniqueID = nil
+            self.uniqueID = DeFiActions.createUniqueIdentifier()
         }
 
         access(all) fun price(ofToken: Type): UFix64? {
