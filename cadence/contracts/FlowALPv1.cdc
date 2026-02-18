@@ -200,36 +200,6 @@ access(all) contract FlowALPv1 {
         - We convert at boundaries via type casting to UFix128 or FlowALPMath.toUFix64.
     */
 
-    /// BalanceSheet
-    ///
-    /// An struct containing a position's overview in terms of its effective collateral and debt
-    /// as well as its current health.
-    access(all) struct BalanceSheet {
-
-        /// Effective collateral is a normalized valuation of collateral deposited into this position, denominated in $.
-        /// In combination with effective debt, this determines how much additional debt can be taken out by this position.
-        access(all) let effectiveCollateral: UFix128
-
-        /// Effective debt is a normalized valuation of debt withdrawn against this position, denominated in $.
-        /// In combination with effective collateral, this determines how much additional debt can be taken out by this position.
-        access(all) let effectiveDebt: UFix128
-
-        /// The health of the related position
-        access(all) let health: UFix128
-
-        init(
-            effectiveCollateral: UFix128,
-            effectiveDebt: UFix128
-        ) {
-            self.effectiveCollateral = effectiveCollateral
-            self.effectiveDebt = effectiveDebt
-            self.health = FlowALPMath.healthComputation(
-                effectiveCollateral: effectiveCollateral,
-                effectiveDebt: effectiveDebt
-            )
-        }
-    }
-
     access(all) struct PauseParamsView {
         access(all) let paused: Bool
         access(all) let warmupSec: UInt64
@@ -384,7 +354,7 @@ access(all) contract FlowALPv1 {
             return 0.0
         }
 
-        // TODO: this logic partly duplicates BalanceSheet construction in _getUpdatedBalanceSheet
+        // TODO: this logic partly duplicates FlowALPModels.BalanceSheet construction in _getUpdatedBalanceSheet
         // This function differs in that it does not read any data from a Pool resource. Consider consolidating the two implementations.
         var effectiveCollateralTotal: UFix128 = 0.0
         var effectiveDebtTotal: UFix128 = 0.0
@@ -992,16 +962,16 @@ access(all) contract FlowALPv1 {
 
         // TODO: documentation
         access(self) fun computeAdjustedBalancesAfterWithdrawal(
-            balanceSheet: BalanceSheet,
+            balanceSheet: FlowALPModels.BalanceSheet,
             position: &InternalPosition,
             withdrawType: Type,
             withdrawAmount: UFix64
-        ): BalanceSheet {
+        ): FlowALPModels.BalanceSheet {
             var effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral
             var effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt
 
             if withdrawAmount == 0.0 {
-                return BalanceSheet(effectiveCollateral: effectiveCollateralAfterWithdrawal, effectiveDebt: effectiveDebtAfterWithdrawal)
+                return FlowALPModels.BalanceSheet(effectiveCollateral: effectiveCollateralAfterWithdrawal, effectiveDebt: effectiveDebtAfterWithdrawal)
             }
             if self.config.isDebugLogging() {
                 log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
@@ -1046,7 +1016,7 @@ access(all) contract FlowALPv1 {
                     }
             }
 
-            return BalanceSheet(
+            return FlowALPModels.BalanceSheet(
                 effectiveCollateral: effectiveCollateralAfterWithdrawal,
                 effectiveDebt: effectiveDebtAfterWithdrawal
             )
@@ -1232,11 +1202,11 @@ access(all) contract FlowALPv1 {
 
         // Helper function to compute balances after deposit
         access(self) fun computeAdjustedBalancesAfterDeposit(
-            balanceSheet: BalanceSheet,
+            balanceSheet: FlowALPModels.BalanceSheet,
             position: &InternalPosition,
             depositType: Type,
             depositAmount: UFix64
-        ): BalanceSheet {
+        ): FlowALPModels.BalanceSheet {
             var effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral
             var effectiveDebtAfterDeposit = balanceSheet.effectiveDebt
 
@@ -1245,7 +1215,7 @@ access(all) contract FlowALPv1 {
                 log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
             }
             if depositAmount == 0.0 {
-                return BalanceSheet(
+                return FlowALPModels.BalanceSheet(
                     effectiveCollateral: effectiveCollateralAfterDeposit,
                     effectiveDebt: effectiveDebtAfterDeposit
                 )
@@ -1303,7 +1273,7 @@ access(all) contract FlowALPv1 {
             // We now have new effective collateral and debt values that reflect the proposed deposit (if any!).
             // Now we can figure out how many of the withdrawal token are available while keeping the position
             // at or above the target health value.
-            return BalanceSheet(
+            return FlowALPModels.BalanceSheet(
                 effectiveCollateral: effectiveCollateralAfterDeposit,
                 effectiveDebt: effectiveDebtAfterDeposit
             )
@@ -2553,9 +2523,9 @@ access(all) contract FlowALPv1 {
             }
         }
 
-        /// Returns a position's BalanceSheet containing its effective collateral and debt as well as its current health
+        /// Returns a position's FlowALPModels.BalanceSheet containing its effective collateral and debt as well as its current health
         /// TODO(jord): in all cases callers already are calling _borrowPosition, more efficient to pass in PositionView?
-        access(self) fun _getUpdatedBalanceSheet(pid: UInt64): BalanceSheet {
+        access(self) fun _getUpdatedBalanceSheet(pid: UInt64): FlowALPModels.BalanceSheet {
             let position = self._borrowPosition(pid: pid)
 
             // Get the position's collateral and debt values in terms of the default token.
@@ -2594,7 +2564,7 @@ access(all) contract FlowALPv1 {
                 }
             }
 
-            return BalanceSheet(
+            return FlowALPModels.BalanceSheet(
                 effectiveCollateral: effectiveCollateral,
                 effectiveDebt: effectiveDebt
             )

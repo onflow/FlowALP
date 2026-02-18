@@ -309,6 +309,29 @@ access(all) contract FlowALPModels {
         )
     }
 
+    /// BalanceSheet
+    ///
+    /// A struct containing a position's overview in terms of its effective collateral and debt
+    /// as well as its current health.
+    access(all) struct BalanceSheet {
+
+        access(all) let effectiveCollateral: UFix128
+        access(all) let effectiveDebt: UFix128
+        access(all) let health: UFix128
+
+        init(
+            effectiveCollateral: UFix128,
+            effectiveDebt: UFix128
+        ) {
+            self.effectiveCollateral = effectiveCollateral
+            self.effectiveDebt = effectiveDebt
+            self.health = FlowALPMath.healthComputation(
+                effectiveCollateral: effectiveCollateral,
+                effectiveDebt: effectiveDebt
+            )
+        }
+    }
+
     /// PoolConfig defines the interface for pool-level configuration parameters.
     access(all) struct interface PoolConfig {
 
