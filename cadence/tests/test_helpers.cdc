@@ -371,6 +371,23 @@ fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, pri
     Test.expect(setRes, Test.beSucceeded())
 }
 
+access(all)
+fun getOraclePrice(tokenIdentifier: String): UFix64 {
+    let result = Test.executeScript(
+        Test.readFile("../scripts/flow-alp/get_oracle_price.cdc"),
+        [tokenIdentifier]
+    )
+
+    if result.error != nil {
+        panic("Failed to get oracle price: ".concat(result.error!.message))
+    }
+
+    let price = result.returnValue! as! UFix64?
+        ?? panic("No price set for token: ".concat(tokenIdentifier))
+
+    return price
+}
+
 /// Sets a swapper for the given pair with the given price ratio.
 /// This overwrites any previously stored swapper for this pair, if any exists.
 /// This is intended to be used in tests both to set an initial DEX price for a supported token,
@@ -477,9 +494,9 @@ fun setPoolPauseState(
 }
 
 access(all)
-fun createPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+fun createPosition(admin: Test.TestAccount, signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     // Grant beta access to the signer if they don't have it yet
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, signer)
+    grantBetaPoolParticipantAccess(admin, signer)
 
     let openRes = _executeTransaction(
         "../transactions/flow-alp/position/create_position.cdc",
@@ -523,10 +540,10 @@ fun depositToPositionNotManaged(signer: Test.TestAccount, positionStoragePath: S
 }
 
 access(all)
-fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, beFailed: Bool) {
+fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, vaultStoragePath: StoragePath, amount: UFix64, beFailed: Bool) {
     let borrowRes = _executeTransaction(
         "./transactions/position-manager/borrow_from_position.cdc",
-        [positionId, tokenTypeIdentifier, amount],
+        [positionId, tokenTypeIdentifier, vaultStoragePath, amount],
         signer
     )
     Test.expect(borrowRes, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -707,9 +724,30 @@ fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFail
 }
 
 access(all)
+fun manualLiquidation(
+    signer: Test.TestAccount, 
+    pid: UInt64, 
+    debtVaultIdentifier: String, 
+    seizeVaultIdentifier: String, 
+    seizeAmount: UFix64, 
+    repayAmount: UFix64,
+): Test.TransactionResult {
+    return _executeTransaction(
+        "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
+        [pid, debtVaultIdentifier, seizeVaultIdentifier, seizeAmount, repayAmount],
+        signer
+    )
+}
+
+access(all)
 fun setupMoetVault(_ signer: Test.TestAccount, beFailed: Bool) {
     let setupRes = _executeTransaction("../transactions/moet/setup_vault.cdc", [], signer)
     Test.expect(setupRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun setupGenericVault(_ signer: Test.TestAccount, vaultIdentifier: String): Test.TransactionResult {
+    return _executeTransaction("../transactions/fungible-tokens/setup_generic_vault.cdc", [vaultIdentifier], signer)
 }
 
 access(all)
@@ -756,6 +794,23 @@ fun sendFlow(from: Test.TestAccount, to: Test.TestAccount, amount: UFix64) {
     Test.expect(res, Test.beSucceeded())
 }
 
+/// Transfers any fungible token from one account to another using the token identifier
+access(all)
+fun transferFungibleTokens(
+    tokenIdentifier: String,
+    from: Test.TestAccount,
+    to: Test.TestAccount,
+    amount: UFix64
+) {
+    let transferTx = Test.Transaction(
+        code: Test.readFile("../transactions/fungible-tokens/generic_transfer.cdc"),
+        authorizers: [from.address],
+        signers: [from],
+        arguments: [tokenIdentifier, amount, to.address]
+    )
+    let res = Test.executeTransaction(transferTx)
+    Test.expect(res, Test.beSucceeded())
+}
 
 access(all)
 fun expectEvents(eventType: Type, expectedCount: Int) {

@@ -25,13 +25,15 @@
 		"FlowALPv1": {
 			"source": "./cadence/contracts/FlowALPv1.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"mainnet": "47f544294e3b7656"
 			}
 		},
 		"FlowALPMath": {
 			"source": "./cadence/lib/FlowALPMath.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61"
 			}
 		},
 		"FlowALPRebalancerPaidv1": {
@@ -55,25 +57,29 @@
 		"FungibleTokenConnectors": {
 			"source": "./FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
 			"aliases": {
+				"mainnet": "0c237e1265caa7a3",
 				"testing": "0000000000000006"
 			}
 		},
 		"MOET": {
 			"source": "./cadence/contracts/MOET.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61"
 			}
 		},
 		"MockDexSwapper": {
 			"source": "./cadence/contracts/mocks/MockDexSwapper.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61"
 			}
 		},
 		"MockOracle": {
 			"source": "./cadence/contracts/mocks/MockOracle.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"mainnet": "b1d63873c3cc9f79"
 			}
 		},
 		"MockYieldToken": {

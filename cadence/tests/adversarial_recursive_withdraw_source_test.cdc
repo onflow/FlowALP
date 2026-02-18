@@ -74,6 +74,7 @@ fun testRecursiveWithdrawSource() {
 
     let initialDeposit1 = 10000.0
     createPosition(
+        admin: PROTOCOL_ACCOUNT,
         signer: user1,
         amount: initialDeposit1,
         vaultStoragePath: /storage/flowTokenVault,

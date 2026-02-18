@@ -79,7 +79,7 @@ fun test_collectStability_partialReserves_collectsAvailable() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 1000.0, beFailed: false)
 
     // LP deposits 1000 MOET (creates credit balance, provides borrowing liquidity)
-    createPosition(signer: lp, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with large FLOW collateral to borrow most of the MOET
     let borrower = Test.createAccount()
@@ -90,7 +90,7 @@ fun test_collectStability_partialReserves_collectsAvailable() {
     // With 0.8 CF and 1.3 target health: 10000 FLOW allows borrowing ~6153 MOET
     // But pool only has 1000 MOET, so borrower gets ~1000 MOET (limited by liquidity)
     // This leaves reserves very low (close to 0)
-    createPosition(signer: borrower, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
@@ -136,7 +136,7 @@ fun test_collectStability_tinyAmount_roundsToZero_returnsNil() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 100.0, beFailed: false)
 
     // LP deposits small amount
-    createPosition(signer: lp, amount: 100.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 100.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with tiny borrow
     let borrower = Test.createAccount()
@@ -144,7 +144,7 @@ fun test_collectStability_tinyAmount_roundsToZero_returnsNil() {
     transferFlowTokens(to: borrower, amount: 1.0)
 
     // borrower deposits small FLOW and borrows tiny amount of MOET
-    createPosition(signer: borrower, amount: 1.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 1.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     // set a very low stability fee rate
     let rateResult = setStabilityFeeRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, stabilityFeeRate: 0.0001) // 0.01%
@@ -180,7 +180,7 @@ fun test_collectStability_multipleTokens() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: moetLp.address, amount: 10000.0, beFailed: false)
 
     // MOET LP deposits MOET (creates MOET credit balance)
-    createPosition(signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup FLOW LP to provide FLOW liquidity for borrowing
     let flowLp = Test.createAccount()
@@ -188,7 +188,7 @@ fun test_collectStability_multipleTokens() {
     transferFlowTokens(to: flowLp, amount: 10000.0)
 
     // FLOW LP deposits FLOW (creates FLOW credit balance)
-    createPosition(signer: flowLp, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: flowLp, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     // setup MOET borrower with FLOW collateral (creates MOET debit)
     let moetBorrower = Test.createAccount()
@@ -196,7 +196,7 @@ fun test_collectStability_multipleTokens() {
     transferFlowTokens(to: moetBorrower, amount: 1000.0)
 
     // MOET borrower deposits FLOW and auto-borrows MOET (creates MOET debit balance)
-    createPosition(signer: moetBorrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: moetBorrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     // setup FLOW borrower with MOET collateral (creates FLOW debit)
     let flowBorrower = Test.createAccount()
@@ -204,9 +204,9 @@ fun test_collectStability_multipleTokens() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: flowBorrower.address, amount: 1000.0, beFailed: false)
 
     // FLOW borrower deposits MOET as collateral
-    createPosition(signer: flowBorrower, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: flowBorrower, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     // Then borrow FLOW (creates FLOW debit balance)
-    borrowFromPosition(signer: flowBorrower, positionId: 3, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 500.0, beFailed: false)
+    borrowFromPosition(signer: flowBorrower, positionId: 3, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 500.0, beFailed: false)
 
     // set 10% annual debit rates
     // Stability is calculated on interest income, not debit balance directly
@@ -290,7 +290,7 @@ fun test_collectStability_zeroRate_returnsNil() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10000.0, beFailed: false)
 
     // LP deposits MOET
-    createPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with FLOW collateral
     let borrower = Test.createAccount()
@@ -298,7 +298,7 @@ fun test_collectStability_zeroRate_returnsNil() {
     transferFlowTokens(to: borrower, amount: 1000.0)
 
     // borrower deposits FLOW and auto-borrows MOET (creates debit balance)
-    createPosition(signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     // set stability fee rate to 0
     let rateResult = setStabilityFeeRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, stabilityFeeRate: 0.0)
