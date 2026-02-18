@@ -15,6 +15,38 @@ access(all) struct CreateAggregatorInfo {
 }
 
 access(all) fun createAggregator(
+    ofToken: Type,
+    oracleCount: Int,
+    maxSpread: UFix64,
+    maxGradient: UFix64,
+    priceHistorySize: Int,
+    priceHistoryInterval: UFix64,
+    maxPriceHistoryAge: UFix64,
+    unitOfAccount: Type,
+): CreateAggregatorInfo {
+    let res = _executeTransaction(
+        "./transactions/price-oracle-aggregator/create.cdc",
+        [ofToken, oracleCount, maxSpread, maxGradient, priceHistorySize, priceHistoryInterval, maxPriceHistoryAge, unitOfAccount],
+        []
+    )
+    Test.expect(res, Test.beSucceeded())
+    let aggregatorCreatedEvents = Test.eventsOfType(Type<FlowPriceOracleAggregatorv1.StorageCreated>())
+    let aggregatorCreatedData = aggregatorCreatedEvents[aggregatorCreatedEvents.length - 1] as! FlowPriceOracleAggregatorv1.StorageCreated
+    let oracleCreatedEvents = Test.eventsOfType(Type<MultiMockOracle.OracleCreated>())
+    let oracleIDs: [UInt64] = []
+    var i = oracleCreatedEvents.length - oracleCount
+    while i < oracleCreatedEvents.length {
+        let oracleCreatedData = oracleCreatedEvents[i] as! MultiMockOracle.OracleCreated
+        oracleIDs.append(oracleCreatedData.storageID)
+        i = i + 1
+    }
+    return CreateAggregatorInfo(
+        aggregatorStorageID: aggregatorCreatedData.storageID,
+        mockOracleStorageIDs: oracleIDs
+    )
+}
+
+access(all) fun createAggregatorWithCron(
     signer: Test.TestAccount,
     ofToken: Type,
     oracleCount: Int,
@@ -31,7 +63,7 @@ access(all) fun createAggregator(
     aggregatorCronHandlerStoragePath: StoragePath
 ): CreateAggregatorInfo {
     let res = _executeTransaction(
-        "./transactions/price-oracle-aggregator/create.cdc",
+        "./transactions/price-oracle-aggregator/create_with_cron.cdc",
         [ofToken, oracleCount, maxSpread, maxGradient, priceHistorySize, priceHistoryInterval, maxPriceHistoryAge, unitOfAccount, cronExpression, cronHandlerStoragePath, keeperExecutionEffort, executorExecutionEffort, aggregatorCronHandlerStoragePath],
         [signer]
     )
@@ -49,6 +81,19 @@ access(all) fun createAggregator(
     return CreateAggregatorInfo(
         aggregatorStorageID: aggregatorCreatedData.storageID,
         mockOracleStorageIDs: oracleIDs
+    )
+}
+
+// speed improvement by not executing individual transactions
+access(all) fun setMultiMockOraclePriceTx(
+    storageID: UInt64,
+    forToken: Type,
+    price: UFix64?,
+): Test.Transaction {
+    return getTransaction(
+        "./transactions/multi-mock-oracle/set_price.cdc",
+        [storageID, forToken, price],
+        []
     )
 }
 
@@ -85,6 +130,29 @@ access(all) fun oracleAggregatorPrice(
     return res2.returnValue as! UFix64?
 }
 
+access(all) fun oracleAggregatorPriceTx(
+    storageID: UInt64,
+    ofToken: Type,
+): Test.Transaction {
+    return getTransaction(
+        "./transactions/price-oracle-aggregator/price.cdc",
+        [storageID, ofToken],
+        []
+    )
+}
+
+access(all) fun oracleAggregatorAssertPriceTx(
+    storageID: UInt64,
+    ofToken: Type,
+    price: UFix64?,
+): Test.Transaction {
+    return getTransaction(
+        "./transactions/price-oracle-aggregator/assert_price.cdc",
+        [storageID, ofToken, price],
+        []
+    )
+}
+
 access(all) fun oracleAggregatorPriceHistory(
     storageID: UInt64,
 ): [FlowPriceOracleAggregatorv1.PriceHistoryEntry] {
@@ -97,6 +165,19 @@ access(all) fun oracleAggregatorPriceHistory(
 }
 
 // --- Helper Functions ---
+
+access(self) fun getTransaction(_ path: String, _ args: [AnyStruct], _ signers: [Test.TestAccount]): Test.Transaction {
+    let authorizers: [Address] = []
+    for signer in signers {
+        authorizers.append(signer.address)
+    }
+    return Test.Transaction(
+        code: Test.readFile(path),
+        authorizers: authorizers,
+        signers: signers,
+        arguments: args,
+    )
+}
 
 access(self) fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signers: [Test.TestAccount]): Test.TransactionResult {
     let authorizers: [Address] = []

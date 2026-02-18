@@ -5,14 +5,15 @@ import "FlowPriceOracleAggregatorv1"
 import "FlowToken"
 import "MOET"
 import "MultiMockOracle"
-import "test_helpers.cdc"
 import "test_helpers_price_oracle_aggregator.cdc"
+import "test_helpers.cdc"
 
 access(all) var snapshot: UInt64 = 0
 access(all) var signer = Test.getAccount(0x0000000000000001)
 
 access(all) fun setup() {
     deployContracts()
+
     let _ = mintFlow(to: signer, amount: 100.0)
     snapshot = getCurrentBlockHeight()
 }
@@ -24,7 +25,6 @@ access(all) fun beforeEach() {
 
 access(all) fun test_single_oracle() {
     let info = createAggregator(
-        signer: signer,
         ofToken: Type<@FlowToken.Vault>(),
         oracleCount: 1,
         maxSpread: 0.0,
@@ -33,11 +33,6 @@ access(all) fun test_single_oracle() {
         priceHistoryInterval: 0.0,
         maxPriceHistoryAge: 0.0,
         unitOfAccount: Type<@MOET.Vault>(),
-        cronExpression: "0 0 1 1 *",
-        cronHandlerStoragePath: /storage/cronHandler,
-        keeperExecutionEffort: 7500,
-        executorExecutionEffort: 2500,
-        aggregatorCronHandlerStoragePath: /storage/aggregatorCronHandler
     )
     let prices: [UFix64?] = [1.0, 0.0001, 1337.0]
     for p in prices {
@@ -61,33 +56,27 @@ access(all) fun test_multiple_oracles() {
             Test.reset(to: snapshot)
         }
         let info = createAggregator(
-            signer: signer,
-            ofToken: Type<@FlowToken.Vault>(),
+            ofToken: Type<@MOET.Vault>(),
             oracleCount: oracleCount,
             maxSpread: 0.0,
             maxGradient: 0.0,
             priceHistorySize: 0,
             priceHistoryInterval: 0.0,
             maxPriceHistoryAge: 0.0,
-            unitOfAccount: Type<@MOET.Vault>(),
-            cronExpression: "0 0 1 1 *",
-            cronHandlerStoragePath: /storage/cronHandler,
-            keeperExecutionEffort: 7500,
-            executorExecutionEffort: 2500,
-            aggregatorCronHandlerStoragePath: /storage/aggregatorCronHandler
+            unitOfAccount: Type<@FlowToken.Vault>(),
         )
         let prices: [UFix64?] = [1.0, 0.0001, 1337.0]
         for p in prices {
-            for oracleID in info.mockOracleStorageIDs {
-                setMultiMockOraclePrice(
-                    storageID: oracleID,
-                    forToken: Type<@FlowToken.Vault>(),
-                    price: p,
-                )
+            let samePrices: [UFix64?] = []
+            var i = 0
+            while i < oracleCount {
+                samePrices.append(p)
+                i = i + 1
             }
+            set_prices(info: info, prices: samePrices, forToken: Type<@MOET.Vault>())
             var price = oracleAggregatorPrice(
                 storageID: info.aggregatorStorageID,
-                ofToken: Type<@FlowToken.Vault>()
+                ofToken: Type<@MOET.Vault>()
             )
             Test.assertEqual(price, p)
         }
@@ -152,7 +141,6 @@ access(all) fun test_average_price() {
             Test.reset(to: snapshot)
         }
         let info = createAggregator(
-            signer: signer,
             ofToken: Type<@FlowToken.Vault>(),
             oracleCount: testRun.prices.length,
             maxSpread: UFix64.max,
@@ -161,13 +149,8 @@ access(all) fun test_average_price() {
             priceHistoryInterval: 0.0,
             maxPriceHistoryAge: 0.0,
             unitOfAccount: Type<@MOET.Vault>(),
-            cronExpression: "0 0 1 1 *",
-            cronHandlerStoragePath: /storage/cronHandler,
-            keeperExecutionEffort: 7500,
-            executorExecutionEffort: 2500,
-            aggregatorCronHandlerStoragePath: /storage/aggregatorCronHandler
         )
-        set_prices(info: info, prices: testRun.prices)
+        set_prices(info: info, prices: testRun.prices, forToken: Type<@FlowToken.Vault>())
         var price = oracleAggregatorPrice(
             storageID: info.aggregatorStorageID,
             ofToken: Type<@FlowToken.Vault>()
@@ -240,7 +223,6 @@ access(all) fun test_spread() {
             Test.reset(to: snapshot)
         }
         let info = createAggregator(
-            signer: signer,
             ofToken: Type<@FlowToken.Vault>(),
             oracleCount: testRun.prices.length,
             maxSpread: testRun.maxSpread,
@@ -249,13 +231,8 @@ access(all) fun test_spread() {
             priceHistoryInterval: 0.0,
             maxPriceHistoryAge: 0.0,
             unitOfAccount: Type<@MOET.Vault>(),
-            cronExpression: "0 0 1 1 *",
-            cronHandlerStoragePath: /storage/cronHandler,
-            keeperExecutionEffort: 7500,
-            executorExecutionEffort: 2500,
-            aggregatorCronHandlerStoragePath: /storage/aggregatorCronHandler
         )
-        set_prices(info: info, prices: testRun.prices)
+        set_prices(info: info, prices: testRun.prices, forToken: Type<@FlowToken.Vault>())
         var price = oracleAggregatorPrice(
             storageID: info.aggregatorStorageID,
             ofToken: Type<@FlowToken.Vault>()
@@ -263,7 +240,8 @@ access(all) fun test_spread() {
         if price != testRun.expectedPrice {
             log(testRun)
             log_fail_events()
-            Test.fail(message: "invalid price")
+            log(price)
+            Test.assertEqual(testRun.expectedPrice, price)
         }
     }
 }
@@ -330,7 +308,6 @@ access(all) fun test_gradient() {
             Test.reset(to: snapshot)
         }
         let info = createAggregator(
-            signer: signer,
             ofToken: Type<@FlowToken.Vault>(),
             oracleCount: 1,
             maxSpread: UFix64.max,
@@ -339,14 +316,7 @@ access(all) fun test_gradient() {
             priceHistoryInterval: 59.0, // allow some jitter
             maxPriceHistoryAge: 600.0, // 10 minutes
             unitOfAccount: Type<@MOET.Vault>(),
-            cronExpression: "* * 1 1 *",
-            cronHandlerStoragePath: /storage/cronHandler,
-            keeperExecutionEffort: 7500,
-            executorExecutionEffort: 2500,
-            aggregatorCronHandlerStoragePath: /storage/aggregatorCronHandler
         )
-        // need to move time to avoid race condition of the cron job
-        Test.moveTime(by: 10.0)
         for price in testRun.priceHistory {
             setMultiMockOraclePrice(
                 storageID: info.mockOracleStorageIDs[0],
@@ -384,7 +354,6 @@ access(all) fun test_gradient() {
 access(self) fun test_gradient_incomplete_price_history() {
     let priceHistory = [1.0, nil, nil, 4.0]
     let info = createAggregator(
-        signer: signer,
         ofToken: Type<@FlowToken.Vault>(),
         oracleCount: 1,
         maxSpread: UFix64.max,
@@ -393,11 +362,6 @@ access(self) fun test_gradient_incomplete_price_history() {
         priceHistoryInterval: 59.0, // allow some jitter
         maxPriceHistoryAge: 600.0, // 10 minutes
         unitOfAccount: Type<@MOET.Vault>(),
-        cronExpression: "* * 1 1 *",
-        cronHandlerStoragePath: /storage/cronHandler,
-        keeperExecutionEffort: 7500,
-        executorExecutionEffort: 2500,
-        aggregatorCronHandlerStoragePath: /storage/aggregatorCronHandler
     )
     Test.moveTime(by: 10.0)
     for price in priceHistory {
@@ -423,7 +387,6 @@ access(self) fun test_gradient_incomplete_price_history() {
 access(self) fun test_gradient_old_price_history() {
     let priceHistory = [1.0, nil, nil, 40.0]
     let info = createAggregator(
-        signer: signer,
         ofToken: Type<@FlowToken.Vault>(),
         oracleCount: 1,
         maxSpread: UFix64.max,
@@ -432,13 +395,7 @@ access(self) fun test_gradient_old_price_history() {
         priceHistoryInterval: 59.0, // allow some jitter
         maxPriceHistoryAge: 150.0,
         unitOfAccount: Type<@MOET.Vault>(),
-        cronExpression: "* * 1 1 *",
-        cronHandlerStoragePath: /storage/cronHandler,
-        keeperExecutionEffort: 7500,
-        executorExecutionEffort: 2500,
-        aggregatorCronHandlerStoragePath: /storage/aggregatorCronHandler
     )
-    Test.moveTime(by: 10.0)
     for price in priceHistory {
         setMultiMockOraclePrice(
             storageID: info.mockOracleStorageIDs[0],
@@ -459,15 +416,65 @@ access(self) fun test_gradient_old_price_history() {
     Test.assertEqual(priceIsStable, true)
 }
 
-access(self) fun set_prices(info: CreateAggregatorInfo, prices: [UFix64?]) {
+access(all) fun test_allow_jitter() {
+    let info = createAggregator(
+        ofToken: Type<@FlowToken.Vault>(),
+        oracleCount: 1,
+        maxSpread: UFix64.max,
+        maxGradient: 1.0,
+        priceHistorySize: 1,
+        priceHistoryInterval: 59.0, // allow some jitter
+        maxPriceHistoryAge: 150.0,
+        unitOfAccount: Type<@MOET.Vault>(),
+    )
+    setMultiMockOraclePrice(
+        storageID: info.mockOracleStorageIDs[0],
+        forToken: Type<@FlowToken.Vault>(),
+        price: 1.0,
+    )
+    // now everything needs to be in the same block
+    var txs: [Test.Transaction] = []
+    let originalHeight = getCurrentBlockHeight()
+    let originalTimestamp = getCurrentBlock().timestamp
+    txs.append(oracleAggregatorPriceTx(
+        storageID: info.aggregatorStorageID,
+        ofToken: Type<@FlowToken.Vault>()
+    ))
+    txs.append(setMultiMockOraclePriceTx(
+        storageID: info.mockOracleStorageIDs[0],
+        forToken: Type<@FlowToken.Vault>(),
+        price: 1.00000001,
+    ))
+    txs.append(oracleAggregatorAssertPriceTx(
+        storageID: info.aggregatorStorageID,
+        ofToken: Type<@FlowToken.Vault>(),
+        price: 1.00000001,
+    ))
+    let res = Test.executeTransactions(txs)
+    for r in res {
+        Test.expect(r, Test.beSucceeded())
+    }
+}
+
+access(all) fun test_cron_job() {
+    Test.assert(false, message: "not implemented")
+}
+
+access(self) fun set_prices(info: CreateAggregatorInfo, prices: [UFix64?], forToken: Type) {
     var i = 0
+    let txs: [Test.Transaction] = []
     for p in prices {
-        setMultiMockOraclePrice(
+        let tx = setMultiMockOraclePriceTx(
             storageID: info.mockOracleStorageIDs[i],
-            forToken: Type<@FlowToken.Vault>(),
+            forToken: forToken,
             price: p,
         )
+        txs.append(tx)
         i = i + 1
+    }
+    let res = Test.executeTransactions(txs)
+    for r in res {
+        Test.expect(r, Test.beSucceeded())
     }
 }
 
