@@ -179,6 +179,60 @@ access(all) contract FlowALPModels {
         }
     }
 
+    /// TokenSnapshot interface for immutable token-level data required for pure math operations
+    access(all) struct interface TokenSnapshot {
+        access(all) view fun getPrice(): UFix128
+        access(all) view fun getCreditIndex(): UFix128
+        access(all) view fun getDebitIndex(): UFix128
+        access(all) view fun getRisk(): {RiskParams}
+        access(all) view fun effectiveDebt(debitBalance: UFix128): UFix128
+        access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128
+    }
+
+    /// TokenSnapshotImplv1 is the concrete implementation of TokenSnapshot.
+    access(all) struct TokenSnapshotImplv1: TokenSnapshot {
+        access(self) let price: UFix128
+        access(self) let creditIndex: UFix128
+        access(self) let debitIndex: UFix128
+        access(self) let risk: {RiskParams}
+
+        init(
+            price: UFix128,
+            credit: UFix128,
+            debit: UFix128,
+            risk: {RiskParams}
+        ) {
+            self.price = price
+            self.creditIndex = credit
+            self.debitIndex = debit
+            self.risk = risk
+        }
+
+        access(all) view fun getPrice(): UFix128 {
+            return self.price
+        }
+
+        access(all) view fun getCreditIndex(): UFix128 {
+            return self.creditIndex
+        }
+
+        access(all) view fun getDebitIndex(): UFix128 {
+            return self.debitIndex
+        }
+
+        access(all) view fun getRisk(): {RiskParams} {
+            return self.risk
+        }
+
+        access(all) view fun effectiveDebt(debitBalance: UFix128): UFix128 {
+            return FlowALPMath.effectiveDebt(debit: debitBalance, price: self.price, borrowFactor: self.risk.getBorrowFactor())
+        }
+
+        access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128 {
+            return FlowALPMath.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.getCollateralFactor())
+        }
+    }
+
     /// PoolConfig defines the interface for pool-level configuration parameters.
     access(all) struct interface PoolConfig {
 

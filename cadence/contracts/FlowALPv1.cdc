@@ -372,38 +372,6 @@ access(all) contract FlowALPv1 {
         }
     }
 
-    /// Immutable snapshot of token-level data required for pure math operations
-    access(all) struct TokenSnapshot {
-        access(all) let price: UFix128
-        access(all) let creditIndex: UFix128
-        access(all) let debitIndex: UFix128
-        access(all) let risk: {FlowALPModels.RiskParams}
-
-        init(
-            price: UFix128,
-            credit: UFix128,
-            debit: UFix128,
-            risk: {FlowALPModels.RiskParams}
-        ) {
-            self.price = price
-            self.creditIndex = credit
-            self.debitIndex = debit
-            self.risk = risk
-        }
-
-        /// Returns the effective debt (denominated in $) for the given debit balance of this snapshot's token.
-        /// See FlowALPMath.effectiveDebt for additional details.
-        access(all) view fun effectiveDebt(debitBalance: UFix128): UFix128 {
-            return FlowALPMath.effectiveDebt(debit: debitBalance, price: self.price, borrowFactor: self.risk.getBorrowFactor())
-        }
-
-        /// Returns the effective collateral (denominated in $) for the given credit balance of this snapshot's token.
-        /// See FlowALPMath.effectiveCollateral for additional details.
-        access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128 {
-            return FlowALPMath.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.getCollateralFactor())
-        }
-    }
-
     /// Copy-only representation of a position used by pure math (no storage refs)
     access(all) struct PositionView {
         /// Set of all non-zero balances in the position.
@@ -411,14 +379,14 @@ access(all) contract FlowALPv1 {
         access(all) let balances: {Type: FlowALPModels.InternalBalance}
         /// Set of all token snapshots for which this position has a non-zero balance.
         /// If the position does not have a balance for a supported token, no entry for that token exists in this map.
-        access(all) let snapshots: {Type: TokenSnapshot}
+        access(all) let snapshots: {Type: {FlowALPModels.TokenSnapshot}}
         access(all) let defaultToken: Type
         access(all) let minHealth: UFix128
         access(all) let maxHealth: UFix128
 
         init(
             balances: {Type: FlowALPModels.InternalBalance},
-            snapshots: {Type: TokenSnapshot},
+            snapshots: {Type: {FlowALPModels.TokenSnapshot}},
             defaultToken: Type,
             min: UFix128,
             max: UFix128
@@ -438,10 +406,10 @@ access(all) contract FlowALPv1 {
                     switch balance.direction {
                     case FlowALPModels.BalanceDirection.Debit:
                         return FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance, interestIndex: tokenSnapshot.debitIndex)
+                            balance.scaledBalance, interestIndex: tokenSnapshot.getDebitIndex())
                     case FlowALPModels.BalanceDirection.Credit:
                         return FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance, interestIndex: tokenSnapshot.creditIndex)
+                            balance.scaledBalance, interestIndex: tokenSnapshot.getCreditIndex())
                     }
                     panic("unreachable")
                 }
@@ -467,7 +435,7 @@ access(all) contract FlowALPv1 {
                 case FlowALPModels.BalanceDirection.Credit:
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                         balance.scaledBalance,
-                        interestIndex: snap.creditIndex
+                        interestIndex: snap.getCreditIndex()
                     )
                     effectiveCollateralTotal = effectiveCollateralTotal
                         + snap.effectiveCollateral(creditBalance: trueBalance)
@@ -475,7 +443,7 @@ access(all) contract FlowALPv1 {
                 case FlowALPModels.BalanceDirection.Debit:
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                         balance.scaledBalance,
-                        interestIndex: snap.debitIndex
+                        interestIndex: snap.getDebitIndex()
                     )
                     effectiveDebtTotal = effectiveDebtTotal
                         + snap.effectiveDebt(debitBalance: trueBalance)
@@ -490,7 +458,7 @@ access(all) contract FlowALPv1 {
     /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth
     access(all) view fun maxWithdraw(
         view: PositionView,
-        withdrawSnap: TokenSnapshot,
+        withdrawSnap: {FlowALPModels.TokenSnapshot},
         withdrawBal: FlowALPModels.InternalBalance?,
         targetHealth: UFix128
     ): UFix128 {
@@ -512,7 +480,7 @@ access(all) contract FlowALPv1 {
                 case FlowALPModels.BalanceDirection.Credit:
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                         balance.scaledBalance,
-                        interestIndex: snap.creditIndex
+                        interestIndex: snap.getCreditIndex()
                     )
                     effectiveCollateralTotal = effectiveCollateralTotal
                         + snap.effectiveCollateral(creditBalance: trueBalance)
@@ -520,15 +488,15 @@ access(all) contract FlowALPv1 {
                 case FlowALPModels.BalanceDirection.Debit:
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                         balance.scaledBalance,
-                        interestIndex: snap.debitIndex
+                        interestIndex: snap.getDebitIndex()
                     )
                     effectiveDebtTotal = effectiveDebtTotal
                         + snap.effectiveDebt(debitBalance: trueBalance)
             }
         }
 
-        let collateralFactor = withdrawSnap.risk.getCollateralFactor()
-        let borrowFactor = withdrawSnap.risk.getBorrowFactor()
+        let collateralFactor = withdrawSnap.getRisk().getCollateralFactor()
+        let borrowFactor = withdrawSnap.getRisk().getBorrowFactor()
 
         if withdrawBal == nil || withdrawBal!.direction == FlowALPModels.BalanceDirection.Debit {
             // withdrawing increases debt
@@ -537,12 +505,12 @@ access(all) contract FlowALPv1 {
             let deltaDebt = denominatorTarget > effectiveDebtTotal
                 ? denominatorTarget - effectiveDebtTotal
                 : 0.0 as UFix128
-            return (deltaDebt * borrowFactor) / withdrawSnap.price
+            return (deltaDebt * borrowFactor) / withdrawSnap.getPrice()
         } else {
             // withdrawing reduces collateral
             let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                 withdrawBal!.scaledBalance,
-                interestIndex: withdrawSnap.creditIndex
+                interestIndex: withdrawSnap.getCreditIndex()
             )
             let maxPossible = trueBalance
             let requiredCollateral = effectiveDebtTotal * targetHealth
@@ -550,7 +518,7 @@ access(all) contract FlowALPv1 {
                 return 0.0
             }
             let deltaCollateralEffective = effectiveCollateralTotal - requiredCollateral
-            let deltaTokens = (deltaCollateralEffective / collateralFactor) / withdrawSnap.price
+            let deltaTokens = (deltaCollateralEffective / collateralFactor) / withdrawSnap.getPrice()
             return deltaTokens > maxPossible ? maxPossible : deltaTokens
         }
     }
@@ -797,7 +765,7 @@ access(all) contract FlowALPv1 {
 
             // Build a TokenSnapshot for the requested withdraw type (may not exist in view.snapshots)
             let tokenState = self._borrowUpdatedTokenState(type: type)
-            let snap = FlowALPv1.TokenSnapshot(
+            let snap = FlowALPModels.TokenSnapshotImplv1(
                 price: UFix128(self.config.getPriceOracle().price(ofToken: type)!),
                 credit: tokenState.creditInterestIndex,
                 debit: tokenState.debitInterestIndex,
@@ -976,8 +944,8 @@ access(all) contract FlowALPv1 {
             // Compute the health factor which would result if we were to accept this liquidation
             let Ce_pre = balanceSheet.effectiveCollateral // effective collateral pre-liquidation
             let De_pre = balanceSheet.effectiveDebt       // effective debt pre-liquidation
-            let Fc = positionView.snapshots[seizeType]!.risk.getCollateralFactor()
-            let Fd = positionView.snapshots[debtType]!.risk.getBorrowFactor()
+            let Fc = positionView.snapshots[seizeType]!.getRisk().getCollateralFactor()
+            let Fd = positionView.snapshots[debtType]!.getRisk().getBorrowFactor()
 
             // Ce_seize = effective value of seized collateral ($)
             let Ce_seize = FlowALPMath.effectiveCollateral(credit: UFix128(seizeAmount), price: UFix128(Pc_oracle), collateralFactor: Fc)
@@ -2777,11 +2745,11 @@ access(all) contract FlowALPv1 {
         /// Build a PositionView for the given position ID.
         access(all) fun buildPositionView(pid: UInt64): FlowALPv1.PositionView {
             let position = self._borrowPosition(pid: pid)
-            let snaps: {Type: FlowALPv1.TokenSnapshot} = {}
+            let snaps: {Type: FlowALPModels.TokenSnapshotImplv1} = {}
             let balancesCopy = position.copyBalances()
             for t in position.balances.keys {
                 let tokenState = self._borrowUpdatedTokenState(type: t)
-                snaps[t] = FlowALPv1.TokenSnapshot(
+                snaps[t] = FlowALPModels.TokenSnapshotImplv1(
                     price: UFix128(self.config.getPriceOracle().price(ofToken: t)!),
                     credit: tokenState.creditInterestIndex,
                     debit: tokenState.debitInterestIndex,
