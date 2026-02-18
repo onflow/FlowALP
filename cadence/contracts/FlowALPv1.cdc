@@ -372,97 +372,14 @@ access(all) contract FlowALPv1 {
         }
     }
 
-    /// Copy-only representation of a position used by pure math (no storage refs)
-    access(all) struct PositionView {
-        /// Set of all non-zero balances in the position.
-        /// If the position does not have a balance for a supported token, no entry for that token exists in this map.
-        access(all) let balances: {Type: FlowALPModels.InternalBalance}
-        /// Set of all token snapshots for which this position has a non-zero balance.
-        /// If the position does not have a balance for a supported token, no entry for that token exists in this map.
-        access(all) let snapshots: {Type: {FlowALPModels.TokenSnapshot}}
-        access(all) let defaultToken: Type
-        access(all) let minHealth: UFix128
-        access(all) let maxHealth: UFix128
-
-        init(
-            balances: {Type: FlowALPModels.InternalBalance},
-            snapshots: {Type: {FlowALPModels.TokenSnapshot}},
-            defaultToken: Type,
-            min: UFix128,
-            max: UFix128
-        ) {
-            self.balances = balances
-            self.snapshots = snapshots
-            self.defaultToken = defaultToken
-            self.minHealth = min
-            self.maxHealth = max
-        }
-
-        /// Returns the true balance of the given token in this position, accounting for interest.
-        /// Returns balance 0.0 if the position has no balance stored for the given token.
-        access(all) view fun trueBalance(ofToken: Type): UFix128 {
-            if let balance = self.balances[ofToken] {
-                if let tokenSnapshot = self.snapshots[ofToken] {
-                    switch balance.direction {
-                    case FlowALPModels.BalanceDirection.Debit:
-                        return FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance, interestIndex: tokenSnapshot.getDebitIndex())
-                    case FlowALPModels.BalanceDirection.Credit:
-                        return FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance, interestIndex: tokenSnapshot.getCreditIndex())
-                    }
-                    panic("unreachable")
-                }
-            } 
-            // If the token doesn't exist in the position, the balance is 0
-            return 0.0
-        }
-    }
-
-    /// Computes health = totalEffectiveCollateral / totalEffectiveDebt (∞ when debt == 0)
-    // TODO: return BalanceSheet, this seems like a dupe of _getUpdatedBalanceSheet
-    access(all) view fun healthFactor(view: PositionView): UFix128 {
-        // TODO: this logic partly duplicates BalanceSheet construction in _getUpdatedBalanceSheet
-        // This function differs in that it does not read any data from a Pool resource. Consider consolidating the two implementations.
-        var effectiveCollateralTotal: UFix128 = 0.0
-        var effectiveDebtTotal: UFix128 = 0.0
-
-        for tokenType in view.balances.keys {
-            let balance = view.balances[tokenType]!
-            let snap = view.snapshots[tokenType]!
-
-            switch balance.direction {
-                case FlowALPModels.BalanceDirection.Credit:
-                    let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                        balance.scaledBalance,
-                        interestIndex: snap.getCreditIndex()
-                    )
-                    effectiveCollateralTotal = effectiveCollateralTotal
-                        + snap.effectiveCollateral(creditBalance: trueBalance)
-
-                case FlowALPModels.BalanceDirection.Debit:
-                    let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                        balance.scaledBalance,
-                        interestIndex: snap.getDebitIndex()
-                    )
-                    effectiveDebtTotal = effectiveDebtTotal
-                        + snap.effectiveDebt(debitBalance: trueBalance)
-            }
-        }
-        return FlowALPMath.healthComputation(
-            effectiveCollateral: effectiveCollateralTotal,
-            effectiveDebt: effectiveDebtTotal
-        )
-    }
-
     /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth
     access(all) view fun maxWithdraw(
-        view: PositionView,
+        view: FlowALPModels.PositionView,
         withdrawSnap: {FlowALPModels.TokenSnapshot},
         withdrawBal: FlowALPModels.InternalBalance?,
         targetHealth: UFix128
     ): UFix128 {
-        let preHealth = FlowALPv1.healthFactor(view: view)
+        let preHealth = FlowALPModels.healthFactor(view: view)
         if preHealth <= targetHealth {
             return 0.0
         }
@@ -2743,7 +2660,7 @@ access(all) contract FlowALPv1 {
         }
 
         /// Build a PositionView for the given position ID.
-        access(all) fun buildPositionView(pid: UInt64): FlowALPv1.PositionView {
+        access(all) fun buildPositionView(pid: UInt64): FlowALPModels.PositionView {
             let position = self._borrowPosition(pid: pid)
             let snaps: {Type: FlowALPModels.TokenSnapshotImplv1} = {}
             let balancesCopy = position.copyBalances()
@@ -2759,7 +2676,7 @@ access(all) contract FlowALPv1 {
                     )
                 )
             }
-            return FlowALPv1.PositionView(
+            return FlowALPModels.PositionView(
                 balances: balancesCopy,
                 snapshots: snaps,
                 defaultToken: self.state.getDefaultToken(),

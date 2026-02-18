@@ -233,6 +233,82 @@ access(all) contract FlowALPModels {
         }
     }
 
+    /// Copy-only representation of a position used by pure math (no storage refs)
+    access(all) struct PositionView {
+        /// Set of all non-zero balances in the position.
+        access(all) let balances: {Type: InternalBalance}
+        /// Set of all token snapshots for which this position has a non-zero balance.
+        access(all) let snapshots: {Type: {TokenSnapshot}}
+        access(all) let defaultToken: Type
+        access(all) let minHealth: UFix128
+        access(all) let maxHealth: UFix128
+
+        init(
+            balances: {Type: InternalBalance},
+            snapshots: {Type: {TokenSnapshot}},
+            defaultToken: Type,
+            min: UFix128,
+            max: UFix128
+        ) {
+            self.balances = balances
+            self.snapshots = snapshots
+            self.defaultToken = defaultToken
+            self.minHealth = min
+            self.maxHealth = max
+        }
+
+        /// Returns the true balance of the given token in this position, accounting for interest.
+        access(all) view fun trueBalance(ofToken: Type): UFix128 {
+            if let balance = self.balances[ofToken] {
+                if let tokenSnapshot = self.snapshots[ofToken] {
+                    switch balance.direction {
+                    case BalanceDirection.Debit:
+                        return FlowALPMath.scaledBalanceToTrueBalance(
+                            balance.scaledBalance, interestIndex: tokenSnapshot.getDebitIndex())
+                    case BalanceDirection.Credit:
+                        return FlowALPMath.scaledBalanceToTrueBalance(
+                            balance.scaledBalance, interestIndex: tokenSnapshot.getCreditIndex())
+                    }
+                    panic("unreachable")
+                }
+            }
+            return 0.0
+        }
+    }
+
+    /// Computes health = totalEffectiveCollateral / totalEffectiveDebt (∞ when debt == 0)
+    access(all) view fun healthFactor(view: PositionView): UFix128 {
+        var effectiveCollateralTotal: UFix128 = 0.0
+        var effectiveDebtTotal: UFix128 = 0.0
+
+        for tokenType in view.balances.keys {
+            let balance = view.balances[tokenType]!
+            let snap = view.snapshots[tokenType]!
+
+            switch balance.direction {
+                case BalanceDirection.Credit:
+                    let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
+                        balance.scaledBalance,
+                        interestIndex: snap.getCreditIndex()
+                    )
+                    effectiveCollateralTotal = effectiveCollateralTotal
+                        + snap.effectiveCollateral(creditBalance: trueBalance)
+
+                case BalanceDirection.Debit:
+                    let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
+                        balance.scaledBalance,
+                        interestIndex: snap.getDebitIndex()
+                    )
+                    effectiveDebtTotal = effectiveDebtTotal
+                        + snap.effectiveDebt(debitBalance: trueBalance)
+            }
+        }
+        return FlowALPMath.healthComputation(
+            effectiveCollateral: effectiveCollateralTotal,
+            effectiveDebt: effectiveDebtTotal
+        )
+    }
+
     /// PoolConfig defines the interface for pool-level configuration parameters.
     access(all) struct interface PoolConfig {
 

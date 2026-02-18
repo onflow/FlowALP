@@ -30,14 +30,14 @@ access(all)
 fun test_healthFactor_zeroBalances_returnsInfinite() {  // Renamed for clarity
     let balances: {Type: FlowALPModels.InternalBalance} = {}
     let snaps: {Type: {FlowALPModels.TokenSnapshot}} = {}
-    let view = FlowALPv1.PositionView(
+    let view = FlowALPModels.PositionView(
         balances: balances,
         snapshots: snaps,
         defaultToken: Type<@MOET.Vault>(),
         min: 1.1,
         max: 1.5
     )
-    let h = FlowALPv1.healthFactor(view: view)
+    let h = FlowALPModels.healthFactor(view: view)
     Test.assertEqual(UFix128.max, h)  // Empty position (0/0) is safe with infinite health
 }
 
@@ -55,7 +55,7 @@ fun test_healthFactor_zeroCollateral_positiveDebt_returnsZero() {
         scaledBalance: 50.0
     )
 
-    let view = FlowALPv1.PositionView(
+    let view = FlowALPModels.PositionView(
         balances: balances,
         snapshots: snapshots,
         defaultToken: tDebt,
@@ -63,7 +63,7 @@ fun test_healthFactor_zeroCollateral_positiveDebt_returnsZero() {
         max: 1.5
     )
 
-    let h = FlowALPv1.healthFactor(view: view)
+    let h = FlowALPModels.healthFactor(view: view)
     Test.assertEqual(0.0 as UFix128, h)
 }
 
@@ -89,7 +89,7 @@ fun test_healthFactor_simpleCollateralAndDebt() {
         scaledBalance: 50.0
     )
 
-    let view = FlowALPv1.PositionView(
+    let view = FlowALPModels.PositionView(
         balances: balances,
         snapshots: snapshots,
         defaultToken: tColl,
@@ -97,7 +97,7 @@ fun test_healthFactor_simpleCollateralAndDebt() {
         max: 1.5
     )
 
-    let h = FlowALPv1.healthFactor(view: view)
+    let h = FlowALPModels.healthFactor(view: view)
     // Expected health = (100 * 2 * 0.5) / (50 * 1 / 1.0) = 100 / 50 = 2.0
     Test.assertEqual(2.0 as UFix128, h)
 }
@@ -118,7 +118,7 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
         scaledBalance: 100.0
     )
 
-    let view = FlowALPv1.PositionView(
+    let view = FlowALPModels.PositionView(
         balances: balances,
         snapshots: snapshots,
         defaultToken: t,
@@ -155,7 +155,7 @@ fun test_maxWithdraw_fromCollateralLimitedByHealth() {
         scaledBalance: 100.0
     )
 
-    let view = FlowALPv1.PositionView(
+    let view = FlowALPModels.PositionView(
         balances: balances,
         snapshots: snapshots,
         defaultToken: t,
