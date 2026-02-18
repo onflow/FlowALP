@@ -122,6 +122,56 @@ access(all) contract FlowALPMath {
         return oldIndex * pow
     }
 
+    /// Transforms the provided `scaledBalance` to a true balance (or actual balance)
+    /// where the true balance is the scaledBalance + accrued interest
+    /// and the scaled balance is the amount a borrower has actually interacted with (via deposits or withdrawals)
+    access(all) view fun scaledBalanceToTrueBalance(
+        _ scaled: UFix128,
+        interestIndex: UFix128
+    ): UFix128 {
+        return scaled * interestIndex
+    }
+
+    /// Transforms the provided `trueBalance` to a scaled balance
+    /// where the scaled balance is the amount a borrower has actually interacted with (via deposits or withdrawals)
+    /// and the true balance is the amount with respect to accrued interest
+    access(all) view fun trueBalanceToScaledBalance(
+        _ trueBalance: UFix128,
+        interestIndex: UFix128
+    ): UFix128 {
+        return trueBalance / interestIndex
+    }
+
+    /// Returns the effective collateral (denominated in $) for the given credit balance of some token T.
+    /// Ce = (Nc)(Pc)(Fc)
+    access(all) view fun effectiveCollateral(credit: UFix128, price: UFix128, collateralFactor: UFix128): UFix128 {
+        return (credit * price) * collateralFactor
+    }
+
+    /// Returns the effective debt (denominated in $) for the given debit balance of some token T.
+    /// De = (Nd)(Pd)(Fd)
+    access(all) view fun effectiveDebt(debit: UFix128, price: UFix128, borrowFactor: UFix128): UFix128 {
+        return (debit * price) / borrowFactor
+    }
+
+    /// Returns a health value computed from the provided effective collateral and debt values
+    /// where health is a ratio of effective collateral over effective debt
+    access(all) view fun healthComputation(effectiveCollateral: UFix128, effectiveDebt: UFix128): UFix128 {
+        if effectiveDebt == 0.0 {
+            return UFix128.max
+        }
+
+        if effectiveCollateral == 0.0 {
+            return 0.0
+        }
+
+        if (effectiveDebt / effectiveCollateral) == 0.0 {
+            return UFix128.max
+        }
+
+        return effectiveCollateral / effectiveDebt
+    }
+
     init() {
         self.ufix64Step = 0.00000001
         self.ufix64HalfStep = self.ufix64Step / 2.0
