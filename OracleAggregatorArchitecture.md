@@ -13,6 +13,9 @@
 ---
 # Design draft: The following sections outline ideas that are still being designed.
 
+Intentionally immutable to avoid bugs, through changing configs in production without testing.
+If oracles change there should be an OracelChange event emitted from the ALP contract.
+
 ## Aggregate price
 
 To avoid the complexity of calculating a median, we instead use a trimmed mean: removing the maximum and minimum values to protect against "oracle jitter."

@@ -3,24 +3,6 @@ import "DeFiActions"
 import "FlowPriceOracleAggregatorv1"
 import "MultiMockOracle"
 
-access(self) fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signers: [Test.TestAccount]): Test.TransactionResult {
-    let authorizers: [Address] = []
-    for signer in signers {
-        authorizers.append(signer.address)
-    }
-    let txn = Test.Transaction(
-        code: Test.readFile(path),
-        authorizers: authorizers,
-        signers: signers,
-        arguments: args,
-    )
-    return Test.executeTransaction(txn)
-}
-
-access(self) fun _executeScript(_ path: String, _ args: [AnyStruct]): Test.ScriptResult {
-    return Test.executeScript(Test.readFile(path), args)
-}
-
 access(all) struct CreateAggregatorInfo {
     access(all) let aggregatorID: UInt64
     access(all) let oracleIDs: [UInt64]
@@ -74,7 +56,7 @@ access(all) fun setPrice(
     price: UFix64?,
 ) {
     let res = _executeTransaction(
-        "./transactions/price-oracle-aggregator/set_price.cdc",
+        "./transactions/multi-mock-oracle/set_price.cdc",
         [priceOracleStorageID, forToken, price],
         []
     )
@@ -87,7 +69,7 @@ access(all) fun getPrice(
 ): UFix64? {
     // execute transaction to emit events
     let res = _executeTransaction(
-        "./transactions/price-oracle-aggregator/get_price.cdc",
+        "./transactions/price-oracle-aggregator/price.cdc",
         [uuid, ofToken],
         []
     )
@@ -110,4 +92,24 @@ access(all) fun getPriceHistory(
     )
     Test.expect(res, Test.beSucceeded())
     return res.returnValue as! [FlowPriceOracleAggregatorv1.PriceHistoryEntry]
+}
+
+// --- Helper Functions ---
+
+access(self) fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signers: [Test.TestAccount]): Test.TransactionResult {
+    let authorizers: [Address] = []
+    for signer in signers {
+        authorizers.append(signer.address)
+    }
+    let txn = Test.Transaction(
+        code: Test.readFile(path),
+        authorizers: authorizers,
+        signers: signers,
+        arguments: args,
+    )
+    return Test.executeTransaction(txn)
+}
+
+access(self) fun _executeScript(_ path: String, _ args: [AnyStruct]): Test.ScriptResult {
+    return Test.executeScript(Test.readFile(path), args)
 }

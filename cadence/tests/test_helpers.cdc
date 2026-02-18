@@ -204,6 +204,34 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowPriceOracleRouterv1",
+        path: "../contracts/FlowPriceOracleRouterv1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "OracleStorage",
+        path: "./contracts/OracleStorage.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "ExampleToken1",
+        path: "./contracts/ExampleToken1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "ExampleToken2",
+        path: "./contracts/ExampleToken2.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 }
 
 /* --- Script Helpers --- */

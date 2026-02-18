@@ -27,7 +27,7 @@ access(all) contract MultiMockOracle {
     }
 
     access(all) struct PriceOracle : DeFiActions.PriceOracle {
-        access(contract) var priceOracleStorageID: UInt64
+        access(all) var priceOracleStorageID: UInt64
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
 
         access(all) view fun unitOfAccount(): Type {
@@ -39,6 +39,10 @@ access(all) contract MultiMockOracle {
                 return 1.0
             }
             return self.borrowPriceOracleStorage().prices[ofToken] ?? nil
+        }
+
+        access(all) fun setPrice(forToken: Type, price: UFix64?) {
+            self.borrowPriceOracleStorage().setPrice(forToken: forToken, price: price)
         }
 
         access(all) fun getComponentInfo(): DeFiActions.ComponentInfo {

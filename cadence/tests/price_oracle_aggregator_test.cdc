@@ -15,13 +15,11 @@ access(all) fun setup() {
     deployContracts()
     mintFlow(to: signer, amount: 100.0)
     snapshot = getCurrentBlockHeight()
-    Test.commitBlock()
 }
 
 access(all) fun beforeEach() {
-    if snapshot != getCurrentBlockHeight() {
-        Test.reset(to: snapshot)
-    }
+    Test.commitBlock()
+    Test.reset(to: snapshot)
 }
 
 access(all) fun test_single_oracle() {
