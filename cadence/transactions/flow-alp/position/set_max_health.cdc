@@ -1,16 +1,16 @@
 import "FungibleToken"
-import "FlowALPv1"
+import "FlowALPv0"
 
 /// Sets the maximum health on a position.
 transaction(
     positionId: UInt64,
     maxHealth: UFix64
 ) {
-    let position: auth(FlowALPv1.EPositionAdmin) &FlowALPv1.Position
+    let position: auth(FlowALPv0.EPositionAdmin) &FlowALPv0.Position
 
     prepare(signer: auth(BorrowValue) &Account) {
-        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv1.EPositionAdmin) &FlowALPv1.PositionManager>(
-                from: FlowALPv1.PositionStoragePath
+        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(
+                from: FlowALPv0.PositionStoragePath
             )
             ?? panic("Could not find PositionManager in signer's storage")
 

@@ -1,7 +1,7 @@
 import Test
 import BlockchainHelpers
 import "test_helpers.cdc"
-import "FlowALPv1"
+import "FlowALPv0"
 import "MOET"
 import "FlowToken"
 import "FlowALPMath"
@@ -64,7 +64,7 @@ fun test_borrower_full_redemption_insolvency() {
     let details = getPositionDetails(pid: pid, beFailed: false)
     var moetDebt: UFix64 = 0.0
     for b in details.balances {
-        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALPv1.BalanceDirection.Debit {
+        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALPv0.BalanceDirection.Debit {
             moetDebt = b.balance
         }
     }
@@ -87,8 +87,8 @@ fun test_borrower_full_redemption_insolvency() {
     var postMoetDebt: UFix64 = 0.0
     var postFlowColl: UFix64 = 0.0
     for b in detailsAfter.balances {
-        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALPv1.BalanceDirection.Debit { postMoetDebt = b.balance }
-        if b.vaultType == Type<@FlowToken.Vault>() && b.direction == FlowALPv1.BalanceDirection.Credit { postFlowColl = b.balance }
+        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALPv0.BalanceDirection.Debit { postMoetDebt = b.balance }
+        if b.vaultType == Type<@FlowToken.Vault>() && b.direction == FlowALPv0.BalanceDirection.Credit { postFlowColl = b.balance }
     }
     Test.assertEqual(0.0, postMoetDebt)
     Test.assertEqual(0.0, postFlowColl)

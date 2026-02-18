@@ -1,7 +1,7 @@
 import Test
 import BlockchainHelpers
 import "test_helpers.cdc"
-import "FlowALPv1"
+import "FlowALPv0"
 import "MOET"
 import "MockYieldToken"
 import "FlowToken"
@@ -173,7 +173,7 @@ fun testManualLiquidation_repayExceedsDebt() {
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER)
-    Test.assert(debtPositionBalance.direction == FlowALPv1.BalanceDirection.Debit)
+    Test.assert(debtPositionBalance.direction == FlowALPv0.BalanceDirection.Debit)
     var debtBalance = debtPositionBalance.balance
 
     // execute liquidation
@@ -478,7 +478,7 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER)
-    Test.assert(debtPositionBalance.direction == FlowALPv1.BalanceDirection.Debit)
+    Test.assert(debtPositionBalance.direction == FlowALPv0.BalanceDirection.Debit)
     var debtBalance = debtPositionBalance.balance
 
     // execute liquidation, attempting to pass in FLOW instead of MOET
@@ -531,7 +531,7 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER)
-    Test.assert(debtPositionBalance.direction == FlowALPv1.BalanceDirection.Debit)
+    Test.assert(debtPositionBalance.direction == FlowALPv0.BalanceDirection.Debit)
     var debtBalance = debtPositionBalance.balance
 
     // execute liquidation, attempting to pass in MockYieldToken instead of MOET
@@ -586,7 +586,7 @@ fun testManualLiquidation_unsupportedDebtType() {
     let hAfterPrice = getPositionHealth(pid: pid, beFailed: false)
 
     let debtPositionBalance = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER)
-    Test.assert(debtPositionBalance.direction == FlowALPv1.BalanceDirection.Debit)
+    Test.assert(debtPositionBalance.direction == FlowALPv0.BalanceDirection.Debit)
     var debtBalance = debtPositionBalance.balance
 
     // execute liquidation, attempting to pass in MockYieldToken instead of MOET

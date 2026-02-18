@@ -1,4 +1,4 @@
-import "FlowALPv1"
+import "FlowALPv0"
 
 /// Returns the Pool's reserve balance for all Vault types in a given Pool
 ///
@@ -9,7 +9,7 @@ fun main(poolAddress: Address): {String: UFix64} {
     let account = getAccount(poolAddress)
     
     let poolRef = account.capabilities
-        .borrow<&FlowALPv1.Pool>(FlowALPv1.PoolPublicPath)
+        .borrow<&FlowALPv0.Pool>(FlowALPv0.PoolPublicPath)
         ?? panic("Could not borrow Pool reference from \(poolAddress)")
     
     let supportedTokens = poolRef.getSupportedTokens()

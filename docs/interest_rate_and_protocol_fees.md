@@ -1,6 +1,6 @@
 # Interest Rate, Insurance, and Stability Fee Mechanisms
 
-This document describes how interest rates are calculated and how insurance and stability fees are collected in the FlowALP protocol (as implemented by `FlowALPv1`).
+This document describes how interest rates are calculated and how insurance and stability fees are collected in the FlowALP protocol (as implemented by `FlowALPv0`).
 
 ## Overview
 
