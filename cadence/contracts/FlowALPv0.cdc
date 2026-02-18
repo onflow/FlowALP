@@ -4457,13 +4457,13 @@ access(all) contract FlowALPv0 {
     }
 
     init() {
-        self.PoolStoragePath = StoragePath(identifier: "flowALPv1Pool_\(self.account.address)")!
-        self.PoolFactoryPath = StoragePath(identifier: "flowALPv1PoolFactory_\(self.account.address)")!
-        self.PoolPublicPath = PublicPath(identifier: "flowALPv1Pool_\(self.account.address)")!
-        self.PoolCapStoragePath = StoragePath(identifier: "flowALPv1PoolCap_\(self.account.address)")!
+        self.PoolStoragePath = StoragePath(identifier: "flowALPv0Pool_\(self.account.address)")!
+        self.PoolFactoryPath = StoragePath(identifier: "flowALPv0PoolFactory_\(self.account.address)")!
+        self.PoolPublicPath = PublicPath(identifier: "flowALPv0Pool_\(self.account.address)")!
+        self.PoolCapStoragePath = StoragePath(identifier: "flowALPv0PoolCap_\(self.account.address)")!
 
-        self.PositionStoragePath = StoragePath(identifier: "flowALPv1Position_\(self.account.address)")!
-        self.PositionPublicPath = PublicPath(identifier: "flowALPv1Position_\(self.account.address)")!
+        self.PositionStoragePath = StoragePath(identifier: "flowALPv0Position_\(self.account.address)")!
+        self.PositionPublicPath = PublicPath(identifier: "flowALPv0Position_\(self.account.address)")!
 
         // save PoolFactory in storage
         self.account.storage.save(
