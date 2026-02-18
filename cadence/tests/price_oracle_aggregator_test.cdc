@@ -1,12 +1,12 @@
 import Test
 import BlockchainHelpers
 
-import "FlowOracleAggregatorv1"
+import "FlowPriceOracleAggregatorv1"
 import "FlowToken"
 import "MOET"
 import "MultiMockOracle"
 import "test_helpers.cdc"
-import "test_helpers_oracle_aggregator.cdc"
+import "test_helpers_price_oracle_aggregator.cdc"
 
 access(all) var snapshot: UInt64 = 0
 access(all) var signer: Test.TestAccount = Test.getAccount(0x0000000000000001)
@@ -468,9 +468,9 @@ access(self) fun set_prices(info: CreateAggregatorInfo, prices: [UFix64?]) {
 
 access(self) fun log_fail_events() {
     let failureEvents = [
-        Type<FlowOracleAggregatorv1.PriceNotAvailable>(),
-        Type<FlowOracleAggregatorv1.PriceNotWithinSpreadTolerance>(),
-        Type<FlowOracleAggregatorv1.PriceNotStable>()
+        Type<FlowPriceOracleAggregatorv1.PriceNotAvailable>(),
+        Type<FlowPriceOracleAggregatorv1.PriceNotWithinSpreadTolerance>(),
+        Type<FlowPriceOracleAggregatorv1.PriceNotStable>()
     ]
     for eventType in failureEvents {
         let events = Test.eventsOfType(eventType)

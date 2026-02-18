@@ -2,7 +2,7 @@ import "FlowToken"
 import "DeFiActions"
 import "FlowTransactionScheduler"
 
-access(all) contract FlowOracleAggregatorv1 {
+access(all) contract FlowPriceOracleAggregatorv1 {
 
     access(all) entitlement Governance
 
@@ -222,7 +222,7 @@ access(all) contract FlowOracleAggregatorv1 {
         }
 
         access(self) view fun borrowPriceOracleAggregator(): &PriceOracleAggregatorStorage {
-            return (&FlowOracleAggregatorv1.oracleAggregators[self.priceOracleID])!
+            return (&FlowPriceOracleAggregatorv1.oracleAggregators[self.priceOracleID])!
         }
     }
 
@@ -239,7 +239,7 @@ access(all) contract FlowOracleAggregatorv1 {
         }
 
         access(self) view fun borrowPriceOracleAggregator(): &PriceOracleAggregatorStorage {
-            return (&FlowOracleAggregatorv1.oracleAggregators[self.priceOracleID])!
+            return (&FlowPriceOracleAggregatorv1.oracleAggregators[self.priceOracleID])!
         }
     }
 

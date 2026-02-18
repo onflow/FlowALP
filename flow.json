@@ -92,8 +92,8 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowOracleAggregatorv1": {
-			"source": "./cadence/contracts/FlowOracleAggregatorv1.cdc",
+		"FlowPriceOracleAggregatorv1": {
+			"source": "./cadence/contracts/FlowPriceOracleAggregatorV1.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
