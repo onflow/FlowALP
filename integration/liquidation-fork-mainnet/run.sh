@@ -2,6 +2,8 @@
 #
 # Manual Liquidation Smoke Test on Mainnet Fork
 #
+# This test should be run from the repo root: `./integration/liquidation-fork-mainnet/run.sh`
+#
 # A mainnet fork must be running locally before running this test (ports 3569/8888/8080).
 #   - Run `flow init` to create a new project with default settings
 #   - Run `flow emulator --fork mainnet` within the new project directory
