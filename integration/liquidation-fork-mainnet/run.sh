@@ -2,9 +2,9 @@
 #
 # Manual Liquidation Smoke Test on Mainnet Fork
 #
-# Prerequisites:
-#   - A mainnet fork is running locally (ports 3569/8888/8080)
-#   - flow.json is configured with mainnet-fork network and accounts
+# A mainnet fork must be running locally before running this test (ports 3569/8888/8080).
+#   - Run `flow init` to create a new project with default settings
+#   - Run `flow emulator --fork mainnet` within the new project directory
 #
 # This test:
 #   1. Switches the pool to use MockOracle and MockDexSwapper
@@ -46,19 +46,15 @@ sed "s|__PROJECT_DIR__|$PROJECT_DIR|g" "$SCRIPT_DIR/flow.fork.json" > "$FORK_CON
 # Initialize the dynamic accounts config (empty, populated later)
 echo '{}' > "$DYNAMIC_CONFIG"
 
-# Create a working copy of flow.json so the CLI never writes back to the original.
-# Place it at the project root level so existing relative paths (./cadence/...) still resolve.
-BASE_CONFIG="$PROJECT_DIR/flow.fork-test.json"
-cp "$PROJECT_DIR/flow.json" "$BASE_CONFIG"
-# Ensure cleanup on exit
-trap 'rm -f "$BASE_CONFIG"' EXIT
+# Make project flow.json read-only so the CLI can't write merged config back to it.
+# The CLI auto-discovers ./flow.json from cwd; this prevents it from being modified.
+chmod a-w "$PROJECT_DIR/flow.json"
+trap 'chmod u+w "$PROJECT_DIR/flow.json"' EXIT
 
 # Helper to attach config flags to flow command.
-# BASE_CONFIG: working copy of project flow.json (relative paths resolve from project root)
-# FORK_CONFIG: committed fork config (network, static accounts, deployments)
-# DYNAMIC_CONFIG: runtime config for dynamically-created test accounts
+# The project flow.json is read-only to prevent the CLI from writing merged config back.
 flow_cmd() {
-    flow "$@" -f "$BASE_CONFIG" -f "$FORK_CONFIG" -f "$DYNAMIC_CONFIG"
+    flow "$@" -f "$PROJECT_DIR/flow.json" -f "$FORK_CONFIG" -f "$DYNAMIC_CONFIG"
 }
 
 # Helper: send a transaction and assert success
