@@ -6,10 +6,10 @@ Maps each entitlement to the operations it permits. For audit/security review.
 
 | Entitlement | Who holds it |
 |---|---|
-| `EParticipant` | Any external user |
-| `EPosition` | Position operators |
+| `EParticipant` | Any external user (beta users, public) |
+| `EPosition` | ⚠️ Protocol-internal operators only — NOT end users. Grants pool-wide access to operate on **any** position by ID, with no ownership check. |
 | `ERebalance` | Rebalancer contracts |
-| `EPositionAdmin` | Position owner |
+| `EPositionAdmin` | Position owner only |
 | `EGovernance` | Protocol admins only |
 | `EImplementation` | Internal protocol use only |
 
@@ -19,11 +19,11 @@ Maps each entitlement to the operations it permits. For audit/security review.
 |---|---|---|---|---|---|---|---|---|
 | **Pool** | `createPosition` | A user can open a new position | ✅ | | | | | |
 | **Pool** | `depositToPosition` | A user can deposit collateral | ✅ | | | | | |
-| **Pool** | `withdraw` | An operator can withdraw from a position | | ✅ | | | | |
-| **Pool** | `depositAndPush` | Push excess funds to drawdown sink | | ✅ | | | | |
-| **Pool** | `withdrawAndPull` | Pull funds from top-up source on withdraw | | ✅ | | | | |
-| **Pool** | `lockPosition` | Prevent updates to a position | | ✅ | | | | |
-| **Pool** | `unlockPosition` | Re-enable updates to a position | | ✅ | | | | |
+| **Pool** | `withdraw` | ⚠️ Withdraw from **any** position by ID — no ownership check | | ✅ | | | | |
+| **Pool** | `depositAndPush` | ⚠️ Push funds from **any** position to its drawdown sink | | ✅ | | | | |
+| **Pool** | `withdrawAndPull` | ⚠️ Withdraw from **any** position, pulling from its top-up source | | ✅ | | | | |
+| **Pool** | `lockPosition` | ⚠️ Freeze **any** position from updates | | ✅ | | | | |
+| **Pool** | `unlockPosition` | ⚠️ Unfreeze **any** position | | ✅ | | | | |
 | **Pool** | `rebalancePosition` | Rebalance a position's health | | ✅ | ✅ | | | |
 | **Pool** | `pausePool` / `unpausePool` | Halt or resume all pool operations | | | | | ✅ | |
 | **Pool** | `addSupportedToken` | Add a new collateral/borrow token | | | | | ✅ | |
@@ -58,3 +58,11 @@ Maps each entitlement to the operations it permits. For audit/security review.
 - `rebalancePosition` / `rebalance` use `EPosition | ERebalance` — **either** entitlement is sufficient (union, not conjunction)
 - `borrowAuthorizedPosition` requires `FungibleToken.Withdraw + EPositionAdmin` — **both** required (conjunction)
 - `EImplementation` maps to `Mutate + FungibleToken.Withdraw` via the `ImplementationUpdates` entitlement mapping — never issued to external accounts
+
+## ⚠️ Known Issue: Beta Capability Over-Grant
+
+`publish_beta_cap.cdc` and `claim_and_save_beta_cap.cdc` currently grant `EParticipant + EPosition` to beta users.
+
+`EPosition` is **not needed** for normal user actions (create/deposit). Because `EPosition` gates pool-level `withdraw(pid:)` with no ownership check, any beta user can withdraw funds from **any other user's position**.
+
+**Fix:** Remove `EPosition` from the beta capability — grant `EParticipant` only.
