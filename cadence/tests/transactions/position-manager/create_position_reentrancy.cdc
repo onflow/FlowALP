@@ -27,7 +27,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     // the position manager in the signer's account where we should store the new position
     let positionManager: auth(FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager
     // the authorized Pool capability
-    let poolCap: Capability<auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool>
+    let poolCap: Capability<auth(FlowALPv0.EParticipant) &FlowALPv0.Pool>
     // reference to signer's account for saving capability back
     let signerAccount: auth(LoadValue, BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account
 
@@ -81,7 +81,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
             ?? panic("PositionManager not found")
 
         // Load the authorized Pool capability from storage
-        self.poolCap = signer.storage.load<Capability<auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool>>(
+        self.poolCap = signer.storage.load<Capability<auth(FlowALPv0.EParticipant) &FlowALPv0.Pool>>(
             from: FlowALPv0.PoolCapStoragePath
         ) ?? panic("Could not load Pool capability from storage - ensure the signer has been granted Pool access with EParticipant entitlement")
     }

@@ -107,12 +107,12 @@ access(all) contract AdversarialReentrancyConnectors {
 
     access(all) resource LiveData {
         /// Optional: Pool capability for recursive withdrawAndPull call
-        access(all) var recursivePool: Capability<auth(FlowALPv0.EPosition) &FlowALPv0.Pool>?
+        access(all) var recursivePool: Capability<auth(FlowALPv0.EParticipant) &FlowALPv0.Pool>?
         /// Optional: Position ID for recursive withdrawAndPull call
         access(all) var recursivePositionID: UInt64?
 
         init() { self.recursivePositionID = nil; self.recursivePool = nil }
-        access(all) fun setRecursivePool(_ pool: Capability<auth(FlowALPv0.EPosition) &FlowALPv0.Pool>) {
+        access(all) fun setRecursivePool(_ pool: Capability<auth(FlowALPv0.EParticipant) &FlowALPv0.Pool>) {
             self.recursivePool = pool
         }
         access(all) fun setRecursivePositionID(_ positionID: UInt64) {
@@ -205,24 +205,14 @@ access(all) contract AdversarialReentrancyConnectors {
             log("=====Recursive pool: \(self.liveDataCap.check())")
             let liveData = self.liveDataCap.borrow() ?? panic("cant borrow LiveData")
             let poolRef = liveData.recursivePool!.borrow() ?? panic("cant borrow Recursive pool is nil")
-            // Call withdrawAndPull on the position
-            let recursiveVault <- poolRef.withdrawAndPull(
+            // Attempt reentrant deposit to the same position (should fail due to position lock)
+            let emptyVault <- DeFiActionsUtils.getEmptyVault(Type<@FlowToken.Vault>())
+            poolRef.depositToPosition(
                 pid: liveData.recursivePositionID!,
-                // type: Type<@MOET.Vault>(),
-                type: Type<@FlowToken.Vault>(),
-                // type: tokenType,
-                amount: 900.0,
-                pullFromTopUpSource: false
+                from: <-emptyVault
             )
-            log("Recursive withdrawAndPull returned vault with balance: \(recursiveVault.balance)")
-            // If we got funds from the recursive call, return them
-            if recursiveVault.balance > 0.0 {
-                return <-recursiveVault
-            }
-            // Otherwise, destroy the empty vault and continue with normal withdrawal
-            destroy recursiveVault
+            log("Recursive depositToPosition succeeded (should not reach here)")
 
-            
             // Normal vault withdrawal
             let available = self.minimumAvailable()
             if !self.withdrawVault.check() || available == 0.0 || maxAmount == 0.0 {
