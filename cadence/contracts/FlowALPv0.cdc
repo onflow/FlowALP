@@ -176,16 +176,6 @@ access(all) contract FlowALPv0 {
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
-    /// EPosition
-    ///
-    /// Entitlement for managing positions within the pool.
-    /// This entitlement grants access to position-specific operations including deposits, withdrawals,
-    /// rebalancing, and health parameter management for any position in the pool.
-    ///
-    /// Note that this entitlement provides access to all positions in the pool,
-    /// not just individual position owners' positions.
-    access(all) entitlement EPosition
-
     /// ERebalance
     ///
     /// Entitlement for rebalancing positions.
@@ -210,6 +200,17 @@ access(all) contract FlowALPv0 {
     /// This entitlement is used internally by the protocol to maintain state consistency
     /// and process queued operations. It should not be granted to external users.
     access(all) entitlement EImplementation
+
+    /// EPosition
+    ///
+    /// Entitlement for managing positions within the pool.
+    /// This entitlement grants access to position-specific operations including deposits, withdrawals,
+    /// rebalancing, and health parameter management for any position in the pool.
+    ///
+    /// IMPORTANT: this entitlement provides access to ALL positions in the pool and is for internal
+    /// implementation use only! Users access their individual positions via the Position resource.
+    access(all) entitlement EPosition
+
 
     /// EParticipant
     ///
