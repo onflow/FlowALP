@@ -1,5 +1,5 @@
 import "DeFiActions"
-import "FlowALPv1"
+import "FlowALPv0"
 import "FlowToken"
 import "FlowTransactionScheduler"
 import "FungibleToken"
@@ -98,7 +98,7 @@ access(all) contract FlowALPRebalancerv1 {
         access(all) var recurringConfig: RecurringConfig
 
         access(self) var _selfCapability: Capability<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>?
-        access(self) var _positionRebalanceCapability: Capability<auth(FlowALPv1.ERebalance) &FlowALPv1.Position>
+        access(self) var _positionRebalanceCapability: Capability<auth(FlowALPv0.ERebalance) &FlowALPv0.Position>
         /// Scheduled transaction id -> ScheduledTransaction (used to cancel/refund).
         access(self) var scheduledTransactions: @{UInt64: FlowTransactionScheduler.ScheduledTransaction}
 
@@ -109,7 +109,7 @@ access(all) contract FlowALPRebalancerv1 {
 
         init(
             recurringConfig: RecurringConfig,
-            positionRebalanceCapability: Capability<auth(FlowALPv1.ERebalance) &FlowALPv1.Position>
+            positionRebalanceCapability: Capability<auth(FlowALPv0.ERebalance) &FlowALPv0.Position>
         ) {
             self._selfCapability = nil
             self.lastRebalanceTimestamp = getCurrentBlock().timestamp
@@ -295,7 +295,7 @@ access(all) contract FlowALPRebalancerv1 {
     /// call setSelfCapability with that capability, then call fixReschedule() to start the schedule.
     access(all) fun createRebalancer(
         recurringConfig: RecurringConfig,
-        positionRebalanceCapability: Capability<auth(FlowALPv1.ERebalance) &FlowALPv1.Position>,
+        positionRebalanceCapability: Capability<auth(FlowALPv0.ERebalance) &FlowALPv0.Position>,
     ): @Rebalancer {
         let rebalancer <- create Rebalancer(
             recurringConfig: recurringConfig,

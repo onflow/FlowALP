@@ -1,18 +1,18 @@
 import "FungibleToken"
 import "DeFiActions"
 import "DeFiActionsUtils"
-import "FlowALPv1"
+import "FlowALPv0"
 import "MOET"
 import "DummyConnectors"
 
 transaction {
     prepare(admin: auth(BorrowValue, Storage, Capabilities) &Account) {
-        let pool = admin.storage.borrow<auth(FlowALPv1.EParticipant, FlowALPv1.EPosition) &FlowALPv1.Pool>(from: FlowALPv1.PoolStoragePath)
+        let pool = admin.storage.borrow<auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
 
         // Ensure PositionManager exists
-        if admin.storage.borrow<&FlowALPv1.PositionManager>(from: FlowALPv1.PositionStoragePath) == nil {
-            let manager <- FlowALPv1.createPositionManager()
-            admin.storage.save(<-manager, to: FlowALPv1.PositionStoragePath)
+        if admin.storage.borrow<&FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath) == nil {
+            let manager <- FlowALPv0.createPositionManager()
+            admin.storage.save(<-manager, to: FlowALPv0.PositionStoragePath)
         }
 
         // Call EParticipant-gated methods
@@ -27,7 +27,7 @@ transaction {
         let pid = position.id
 
         // Add position to manager
-        let manager = admin.storage.borrow<&FlowALPv1.PositionManager>(from: FlowALPv1.PositionStoragePath)!
+        let manager = admin.storage.borrow<&FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath)!
         manager.addPosition(position: <-position)
 
         // Also allowed with EParticipant:

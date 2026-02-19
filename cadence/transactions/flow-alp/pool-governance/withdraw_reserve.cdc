@@ -1,6 +1,6 @@
 // NOTE: This is a scaffold transaction; update when contract functions are finalised
 
-import FlowALPv1 from "FlowALPv1"
+import FlowALPv0 from "FlowALPv0"
 import FungibleToken from "FungibleToken"
 import MOET from "MOET"
 
@@ -20,7 +20,7 @@ transaction(poolAddress: Address, tokenTypeIdentifier: String, amount: UFix64, r
             panic("Unauthorized: Only pool governance can withdraw reserves")
         }
 
-        // TODO: Once FlowALPv1.Pool exposes a withdrawReserve function, use it
+        // TODO: Once FlowALPv0.Pool exposes a withdrawReserve function, use it
         // For now, this is a placeholder that will always succeed for the protocol account
         // and fail for others (as checked above)
         

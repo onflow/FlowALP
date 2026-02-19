@@ -1,6 +1,6 @@
 import Test
 import BlockchainHelpers
-import "FlowALPv1"
+import "FlowALPv0"
 
 import "MOET"
 import "test_helpers.cdc"
