@@ -2,7 +2,7 @@ import "FungibleToken"
 import "FungibleTokenMetadataViews"
 import "MetadataViews"
 
-import "FlowALPv1"
+import "FlowALPv0"
 import "MockDexSwapper"
 
 /// TEST-ONLY: Batch liquidate multiple positions using the stored MockDexSwapper as the debt
@@ -23,13 +23,13 @@ transaction(
     seizeAmounts: [UFix64],
     repayAmounts: [UFix64]
 ) {
-    let pool: &FlowALPv1.Pool
+    let pool: &FlowALPv0.Pool
     let debtType: Type
 
     prepare(signer: &Account) {
-        let protocolAddress = Type<@FlowALPv1.Pool>().address!
-        self.pool = getAccount(protocolAddress).capabilities.borrow<&FlowALPv1.Pool>(FlowALPv1.PoolPublicPath)
-            ?? panic("Could not borrow Pool at \(FlowALPv1.PoolPublicPath)")
+        let protocolAddress = Type<@FlowALPv0.Pool>().address!
+        self.pool = getAccount(protocolAddress).capabilities.borrow<&FlowALPv0.Pool>(FlowALPv0.PoolPublicPath)
+            ?? panic("Could not borrow Pool at \(FlowALPv0.PoolPublicPath)")
 
         self.debtType = CompositeType(debtVaultIdentifier)
             ?? panic("Invalid debtVaultIdentifier: \(debtVaultIdentifier)")

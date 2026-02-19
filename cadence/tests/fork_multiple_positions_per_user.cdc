@@ -6,7 +6,7 @@ import BlockchainHelpers
 import "FlowToken"
 import "FungibleToken"
 import "MOET"
-import "FlowALPv1"
+import "FlowALPv0"
 import "test_helpers.cdc"
 
 // Real mainnet token identifiers (overriding test_helpers for mainnet)
@@ -24,7 +24,7 @@ access(all) let WETH_VAULT_STORAGE_PATH = /storage/EVMVMBridgedToken_2f6f07cdcf3
 access(all) let WBTC_VAULT_STORAGE_PATH = /storage/EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579Vault
 
 // Protocol account: in fork mode, Test.deployContract() deploys to the contract's mainnet
-// alias address. FlowALPv1's mainnet alias is 0x47f544294e3b7656, so PoolFactory and all
+// alias address. FlowALPv0's mainnet alias is 0x47f544294e3b7656, so PoolFactory and all
 // pool admin resources are stored there. Note: this is the same address as wbtcHolder.
 access(all) let protocolAccount = Test.getAccount(0x47f544294e3b7656)
 
@@ -92,10 +92,10 @@ access(all) fun setup() {
     )
     Test.expect(err, Test.beNil())
 
-    // Deploy FlowALPv1
+    // Deploy FlowALPv0
     err = Test.deployContract(
-        name: "FlowALPv1",
-        path: "../contracts/FlowALPv1.cdc",
+        name: "FlowALPv0",
+        path: "../contracts/FlowALPv0.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -283,8 +283,8 @@ access(all) fun testMultiplePositionsPerUser() {
         transferTokensFromHolder(holder: holder, recipient: user, amount: collateralAmount, storagePath: storagePath, tokenName: collateralName)
 
         createPosition(admin: protocolAccount, signer: user, amount: collateralAmount, vaultStoragePath: storagePath, pushToDrawDownSink: false)
-        let openEvts = Test.eventsOfType(Type<FlowALPv1.Opened>())
-        userPids.append((openEvts[openEvts.length - 1] as! FlowALPv1.Opened).pid)
+        let openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+        userPids.append((openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid)
 
         let price = getOraclePrice(tokenIdentifier: collateralType)
         let value = collateralAmount * price
@@ -363,8 +363,8 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
     log("Creating Position A with \(userACollateral) USDC collateral\n")
     transferTokensFromHolder(holder: usdcHolder, recipient: user, amount: userACollateral, storagePath: USDC_VAULT_STORAGE_PATH, tokenName: "USDC")
     createPosition(admin: protocolAccount, signer: user, amount: userACollateral, vaultStoragePath: USDC_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    var openEvts = Test.eventsOfType(Type<FlowALPv1.Opened>())
-    let positionA_id = (openEvts[openEvts.length - 1] as! FlowALPv1.Opened).pid
+    var openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let positionA_id = (openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid
 
     //////////// Create Position B with USDF collateral ///////////////////
 
@@ -372,8 +372,8 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
     log("Creating Position B with \(userBCollateral) USDF collateral\n")
     transferTokensFromHolder(holder: usdfHolder, recipient: user, amount: userBCollateral, storagePath: USDF_VAULT_STORAGE_PATH, tokenName: "USDF")
     createPosition(admin: protocolAccount, signer: user, amount: userBCollateral, vaultStoragePath: USDF_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    openEvts = Test.eventsOfType(Type<FlowALPv1.Opened>())
-    let positionB_id = (openEvts[openEvts.length - 1] as! FlowALPv1.Opened).pid
+    openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let positionB_id = (openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid
 
     //////////// 1. Position A borrows heavily, affecting available liquidity ///////////////////
 
@@ -517,8 +517,8 @@ access(all) fun testBatchLiquidations() {
 
         transferTokensFromHolder(holder: holder, recipient: user, amount: collateralAmount, storagePath: storagePath, tokenName: collateralName)
         createPosition(admin: protocolAccount, signer: user, amount: collateralAmount, vaultStoragePath: storagePath, pushToDrawDownSink: false)
-        let openEvts = Test.eventsOfType(Type<FlowALPv1.Opened>())
-        userPids.append((openEvts[openEvts.length - 1] as! FlowALPv1.Opened).pid)
+        let openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+        userPids.append((openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid)
     }
 
     log("Borrowing FLOW from each position\n")
@@ -752,24 +752,24 @@ access(all) fun testMassUnhealthyLiquidations() {
     log("Creating 50 USDF positions (10 USDF each)...\n")
     for i in InclusiveRange(0, 49) {
         createPosition(admin: protocolAccount, signer: user, amount: 10.0, vaultStoragePath: USDF_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-        let openEvts = Test.eventsOfType(Type<FlowALPv1.Opened>())
-        allPids.append((openEvts[openEvts.length - 1] as! FlowALPv1.Opened).pid)
+        let openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+        allPids.append((openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid)
     }
 
     // Group B — 45 USDC positions
     log("Creating 45 USDC positions (2 USDC each)...\n")
     for i in InclusiveRange(50, 94) {
         createPosition(admin: protocolAccount, signer: user, amount: 2.0, vaultStoragePath: USDC_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-        let openEvts = Test.eventsOfType(Type<FlowALPv1.Opened>())
-        allPids.append((openEvts[openEvts.length - 1] as! FlowALPv1.Opened).pid)
+        let openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+        allPids.append((openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid)
     }
 
     // Group C — 5 WBTC positions
     log("Creating 5 WBTC positions (0.00009 WBTC each)...\n")
     for i in InclusiveRange(95, 99) {
         createPosition(admin: protocolAccount, signer: user, amount: 0.00009, vaultStoragePath: WBTC_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-        let openEvts = Test.eventsOfType(Type<FlowALPv1.Opened>())
-        allPids.append((openEvts[openEvts.length - 1] as! FlowALPv1.Opened).pid)
+        let openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+        allPids.append((openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid)
     }
 
     Test.assert(allPids.length == 100, message: "Expected 100 positions, got \(allPids.length)")
