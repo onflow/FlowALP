@@ -1,6 +1,6 @@
 # Deposit Capacity Mechanism
 
-This document describes the deposit capacity limiting system in the FlowALPv1 contract, including how deposit rates, capacity caps, and per-user limits work together to control deposit throughput.
+This document describes the deposit capacity limiting system in the `FlowALPv0` contract, including how deposit rates, capacity caps, and per-user limits work together to control deposit throughput.
 
 ## Overview
 
@@ -326,7 +326,7 @@ User withdraws all 5.0 FLOW (closing position):
 
 ### Configuration
 
-The minimum balance is configurable per token type via governance. This is a method on `FlowALPv1.Pool` and requires an authorized `EGovernance` reference.
+The minimum balance is configurable per token type via governance. This is a method on `FlowALPv0.Pool` and requires an authorized `EGovernance` reference.
 
 In this repo, see the transaction template:
 - `cadence/transactions/flow-alp/pool-governance/set_minimum_token_balance_per_position.cdc`

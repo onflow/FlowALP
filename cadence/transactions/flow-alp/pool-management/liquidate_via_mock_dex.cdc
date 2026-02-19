@@ -1,6 +1,6 @@
 import "FungibleToken"
 
-import "FlowALPv1"
+import "FlowALPv0"
 import "DeFiActions"
 import "MockDexSwapper"
 import "MOET"
@@ -16,9 +16,9 @@ transaction(
     priceRatio: UFix64
 ) {
     prepare(signer: auth(BorrowValue, IssueStorageCapabilityController, PublishCapability) &Account) {
-        let pool = getAccount(Type<@FlowALPv1.Pool>().address!).capabilities
-            .borrow<&FlowALPv1.Pool>(FlowALPv1.PoolPublicPath)
-            ?? panic("Could not borrow Pool at \(FlowALPv1.PoolPublicPath)")
+        let pool = getAccount(Type<@FlowALPv0.Pool>().address!).capabilities
+            .borrow<&FlowALPv0.Pool>(FlowALPv0.PoolPublicPath)
+            ?? panic("Could not borrow Pool at \(FlowALPv0.PoolPublicPath)")
 
         // For tests, withdraw out token (debtType) from signer's MOET Vault
         let sourceCap = signer.capabilities.storage.issue<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(MOET.VaultStoragePath)
