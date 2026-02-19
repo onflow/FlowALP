@@ -102,10 +102,12 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
 
         self.positionManager.addPosition(position: <-position)
         let sourceRef = self.source as! AdversarialReentrancyConnectors.VaultSourceHacked
-        
+
         let liveData = sourceRef.liveDataCap.borrow() ?? panic("cant borrow LiveData")
-        liveData.setRecursivePool(self.poolCap)
-        liveData.setRecursivePositionID(pid)
+        let managerCap = self.signerAccount.capabilities.storage.issue<
+            auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager
+        >(FlowALPv0.PositionStoragePath)
+        liveData.setRecursivePosition(managerCap: managerCap, pid: pid)
 
         self.signerAccount.storage.save(self.poolCap, to: FlowALPv0.PoolCapStoragePath)
     }

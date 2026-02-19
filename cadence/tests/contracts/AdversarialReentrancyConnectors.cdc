@@ -106,17 +106,18 @@ access(all) contract AdversarialReentrancyConnectors {
     }
 
     access(all) resource LiveData {
-        /// Optional: Pool capability for recursive withdrawAndPull call
-        access(all) var recursivePool: Capability<auth(FlowALPv0.EParticipant) &FlowALPv0.Pool>?
-        /// Optional: Position ID for recursive withdrawAndPull call
+        /// Capability to the attacker's PositionManager for recursive withdrawal
+        access(all) var positionManagerCap: Capability<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>?
+        /// Position ID for recursive withdrawal
         access(all) var recursivePositionID: UInt64?
 
-        init() { self.recursivePositionID = nil; self.recursivePool = nil }
-        access(all) fun setRecursivePool(_ pool: Capability<auth(FlowALPv0.EParticipant) &FlowALPv0.Pool>) {
-            self.recursivePool = pool
-        }
-        access(all) fun setRecursivePositionID(_ positionID: UInt64) {
-            self.recursivePositionID = positionID
+        init() { self.recursivePositionID = nil; self.positionManagerCap = nil }
+        access(all) fun setRecursivePosition(
+            managerCap: Capability<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>,
+            pid: UInt64
+        ) {
+            self.positionManagerCap = managerCap
+            self.recursivePositionID = pid
         }
     }
     access(all) fun createLiveData(): @LiveData {
@@ -202,16 +203,17 @@ access(all) contract AdversarialReentrancyConnectors {
         access(FungibleToken.Withdraw) fun withdrawAvailable(maxAmount: UFix64): @{FungibleToken.Vault} {
             // If recursive withdrawAndPull is configured, call it first
             log("VaultSource.withdrawAvailable called with maxAmount: \(maxAmount)")
-            log("=====Recursive pool: \(self.liveDataCap.check())")
+            log("=====Recursive position manager: \(self.liveDataCap.check())")
             let liveData = self.liveDataCap.borrow() ?? panic("cant borrow LiveData")
-            let poolRef = liveData.recursivePool!.borrow() ?? panic("cant borrow Recursive pool is nil")
-            // Attempt reentrant deposit to the same position (should fail due to position lock)
-            let emptyVault <- DeFiActionsUtils.getEmptyVault(Type<@FlowToken.Vault>())
-            poolRef.depositToPosition(
-                pid: liveData.recursivePositionID!,
-                from: <-emptyVault
+            let manager = liveData.positionManagerCap!.borrow() ?? panic("cant borrow PositionManager")
+            let position = manager.borrowAuthorizedPosition(pid: liveData.recursivePositionID!)
+            // Attempt reentrant withdrawal via Position (should fail due to position lock)
+            let recursiveVault <- position.withdraw(
+                type: Type<@FlowToken.Vault>(),
+                amount: 900.0
             )
-            log("Recursive depositToPosition succeeded (should not reach here)")
+            log("Recursive withdraw succeeded with balance: \(recursiveVault.balance) (should not reach here)")
+            destroy recursiveVault
 
             // Normal vault withdrawal
             let available = self.minimumAvailable()
