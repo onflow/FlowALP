@@ -5,7 +5,7 @@ transaction(adminAddr: Address) {
     prepare(user: auth(SaveValue, LoadValue, ClaimInboxCapability) &Account) {
         // Save claimed cap at the protocol-defined storage path to satisfy consumers/tests expecting this path
         let capPath = FlowALPv0.PoolCapStoragePath
-        let claimed: Capability<auth(FlowALPv0.EParticipant) &FlowALPv0.Pool> =
+        let claimed =
             user.inbox.claim<
                 auth(FlowALPv0.EParticipant) &FlowALPv0.Pool
                 >("FlowALPv0BetaCap", provider: adminAddr)

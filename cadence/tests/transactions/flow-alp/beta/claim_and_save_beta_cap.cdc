@@ -3,7 +3,7 @@ import "FlowALPv0"
 transaction(adminAddr: Address) {
 
     prepare(user: auth(SaveValue, LoadValue, ClaimInboxCapability) &Account) {
-        let claimed: Capability<auth(FlowALPv0.EParticipant) &FlowALPv0.Pool> =
+        let claimed =
             user.inbox.claim<
                 auth(FlowALPv0.EParticipant) &FlowALPv0.Pool
                 >("FlowALPv0BetaCap", provider: adminAddr)

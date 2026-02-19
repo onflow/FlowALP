@@ -6,7 +6,7 @@ transaction() {
         admin: auth(Capabilities, Storage) &Account,
         tester: auth(Storage) &Account
     ) {
-        let poolCap: Capability<auth(FlowALPv0.EParticipant) &FlowALPv0.Pool> =
+        let poolCap =
             admin.capabilities.storage.issue<
                 auth(FlowALPv0.EParticipant) &FlowALPv0.Pool
             >(FlowALPv0.PoolStoragePath)
