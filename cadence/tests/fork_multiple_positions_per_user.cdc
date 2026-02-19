@@ -164,7 +164,7 @@ access(all) fun setup() {
     snapshot = getCurrentBlockHeight()
 }
 
-/// Transfer tokens from holder to recipient (creates vault for recipient if needed)
+// Transfer tokens from holder to recipient (creates vault for recipient if needed)
 access(all) fun transferTokensFromHolder(holder: Test.TestAccount, recipient: Test.TestAccount, amount: UFix64, storagePath: StoragePath, tokenName: String) {
     let tx = Test.Transaction(
         code: Test.readFile("../transactions/test/transfer_tokens_with_setup.cdc"),
@@ -176,8 +176,8 @@ access(all) fun transferTokensFromHolder(holder: Test.TestAccount, recipient: Te
     Test.expect(result, Test.beSucceeded())
 }
 
-/// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
-/// The liquidator must hold sufficient debt tokens upfront.
+// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
+// The liquidator must hold sufficient debt tokens upfront.
 access(all) fun batchManualLiquidation(
     pids: [UInt64],
     debtVaultIdentifier: String,
@@ -194,8 +194,8 @@ access(all) fun batchManualLiquidation(
     Test.expect(res, Test.beSucceeded())
 }
 
-/// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
-/// chunkSize to stay within the computation limit.
+// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
+// chunkSize to stay within the computation limit.
 access(all) fun batchLiquidateViaMockDex(
     pids: [UInt64],
     debtVaultIdentifier: String,
@@ -226,13 +226,13 @@ access(all) fun batchLiquidateViaMockDex(
     }
 }
 
-/// Test Multiple Positions Per User
-///
-/// Validates requirements:
-/// 1. User creates 5+ positions with different collateral types
-/// 2. Each position has different health factors
-/// 3. Operations on one position should not affect others (isolation)
-///
+// Test Multiple Positions Per User
+//
+// Validates requirements:
+// 1. User creates 5+ positions with different collateral types
+// 2. Each position has different health factors
+// 3. Operations on one position should not affect others (isolation)
+//
 access(all) fun testMultiplePositionsPerUser() {
     safeReset()
 
@@ -333,13 +333,13 @@ access(all) fun testMultiplePositionsPerUser() {
     Test.assert(healthsAfterBorrow[4] == healths[4], message: "Position 5 should be unchanged")
 }
 
-/// Test Position Interactions Through Shared Liquidity Pools
-///
-/// Validates that multiple positions interact through shared pool resources:
-/// 1. Multiple positions compete for limited deposit capacity
-/// 2. Position A's borrowing reduces available liquidity for Position B
-/// 3. Shared liquidity pools create cross-position effects
-/// 4. Pool capacity constraints affect all positions
+// Test Position Interactions Through Shared Liquidity Pools
+//
+// Validates that multiple positions interact through shared pool resources:
+// 1. Multiple positions compete for limited deposit capacity
+// 2. Position A's borrowing reduces available liquidity for Position B
+// 3. Shared liquidity pools create cross-position effects
+// 4. Pool capacity constraints affect all positions
 access(all) fun testPositionInteractionsSharedLiquidity() {
     safeReset()
 
@@ -468,12 +468,12 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
 
 }
 
-/// Test Batch Liquidations
-///
-/// Validates batch liquidation capabilities:
-/// 1. Multiple unhealthy positions liquidated in SINGLE transaction
-/// 2. Partial liquidation of multiple positions
-/// 3. Gas cost optimization through batch processing
+// Test Batch Liquidations
+//
+// Validates batch liquidation capabilities:
+// 1. Multiple unhealthy positions liquidated in SINGLE transaction
+// 2. Partial liquidation of multiple positions
+// 3. Gas cost optimization through batch processing
 access(all) fun testBatchLiquidations() {
     safeReset()
 
@@ -674,50 +674,50 @@ access(all) fun testBatchLiquidations() {
     Test.assert(healthAfterFlow == healths[4], message: "FLOW position health should be unchanged")
 }
 
-/// Test Mass Simultaneous Unhealthy Positions – 100-Position Multi-Collateral Stress Test
-///
-/// System-wide stress test validating protocol behavior under mass position failure
-/// across three collateral types — all crashing 40% simultaneously:
-///
-///   100 positions (all borrowing FLOW as debt):
-///     Group A: 50 USDF positions (10 USDF each)   — 25 high-risk + 25 moderate
-///     Group B: 45 USDC positions (2 USDC each)    — 23 high-risk + 22 moderate
-///     Group C:  5 WBTC positions (0.00009 WBTC ea) — 5 uniform (same risk tier)
-///
-///   Health before crash (CF_USDF=CF_USDC=0.85, CF_WBTC=0.75):
-///     USDF high-risk:  borrow 7.0 FLOW  → (10×1.0×0.85)/7.0       = 1.214
-///     USDF moderate:   borrow 6.0 FLOW  → (10×1.0×0.85)/6.0       = 1.417
-///     USDC high-risk:  borrow 1.4 FLOW  → (2×1.0×0.85)/1.4        = 1.214
-///     USDC moderate:   borrow 1.2 FLOW  → (2×1.0×0.85)/1.2        = 1.417
-///     WBTC uniform:    borrow 2.5 FLOW  → (0.00009×50000×0.75)/2.5 = 1.350
-///
-///   All collateral crashes 40% simultaneously:
-///     USDF: $1.00 → $0.60  |  USDC: $1.00 → $0.60  |  WBTC: $50000 → $30000
-///
-///   Health after crash:
-///     USDF high:  (10×0.60×0.85)/7.0       = 0.729    USDF mod:  (10×0.60×0.85)/6.0      = 0.850
-///     USDC high:  (2×0.60×0.85)/1.4        = 0.729    USDC mod:  (2×0.60×0.85)/1.2       = 0.850
-///     WBTC:       (0.00009×30000×0.75)/2.5 = 0.810
-///
-///   Liquidation (liquidationTargetHF=1.05, post target≈1.02–1.04):
-///     USDF high:  seize 4.0 USDF,      repay 4.0 FLOW  → post = (10-4)×0.6×0.85/(7-4)      = 1.02
-///                                                          DEX:  4.0 < 4.0/0.6    = 6.67
-///     USDF mod:   seize 4.0 USDF,      repay 3.0 FLOW  → post = (10-4)×0.6×0.85/(6-3)      = 1.02
-///                                                          DEX:  4.0 < 3.0/0.6    = 5.00
-///     USDC high:  seize 0.8 USDC,      repay 0.8 FLOW  → post = (2-0.8)×0.6×0.85/(1.4-0.8) = 1.02
-///                                                          DEX:  0.8 < 0.8/0.6    = 1.33
-///     USDC mod:   seize 0.8 USDC,      repay 0.6 FLOW  → post = (2-0.8)×0.6×0.85/(1.2-0.6) = 1.02
-///                                                          DEX:  0.8 < 0.6/0.6    = 1.00
-///     WBTC:       seize 0.00003 WBTC,  repay 1.18 FLOW → post = (0.00006)×22500/(2.5-1.18)  = 1.023
-///                                                          DEX:  0.00003 < 1.18/30000 = 0.0000393
-///
-///   Batch order (worst health first): USDF-high (0.729) → USDC-high (0.729) → WBTC (0.810) → USDF-mod (0.850) → USDC-mod (0.850)
-///
-/// Token budget (mainnet):
-///   flowHolder  (1921 FLOW): 450 LP + 230 DEX source = 680 FLOW total
-///   usdfHolder (25000 USDF): 500 USDF for 50 positions
-///   usdcHolder    (97 USDC): 90 USDC for 45 positions
-///   wbtcHolder (0.0005 WBTC): 0.00045 WBTC for 5 positions (holder has 0.00049998)
+// Test Mass Simultaneous Unhealthy Positions – 100-Position Multi-Collateral Stress Test
+//
+// System-wide stress test validating protocol behavior under mass position failure
+// across three collateral types — all crashing 40% simultaneously:
+//
+//   100 positions (all borrowing FLOW as debt):
+//     Group A: 50 USDF positions (10 USDF each)   — 25 high-risk + 25 moderate
+//     Group B: 45 USDC positions (2 USDC each)    — 23 high-risk + 22 moderate
+//     Group C:  5 WBTC positions (0.00009 WBTC ea) — 5 uniform (same risk tier)
+//
+//   Health before crash (CF_USDF=CF_USDC=0.85, CF_WBTC=0.75):
+//     USDF high-risk:  borrow 7.0 FLOW  → (10×1.0×0.85)/7.0       = 1.214
+//     USDF moderate:   borrow 6.0 FLOW  → (10×1.0×0.85)/6.0       = 1.417
+//     USDC high-risk:  borrow 1.4 FLOW  → (2×1.0×0.85)/1.4        = 1.214
+//     USDC moderate:   borrow 1.2 FLOW  → (2×1.0×0.85)/1.2        = 1.417
+//     WBTC uniform:    borrow 2.5 FLOW  → (0.00009×50000×0.75)/2.5 = 1.350
+//
+//   All collateral crashes 40% simultaneously:
+//     USDF: $1.00 → $0.60  |  USDC: $1.00 → $0.60  |  WBTC: $50000 → $30000
+//
+//   Health after crash:
+//     USDF high:  (10×0.60×0.85)/7.0       = 0.729    USDF mod:  (10×0.60×0.85)/6.0      = 0.850
+//     USDC high:  (2×0.60×0.85)/1.4        = 0.729    USDC mod:  (2×0.60×0.85)/1.2       = 0.850
+//     WBTC:       (0.00009×30000×0.75)/2.5 = 0.810
+//
+//   Liquidation (liquidationTargetHF=1.05, post target≈1.02–1.04):
+//     USDF high:  seize 4.0 USDF,      repay 4.0 FLOW  → post = (10-4)×0.6×0.85/(7-4)      = 1.02
+//                                                          DEX:  4.0 < 4.0/0.6    = 6.67
+//     USDF mod:   seize 4.0 USDF,      repay 3.0 FLOW  → post = (10-4)×0.6×0.85/(6-3)      = 1.02
+//                                                          DEX:  4.0 < 3.0/0.6    = 5.00
+//     USDC high:  seize 0.8 USDC,      repay 0.8 FLOW  → post = (2-0.8)×0.6×0.85/(1.4-0.8) = 1.02
+//                                                          DEX:  0.8 < 0.8/0.6    = 1.33
+//     USDC mod:   seize 0.8 USDC,      repay 0.6 FLOW  → post = (2-0.8)×0.6×0.85/(1.2-0.6) = 1.02
+//                                                          DEX:  0.8 < 0.6/0.6    = 1.00
+//     WBTC:       seize 0.00003 WBTC,  repay 1.18 FLOW → post = (0.00006)×22500/(2.5-1.18)  = 1.023
+//                                                          DEX:  0.00003 < 1.18/30000 = 0.0000393
+//
+//   Batch order (worst health first): USDF-high (0.729) → USDC-high (0.729) → WBTC (0.810) → USDF-mod (0.850) → USDC-mod (0.850)
+//
+// Token budget (mainnet):
+//   flowHolder  (1921 FLOW): 450 LP + 230 DEX source = 680 FLOW total
+//   usdfHolder (25000 USDF): 500 USDF for 50 positions
+//   usdcHolder    (97 USDC): 90 USDC for 45 positions
+//   wbtcHolder (0.0005 WBTC): 0.00045 WBTC for 5 positions (holder has 0.00049998)
 access(all) fun testMassUnhealthyLiquidations() {
     safeReset()
 
