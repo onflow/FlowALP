@@ -1,82 +1,94 @@
-# FlowALPv1 - DeFi Lending Protocol on Flow
+# FlowALP (FlowALPv1) - DeFi Lending Protocol on Flow
+
+**Naming:** FlowALP refers to the protocol. The current Cadence implementation in this repo is the `FlowALPv1` contract (plus supporting v1 contracts like `FlowALPRebalancerv1`, `FlowALPRebalancerPaidv1`, and `FlowALPSupervisorv1`).
 
 ## 📊 Project Status
 
-- **Contract**: ✅ Implemented with FungibleToken Standard
-- **Tests**: ✅ 100% Passing (22/22 tests)
-- **Coverage**: ✅ 89.7%
+- **Contract**: ✅ Implemented in Cadence (token-agnostic via `FungibleToken.Vault`)
+- **Tests**: ✅ Cadence test suite under `cadence/tests/` (`*_test.cdc`)
+- **Coverage**: 🔎 Run `flow test --cover` locally (coverage artifacts are not committed)
 - **Documentation**: ✅ Complete
-- **Standards**: ✅ FungibleToken & DeFi Actions Compatible
-- **FlowVault Removal**: ✅ Complete (Ready for FlowVaults Integration)
+- **Standards**: ✅ Uses `FungibleToken` + integrates with `DeFiActions`
+- **FlowVault Removal**: ✅ FlowVault is not required by the `FlowALPv1` implementation (legacy `cadence/contracts/AlpenFlow_dete_original.cdc` remains for reference)
 
-## 🎯 FlowVaults Integration Milestones
+## 🎯 Integration Milestones
 
 ### Current Status (Tracer Bullet Phase)
+
 - ✅ **Smart Contract Integration**: FlowALPv1 provides sink/source interfaces for token swapping
 - ✅ **Development & Testing**: Automated testing framework for FlowALPv1 and DefiActions
-- ✅ **Repository Structure**: FlowALPv1 code in private repo, DefiActions in public repo
-- 💛 **Test Coverage**: Working towards comprehensive test suite for FlowVaults functionality
+- ✅ **Repository Structure**: FlowALPv1 code in this repo; DeFiActions comes from the `FlowActions/` submodule
+- 💛 **Test Coverage**: Working towards comprehensive test suite
 - 👌 **AMM Integration**: Currently using dummy swapper, real AMM deployment planned
 
 ### Upcoming (Limited Beta)
+
 - ✅ **Documentation**: First pass documentation of FlowALPv1 (this README)
 - ✅ **Testing**: Extensive test suite for FlowALPv1 and DefiActions
 - 💛 **Sample Code**: DefiActions sample code and tutorials needed
 - 👌 **Advanced Features**: Per-user limits and controlled testing capabilities
 
 ### Future (Open Beta)
+
 - ✅ **Open Access**: Full public access to FlowALPv1 and DefiActions
 - 💛 **Documentation**: Improved documentation and tutorials
 - ✅ **Sample Code**: Complete tutorials for DefiActions integration
 
-## 🏦 About FlowALPv1
+## 🏦 About FlowALP
 
-FlowALPv1 is a decentralized lending and borrowing protocol built on the Flow blockchain. It implements the Flow FungibleToken standard and integrates with DeFi Actions for composability.
+FlowALP is a decentralized lending and borrowing protocol built on the Flow blockchain. This repository contains the v1 Cadence implementation deployed as the `FlowALPv1` contract. It is token-agnostic (operates over any `FungibleToken.Vault`) and integrates with DeFi Actions for composability.
 
 ### Key Features
 
-- **FungibleToken Standard**: Full compatibility with Flow wallets and DEXs
+- **Token Agnostic**: Supports any `FungibleToken.Vault` implementation (no `FlowVault` dependency)
 - **DeFi Actions Integration**: Composable with other DeFi protocols via Sink/Source interfaces
 - **Vault Operations**: Secure deposit and withdraw functionality
 - **Position Management**: Create and manage lending/borrowing positions
 - **Interest Mechanics**: Compound interest calculations with configurable rates
 - **Health Monitoring**: Real-time position health calculations and overdraft protection
 - **Access Control**: Secure entitlement-based access with proper authorization
-- **Token Agnostic**: Supports any FungibleToken.Vault implementation (FlowVault removed)
 
 ### Technical Highlights
 
-- Implements `FungibleToken.Vault` interface for standard token operations
 - Provides `DeFiActions.Sink` and `DeFiActions.Source` for DeFi composability
-- Uses scaled balance tracking for efficient interest accrual
+- Uses scaled balance tracking with `UFix128` interest indices for efficient interest accrual
 - Supports multiple positions per pool with independent tracking
-- Includes comprehensive metadata views for wallet integration
+- Includes a deposit-capacity mechanism for rate limiting and fair throughput
 
 ## 🧪 Test Suite
 
-The project includes comprehensive tests covering all functionality:
+The project includes comprehensive tests covering all functionality. **IMPORTANT**: On a fresh clone, you must install dependencies before running tests.
 
 ```bash
-# Run all tests with coverage
+# First-time setup: Install dependencies
+flow deps install
+
+# Run all tests using the test runner script (RECOMMENDED)
+./run_tests.sh
+
+# Alternative: Run all tests directly
 flow test --cover
 
 # Run specific test file
-flow test cadence/tests/core_vault_test.cdc
+flow test cadence/tests/position_lifecycle_happy_test.cdc
 ```
 
 ### Test Results Summary
-- **Core Vault Operations**: ✅ 3/3 passing
-- **Interest Mechanics**: ✅ 6/6 passing
-- **Position Health**: ✅ 3/3 passing
-- **Token State Management**: ✅ 3/3 passing
-- **Reserve Management**: ✅ 3/3 passing
-- **Access Control**: ✅ 2/2 passing
-- **Edge Cases**: ✅ 3/3 passing
-- **Simple Import**: ✅ 2/2 passing
 
-**Total**: 22/22 tests passing with 89.7% code coverage
+The suite includes test files under `cadence/tests/`:
 
-For detailed test status and FlowVault removal summary, see [TestingCompletionSummary.md](./TestingCompletionSummary.md)
+- ✅ Core vault operations and token state management
+- ✅ Position lifecycle (creation, deposits, withdrawals, rebalancing)
+- ✅ Interest accrual and rate calculations (debit/credit, insurance)
+- ✅ Position health constraints and liquidation
+- ✅ Governance parameters and access control
+- ✅ Stability and insurance collection mechanisms
+- ✅ Auto-rebalancing (overcollateralized and undercollateralized)
+- ✅ Security tests (type spoofing, recursive withdrawal)
+- ✅ Integration tests and platform compatibility
+- ✅ Mathematical precision (FlowALPMath, interest curves)
+
+For detailed test running instructions, see [TEST_RUNNING_INSTRUCTIONS.md](./TEST_RUNNING_INSTRUCTIONS.md)
 
 ## 🚀 Quick Start
 
@@ -88,31 +100,39 @@ For detailed test status and FlowVault removal summary, see [TestingCompletionSu
 ### Installation
 
 1. Clone the repository:
+
 ```bash
-git clone https://github.com/onflow/FlowCreditMarket.git
-cd FlowALPv1
+git clone https://github.com/onflow/FlowALP.git
+cd FlowALP
 git submodule update --init --recursive
 ```
 
-2. Install dependencies:
+2. **Install dependencies (REQUIRED):**
+
 ```bash
 flow deps install
-cd FlowActions && flow deps install && cd ..
 ```
 
 3. Run tests:
+
 ```bash
+# Recommended: Use the test runner script
+./run_tests.sh
+
+# Alternative: Run directly
 flow test --cover
 ```
 
 ### Deploy to Emulator
 
 1. Start the Flow emulator:
+
 ```bash
 flow emulator --start
 ```
 
 2. Deploy the contracts:
+
 ```bash
 flow project deploy --network=emulator
 ```
@@ -120,22 +140,29 @@ flow project deploy --network=emulator
 ## 📦 Project Structure
 
 ```
-FlowALPv1/
+FlowALP/
 ├── cadence/
 │   ├── contracts/
-│   │   └── FlowALPv1.cdc           # Main lending protocol contract
+│   │   ├── FlowALPv1.cdc                 # Main lending protocol contract
+│   │   ├── FlowALPRebalancerv1.cdc       # Rebalancer (scheduled/manual)
+│   │   ├── FlowALPRebalancerPaidv1.cdc   # Managed rebalancer service
+│   │   ├── FlowALPSupervisorv1.cdc       # Supervisor/registry utilities
+│   │   └── mocks/                        # Mock contracts used by tests
+│   ├── lib/
+│   │   └── FlowALPMath.cdc               # Shared math helpers (UFix128)
 │   ├── tests/
 │   │   ├── test_helpers.cdc            # Shared test utilities
-│   │   ├── core_vault_test.cdc         # Vault operation tests
-│   │   ├── interest_mechanics_test.cdc # Interest calculation tests
+│   │   ├── position_lifecycle_happy_test.cdc
+│   │   ├── interest_accrual_integration_test.cdc
 │   │   └── ...                         # Other test files
-│   ├── transactions/                   # Transaction templates (coming soon)
-│   └── scripts/                        # Query scripts (coming soon)
+│   ├── transactions/                   # Transaction templates
+│   └── scripts/                        # Query scripts
 ├── FlowActions/
 │   └── cadence/contracts/interfaces/
 │       └── DeFiActions.cdc             # DeFi Actions interface
-├── imports/                            # Flow standard contracts
+├── imports/                            # Generated Flow standard contracts (`flow deps install`)
 ├── flow.json                           # Flow configuration
+├── run_tests.sh                         # Test runner
 └── README.md                           # This file
 ```
 
@@ -151,52 +178,51 @@ FlowALPv1/
 ### Key Interfaces
 
 - `FungibleToken.Vault`: Standard token operations
-- `ViewResolver`: Metadata views for wallets
-- `Burner.Burnable`: Token burning capability
 - `DeFiActions.Sink/Source`: DeFi protocol composability
+- Entitlements: `FlowALPv1.EParticipant`, `FlowALPv1.EPosition`, `FlowALPv1.EGovernance`, `FlowALPv1.ERebalance`
 
 ## 🛠️ Development
 
 ### Creating a Position
 
-```cadence
-// Create a new pool with your token type
-let pool <- FlowALPv1.createPool(
-    defaultToken: Type<@YourToken.Vault>(),
-    defaultTokenThreshold: 0.8
-)
+The `FlowALPv1` contract uses entitlements and capability-based access. This repo provides transaction templates for common operations:
 
-// Create a position
-let positionId = pool.createPosition()
-
-// Deposit funds
-let vault <- YourToken.mintTokens(amount: 100.0)
-pool.deposit(pid: positionId, funds: <-vault)
-```
+- Create and store the Pool (admin): `cadence/transactions/flow-alp/pool-factory/create_and_store_pool.cdc`
+- Grant and claim the beta Pool capability (admin/user): `cadence/transactions/flow-alp/beta/publish_beta_cap.cdc` and `cadence/transactions/flow-alp/beta/claim_and_save_beta_cap.cdc`
+- Create a Position (user): `cadence/transactions/flow-alp/position/create_position.cdc` (uses `pushToDrawDownSink` to control auto-borrowing)
 
 ### Running Tests
 
+**On a fresh clone, always install dependencies first:**
+
 ```bash
-# Run all tests
+# Step 1: Install dependencies (REQUIRED)
+flow deps install
+
+# Step 2: Run tests using the test runner script (RECOMMENDED)
+./run_tests.sh
+
+# Alternative: Run all tests directly
 flow test --cover
 
-# Run FlowALPv1 tests
-flow test --cover --covercode="contracts" --coverprofile="coverage.lcov" ./cadence/tests/*_test.cdc
+# Run specific test file
+flow test cadence/tests/interest_accrual_integration_test.cdc
 
-# Run specific test category
-flow test cadence/tests/interest_mechanics_test.cdc
+# Run specific test by name
+flow test cadence/tests/interest_curve_advanced_test.cdc --name test_exact_compounding_verification_one_year
 ```
 
 ## 📚 Documentation
 
 ### Current Documentation
-- [Testing Completion Summary](./TestingCompletionSummary.md) - Latest test results and FlowVault removal
-- [Tests Overview](./TestsOverview.md) - Comprehensive test blueprint
-- [Intensive Test Analysis](./IntensiveTestAnalysis.md) - Security testing results
+
+- [Test Running Instructions](./TEST_RUNNING_INSTRUCTIONS.md) - How to run tests reliably
+- [Test Coverage Analysis](./cadence/tests/TEST_COVERAGE.md) - Test inventory and coverage notes
+- [TODO and Missing Tests Summary](./TODO_AND_MISSING_TESTS_SUMMARY.md) - Outstanding test gaps and follow-ups
 - [Cadence Testing Best Practices](./CadenceTestingBestPractices.md) - Testing guidelines
 
 ### Planning & Roadmap
-- [FlowVaults Integration Milestones](./FlowVaultsMilestones.md) - Integration phases
+
 - [Future Features](./FutureFeatures.md) - Upcoming development
 
 ## 🤝 Contributing
@@ -214,6 +240,3 @@ This project is licensed under the MIT License.
 - [FungibleToken Standard](https://github.com/onflow/flow-ft)
 - [DeFi Actions](https://github.com/onflow/defiactions)
 - [Flow Discord](https://discord.gg/flow)
-
-## Note
-Tests are being updated for the new contract implementation and will be added in the next PR.

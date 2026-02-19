@@ -1,4 +1,4 @@
-# FlowCreditMarket Top-level Agent Instructions
+# FlowALP Top-level Agent Instructions
 
 This document provides top-level information to agents (Claude Code etc.).
 **It is loaded into context automatically for all sessions in this repo, so keep it concise!**
@@ -6,8 +6,18 @@ This document provides top-level information to agents (Claude Code etc.).
 # Testing
 
 All Cadence test files are located in:
+
 ```
 cadence/tests/*_test.cdc
+```
+
+## IMPORTANT: Install Dependencies First
+
+**On a fresh clone, you MUST init submodules and install Flow dependencies before running tests:**
+
+```bash
+git submodule update --init --recursive
+flow deps install
 ```
 
 ## Run All Tests

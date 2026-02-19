@@ -1613,8 +1613,10 @@ access(all) contract FlowALPv1 {
             return self.paused
         }
 
-        /// Returns whether liquidations are paused - liquidations have an additional warmup after a global pause,
-        /// to allow users time to improve position health and avoid liquidation.
+        /// Returns whether withdrawals and liquidations are paused.
+        /// Both have a warmup period after a global pause is ended, to allow users time to improve position health and avoid liquidation.
+        /// The warmup period provides an opportunity for users to deposit to unhealthy positions before liquidations start,
+        /// and also disallows withdrawing while liquidations are disabled, because liquidations can be needed to satisfy withdrawal requests.
         access(all) view fun isPausedOrWarmup(): Bool {
             if self.paused {
                 return true
@@ -2857,10 +2859,10 @@ access(all) contract FlowALPv1 {
         ///
         /// Callers should be careful that the withdrawal does not put their position under its target health,
         /// especially if the position doesn't have a configured `topUpSource` from which to repay borrowed funds
-        // in the event of undercollaterlization.
+        /// in the event of undercollaterlization.
         access(EPosition) fun withdraw(pid: UInt64, amount: UFix64, type: Type): @{FungibleToken.Vault} {
             pre {
-                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPausedOrWarmup(): "Withdrawals are paused by governance"
             }
             // Call the enhanced function with pullFromTopUpSource = false for backward compatibility
             return <- self.withdrawAndPull(
@@ -2884,7 +2886,7 @@ access(all) contract FlowALPv1 {
             pullFromTopUpSource: Bool
         ): @{FungibleToken.Vault} {
             pre {
-                !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
+                !self.isPausedOrWarmup(): "Withdrawals are paused by governance"
                 self.positions[pid] != nil:
                     "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
                 self.globalLedger[type] != nil:
@@ -3431,6 +3433,10 @@ access(all) contract FlowALPv1 {
             } else if balanceSheet.health > position.targetHealth {
                 // The position is overcollateralized,
                 // we'll withdraw funds to match the target health and offer it to the sink.
+                if self.isPausedOrWarmup() {
+                    // Withdrawals (including pushing to the drawDownSink) are disabled during the warmup period
+                    return
+                }
                 if let drawDownSink = position.drawDownSink {
                     let drawDownSink = drawDownSink as auth(FungibleToken.Withdraw) &{DeFiActions.Sink}
                     let sinkType = drawDownSink.getSinkType()
