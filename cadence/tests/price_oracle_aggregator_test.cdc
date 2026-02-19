@@ -27,8 +27,9 @@ access(all) fun test_single_oracle() {
     let info = createAggregator(
         ofToken: Type<@FlowToken.Vault>(),
         oracleCount: 1,
-        maxSpread: 0.0,
-        maxGradient: 0.0,
+        maxSpread: 10000.0,
+        baseTolerance: 10000.0,
+        driftExpansionRate: 10000.0,
         priceHistorySize: 0,
         priceHistoryInterval: 0.0,
         maxPriceHistoryAge: 0.0,
@@ -58,8 +59,9 @@ access(all) fun test_multiple_oracles() {
         let info = createAggregator(
             ofToken: Type<@MOET.Vault>(),
             oracleCount: oracleCount,
-            maxSpread: 0.0,
-            maxGradient: 0.0,
+            maxSpread: 10000.0,
+            baseTolerance: 10000.0,
+            driftExpansionRate: 10000.0,
             priceHistorySize: 0,
             priceHistoryInterval: 0.0,
             maxPriceHistoryAge: 0.0,
@@ -143,8 +145,9 @@ access(all) fun test_average_price() {
         let info = createAggregator(
             ofToken: Type<@FlowToken.Vault>(),
             oracleCount: testRun.prices.length,
-            maxSpread: UFix64.max,
-            maxGradient: UFix64.max,
+            maxSpread: 10000.0,
+            baseTolerance: 10000.0,
+            driftExpansionRate: 10000.0,
             priceHistorySize: 0,
             priceHistoryInterval: 0.0,
             maxPriceHistoryAge: 0.0,
@@ -157,7 +160,7 @@ access(all) fun test_average_price() {
         )
         if price != testRun.expectedPrice {
             log(testRun)
-            log_fail_events()
+            logFailEvents()
             Test.fail(message: "invalid price")
         }
     }
@@ -201,11 +204,11 @@ access(all) fun test_spread() {
         prices: [1.0, 1.0001, 1.0],
         expectedPrice: nil,
     ), TestRunSpread(
-        maxSpread: 1.0,
+        maxSpread: 10000.0,
         prices: [1.0, 2.0],
         expectedPrice: 1.5,
     ), TestRunSpread(
-        maxSpread: 1.0,
+        maxSpread: 10000.0,
         prices: [1.0, 1.5, 2.0],
         expectedPrice: 1.5,
     )]
@@ -226,7 +229,8 @@ access(all) fun test_spread() {
             ofToken: Type<@FlowToken.Vault>(),
             oracleCount: testRun.prices.length,
             maxSpread: testRun.maxSpread,
-            maxGradient: UFix64.max,
+            baseTolerance: 10000.0,
+            driftExpansionRate: 10000.0,
             priceHistorySize: 0,
             priceHistoryInterval: 0.0,
             maxPriceHistoryAge: 0.0,
@@ -239,67 +243,118 @@ access(all) fun test_spread() {
         )
         if price != testRun.expectedPrice {
             log(testRun)
-            log_fail_events()
+            logFailEvents()
             log(price)
             Test.assertEqual(testRun.expectedPrice, price)
         }
     }
 }
 
-access(all) struct TestRunGradient {
-    access(all) let maxGradient: UFix64
+access(all) struct TestRunHistory {
+    access(all) let baseTolerance: UFix64
+    access(all) let driftExpansionRate: UFix64
     access(all) let priceHistory: [UFix64]
     access(all) let priceHistoryDelay: Fix64
-    access(all) let isGradientStable: Bool
+    access(all) let isHistoryStable: Bool
 
-    init(maxGradient: UFix64, priceHistory: [UFix64], priceHistoryDelay: Fix64, isGradientStable: Bool) {
-        self.maxGradient = maxGradient
+    init(
+        baseTolerance: UFix64,
+        driftExpansionRate: UFix64,
+        priceHistory: [UFix64],
+        priceHistoryDelay: Fix64,
+        isHistoryStable: Bool,
+    ) {
+        self.baseTolerance = baseTolerance
+        self.driftExpansionRate = driftExpansionRate
         self.priceHistory = priceHistory
         self.priceHistoryDelay = priceHistoryDelay
-        self.isGradientStable = isGradientStable
+        self.isHistoryStable = isHistoryStable
     }
 }
 
-access(all) fun test_gradient() {
+access(all) fun test_history() {
     let testRuns = [
-    TestRunGradient(
-        maxGradient: 0.0,
+    TestRunHistory(
+        baseTolerance: 0.0,
+        driftExpansionRate: 0.0,
         priceHistory: [1.0],
         priceHistoryDelay: 60.0,
-        isGradientStable: true,
-    ),TestRunGradient(
-        maxGradient: 100.0,
+        isHistoryStable: true,
+    ),TestRunHistory(
+        baseTolerance: 1.0,
+        driftExpansionRate: 0.0,
         priceHistory: [1.0, 2.0],
         priceHistoryDelay: 60.0,
-        isGradientStable: true,
-    ),TestRunGradient(
-        maxGradient: 95.0,
+        isHistoryStable: true,
+    ),TestRunHistory(
+        baseTolerance: 0.95,
+        driftExpansionRate: 0.0,
         priceHistory: [1.0, 2.0],
         priceHistoryDelay: 60.0,
-        isGradientStable: false,
-    ),TestRunGradient(
-        maxGradient: 100.0,
-        priceHistory: [1.0, 2.0, 3.1],
+        isHistoryStable: false,
+    ),TestRunHistory(
+        baseTolerance: 1.0,
+        driftExpansionRate: 0.0,
+        priceHistory: [1.0, 2.0, 2.1],
         priceHistoryDelay: 60.0,
-        isGradientStable: false,
-    ),TestRunGradient(
-        maxGradient: 100.0,
+        isHistoryStable: false,
+    ),TestRunHistory(
+        baseTolerance: 1.0,
+        driftExpansionRate: 0.0,
         priceHistory: [2.0, 1.0, 3.0, 2.0],
         priceHistoryDelay: 60.0,
-        isGradientStable: true,
-    ),TestRunGradient(
-        maxGradient: 0.1,
+        isHistoryStable: true,
+    ),TestRunHistory(
+        baseTolerance: 0.1 / 100.0,
+        driftExpansionRate: 0.0,
         priceHistory: [100.0, 100.1, 100.1, 100.1, 100.1, 100.2],
         priceHistoryDelay: 60.0,
-        isGradientStable: true,
+        isHistoryStable: false,
+    ),TestRunHistory(
+        baseTolerance: 0.0,
+        driftExpansionRate: 1.0,
+        priceHistory: [1.0, 2.0, 3.0],
+        priceHistoryDelay: 60.0,
+        isHistoryStable: true,
+    ),TestRunHistory(
+        baseTolerance: 0.0,
+        driftExpansionRate: 1.0,
+        priceHistory: [1.0, 2.0, 3.1],
+        priceHistoryDelay: 60.0,
+        isHistoryStable: false,
+    ),TestRunHistory(
+        baseTolerance: 0.0,
+        driftExpansionRate: 1.0,
+        priceHistory: [2.0 , 1.0, 3.0, 2.0],
+        priceHistoryDelay: 60.0,
+        isHistoryStable: true,
+    ),TestRunHistory(
+        baseTolerance: 0.0,
+        driftExpansionRate: 0.1,
+        priceHistory: [1.0, 1.1, 1.2, 1.3],
+        priceHistoryDelay: 60.0,
+        isHistoryStable: true,
+    ),TestRunHistory(
+        baseTolerance: 0.2,
+        driftExpansionRate: 0.1,
+        priceHistory: [1.0, 1.3],
+        priceHistoryDelay: 60.0,
+        isHistoryStable: true,
+    ),TestRunHistory(
+        baseTolerance: 0.2,
+        driftExpansionRate: 0.1,
+        priceHistory: [1.0, 1.31],
+        priceHistoryDelay: 60.0,
+        isHistoryStable: false,
     )]
-    let reversedRuns: [TestRunGradient] = []
+    let reversedRuns: [TestRunHistory] = []
     for testRun in testRuns {
-        reversedRuns.append(TestRunGradient(
-            maxGradient: testRun.maxGradient,
+        reversedRuns.append(TestRunHistory(
+            baseTolerance: testRun.baseTolerance,
+            driftExpansionRate: testRun.driftExpansionRate,
             priceHistory: testRun.priceHistory.reverse(),
             priceHistoryDelay: testRun.priceHistoryDelay,
-            isGradientStable: testRun.isGradientStable,
+            isHistoryStable: testRun.isHistoryStable,
         ))
     }
     testRuns.appendAll(reversedRuns)
@@ -310,10 +365,11 @@ access(all) fun test_gradient() {
         let info = createAggregator(
             ofToken: Type<@FlowToken.Vault>(),
             oracleCount: 1,
-            maxSpread: UFix64.max,
-            maxGradient: testRun.maxGradient,
+            maxSpread: 10000.0,
+            baseTolerance: testRun.baseTolerance,
+            driftExpansionRate: testRun.driftExpansionRate,
             priceHistorySize: testRun.priceHistory.length,
-            priceHistoryInterval: 59.0, // allow some jitter
+            priceHistoryInterval: UFix64(testRun.priceHistoryDelay - 1.0), // allow some jitter
             maxPriceHistoryAge: 600.0, // 10 minutes
             unitOfAccount: Type<@MOET.Vault>(),
         )
@@ -343,9 +399,10 @@ access(all) fun test_gradient() {
             ofToken: Type<@FlowToken.Vault>()
         )
         let priceIsStable = price != nil
-        if priceIsStable != testRun.isGradientStable {
+        if priceIsStable != testRun.isHistoryStable {
             log(testRun)
-            log_fail_events()
+            log(price)
+            logFailEvents()
             Test.fail(message: "invalid price")
         }
     }
@@ -356,8 +413,9 @@ access(self) fun test_gradient_incomplete_price_history() {
     let info = createAggregator(
         ofToken: Type<@FlowToken.Vault>(),
         oracleCount: 1,
-        maxSpread: UFix64.max,
-        maxGradient: 100.0,
+        maxSpread: 10000.0,
+        baseTolerance: 0.0,
+        driftExpansionRate: 1.0,
         priceHistorySize: priceHistory.length,
         priceHistoryInterval: 59.0, // allow some jitter
         maxPriceHistoryAge: 600.0, // 10 minutes
@@ -389,8 +447,9 @@ access(self) fun test_gradient_old_price_history() {
     let info = createAggregator(
         ofToken: Type<@FlowToken.Vault>(),
         oracleCount: 1,
-        maxSpread: UFix64.max,
-        maxGradient: 1.0,
+        maxSpread: 10000.0,
+        baseTolerance: 0.0,
+        driftExpansionRate: 1.0,
         priceHistorySize: priceHistory.length,
         priceHistoryInterval: 59.0, // allow some jitter
         maxPriceHistoryAge: 150.0,
@@ -416,53 +475,14 @@ access(self) fun test_gradient_old_price_history() {
     Test.assertEqual(priceIsStable, true)
 }
 
-access(all) fun test_allow_jitter() {
-    let info = createAggregator(
-        ofToken: Type<@FlowToken.Vault>(),
-        oracleCount: 1,
-        maxSpread: UFix64.max,
-        maxGradient: 1.0,
-        priceHistorySize: 1,
-        priceHistoryInterval: 59.0, // allow some jitter
-        maxPriceHistoryAge: 150.0,
-        unitOfAccount: Type<@MOET.Vault>(),
-    )
-    setMultiMockOraclePrice(
-        storageID: info.mockOracleStorageIDs[0],
-        forToken: Type<@FlowToken.Vault>(),
-        price: 1.0,
-    )
-    // now everything needs to be in the same block
-    var txs: [Test.Transaction] = []
-    let originalHeight = getCurrentBlockHeight()
-    let originalTimestamp = getCurrentBlock().timestamp
-    txs.append(oracleAggregatorPriceTx(
-        storageID: info.aggregatorStorageID,
-        ofToken: Type<@FlowToken.Vault>()
-    ))
-    txs.append(setMultiMockOraclePriceTx(
-        storageID: info.mockOracleStorageIDs[0],
-        forToken: Type<@FlowToken.Vault>(),
-        price: 1.00000001,
-    ))
-    txs.append(oracleAggregatorAssertPriceTx(
-        storageID: info.aggregatorStorageID,
-        ofToken: Type<@FlowToken.Vault>(),
-        price: 1.00000001,
-    ))
-    let res = Test.executeTransactions(txs)
-    for r in res {
-        Test.expect(r, Test.beSucceeded())
-    }
-}
-
 access(all) fun test_cron_job() {
     let info = createAggregatorWithCron(
         signer: signer,
         ofToken: Type<@FlowToken.Vault>(),
         oracleCount: 1,
-        maxSpread: UFix64.max,
-        maxGradient: 1.0,
+        maxSpread: 10000.0,
+        baseTolerance: 10000.0,
+        driftExpansionRate: 10000.0,
         priceHistorySize: 5,
         priceHistoryInterval: 59.0, // allow some jitter
         maxPriceHistoryAge: 600.0, // 10 minutes
@@ -479,7 +499,7 @@ access(all) fun test_cron_job() {
         price: 1.0,
     )
     var i = 0;
-    Test.moveTime(by: 10.0)
+    Test.moveTime(by: 30.0)
     while i < 5 {
         let history = oracleAggregatorPriceHistory(storageID: info.aggregatorStorageID)
         Test.assertEqual(history.length, i + 1)
@@ -508,11 +528,11 @@ access(self) fun set_prices(info: CreateAggregatorInfo, prices: [UFix64?], forTo
     }
 }
 
-access(self) fun log_fail_events() {
+access(self) fun logFailEvents() {
     let failureEvents = [
         Type<FlowPriceOracleAggregatorv1.PriceNotAvailable>(),
         Type<FlowPriceOracleAggregatorv1.PriceNotWithinSpreadTolerance>(),
-        Type<FlowPriceOracleAggregatorv1.PriceNotWithinGradientTolerance>()
+        Type<FlowPriceOracleAggregatorv1.PriceNotWithinHistoryTolerance>()
     ]
     for eventType in failureEvents {
         let events = Test.eventsOfType(eventType)

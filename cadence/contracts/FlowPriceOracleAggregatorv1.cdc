@@ -6,7 +6,7 @@ import "FlowTransactionScheduler"
 /// sources into a single trusted oracle. A price is returned only when:
 /// - All oracles return a value (no missing data),
 /// - The spread between min and max oracle prices is within `maxSpread`,
-/// - Short-term price gradient vs. recent history is within `maxGradient`.
+/// - Short-term price history is stable.
 ///
 /// One aggregator instance = one market (one token type). For multiple
 /// markets, create one storage per market and use a router to expose them.
@@ -20,9 +20,16 @@ access(all) contract FlowPriceOracleAggregatorv1 {
     access(all) event PriceNotAvailable()
     /// Spread between min and max oracle prices exceeded the configured
     /// tolerance.
-    access(all) event PriceNotWithinSpreadTolerance(spread: UFix64)
-    /// Short-term price change (gradient) exceeded the configured tolerance.
-    access(all) event PriceNotWithinGradientTolerance(gradient: UFix64)
+    access(all) event PriceNotWithinSpreadTolerance(
+        spread: UFix64,
+        maxAllowedSpread: UFix64
+    )
+    /// Short-term price change exceeded the configured tolerance.
+    access(all) event PriceNotWithinHistoryTolerance(
+        relativeDiff: UFix64,
+        deltaTMinutes: UFix64,
+        maxAllowedRelativeDiff: UFix64
+    )
     /// storageID -> PriceOracleAggregatorStorage
     access(self) var storage: @{UInt64: PriceOracleAggregatorStorage}
 
@@ -31,27 +38,28 @@ access(all) contract FlowPriceOracleAggregatorv1 {
     }
 
     /// Storage resource for one aggregated oracle (single market): a fixed
-    /// set of oracles, tolerances, and an array of recent prices for gradient
+    /// set of oracles, tolerances, and an array of recent prices for history
     /// (stability) checks. Immutable: no post-creation config change to avoid
     /// accidental misconfiguration in production.
     access(all) resource PriceOracleAggregatorStorage {
         /// Token type for this oracle.
         access(all) let ofToken: Type
-        /// Recent prices for gradient (stability) checks.
+        /// Recent prices for history stability checks.
         access(all) let priceHistory: [PriceHistoryEntry]
         /// Fixed set of oracles.
         access(all) let oracles: [{DeFiActions.PriceOracle}]
         /// Max allowed relative spread (max-min)/min between oracle prices.
         access(all) let maxSpread: UFix64
-        /// Max allowed short-term gradient (effective % change per minute).
-        access(all) let maxGradient: UFix64
-        /// Length of the price history array for gradient stability checks.
+        /// Fixed relative buffer to account for immediate market noise.
+        access(all) let baseTolerance: UFix64
+        /// Additional allowance per minute to account for natural price drift.
+        access(all) let driftExpansionRate: UFix64
+        /// Size of the price history array.
         access(all) let priceHistorySize: Int
         /// Min time between two consecutive history entries.
         access(all) let priceHistoryInterval: UFix64
-        /// Maximum age of a price history entry.
-        /// History entries older than this are ignored when computing gradient
-        /// stability.
+        /// Maximum age of a price history entry. History entries older than
+        /// this are ignored when computing history stability.
         access(all) let maxPriceHistoryAge: UFix64
         /// Unit of account type for this oracle.
         access(all) let unitOfAccountType: Type
@@ -60,17 +68,29 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             ofToken: Type,
             oracles: [{DeFiActions.PriceOracle}],
             maxSpread: UFix64,
-            maxGradient: UFix64,
+            baseTolerance: UFix64,
+            driftExpansionRate: UFix64,
             priceHistorySize: Int,
             priceHistoryInterval: UFix64,
             maxPriceHistoryAge: UFix64,
             unitOfAccount: Type,
         ) {
+            pre {
+                oracles.length > 0:
+                    "at least one oracle must be provided"
+                maxSpread <= 10000.0:
+                    "maxSpread must be <= 10000.0"
+                baseTolerance <= 10000.0:
+                    "baseTolerance must be <= 10000.0"
+                driftExpansionRate <= 10000.0:
+                    "driftExpansionRate must be <= 10000.0"
+            }
             self.ofToken = ofToken
             self.oracles = oracles
             self.priceHistory = []
             self.maxSpread = maxSpread
-            self.maxGradient = maxGradient
+            self.baseTolerance = baseTolerance
+            self.driftExpansionRate = driftExpansionRate
             self.priceHistorySize = priceHistorySize
             self.priceHistoryInterval = priceHistoryInterval
             self.maxPriceHistoryAge = maxPriceHistoryAge
@@ -81,17 +101,17 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         /// - no oracle defined for `ofToken`,
         /// - oracle returned nil,
         /// - spread between min and max prices is too high,
-        /// - gradient is too high.
+        /// - history is not stable.
         access(all) fun price(ofToken: Type): UFix64? {
             pre {
                 self.ofToken == ofToken: "ofToken type mismatch"
             }
-            let price = self.getPriceUncheckedGradient()
+            let price = self.getPriceUncheckedHistory()
             if price == nil {
                 return nil
             }
             self.tryAddPriceToHistoryInternal(price: price!)
-            if !self.isGradientStable(currentPrice: price!) {
+            if !self.isHistoryStable(currentPrice: price!) {
                 return nil
             }
             return price
@@ -101,14 +121,14 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         /// to history if available and interval has elapsed.
         /// Idempotent; safe to call from a cron/scheduler.
         access(all) fun tryAddPriceToHistory() {
-            let price = self.getPriceUncheckedGradient()
+            let price = self.getPriceUncheckedHistory()
             if price == nil {
                 return
             }
             self.tryAddPriceToHistoryInternal(price: price!)
         }
 
-        access(self) fun getPriceUncheckedGradient(): UFix64? {
+        access(self) fun getPriceUncheckedHistory(): UFix64? {
             let prices = self.getPrices()
             if prices == nil || prices!.length == 0 {
                 return nil
@@ -160,7 +180,10 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         ): Bool {
             let spread = (maxPrice - minPrice) / minPrice
             if spread > self.maxSpread {
-                emit PriceNotWithinSpreadTolerance(spread: spread)
+                emit PriceNotWithinSpreadTolerance(
+                    spread: spread,
+                    maxAllowedSpread: self.maxSpread
+                )
                 return false
             }
             return true
@@ -186,27 +209,38 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             return trimmedSum / UFix64(count - 2)
         }
 
-        access(self) fun isGradientStable(currentPrice: UFix64): Bool {
+        access(self) fun isHistoryStable(currentPrice: UFix64): Bool {
             let now = getCurrentBlock().timestamp
+
             for entry in self.priceHistory {
-                var deltaT = now - UFix64(entry.timestamp)
-                if deltaT == 0.0 {
-                    // Same block: allow some jitter (avoid div by zero).
-                    deltaT = 1.0
-                }
+                let deltaT = now - UFix64(entry.timestamp)
+                let deltaTMinutes = deltaT / 60.0
+                // Skip entries that are too old to be relevant for the
+                // stability check
                 if deltaT > self.maxPriceHistoryAge {
                     continue
                 }
-                var gradient = 0.0
+
+                // Calculate the absolute relative difference (delta P / P)
+                var relativeDiff = 0.0
                 if currentPrice > entry.price {
-                    gradient = ((currentPrice - entry.price) * 6000.0)
-                            / (entry.price * deltaT)
+                    let priceDiff = currentPrice - entry.price
+                    relativeDiff = priceDiff / entry.price
                 } else {
-                    gradient = ((entry.price - currentPrice) * 6000.0)
-                            / (currentPrice * deltaT)
+                    let priceDiff = entry.price - currentPrice
+                    relativeDiff = priceDiff / currentPrice
                 }
-                if gradient > self.maxGradient {
-                    emit PriceNotWithinGradientTolerance(gradient: gradient)
+
+                // The "n" component: baseTolerance
+                // The "mx" component: driftExpansionRate * deltaT
+                let totalAllowedTolerance = self.baseTolerance + (self.driftExpansionRate * deltaTMinutes)
+
+                if relativeDiff > totalAllowedTolerance {
+                    emit PriceNotWithinHistoryTolerance(
+                        relativeDiff: relativeDiff,
+                        deltaTMinutes: deltaTMinutes,
+                        maxAllowedRelativeDiff: totalAllowedTolerance
+                    )
                     return false
                 }
             }
@@ -234,7 +268,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
     /// Struct over a `PriceOracleAggregatorStorage`
     /// See `DeFiActions.PriceOracle` for interface documentation.
     ///
-    /// Additionaly implements `priceHistory()` to return the price history
+    /// Additionally implements `priceHistory()` to return the price history
     /// array.
     access(all) struct PriceOracleAggregator: DeFiActions.PriceOracle {
         access(all) let storageID: UInt64
@@ -315,7 +349,8 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         ofToken: Type,
         oracles: [{DeFiActions.PriceOracle}],
         maxSpread: UFix64,
-        maxGradient: UFix64,
+        baseTolerance: UFix64,
+        driftExpansionRate: UFix64,
         priceHistorySize: Int,
         priceHistoryInterval: UFix64,
         maxPriceHistoryAge: UFix64,
@@ -325,7 +360,8 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             ofToken: ofToken,
             oracles: oracles,
             maxSpread: maxSpread,
-            maxGradient: maxGradient,
+            baseTolerance: baseTolerance,
+            driftExpansionRate: driftExpansionRate,
             priceHistorySize: priceHistorySize,
             priceHistoryInterval: priceHistoryInterval,
             maxPriceHistoryAge: maxPriceHistoryAge,
@@ -361,7 +397,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
     }
 
     /// Struct to store one entry in the aggregator's price history array for
-    /// gradient stability checks.
+    /// history stability checks.
     access(all) struct PriceHistoryEntry {
         access(all) let price: UFix64
         access(all) let timestamp: UFix64

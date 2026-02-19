@@ -2,7 +2,6 @@ import Test
 import "DeFiActions"
 import "FlowPriceOracleAggregatorv1"
 import "MultiMockOracle"
-// import "test_helpers.cdc"
 
 access(all) struct CreateAggregatorInfo {
     access(all) let aggregatorStorageID: UInt64
@@ -18,7 +17,8 @@ access(all) fun createAggregator(
     ofToken: Type,
     oracleCount: Int,
     maxSpread: UFix64,
-    maxGradient: UFix64,
+    baseTolerance: UFix64,
+    driftExpansionRate: UFix64,
     priceHistorySize: Int,
     priceHistoryInterval: UFix64,
     maxPriceHistoryAge: UFix64,
@@ -26,7 +26,7 @@ access(all) fun createAggregator(
 ): CreateAggregatorInfo {
     let res = _executeTransaction(
         "./transactions/price-oracle-aggregator/create.cdc",
-        [ofToken, oracleCount, maxSpread, maxGradient, priceHistorySize, priceHistoryInterval, maxPriceHistoryAge, unitOfAccount],
+        [ofToken, oracleCount, maxSpread, baseTolerance, driftExpansionRate, priceHistorySize, priceHistoryInterval, maxPriceHistoryAge, unitOfAccount],
         []
     )
     Test.expect(res, Test.beSucceeded())
@@ -51,7 +51,8 @@ access(all) fun createAggregatorWithCron(
     ofToken: Type,
     oracleCount: Int,
     maxSpread: UFix64,
-    maxGradient: UFix64,
+    baseTolerance: UFix64,
+    driftExpansionRate: UFix64,
     priceHistorySize: Int,
     priceHistoryInterval: UFix64,
     maxPriceHistoryAge: UFix64,
@@ -64,7 +65,7 @@ access(all) fun createAggregatorWithCron(
 ): CreateAggregatorInfo {
     let res = _executeTransaction(
         "./transactions/price-oracle-aggregator/create_with_cron.cdc",
-        [ofToken, oracleCount, maxSpread, maxGradient, priceHistorySize, priceHistoryInterval, maxPriceHistoryAge, unitOfAccount, cronExpression, cronHandlerStoragePath, keeperExecutionEffort, executorExecutionEffort, aggregatorCronHandlerStoragePath],
+        [ofToken, oracleCount, maxSpread, baseTolerance, driftExpansionRate, priceHistorySize, priceHistoryInterval, maxPriceHistoryAge, unitOfAccount, cronExpression, cronHandlerStoragePath, keeperExecutionEffort, executorExecutionEffort, aggregatorCronHandlerStoragePath],
         [signer]
     )
     Test.expect(res, Test.beSucceeded())

@@ -11,14 +11,10 @@ Two contracts implement this design:
 
 | Contract | Role |
 |----------|------|
-| **FlowPriceOracleAggregatorv1** | Combines multiple price sources for **one** market (e.g. several FLOW/USDC oracles). Returns a price only when sources agree within spread tolerance and short-term gradient is stable. |
+| **FlowPriceOracleAggregatorv1** | Combines multiple price sources for **one** market (e.g. several FLOW/USDC oracles). Returns a price only when sources agree within spread tolerance and short-term history is within `baseTolerance` + `driftExpansionRate` (stability). |
 | **FlowPriceOracleRouterv1** | Exposes **one** `DeFiActions.PriceOracle` that routes by token type. Each token has its own oracle; typically each oracle is an aggregator. |
 
 Typical usage: create one **aggregator** per market (same token pair, multiple sources), then register each aggregator in a **router** under the corresponding token type. The protocol then uses the router as its single oracle.
-
-That makes total sense. Direct mutations in production are essentially "testing in prod," which is a recipe for disaster. Forcing a full replacement ensures a clean audit trail and clear governance.
-
-Here is a refined version that incorporates those specific points:
 
 ### Immutable Configuration
 
@@ -37,17 +33,18 @@ One aggregated oracle per “market” (e.g. FLOW in USDC). Multiple underlying 
   2. If any oracle returns nil → emit `PriceNotAvailable`, return nil.
   3. Compute min/max; if spread > `maxSpread` → emit `PriceNotWithinSpreadTolerance`, return nil.
   4. Compute aggregated price (trimmed mean: drop min and max, average the rest).
-  5. Check short-term stability: compare current price to recent history; if any gradient > `maxGradient` → emit `PriceNotStable`, return nil.
+  5. Check short-term stability: compare current price to recent history; for each history entry the allowed relative difference is `baseTolerance + driftExpansionRate * deltaTMinutes`; if any relative difference exceeds that → emit `PriceNotWithinHistoryTolerance`, return nil.
   6. Otherwise return the aggregated price.
 - **History:** An array of `(price, timestamp)` is maintained. Updates are permissionless via `tryAddPriceToHistory()` (idempotent); A FlowCron job should be created to call this regularly.
 Additionally every call to price() will also attempt to store the price in the history.
 
 ## Aggregate price (trimmed mean)
 
-To avoid the complexity of a full median, the aggregator uses a **trimmed mean**: remove the single maximum and single minimum, then average the rest. This reduces the impact of a single outlier or “oracle jitter.”
+To avoid the complexity of a full median, the aggregator uses a **trimmed mean**: remove the single maximum and single minimum, then average the rest. This reduces the impact of a single outlier.
 
-- With <2 prices: mean
-- With 3+ prices: `(sum - min - max) / (count - 2)`.
+- With 1 oracle: that price.
+- With 2 oracles: arithmetic mean.
+- With 3+ oracles: trimmed mean `(sum - min - max) / (count - 2)`.
 
 ## Oracle spread (coherence)
 
@@ -67,30 +64,44 @@ $$
 \end{cases}
 $$
 
-## Short-term gradient (stability)
+## Short-term stability (history tolerance)
 
 The aggregator keeps an array of the last **n** aggregated prices (with timestamps), respecting `priceHistoryInterval` and `maxPriceHistoryAge`.
 
-For each historical point (i), the **gradient to the current price** is the relative change per unit time (scaled for “per minute”):
+Stability is defined by two parameters:
+
+- **baseTolerance** (n): fixed buffer to account for immediate market noise.
+- **driftExpansionRate** (m): additional allowance per minute to account for natural price drift.
+
+For each historical point (i), the **allowed relative difference** between the current price and the history price grows with time:
 
 $$
-\text{Gradient}_{i} = \frac{|Price_{\text{current}} - Price_{i}|}{\min(Price_{\text{current}}, Price_{i}) \cdot (t_{\text{current}} - t_{i})} \times \text{6000}
+\text{allowedRelativeDiff}_{i} = \text{baseTolerance} + \text{driftExpansionRate} \times \Delta t_{\text{minutes}}
 $$
 
-The current price is **stable** only if **every** such gradient (from each valid history entry to the current price) is at or below the configured `maxGradient`. If **any** gradient is above the threshold, the aggregator emits `PriceNotStable(gradient)` and returns nil.
+where \(\Delta t_{\text{minutes}}\) is the time in minutes from the history entry to now. The **actual relative difference** is:
+
+$$
+\text{relativeDiff}_{i} = \frac{|Price_{\text{current}} - Price_{i}|}{\min(Price_{\text{current}}, Price_{i})}
+$$
+
+The current price is **stable** only if **every** such relative difference (from each valid history entry to the current price) is at or below the allowed tolerance for that entry. If **any** exceeds it, the aggregator emits `PriceNotWithinHistoryTolerance(relativeDiff, deltaTMinutes, maxAllowedRelativeDiff)` and returns nil.
 
 $$
 \text{isStable} =
 \begin{cases}
-\text{true}  & \text{if } \text{Gradient}_{i} \le \text{maxGradient} \text{ for all } i \\
+\text{true}  & \text{if } \text{relativeDiff}_{i} \le \text{allowedRelativeDiff}_{i} \text{ for all } i \\
 \text{false} & \text{otherwise (price invalid)}
 \end{cases}
 $$
 
-Implementationally, entries older than `maxPriceHistoryAge` are ignored; same-block timestamps are treated with a minimum time delta of 1 to allow small jitter within the same block.
+Implementationally, entries older than `maxPriceHistoryAge` are ignored when evaluating stability.
 
----
+**Parameter units:** `maxSpread`, `baseTolerance`, and `driftExpansionRate` are dimensionless relative values (e.g. `0.01` = 1%, `1.0` = 100%). All are bounded by the contract to ≤ 10000.0.
 
 ## FlowPriceOracleRouterv1
 
-Single oracle interface that routes by **token type**. Each token type maps to an oracle. This makes it easy to combine different aggrigators without the need to supply different kinds of thresholds for individual token types.
+Single oracle interface that routes by **token type**. Each token type maps to an oracle. This makes it easy to combine different aggregators without the need to supply different kinds of thresholds for individual token types.
+
+- **Price flow:** `price(ofToken)` looks up the oracle for that token type; if none is registered, returns `nil`. All oracles must share the same `unitOfAccount` (enforced at router creation).
+- **Empty router:** If the oracle map is empty or a token type is not registered, `price(ofToken)` returns `nil`.
