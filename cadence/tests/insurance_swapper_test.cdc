@@ -1,7 +1,7 @@
 import Test
 
 import "test_helpers.cdc"
-import "FlowALPv1"
+import "FlowALPv0"
 
 access(all) let alice = Test.createAccount()
 

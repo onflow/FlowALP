@@ -1,12 +1,12 @@
 import Test
 import "FlowToken"
-import "FlowALPv1"
+import "FlowALPv0"
 import "FlowALPMath"
 import "test_helpers.cdc"
 
 access(all)
 fun setup() {
-    // Deploy FlowALPv1 and dependencies so the contract types are available.
+    // Deploy FlowALPv0 and dependencies so the contract types are available.
     deployContracts()
 }
 
@@ -18,7 +18,7 @@ access(all)
 fun test_FixedRateInterestCurve_returns_constant_rate() {
     // Create a fixed rate curve with 5% APY
     let fixedRate: UFix128 = 0.05
-    let curve = FlowALPv1.FixedRateInterestCurve(yearlyRate: fixedRate)
+    let curve = FlowALPv0.FixedRateInterestCurve(yearlyRate: fixedRate)
 
     // Test with various credit and debit balances
     let rate1 = curve.interestRate(creditBalance: 100.0, debitBalance: 0.0)
@@ -31,7 +31,7 @@ fun test_FixedRateInterestCurve_returns_constant_rate() {
 access(all)
 fun test_FixedRateInterestCurve_accepts_zero_rate() {
     // Zero rate should be valid (0% APY)
-    let curve = FlowALPv1.FixedRateInterestCurve(yearlyRate: 0.0)
+    let curve = FlowALPv0.FixedRateInterestCurve(yearlyRate: 0.0)
     let rate = curve.interestRate(creditBalance: 100.0, debitBalance: 50.0)
     Test.assertEqual(0.0 as UFix128, rate)
 }
@@ -47,7 +47,7 @@ fun test_KinkInterestCurve_at_zero_utilization() {
     // - 1% base rate
     // - 4% slope1
     // - 60% slope2
-    let curve = FlowALPv1.KinkInterestCurve(
+    let curve = FlowALPv0.KinkInterestCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -66,7 +66,7 @@ fun test_KinkInterestCurve_before_kink() {
     // - 1% base rate
     // - 4% slope1
     // - 60% slope2
-    let curve = FlowALPv1.KinkInterestCurve(
+    let curve = FlowALPv0.KinkInterestCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -84,7 +84,7 @@ fun test_KinkInterestCurve_before_kink() {
 access(all)
 fun test_KinkInterestCurve_at_kink() {
     // Create a kink curve
-    let curve = FlowALPv1.KinkInterestCurve(
+    let curve = FlowALPv0.KinkInterestCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -101,7 +101,7 @@ fun test_KinkInterestCurve_at_kink() {
 access(all)
 fun test_KinkInterestCurve_after_kink() {
     // Create a kink curve
-    let curve = FlowALPv1.KinkInterestCurve(
+    let curve = FlowALPv0.KinkInterestCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -121,7 +121,7 @@ fun test_KinkInterestCurve_after_kink() {
 access(all)
 fun test_KinkInterestCurve_at_full_utilization() {
     // Create a kink curve
-    let curve = FlowALPv1.KinkInterestCurve(
+    let curve = FlowALPv0.KinkInterestCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -151,8 +151,8 @@ fun test_KinkInterestCurve_at_full_utilization() {
 access(all)
 fun test_TokenState_with_FixedRateInterestCurve() {
     // Create a TokenState with a fixed rate curve
-    let fixedCurve = FlowALPv1.FixedRateInterestCurve(yearlyRate: 0.10)
-    var tokenState = FlowALPv1.TokenState(
+    let fixedCurve = FlowALPv0.FixedRateInterestCurve(yearlyRate: 0.10)
+    var tokenState = FlowALPv0.TokenState(
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: fixedCurve,
         depositRate: 1.0,
@@ -165,7 +165,7 @@ fun test_TokenState_with_FixedRateInterestCurve() {
     tokenState.increaseDebitBalance(by: 50.0)
 
     // Debit rate should be the per-second conversion of 10% yearly
-    let expectedDebitRate = FlowALPv1.perSecondInterestRate(yearlyRate: 0.10)
+    let expectedDebitRate = FlowALPv0.perSecondInterestRate(yearlyRate: 0.10)
     Test.assertEqual(expectedDebitRate, tokenState.currentDebitRate)
 
     // For FixedRateInterestCurve, credit rate uses the SPREAD MODEL:
@@ -174,20 +174,20 @@ fun test_TokenState_with_FixedRateInterestCurve() {
     // debitRate = 0.10
     // protocolFeeRate = 0.0 + 0.05 = 0.05 (default insuranceRate = 0.0, default stabilityFeeRate = 0.05)
     // creditYearly = 0.10 * (1 - 0.05) = 0.095
-    let expectedCreditRate = FlowALPv1.perSecondInterestRate(yearlyRate: 0.095)
+    let expectedCreditRate = FlowALPv0.perSecondInterestRate(yearlyRate: 0.095)
     Test.assertEqual(expectedCreditRate, tokenState.currentCreditRate)
 }
 
 access(all)
 fun test_TokenState_with_KinkInterestCurve() {
     // Create a TokenState with a kink curve
-    let kinkCurve = FlowALPv1.KinkInterestCurve(
+    let kinkCurve = FlowALPv0.KinkInterestCurve(
         optimalUtilization: 0.80,
         baseRate: 0.02,
         slope1: 0.05,
         slope2: 0.50
     )
-    var tokenState = FlowALPv1.TokenState(
+    var tokenState = FlowALPv0.TokenState(
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
@@ -204,20 +204,20 @@ fun test_TokenState_with_KinkInterestCurve() {
 
     // Verify the debit rate
     let expectedYearlyRate: UFix128 = 0.0575
-    let expectedDebitRate = FlowALPv1.perSecondInterestRate(yearlyRate: expectedYearlyRate)
+    let expectedDebitRate = FlowALPv0.perSecondInterestRate(yearlyRate: expectedYearlyRate)
     Test.assertEqual(expectedDebitRate, tokenState.currentDebitRate)
 }
 
 access(all)
 fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     // Create TokenState with KinkCurve (80% optimal, 2% base, 5% slope1, 50% slope2)
-    let kinkCurve = FlowALPv1.KinkInterestCurve(
+    let kinkCurve = FlowALPv0.KinkInterestCurve(
         optimalUtilization: 0.80,
         baseRate: 0.02,
         slope1: 0.05,
         slope2: 0.50
     )
-    var tokenState = FlowALPv1.TokenState(
+    var tokenState = FlowALPv0.TokenState(
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
@@ -228,7 +228,7 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     // credit: 100, debit: 0 → utilization = 0% → rate = baseRate = 2%
     tokenState.increaseCreditBalance(by: 100.0)
 
-    let rateAtZeroUtilization = FlowALPv1.perSecondInterestRate(yearlyRate: 0.02)
+    let rateAtZeroUtilization = FlowALPv0.perSecondInterestRate(yearlyRate: 0.02)
     Test.assertEqual(rateAtZeroUtilization, tokenState.currentDebitRate)
 
     // Step 2: Add debt to create 50% utilization
@@ -236,7 +236,7 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     // rate = 0.02 + (0.05 × 0.50 / 0.80) = 0.02 + 0.03125 = 0.05125
     tokenState.increaseDebitBalance(by: 100.0)
 
-    let rateAt50Utilization = FlowALPv1.perSecondInterestRate(yearlyRate: 0.05125)
+    let rateAt50Utilization = FlowALPv0.perSecondInterestRate(yearlyRate: 0.05125)
     Test.assertEqual(rateAt50Utilization, tokenState.currentDebitRate)
 
     // Step 3: Increase utilization to 90% (above kink)
@@ -245,14 +245,14 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     // rate = 0.02 + 0.05 + (0.50 × 0.50) = 0.32
     tokenState.increaseDebitBalance(by: 800.0)
 
-    let rateAt90Util = FlowALPv1.perSecondInterestRate(yearlyRate: 0.32)
+    let rateAt90Util = FlowALPv0.perSecondInterestRate(yearlyRate: 0.32)
     Test.assertEqual(rateAt90Util, tokenState.currentDebitRate)
 
     // Step 4: Decrease debt to lower utilization back to 0%
     // credit: 100, debit: 0 → utilization = 0% → rate = baseRate = 2%
     tokenState.decreaseDebitBalance(by: 900.0)
 
-    let rateBackToZero = FlowALPv1.perSecondInterestRate(yearlyRate: 0.02)
+    let rateBackToZero = FlowALPv0.perSecondInterestRate(yearlyRate: 0.02)
     Test.assertEqual(rateBackToZero, tokenState.currentDebitRate)
 }
 
@@ -262,7 +262,7 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
 
 access(all)
 fun test_KinkInterestCurve_with_very_small_balances() {
-    let curve = FlowALPv1.KinkInterestCurve(
+    let curve = FlowALPv0.KinkInterestCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -277,7 +277,7 @@ fun test_KinkInterestCurve_with_very_small_balances() {
 
 access(all)
 fun test_KinkInterestCurve_with_large_balances() {
-    let curve = FlowALPv1.KinkInterestCurve(
+    let curve = FlowALPv0.KinkInterestCurve(
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,

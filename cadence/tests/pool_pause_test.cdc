@@ -2,7 +2,7 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-import "FlowALPv1"
+import "FlowALPv0"
 import "test_helpers.cdc"
 
 access(all) var snapshot: UInt64 = 0
@@ -56,7 +56,7 @@ fun test_pool_pause_deposit_withdrawal() {
     // Pause the pool
     let pauseRes = setPoolPauseState(signer: PROTOCOL_ACCOUNT, pause: true)
     Test.expect(pauseRes, Test.beSucceeded())
-    let pauseEvents = Test.eventsOfType(Type<FlowALPv1.PoolPaused>())
+    let pauseEvents = Test.eventsOfType(Type<FlowALPv0.PoolPaused>())
     Test.expect(pauseEvents.length, Test.equal(1))
     // ---------------------------------------------------------
 
@@ -88,7 +88,7 @@ fun test_pool_pause_deposit_withdrawal() {
     // Unpause the pool
     let unpauseRes = setPoolPauseState(signer: PROTOCOL_ACCOUNT, pause: false)
     Test.expect(unpauseRes, Test.beSucceeded())
-    let unpauseEvents = Test.eventsOfType(Type<FlowALPv1.PoolUnpaused>())
+    let unpauseEvents = Test.eventsOfType(Type<FlowALPv0.PoolUnpaused>())
     Test.expect(unpauseEvents.length, Test.equal(1))
     // ---------------------------------------------------------
 
@@ -116,7 +116,7 @@ fun test_pool_pause_deposit_withdrawal() {
     )
     Test.expect(openRes2, Test.beSucceeded())
 
-    // Wait for the warmup period to end (the default warmupSec of FlowALPv1.Pool is 300.0)
+    // Wait for the warmup period to end (the default warmupSec of FlowALPv0.Pool is 300.0)
     Test.moveTime(by: Fix64(300.0))
     // ---------------------------------------------------------
 

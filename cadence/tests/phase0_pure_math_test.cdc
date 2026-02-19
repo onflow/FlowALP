@@ -1,5 +1,5 @@
 import Test
-import "FlowALPv1"
+import "FlowALPv0"
 import "FungibleToken"
 import "MOET"
 import "test_helpers.cdc"
@@ -7,18 +7,18 @@ import "MockYieldToken"
 
 access(all)
 fun setup() {
-    // Use the shared deploy routine so imported contracts (including FlowALPv1) are resolvable
+    // Use the shared deploy routine so imported contracts (including FlowALPv0) are resolvable
     deployContracts()
 }
 
 // Helper to build a TokenSnapshot quickly
 access(all)
-fun snap(price: UFix128, creditIdx: UFix128, debitIdx: UFix128, cf: UFix128, bf: UFix128): FlowALPv1.TokenSnapshot {
-    return FlowALPv1.TokenSnapshot(
+fun snap(price: UFix128, creditIdx: UFix128, debitIdx: UFix128, cf: UFix128, bf: UFix128): FlowALPv0.TokenSnapshot {
+    return FlowALPv0.TokenSnapshot(
         price: price,
         credit: creditIdx,
         debit: debitIdx,
-        risk: FlowALPv1.RiskParams(
+        risk: FlowALPv0.RiskParams(
             collateralFactor: cf,
             borrowFactor: bf,
         )
@@ -27,16 +27,16 @@ fun snap(price: UFix128, creditIdx: UFix128, debitIdx: UFix128, cf: UFix128, bf:
 
 access(all)
 fun test_healthFactor_zeroBalances_returnsInfinite() {  // Renamed for clarity
-    let balances: {Type: FlowALPv1.InternalBalance} = {}
-    let snaps: {Type: FlowALPv1.TokenSnapshot} = {}
-    let view = FlowALPv1.PositionView(
+    let balances: {Type: FlowALPv0.InternalBalance} = {}
+    let snaps: {Type: FlowALPv0.TokenSnapshot} = {}
+    let view = FlowALPv0.PositionView(
         balances: balances,
         snapshots: snaps,
         defaultToken: Type<@MOET.Vault>(),
         min: 1.1,
         max: 1.5
     )
-    let h = FlowALPv1.healthFactor(view: view)
+    let h = FlowALPv0.healthFactor(view: view)
     Test.assertEqual(UFix128.max, h)  // Empty position (0/0) is safe with infinite health
 }
 
@@ -45,16 +45,16 @@ access(all)
 fun test_healthFactor_zeroCollateral_positiveDebt_returnsZero() {
     let tDebt = Type<@MockYieldToken.Vault>()
 
-    let snapshots: {Type: FlowALPv1.TokenSnapshot} = {}
+    let snapshots: {Type: FlowALPv0.TokenSnapshot} = {}
     snapshots[tDebt] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.5, bf: 1.0)
 
-    let balances: {Type: FlowALPv1.InternalBalance} = {}
-    balances[tDebt] = FlowALPv1.InternalBalance(
-        direction: FlowALPv1.BalanceDirection.Debit,
+    let balances: {Type: FlowALPv0.InternalBalance} = {}
+    balances[tDebt] = FlowALPv0.InternalBalance(
+        direction: FlowALPv0.BalanceDirection.Debit,
         scaledBalance: 50.0
     )
 
-    let view = FlowALPv1.PositionView(
+    let view = FlowALPv0.PositionView(
         balances: balances,
         snapshots: snapshots,
         defaultToken: tDebt,
@@ -62,7 +62,7 @@ fun test_healthFactor_zeroCollateral_positiveDebt_returnsZero() {
         max: 1.5
     )
 
-    let h = FlowALPv1.healthFactor(view: view)
+    let h = FlowALPv0.healthFactor(view: view)
     Test.assertEqual(0.0 as UFix128, h)
 }
 
@@ -73,22 +73,22 @@ fun test_healthFactor_simpleCollateralAndDebt() {
     let tDebt = Type<@MockYieldToken.Vault>()
 
     // Build snapshots: indices at 1.0 so true == scaled
-    let snapshots: {Type: FlowALPv1.TokenSnapshot} = {}
+    let snapshots: {Type: FlowALPv0.TokenSnapshot} = {}
     snapshots[tColl] = snap(price: 2.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.5, bf: 1.0)
     snapshots[tDebt] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.5, bf: 1.0)
 
     // Balances: +100 collateral units, -50 debt units
-    let balances: {Type: FlowALPv1.InternalBalance} = {}
-    balances[tColl] = FlowALPv1.InternalBalance(
-        direction: FlowALPv1.BalanceDirection.Credit,
+    let balances: {Type: FlowALPv0.InternalBalance} = {}
+    balances[tColl] = FlowALPv0.InternalBalance(
+        direction: FlowALPv0.BalanceDirection.Credit,
         scaledBalance: 100.0
     )
-    balances[tDebt] = FlowALPv1.InternalBalance(
-        direction: FlowALPv1.BalanceDirection.Debit,
+    balances[tDebt] = FlowALPv0.InternalBalance(
+        direction: FlowALPv0.BalanceDirection.Debit,
         scaledBalance: 50.0
     )
 
-    let view = FlowALPv1.PositionView(
+    let view = FlowALPv0.PositionView(
         balances: balances,
         snapshots: snapshots,
         defaultToken: tColl,
@@ -96,7 +96,7 @@ fun test_healthFactor_simpleCollateralAndDebt() {
         max: 1.5
     )
 
-    let h = FlowALPv1.healthFactor(view: view)
+    let h = FlowALPv0.healthFactor(view: view)
     // Expected health = (100 * 2 * 0.5) / (50 * 1 / 1.0) = 100 / 50 = 2.0
     Test.assertEqual(2.0 as UFix128, h)
 }
@@ -106,18 +106,18 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     // Withdrawing MOET while having collateral in MockYieldToken
     let t = Type<@MOET.Vault>()
     let tColl = Type<@MockYieldToken.Vault>()
-    let snapshots: {Type: FlowALPv1.TokenSnapshot} = {}
+    let snapshots: {Type: FlowALPv0.TokenSnapshot} = {}
     snapshots[t] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.8, bf: 1.0)
     snapshots[tColl] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.8, bf: 1.0)
 
     // Balances: +100 collateral units on tColl, no entry for t (debt token)
-    let balances: {Type: FlowALPv1.InternalBalance} = {}
-    balances[tColl] = FlowALPv1.InternalBalance(
-        direction: FlowALPv1.BalanceDirection.Credit,
+    let balances: {Type: FlowALPv0.InternalBalance} = {}
+    balances[tColl] = FlowALPv0.InternalBalance(
+        direction: FlowALPv0.BalanceDirection.Credit,
         scaledBalance: 100.0
     )
 
-    let view = FlowALPv1.PositionView(
+    let view = FlowALPv0.PositionView(
         balances: balances,
         snapshots: snapshots,
         defaultToken: t,
@@ -125,7 +125,7 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
         max: 1.5
     )
 
-    let max = FlowALPv1.maxWithdraw(
+    let max = FlowALPv0.maxWithdraw(
         view: view,
         withdrawSnap: snapshots[t]!,
         withdrawBal: view.balances[t],
@@ -145,16 +145,16 @@ access(all)
 fun test_maxWithdraw_fromCollateralLimitedByHealth() {
     // Withdrawing from a credit position
     let t = Type<@MOET.Vault>()
-    let snapshots: {Type: FlowALPv1.TokenSnapshot} = {}
+    let snapshots: {Type: FlowALPv0.TokenSnapshot} = {}
     snapshots[t] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.5, bf: 1.0)
 
-    let balances: {Type: FlowALPv1.InternalBalance} = {}
-    balances[t] = FlowALPv1.InternalBalance(
-        direction: FlowALPv1.BalanceDirection.Credit,
+    let balances: {Type: FlowALPv0.InternalBalance} = {}
+    balances[t] = FlowALPv0.InternalBalance(
+        direction: FlowALPv0.BalanceDirection.Credit,
         scaledBalance: 100.0
     )
 
-    let view = FlowALPv1.PositionView(
+    let view = FlowALPv0.PositionView(
         balances: balances,
         snapshots: snapshots,
         defaultToken: t,
@@ -162,7 +162,7 @@ fun test_maxWithdraw_fromCollateralLimitedByHealth() {
         max: 1.5
     )
 
-    let max = FlowALPv1.maxWithdraw(
+    let max = FlowALPv0.maxWithdraw(
         view: view,
         withdrawSnap: snapshots[t]!,
         withdrawBal: view.balances[t],
