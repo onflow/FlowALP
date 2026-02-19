@@ -1,6 +1,6 @@
 # Deposit Capacity Mechanism
 
-This document describes the deposit capacity limiting system in the FlowALPv1 contract, including how deposit rates, capacity caps, and per-user limits work together to control deposit throughput.
+This document describes the deposit capacity limiting system in the `FlowALPv0` contract, including how deposit rates, capacity caps, and per-user limits work together to control deposit throughput.
 
 ## Overview
 
@@ -21,7 +21,7 @@ The deposit capacity system implements a multi-layered rate limiting mechanism t
 **Behavior**:
 - `depositRate` is a per-hour rate and will be multiplied by the amount of time passed
 - It is added to `depositCapacityCap` when capacity regenerates
-- Regeneration occurs approximately once per hour (when `dt > 3600.0` seconds)
+- Regeneration occurs approximately once per hour (when `dt >= 3600.0` seconds)
 - The regeneration check happens in `regenerateDepositCapacity()` which is called via `updateForTimeChange()`
 
 **Example**:
@@ -134,7 +134,7 @@ When a user attempts to deposit:
 
 ## Capacity Regeneration
 
-**Trigger**: Approximately once per hour (when `dt > 3600.0` seconds)
+**Trigger**: Approximately once per hour (when `dt >= 3600.0` seconds)
 
 **Process**:
 1. Calculate time elapsed since last update
@@ -301,7 +301,7 @@ if position.creditBalances[tokenType]! > 0 {
 ```
 
 **Behavior**:
-- Minimum only enforced for credit (deposit) balances, not debt balances
+- Minimum enforced for any non-zero balance (credit or debit)
 - Withdrawal that would leave balance below minimum is rejected
 - Full withdrawals (closing position) are allowed
 
@@ -326,7 +326,10 @@ User withdraws all 5.0 FLOW (closing position):
 
 ### Configuration
 
-The minimum balance is configurable per token type via governance:
+The minimum balance is configurable per token type via governance. This is a method on `FlowALPv0.Pool` and requires an authorized `EGovernance` reference.
+
+In this repo, see the transaction template:
+- `cadence/transactions/flow-alp/pool-governance/set_minimum_token_balance_per_position.cdc`
 
 ```cadence
 access(EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minimum: UFix64)
@@ -339,13 +342,13 @@ access(EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minim
 **Example**:
 ```cadence
 // Set minimum FLOW deposit to 1.0
-FlowALPv1.setMinimumTokenBalancePerPosition(
+pool.setMinimumTokenBalancePerPosition(
     tokenType: Type<@FlowToken.Vault>(),
     minimum: 1.0
 )
 
 // Set minimum stablecoin deposit to 10.0
-FlowALPv1.setMinimumTokenBalancePerPosition(
+pool.setMinimumTokenBalancePerPosition(
     tokenType: Type<@USDC.Vault>(),
     minimum: 10.0
 )
@@ -373,4 +376,3 @@ Conceptually, the minimum balance should reflect a **minimum value threshold** d
 - **Transaction costs**: Ensure the minimum is high enough that position operations (interest calculations, health checks, liquidations) are economically justified
 - **Accessibility**: Balance the minimum threshold to prevent dust while not excluding legitimate small users
 - **Per-token exceptions**: In rare cases, specific tokens may warrant different minimum values due to unique characteristics (extreme volatility, liquidity constraints, etc.)
-

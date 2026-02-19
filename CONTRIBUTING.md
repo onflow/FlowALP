@@ -1,6 +1,6 @@
-# Contributing to the FlowALPv1 Smart Contracts
+# Contributing to FlowALP (FlowALP Contracts)
 
-The following is a set of guidelines for contributing to FlowALPv1.
+The following is a set of guidelines for contributing to FlowALP (specifically the `FlowALPv0` implementation in this repo).
 These are mostly guidelines, not rules.
 Use your best judgment, and feel free to propose changes to this document in a pull request.
 
@@ -125,4 +125,4 @@ Before contributing, make sure to examine the project to get familiar with the p
 
 ### Additional Notes
 
-Thank you for your interest in contributing to FlowALPv1!
+Thank you for your interest in contributing to FlowALP!

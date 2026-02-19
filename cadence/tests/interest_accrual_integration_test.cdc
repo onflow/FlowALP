@@ -3,7 +3,7 @@ import BlockchainHelpers
 
 import "MOET"
 import "FlowToken"
-import "FlowALPv1"
+import "FlowALPv0"
 import "FlowALPMath"
 import "test_helpers.cdc"
 

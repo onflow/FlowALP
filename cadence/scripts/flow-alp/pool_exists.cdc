@@ -1,9 +1,9 @@
-import "FlowALPv1"
+import "FlowALPv0"
 
 /// Returns whether there is a Pool stored in the provided account's address. This address would normally be the
-/// FlowALPv1 contract address
+/// FlowALPv0 contract address
 ///
 access(all)
 fun main(address: Address): Bool {
-    return getAccount(address).storage.type(at: FlowALPv1.PoolStoragePath) == Type<@FlowALPv1.Pool>()
+    return getAccount(address).storage.type(at: FlowALPv0.PoolStoragePath) == Type<@FlowALPv0.Pool>()
 }

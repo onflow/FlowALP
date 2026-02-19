@@ -1,4 +1,4 @@
-import "FlowALPv1"
+import "FlowALPv0"
 
 /// Returns the position health for a given position id, reverting if the position does not exist
 ///
@@ -6,8 +6,8 @@ import "FlowALPv1"
 ///
 access(all)
 fun main(pid: UInt64): UFix128 {
-    let protocolAddress= Type<@FlowALPv1.Pool>().address!
-    return getAccount(protocolAddress).capabilities.borrow<&FlowALPv1.Pool>(FlowALPv1.PoolPublicPath)
+    let protocolAddress= Type<@FlowALPv0.Pool>().address!
+    return getAccount(protocolAddress).capabilities.borrow<&FlowALPv0.Pool>(FlowALPv0.PoolPublicPath)
         ?.positionHealth(pid: pid)
-        ?? panic("Could not find a configured FlowALPv1 Pool in account \(protocolAddress) at path \(FlowALPv1.PoolPublicPath)")
+        ?? panic("Could not find a configured FlowALPv0 Pool in account \(protocolAddress) at path \(FlowALPv0.PoolPublicPath)")
 }

@@ -13,25 +13,25 @@
 
 ### Transaction Files
 1. **`repay_and_close_position.cdc`** (Line 13)
-   - TODO: Implement when FlowALPv1.Pool exposes position info and repayAndClosePosition
+   - TODO: Implement when `FlowALPv0.Pool` exposes position info and repayAndClosePosition
    - Currently just a placeholder that panics
 
 2. **`withdraw_reserve.cdc`** (Lines 16, 22)
    - TODO: Implement proper governance control
-   - TODO: Once FlowALPv1.Pool exposes a withdrawReserve function
+   - TODO: Once `FlowALPv0.Pool` exposes a withdrawReserve function
    - Currently using a workaround that creates empty vaults
 
 ### Contract Files
-1. **`FlowALPv1.cdc`** (Line 1389)
+1. **`FlowALPv0.cdc`** (Line 1389)
    - TODO: In production, asyncUpdate() should only process limited positions per callback
    - TODO: Schedule each update in its own callback for error isolation
 
-2. **`FlowALPv1.cdc`** (Line 1452)
+2. **`FlowALPv0.cdc`** (Line 1452)
    - TODO: Consider making Position a resource given its critical role
 
 ## Missing Tests (From Test Plan)
 
-Based on `FlowALPv1_TestPlan.md`, all planned tests have been implemented:
+Based on `FlowALPv0_TestPlan.md`, all planned tests have been implemented:
 - ✅ Pool Creation Workflow
 - ✅ Supported Token Governance Addition 
 - ✅ Position Lifecycle Happy Path (partial - missing close)
@@ -127,7 +127,7 @@ Missing test coverage for:
 ### 1. Position Close/Repay Functionality
 **Status**: Partially implemented - repayment works but collateral return blocked  
 **Issue**: No way to fully close a position and return collateral to user  
-**Location**: `FlowALPv1.cdc` - Pool contract missing helper method  
+**Location**: `FlowALPv0.cdc` - Pool contract missing helper method  
 
 **Current State (Demonstrated in Tests)**:
 - Created `repay_and_close_position.cdc` transaction that repays MOET debt successfully

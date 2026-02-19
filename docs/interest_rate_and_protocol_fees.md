@@ -1,10 +1,10 @@
 # Interest Rate, Insurance, and Stability Fee Mechanisms
 
-This document describes how interest rates are calculated and how insurance and stability fees are collected in the FlowALPv1 protocol.
+This document describes how interest rates are calculated and how insurance and stability fees are collected in the FlowALP protocol (as implemented by `FlowALPv0`).
 
 ## Overview
 
-The FlowALPv1 protocol uses a dual-rate interest system:
+The FlowALP protocol uses a dual-rate interest system:
 - **Debit Rate**: The interest rate charged to borrowers
 - **Credit Rate**: The interest rate paid to lenders (depositors)
 

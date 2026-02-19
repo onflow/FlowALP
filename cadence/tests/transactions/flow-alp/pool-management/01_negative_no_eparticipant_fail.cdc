@@ -1,7 +1,7 @@
 import "FungibleToken"
 import "DeFiActions"
 import "DeFiActionsUtils"
-import "FlowALPv1"
+import "FlowALPv0"
 import "MOET"
 import "DummyConnectors"
 
@@ -10,8 +10,8 @@ import "DummyConnectors"
 transaction {
     prepare(admin: auth(BorrowValue, IssueStorageCapabilityController) &Account) {
         // Issue a storage cap WITHOUT any entitlement
-        let cap = admin.capabilities.storage.issue<&FlowALPv1.Pool>(
-            FlowALPv1.PoolStoragePath
+        let cap = admin.capabilities.storage.issue<&FlowALPv0.Pool>(
+            FlowALPv0.PoolStoragePath
         )
         let pool = cap.borrow() ?? panic("nil pool")
 

@@ -4,8 +4,12 @@ import BlockchainHelpers
 import "test_helpers.cdc"
 
 import "MOET"
+<<<<<<< HEAD
 import "FlowALPv1"
 import "FlowALPModels"
+=======
+import "FlowALPv0"
+>>>>>>> main
 
 access(all) let userAccount = Test.createAccount()
 
@@ -94,8 +98,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     Test.assert(equalWithinVariance(expectedBorrowAmount, balanceAfterBorrow),
         message: "Expected MOET balance to be ~\(expectedBorrowAmount), but got \(balanceAfterBorrow)")
 
-    let evts = Test.eventsOfType(Type<FlowALPv1.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv1.Opened
+    let evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
@@ -112,8 +116,15 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     }
     Test.assertEqual(positionFundingAmount, flowPositionBalance!.balance)
 
+<<<<<<< HEAD
     Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance!.balance),
         message: "Expected borrow amount to be \(expectedBorrowAmount), but got \(moetBalance!.balance)")
+=======
+    Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance.balance),
+        message: "Expected borrow amount to be \(expectedBorrowAmount), but got \(moetBalance.balance)")
+    Test.assertEqual(FlowALPv0.BalanceDirection.Credit, flowPositionBalance.direction)
+    Test.assertEqual(FlowALPv0.BalanceDirection.Debit, moetBalance.direction)
+>>>>>>> main
 
     Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)")
@@ -177,15 +188,19 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     let expectedBorrowAmount = 0.0
     Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
-    let evts = Test.eventsOfType(Type<FlowALPv1.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv1.Opened
+    let evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
     let flowPositionBalance = positionDetails.balances[0]
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
+<<<<<<< HEAD
     Test.assertEqual(FlowALPModels.BalanceDirection.Credit, flowPositionBalance.direction)
+=======
+    Test.assertEqual(FlowALPv0.BalanceDirection.Credit, flowPositionBalance.direction)
+>>>>>>> main
 
     Test.assertEqual(CEILING_HEALTH, health)
 
@@ -248,15 +263,19 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     let expectedBorrowAmount = 0.0
     Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
-    let evts = Test.eventsOfType(Type<FlowALPv1.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv1.Opened
+    let evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
     let flowPositionBalance = positionDetails.balances[0]
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
+<<<<<<< HEAD
     Test.assertEqual(FlowALPModels.BalanceDirection.Credit, flowPositionBalance.direction)
+=======
+    Test.assertEqual(FlowALPv0.BalanceDirection.Credit, flowPositionBalance.direction)
+>>>>>>> main
 
     let priceIncrease = 0.25
     let newPrice = flowStartPrice * (1.0 + priceIncrease)

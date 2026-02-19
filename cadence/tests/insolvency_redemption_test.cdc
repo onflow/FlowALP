@@ -1,8 +1,12 @@
 import Test
 import BlockchainHelpers
 import "test_helpers.cdc"
+<<<<<<< HEAD
 import "FlowALPv1"
 import "FlowALPModels"
+=======
+import "FlowALPv0"
+>>>>>>> main
 import "MOET"
 import "FlowToken"
 import "FlowALPMath"
@@ -65,7 +69,11 @@ fun test_borrower_full_redemption_insolvency() {
     let details = getPositionDetails(pid: pid, beFailed: false)
     var moetDebt: UFix64 = 0.0
     for b in details.balances {
+<<<<<<< HEAD
         if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALPModels.BalanceDirection.Debit {
+=======
+        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALPv0.BalanceDirection.Debit {
+>>>>>>> main
             moetDebt = b.balance
         }
     }
@@ -88,8 +96,13 @@ fun test_borrower_full_redemption_insolvency() {
     var postMoetDebt: UFix64 = 0.0
     var postFlowColl: UFix64 = 0.0
     for b in detailsAfter.balances {
+<<<<<<< HEAD
         if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALPModels.BalanceDirection.Debit { postMoetDebt = b.balance }
         if b.vaultType == Type<@FlowToken.Vault>() && b.direction == FlowALPModels.BalanceDirection.Credit { postFlowColl = b.balance }
+=======
+        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALPv0.BalanceDirection.Debit { postMoetDebt = b.balance }
+        if b.vaultType == Type<@FlowToken.Vault>() && b.direction == FlowALPv0.BalanceDirection.Credit { postFlowColl = b.balance }
+>>>>>>> main
     }
     Test.assertEqual(0.0, postMoetDebt)
     Test.assertEqual(0.0, postFlowColl)

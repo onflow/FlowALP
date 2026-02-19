@@ -1,4 +1,4 @@
-import "FlowALPv1"
+import "FlowALPv0"
 
 /// Removes the insurance swapper for a given token type.
 ///
@@ -11,12 +11,12 @@ import "FlowALPv1"
 ///
 /// @param tokenTypeIdentifier: The token type to configure (e.g., "A.0x07.MOET.Vault")
 transaction(tokenTypeIdentifier: String) {
-    let pool: auth(FlowALPv1.EGovernance) &FlowALPv1.Pool
+    let pool: auth(FlowALPv0.EGovernance) &FlowALPv0.Pool
     let tokenType: Type
     
     prepare(signer: auth(BorrowValue) &Account) {
-        self.pool = signer.storage.borrow<auth(FlowALPv1.EGovernance) &FlowALPv1.Pool>(from: FlowALPv1.PoolStoragePath)
-            ?? panic("Could not borrow Pool at \(FlowALPv1.PoolStoragePath)")
+        self.pool = signer.storage.borrow<auth(FlowALPv0.EGovernance) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
+            ?? panic("Could not borrow Pool at \(FlowALPv0.PoolStoragePath)")
         
         self.tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier \(tokenTypeIdentifier)")

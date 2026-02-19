@@ -1,5 +1,9 @@
+<<<<<<< HEAD
 import "FlowALPv1"
 import "FlowALPInterestRates"
+=======
+import "FlowALPv0"
+>>>>>>> main
 
 /// Adds a token type as supported to the stored pool with a zero-rate interest curve (0% APY).
 /// This uses FixedCurve with yearlyRate: 0.0, suitable for testing or
@@ -13,13 +17,13 @@ transaction(
     depositCapacityCap: UFix64
 ) {
     let tokenType: Type
-    let pool: auth(FlowALPv1.EGovernance) &FlowALPv1.Pool
+    let pool: auth(FlowALPv0.EGovernance) &FlowALPv0.Pool
 
     prepare(signer: auth(BorrowValue) &Account) {
         self.tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier \(tokenTypeIdentifier)")
-        self.pool = signer.storage.borrow<auth(FlowALPv1.EGovernance) &FlowALPv1.Pool>(from: FlowALPv1.PoolStoragePath)
-            ?? panic("Could not borrow reference to Pool from \(FlowALPv1.PoolStoragePath) - ensure a Pool has been configured")
+        self.pool = signer.storage.borrow<auth(FlowALPv0.EGovernance) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
+            ?? panic("Could not borrow reference to Pool from \(FlowALPv0.PoolStoragePath) - ensure a Pool has been configured")
     }
 
     execute {
@@ -27,7 +31,11 @@ transaction(
             tokenType: self.tokenType,
             collateralFactor: collateralFactor,
             borrowFactor: borrowFactor,
+<<<<<<< HEAD
             interestCurve: FlowALPInterestRates.FixedCurve(yearlyRate: 0.0),
+=======
+            interestCurve: FlowALPv0.FixedRateInterestCurve(yearlyRate: 0.0),
+>>>>>>> main
             depositRate: depositRate,
             depositCapacityCap: depositCapacityCap
         )

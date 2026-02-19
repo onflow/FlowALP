@@ -1,6 +1,6 @@
-# FlowALPv1 Future Features and Tests
+# FlowALP Future Features and Tests
 
-This document lists features that are not yet implemented in the FlowALPv1 contract, organized by FlowVaults milestone phases with priority indicators:
+This document lists features that are not yet implemented in the `FlowALPv0` contract:
 
 - ✅ **Must Have** - Critical features required for launch
 - 💛 **Should Have** - Important features that significantly enhance the product
@@ -9,14 +9,16 @@ This document lists features that are not yet implemented in the FlowALPv1 contr
 
 ## Tracer Bullet Phase Features
 
-### 1. ✅ Functional Sink/Source Hooks (Critical for FlowVaults Integration)
+### 1. ✅ Functional Sink/Source Hooks (Critical for Integration)
 
 **Features to Implement:**
+
 - Real Sink implementation for pushing tokens to yield strategies
 - Real Source implementation for pulling tokens from yield strategies
 - Basic rebalancing logic
 
 **Tests to Add (E-series):**
+
 ```
 E-1: Push to sink on surplus
 - Provide StakeSink
