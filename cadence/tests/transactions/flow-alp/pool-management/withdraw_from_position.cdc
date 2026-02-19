@@ -1,4 +1,4 @@
-import "FlowALPv1"
+import "FlowALPv0"
 import "FungibleToken"
 
 /// Withdraw assets from an existing credit position, depositing to signer's Receiver
@@ -10,13 +10,13 @@ transaction(
 ) {
     let tokenType: Type
     let receiverRef: &{FungibleToken.Receiver}
-    let positionManager: auth(FlowALPv1.EPositionAdmin) &FlowALPv1.PositionManager
+    let positionManager: auth(FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager
 
     prepare(signer: auth(Storage, Capabilities, BorrowValue) &Account) {
         self.tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier: ".concat(tokenTypeIdentifier))
 
-        self.positionManager = signer.storage.borrow<auth(FlowALPv1.EPositionAdmin) &FlowALPv1.PositionManager>(from: FlowALPv1.PositionStoragePath)
+        self.positionManager = signer.storage.borrow<auth(FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath)
             ?? panic("PositionManager not found")
 
         // Get capability (NOT optional), then borrow a reference (optional)

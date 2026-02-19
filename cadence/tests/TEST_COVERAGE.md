@@ -1,11 +1,11 @@
-# Test Inventory and Coverage Notes (FlowALP; `FlowALPv1` Implementation)
+# Test Inventory and Coverage Notes (FlowALP; `FlowALPv0` Implementation)
 
 **Last Reviewed:** 2026-02-14  
-**Core Contract:** `cadence/contracts/FlowALPv1.cdc`  
+**Core Contract:** `cadence/contracts/FlowALPv0.cdc`  
 **Test Files:** Git-tracked tests under `cadence/tests/*_test.cdc`  
 **Coverage:** Coverage artifacts are generated locally (e.g. `coverage.json`, `coverage.lcov`) and are ignored by git.
 
-**Naming:** FlowALP refers to the protocol; the Cadence implementation under test in this repo is deployed as the `FlowALPv1` contract.
+**Naming:** FlowALP refers to the protocol; the Cadence implementation under test in this repo is deployed as the `FlowALPv0` contract.
 
 ## Current Test File Inventory
 
@@ -59,7 +59,7 @@ Treat any specific coverage percentages, repository labels, and file counts belo
 
 ## Executive Summary
 
-This document provides a walkthrough of the existing test coverage for the FlowALP protocol as implemented by the `FlowALPv1` contract: an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The implementation has an extensive test suite covering fundamental operations, interest mechanics, liquidations, and edge cases.
+This document provides a walkthrough of the existing test coverage for the FlowALP protocol as implemented by the `FlowALPv0` contract: an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The implementation has an extensive test suite covering fundamental operations, interest mechanics, liquidations, and edge cases.
 
 This analysis identifies areas of strong test coverage and highlights high-priority gaps that should be addressed to improve protocol security, resilience, and robustness.
 
@@ -79,7 +79,7 @@ This analysis identifies areas of strong test coverage and highlights high-prior
 
 ### Overview
 
-The FlowALP protocol (as implemented by `FlowALPv1`) has comprehensive test coverage across the following categories:
+The FlowALP protocol (as implemented by `FlowALPv0`) has comprehensive test coverage across the following categories:
 
 | Category                              | Number of Tests             | Coverage Level |
 | ------------------------------------- | --------------------------- | -------------- |
@@ -111,7 +111,7 @@ The protocol uses Cadence's native Test framework with:
 
 ### Test File Location
 
-All core `FlowALPv1` implementation tests are located in `cadence/tests/`.
+All core `FlowALPv0` implementation tests are located in `cadence/tests/`.
 
 ### Common Test Patterns
 
@@ -1167,7 +1167,7 @@ Test: Connector provides false quote, transaction validates and reverts
 
 ## Conclusion
 
-The `FlowALPv1` implementation of the FlowALP protocol has strong test coverage across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
+The `FlowALPv0` implementation of the FlowALP protocol has strong test coverage across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
 
 However, significant gaps exist in multi-collateral scenarios, oracle failure handling, advanced liquidation cases, and adversarial attack vectors. Addressing these high-priority gaps will substantially improve protocol robustness and production readiness.
 

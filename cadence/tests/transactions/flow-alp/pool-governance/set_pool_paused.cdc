@@ -1,4 +1,4 @@
-import "FlowALPv1"
+import "FlowALPv0"
 
 /// TEST-ONLY: Pause or unpause the pool.
 ///
@@ -8,11 +8,11 @@ import "FlowALPv1"
 ///
 /// @param pause: whether to pause or unpause the pool
 transaction(pause: Bool) {
-    let pool: auth(FlowALPv1.EGovernance) &FlowALPv1.Pool
+    let pool: auth(FlowALPv0.EGovernance) &FlowALPv0.Pool
 
     prepare(signer: auth(BorrowValue) &Account) {
-        self.pool = signer.storage.borrow<auth(FlowALPv1.EGovernance) &FlowALPv1.Pool>(from: FlowALPv1.PoolStoragePath)
-            ?? panic("Could not borrow Pool at \(FlowALPv1.PoolStoragePath)")
+        self.pool = signer.storage.borrow<auth(FlowALPv0.EGovernance) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
+            ?? panic("Could not borrow Pool at \(FlowALPv0.PoolStoragePath)")
     }
 
     execute {

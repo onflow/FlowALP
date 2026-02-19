@@ -1,4 +1,4 @@
-import "FlowALPv1"
+import "FlowALPv0"
 
 access(all)
 fun main(
@@ -10,13 +10,13 @@ fun main(
 ): UFix64 {
     let _depositType = CompositeType(depositType) ?? panic("Invalid Vault identifier depositType \(depositType)")
     let _withdrawType = CompositeType(withdrawType) ?? panic("Invalid Vault identifier withdrawType \(withdrawType)")
-    let address = Type<@FlowALPv1.Pool>().address!
-    return getAccount(address).capabilities.borrow<&FlowALPv1.Pool>(FlowALPv1.PoolPublicPath)
+    let address = Type<@FlowALPv0.Pool>().address!
+    return getAccount(address).capabilities.borrow<&FlowALPv0.Pool>(FlowALPv0.PoolPublicPath)
         ?.fundsRequiredForTargetHealthAfterWithdrawing(
             pid: pid,
             depositType: _depositType,
             targetHealth: targetHealth,
             withdrawType: _withdrawType,
             withdrawAmount: withdrawAmount
-        ) ?? panic("Could not reference FlowALPv1 Pool at address \(address) at PublicPath \(FlowALPv1.PoolPublicPath)")
+        ) ?? panic("Could not reference FlowALPv0 Pool at address \(address) at PublicPath \(FlowALPv0.PoolPublicPath)")
 }
