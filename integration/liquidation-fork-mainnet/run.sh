@@ -26,33 +26,106 @@ MOET_TOKEN_ID="A.6b00ff876c299c61.MOET.Vault"
 MOET_VAULT_STORAGE_PATH="/storage/moetTokenVault_0x6b00ff876c299c61"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-cd "$PROJECT_DIR"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Temporary files for key management
-TMPDIR_TEST="${TMPDIR:-/tmp}/fork-test-$$"
-mkdir -p "$TMPDIR_TEST"
-KEY_FILE="$TMPDIR_TEST/test-key.pkey"
+# Working directory for this test - all temporary/generated files go here
+WORK_DIR="$SCRIPT_DIR/tmp"
+KEY_FILE="$WORK_DIR/test-key.pkey"
+# Extra accounts config (merged with project flow.json at runtime, never modifies the original)
+EXTRA_CONFIG="$WORK_DIR/flow.json"
 
-# Track whether we modified flow.json
-FLOW_JSON_BACKUP="$TMPDIR_TEST/flow.json.backup"
-MODIFIED_FLOW_JSON=false
+# Clean previous run and create fresh working directory
+rm -rf "$WORK_DIR"
+mkdir -p "$WORK_DIR"
 
-cleanup() {
-    if [ "$MODIFIED_FLOW_JSON" = true ] && [ -f "$FLOW_JSON_BACKUP" ]; then
-        echo "Restoring flow.json..."
-        cp "$FLOW_JSON_BACKUP" flow.json
-    fi
-    rm -rf "$TMPDIR_TEST"
+# Initialize the extra config with mainnet-fork network, accounts, and deployments.
+# This overlays onto the project flow.json so it never needs to be modified.
+# Contracts that lack a "mainnet" alias in the base flow.json must be overridden here
+# (with source + full aliases) so "fork": "mainnet" can resolve them on the fork network.
+cat > "$EXTRA_CONFIG" <<JSONEOF
+{
+  "contracts": {
+    "FungibleTokenConnectors": {
+      "source": "$PROJECT_DIR/FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
+      "aliases": {
+        "mainnet": "6d888f175c158410",
+        "testing": "0000000000000006"
+      }
+    }
+  },
+  "networks": {
+    "mainnet-fork": {
+      "host": "127.0.0.1:3569",
+      "fork": "mainnet"
+    }
+  },
+  "accounts": {
+    "mainnet-fork-deployer": {
+      "address": "6b00ff876c299c61",
+      "key": {
+        "type": "file",
+        "location": "$PROJECT_DIR/emulator-account.pkey"
+      }
+    },
+    "mainnet-fork-fyv-deployer": {
+      "address": "b1d63873c3cc9f79",
+      "key": {
+        "type": "file",
+        "location": "$PROJECT_DIR/emulator-account.pkey"
+      }
+    },
+    "fork-flow-source": {
+      "address": "92674150c9213fc9",
+      "key": {
+        "type": "file",
+        "location": "$PROJECT_DIR/emulator-account.pkey"
+      }
+    },
+    "mainnet-fork-defi-deployer": {
+      "address": "6d888f175c158410",
+      "key": {
+        "type": "file",
+        "location": "$PROJECT_DIR/emulator-account.pkey"
+      }
+    }
+  },
+  "deployments": {
+    "mainnet-fork": {
+      "mainnet-fork-deployer": [
+        "FlowALPMath",
+        {
+          "name": "MOET",
+          "args": [{ "value": "0.00000000", "type": "UFix64" }]
+        },
+        "FlowALPv0"
+      ],
+      "mainnet-fork-fyv-deployer": [
+        "MockDexSwapper",
+        "MockOracle"
+      ]
+    }
+  }
 }
-trap cleanup EXIT
+JSONEOF
+
+# Create a working copy of flow.json so the CLI never writes back to the original.
+# Place it at the project root level so existing relative paths (./cadence/...) still resolve.
+BASE_CONFIG="$PROJECT_DIR/flow.fork-test.json"
+cp "$PROJECT_DIR/flow.json" "$BASE_CONFIG"
+# Ensure cleanup on exit
+trap 'rm -f "$BASE_CONFIG"' EXIT
+
+# Helper to attach config flags to flow command
+flow_cmd() {
+    flow "$@" -f "$BASE_CONFIG" -f "$EXTRA_CONFIG"
+}
 
 # Helper: send a transaction and assert success
 send_tx() {
     local description="$1"
     shift
     echo ">> $description"
-    if ! flow transactions send "$@" --network "$NETWORK"; then
+    if ! flow_cmd transactions send "$@" --network "$NETWORK"; then
         echo "FAIL: $description"
         exit 1
     fi
@@ -66,7 +139,7 @@ send_tx_expect_fail() {
     echo ">> $description (expecting failure)"
     # Capture output; the CLI may return non-zero for reverted txns
     local result
-    result=$(flow transactions send "$@" --network "$NETWORK" --output json 2>&1) || true
+    result=$(flow_cmd transactions send "$@" --network "$NETWORK" --output json 2>&1) || true
     # Check if the transaction had an error (statusCode != 0 means reverted)
     local status_code
     status_code=$(echo "$result" | jq -r '.statusCode // 0' 2>/dev/null || echo "1")
@@ -84,37 +157,39 @@ send_tx_expect_fail() {
     echo ""
 }
 
-# Helper: execute a script
-run_script() {
-    local description="$1"
-    shift
-    echo ">> $description"
-    flow scripts execute "$@" --network "$NETWORK"
-    echo ""
-}
-
 echo "============================================"
 echo "  Manual Liquidation Smoke Test (Fork)"
 echo "============================================"
 echo ""
 
 # --------------------------------------------------------------------------
-# Step 0: Generate a test key pair and back up flow.json
+# Step 0: Generate a test key pair
 # --------------------------------------------------------------------------
 echo "--- Step 0: Setup ---"
-cp flow.json "$FLOW_JSON_BACKUP"
-MODIFIED_FLOW_JSON=true
 
 KEY_JSON=$(flow keys generate --output json --sig-algo ECDSA_P256)
 PRIV_KEY=$(echo "$KEY_JSON" | jq -r '.private')
 PUB_KEY=$(echo "$KEY_JSON" | jq -r '.public')
 printf '%s' "$PRIV_KEY" > "$KEY_FILE"
 echo "Generated test key pair"
+echo ""
 
-# Add the FLOW source account (well-funded mainnet account, using emulator key since fork doesn't check sigs)
-jq '.accounts["fork-flow-source"] = {"address": "92674150c9213fc9", "key": {"type": "file", "location": "emulator-account.pkey"}}' \
-    flow.json > "$TMPDIR_TEST/flow.json.tmp" && mv "$TMPDIR_TEST/flow.json.tmp" flow.json
-echo "Added FLOW source account to flow.json"
+# --------------------------------------------------------------------------
+# Step 0.5: Deploy FungibleTokenConnectors (not on mainnet, needed by create_position)
+# --------------------------------------------------------------------------
+echo "--- Step 0.5: Deploy FungibleTokenConnectors ---"
+echo ">> Deploying FungibleTokenConnectors to DeFi deployer account"
+DEPLOY_OUTPUT=$(flow_cmd accounts add-contract \
+    "$PROJECT_DIR/FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc" \
+    --signer mainnet-fork-defi-deployer --network "$NETWORK" 2>&1) || {
+    if echo "$DEPLOY_OUTPUT" | grep -q "contract already exists"; then
+        echo "  (contract already deployed, skipping)"
+    else
+        echo "FAIL: Deploy FungibleTokenConnectors"
+        echo "$DEPLOY_OUTPUT"
+        exit 1
+    fi
+}
 echo ""
 
 # --------------------------------------------------------------------------
@@ -123,22 +198,22 @@ echo ""
 echo "--- Step 1: Configure pool with mock oracle and DEX ---"
 
 send_tx "Set MockOracle on pool" \
-    ./fork-test/transactions/set_mock_oracle.cdc \
+    "$SCRIPT_DIR/transactions/set_mock_oracle.cdc" \
     --signer "$DEPLOYER"
 
 send_tx "Set MockDexSwapper on pool" \
-    ./fork-test/transactions/set_mock_dex.cdc \
+    "$SCRIPT_DIR/transactions/set_mock_dex.cdc" \
     --signer "$DEPLOYER"
 
 # Set FLOW price = 1.0 MOET in the oracle
 send_tx "Set oracle price: FLOW = 1.0" \
-    ./cadence/tests/transactions/mock-oracle/set_price.cdc \
+    "$PROJECT_DIR/cadence/tests/transactions/mock-oracle/set_price.cdc" \
     "$FLOW_TOKEN_ID" 1.0 \
     --signer "$FYV_DEPLOYER"
 
 # Set DEX price: 1 FLOW -> 1 MOET (priceRatio = 1.0)
 send_tx "Set DEX price: FLOW/MOET = 1.0" \
-    ./cadence/tests/transactions/mock-dex-swapper/set_mock_dex_price_for_pair.cdc \
+    "$PROJECT_DIR/cadence/tests/transactions/mock-dex-swapper/set_mock_dex_price_for_pair.cdc" \
     "$FLOW_TOKEN_ID" "$MOET_TOKEN_ID" "$MOET_VAULT_STORAGE_PATH" 1.0 \
     --signer "$DEPLOYER"
 
@@ -149,22 +224,22 @@ echo ""
 # --------------------------------------------------------------------------
 echo "--- Step 2: Create test accounts ---"
 
-USER_RESULT=$(flow accounts create --key "$PUB_KEY" --signer "$DEPLOYER" --network "$NETWORK" --output json)
+USER_RESULT=$(flow_cmd accounts create --key "$PUB_KEY" --signer "$DEPLOYER" --network "$NETWORK" --output json)
 USER_ADDR=$(echo "$USER_RESULT" | jq -r '.address')
 echo "Created user account: $USER_ADDR"
 
-LIQUIDATOR_RESULT=$(flow accounts create --key "$PUB_KEY" --signer "$DEPLOYER" --network "$NETWORK" --output json)
+LIQUIDATOR_RESULT=$(flow_cmd accounts create --key "$PUB_KEY" --signer "$DEPLOYER" --network "$NETWORK" --output json)
 LIQUIDATOR_ADDR=$(echo "$LIQUIDATOR_RESULT" | jq -r '.address')
 echo "Created liquidator account: $LIQUIDATOR_ADDR"
 
-# Add test accounts to flow.json (using the generated key)
+# Add test accounts to our extra config (using the generated key)
 jq --arg addr "${USER_ADDR#0x}" --arg keyfile "$KEY_FILE" \
     '.accounts["fork-user"] = {"address": $addr, "key": {"type": "file", "location": $keyfile}}' \
-    flow.json > "$TMPDIR_TEST/flow.json.tmp" && mv "$TMPDIR_TEST/flow.json.tmp" flow.json
+    "$EXTRA_CONFIG" > "$WORK_DIR/flow.json.tmp" && mv "$WORK_DIR/flow.json.tmp" "$EXTRA_CONFIG"
 
 jq --arg addr "${LIQUIDATOR_ADDR#0x}" --arg keyfile "$KEY_FILE" \
     '.accounts["fork-liquidator"] = {"address": $addr, "key": {"type": "file", "location": $keyfile}}' \
-    flow.json > "$TMPDIR_TEST/flow.json.tmp" && mv "$TMPDIR_TEST/flow.json.tmp" flow.json
+    "$EXTRA_CONFIG" > "$WORK_DIR/flow.json.tmp" && mv "$WORK_DIR/flow.json.tmp" "$EXTRA_CONFIG"
 
 echo ""
 
@@ -175,28 +250,25 @@ echo "--- Step 3: Fund accounts ---"
 
 # Transfer FLOW to user from well-funded account
 send_tx "Transfer 1000 FLOW to user" \
-    ./cadence/transactions/flowtoken/transfer_flowtoken.cdc \
+    "$PROJECT_DIR/cadence/transactions/flowtoken/transfer_flowtoken.cdc" \
     "$USER_ADDR" 1000.0 \
     --signer "$FLOW_SOURCE"
 
 # Setup MOET vault for liquidator
 send_tx "Setup MOET vault for liquidator" \
-    ./cadence/transactions/moet/setup_vault.cdc \
+    "$PROJECT_DIR/cadence/transactions/moet/setup_vault.cdc" \
     --signer fork-liquidator
 
 # Mint MOET to liquidator (signer must have MOET Minter - the deployer account)
 send_tx "Mint 1000 MOET to liquidator" \
-    ./cadence/transactions/moet/mint_moet.cdc \
+    "$PROJECT_DIR/cadence/transactions/moet/mint_moet.cdc" \
     "$LIQUIDATOR_ADDR" 1000.0 \
     --signer "$DEPLOYER"
 
 # Also setup MOET vault for user (needed for receiving borrowed MOET)
 send_tx "Setup MOET vault for user" \
-    ./cadence/transactions/moet/setup_vault.cdc \
+    "$PROJECT_DIR/cadence/transactions/moet/setup_vault.cdc" \
     --signer fork-user
-
-# Setup FLOW receiver for liquidator (all accounts have FlowToken vault by default,
-# but the liquidator account was just created so it should already have one)
 
 echo ""
 
@@ -207,15 +279,15 @@ echo "--- Step 4: Grant beta access and open position ---"
 
 # Grant beta pool access to user (requires both admin and user as signers)
 send_tx "Grant beta pool access to user" \
-    ./cadence/tests/transactions/flow-alp/pool-management/03_grant_beta.cdc \
+    "$PROJECT_DIR/cadence/tests/transactions/flow-alp/pool-management/03_grant_beta.cdc" \
     --authorizer "$DEPLOYER",fork-user \
     --proposer "$DEPLOYER" \
     --payer "$DEPLOYER"
 
 # User creates position: deposit 1000 FLOW, borrow MOET
 echo ">> User creates position (deposit 1000 FLOW)"
-CREATE_POS_RESULT=$(flow transactions send \
-    ./cadence/transactions/flow-alp/position/create_position.cdc \
+CREATE_POS_RESULT=$(flow_cmd transactions send \
+    "$PROJECT_DIR/cadence/transactions/flow-alp/position/create_position.cdc" \
     1000.0 /storage/flowTokenVault true \
     --signer fork-user --network "$NETWORK" --output json)
 
@@ -233,7 +305,7 @@ echo ""
 
 # Check position health
 echo ">> Check position health (should be healthy, >= 1.0)"
-HEALTH_JSON=$(flow scripts execute ./cadence/scripts/flow-alp/position_health.cdc "$PID" --network "$NETWORK" --output json)
+HEALTH_JSON=$(flow_cmd scripts execute "$PROJECT_DIR/cadence/scripts/flow-alp/position_health.cdc" "$PID" --network "$NETWORK" --output json)
 HEALTH=$(echo "$HEALTH_JSON" | jq -r '.value')
 echo "Position health: $HEALTH"
 echo ""
@@ -244,7 +316,7 @@ echo ""
 echo "--- Step 5: Attempt liquidation on healthy position (expect failure) ---"
 
 send_tx_expect_fail "Manual liquidation on healthy position" \
-    ./cadence/transactions/flow-alp/pool-management/manual_liquidation.cdc \
+    "$PROJECT_DIR/cadence/transactions/flow-alp/pool-management/manual_liquidation.cdc" \
     "$PID" "$MOET_TOKEN_ID" "$FLOW_TOKEN_ID" 190.0 100.0 \
     --signer fork-liquidator
 
@@ -256,18 +328,18 @@ echo ""
 echo "--- Step 6: Drop FLOW price to 0.5 ---"
 
 send_tx "Set oracle price: FLOW = 0.5" \
-    ./cadence/tests/transactions/mock-oracle/set_price.cdc \
+    "$PROJECT_DIR/cadence/tests/transactions/mock-oracle/set_price.cdc" \
     "$FLOW_TOKEN_ID" 0.5 \
     --signer "$FYV_DEPLOYER"
 
 send_tx "Set DEX price: FLOW/MOET = 0.5" \
-    ./cadence/tests/transactions/mock-dex-swapper/set_mock_dex_price_for_pair.cdc \
+    "$PROJECT_DIR/cadence/tests/transactions/mock-dex-swapper/set_mock_dex_price_for_pair.cdc" \
     "$FLOW_TOKEN_ID" "$MOET_TOKEN_ID" "$MOET_VAULT_STORAGE_PATH" 0.5 \
     --signer "$DEPLOYER"
 
 # Check position health again
 echo ">> Check position health (should be unhealthy, < 1.0)"
-HEALTH_JSON=$(flow scripts execute ./cadence/scripts/flow-alp/position_health.cdc "$PID" --network "$NETWORK" --output json)
+HEALTH_JSON=$(flow_cmd scripts execute "$PROJECT_DIR/cadence/scripts/flow-alp/position_health.cdc" "$PID" --network "$NETWORK" --output json)
 HEALTH=$(echo "$HEALTH_JSON" | jq -r '.value')
 echo "Position health after price drop: $HEALTH"
 echo ""
@@ -282,13 +354,13 @@ echo "--- Step 7: Manual liquidation on unhealthy position (expect success) ---"
 # seizeAmount (190) < dexQuote (200) ✓
 # Post-liquidation health will be < target (1.05) ✓
 send_tx "Manual liquidation: repay 100 MOET, seize 190 FLOW" \
-    ./cadence/transactions/flow-alp/pool-management/manual_liquidation.cdc \
+    "$PROJECT_DIR/cadence/transactions/flow-alp/pool-management/manual_liquidation.cdc" \
     "$PID" "$MOET_TOKEN_ID" "$FLOW_TOKEN_ID" 190.0 100.0 \
     --signer fork-liquidator
 
 # Check post-liquidation health
 echo ">> Check position health after liquidation"
-HEALTH_JSON=$(flow scripts execute ./cadence/scripts/flow-alp/position_health.cdc "$PID" --network "$NETWORK" --output json)
+HEALTH_JSON=$(flow_cmd scripts execute "$PROJECT_DIR/cadence/scripts/flow-alp/position_health.cdc" "$PID" --network "$NETWORK" --output json)
 HEALTH=$(echo "$HEALTH_JSON" | jq -r '.value')
 echo "Position health after liquidation: $HEALTH"
 echo ""
