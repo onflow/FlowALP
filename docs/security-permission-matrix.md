@@ -4,18 +4,18 @@ Maps each entitlement to the operations it permits. For audit/security review.
 
 ## Entitlements → Actors
 
-| Entitlement | Actor | Entitlement granted by |
+| Entitlement | Actor | How granted |
 |---|---|---|
-| `EParticipant` | User (beta / public) | `publish_beta_cap.cdc` |
-| `EPosition` | ⚠️ Protocol operator (NOT end users) | `publish_beta_cap.cdc` ← **over-grant** |
+| `EParticipant` | User | Published capability (`publish_beta_cap.cdc`) |
+| `EPosition` | ⚠️ Protocol operator (NOT end users) | Published capability (`publish_beta_cap.cdc`) ← **over-grant** |
 | `ERebalance` | Rebalancer contract | Rebalancer setup |
-| `EPositionAdmin` | Position owner | Position resource ownership |
+| `EPositionAdmin` | User (own positions only) | Storage ownership of `PositionManager` — cannot be delegated |
 | `EGovernance` | Protocol admin | Admin account |
 | `EImplementation` | Protocol internals | Never issued externally |
 
 ## Actor Capability Matrix
 
-| Operation | Description | User (EParticipant) | ⚠️ User w/ EPosition (current beta) | Rebalancer (ERebalance) | Position Owner (EPositionAdmin) | Governance (EGovernance) | Protocol Internal (EImplementation) |
+| Operation | Description | User (EParticipant) | ⚠️ User w/ EPosition (current beta) | Rebalancer (ERebalance) | User — own positions only (EPositionAdmin) | Governance (EGovernance) | Protocol Internal (EImplementation) |
 |---|---|---|---|---|---|---|---|
 | `createPosition` | Open a new position | ✅ | ✅ | | | | |
 | `depositToPosition` | Deposit collateral | ✅ | ✅ | | | | |
