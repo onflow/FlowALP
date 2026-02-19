@@ -46,13 +46,6 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowALPv1": {
-			"source": "./cadence/contracts/FlowALPv1.cdc",
-			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet": "6b00ff876c299c61"
-			}
-		},
 		"FlowALPMath": {
 			"source": "./cadence/lib/FlowALPMath.cdc",
 			"aliases": {
@@ -81,7 +74,8 @@
 		"FlowALPv0": {
 			"source": "./cadence/contracts/FlowALPv0.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61"
 			}
 		},
 		"FungibleTokenConnectors": {
