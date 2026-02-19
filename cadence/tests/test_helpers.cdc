@@ -120,7 +120,7 @@ fun deployContracts() {
 
     err = Test.deployContract(
         name: "FlowPriceOracleAggregatorv1",
-        path: "../contracts/FlowPriceOracleAggregatorV1.cdc",
+        path: "../contracts/FlowPriceOracleAggregatorv1.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())

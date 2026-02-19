@@ -79,7 +79,7 @@ $$
 \text{allowedRelativeDiff}_{i} = \text{baseTolerance} + \text{driftExpansionRate} \times \Delta t_{\text{minutes}}
 $$
 
-where \(\Delta t_{\text{minutes}}\) is the time in minutes from the history entry to now. The **actual relative difference** is:
+where Delta t_minutes is the time in minutes from the history entry to now. The **actual relative difference** is:
 
 $$
 \text{relativeDiff}_{i} = \frac{|Price_{\text{current}} - Price_{i}|}{\min(Price_{\text{current}}, Price_{i})}
