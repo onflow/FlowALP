@@ -31,82 +31,20 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # Working directory for this test - all temporary/generated files go here
 WORK_DIR="$SCRIPT_DIR/tmp"
 KEY_FILE="$WORK_DIR/test-key.pkey"
-# Extra accounts config (merged with project flow.json at runtime, never modifies the original)
-EXTRA_CONFIG="$WORK_DIR/flow.json"
+# Runtime fork config (expanded from committed flow.fork.json template)
+FORK_CONFIG="$WORK_DIR/flow.fork.json"
+# Runtime config for dynamically-created test accounts (fork-user, fork-liquidator)
+DYNAMIC_CONFIG="$WORK_DIR/accounts.json"
 
 # Clean previous run and create fresh working directory
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
 
-# Initialize the extra config with mainnet-fork network, accounts, and deployments.
-# This overlays onto the project flow.json so it never needs to be modified.
-# Contracts that lack a "mainnet" alias in the base flow.json must be overridden here
-# (with source + full aliases) so "fork": "mainnet" can resolve them on the fork network.
-cat > "$EXTRA_CONFIG" <<JSONEOF
-{
-  "contracts": {
-    "FungibleTokenConnectors": {
-      "source": "$PROJECT_DIR/FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
-      "aliases": {
-        "mainnet": "6d888f175c158410",
-        "testing": "0000000000000006"
-      }
-    }
-  },
-  "networks": {
-    "mainnet-fork": {
-      "host": "127.0.0.1:3569",
-      "fork": "mainnet"
-    }
-  },
-  "accounts": {
-    "mainnet-fork-deployer": {
-      "address": "6b00ff876c299c61",
-      "key": {
-        "type": "file",
-        "location": "$PROJECT_DIR/emulator-account.pkey"
-      }
-    },
-    "mainnet-fork-fyv-deployer": {
-      "address": "b1d63873c3cc9f79",
-      "key": {
-        "type": "file",
-        "location": "$PROJECT_DIR/emulator-account.pkey"
-      }
-    },
-    "fork-flow-source": {
-      "address": "92674150c9213fc9",
-      "key": {
-        "type": "file",
-        "location": "$PROJECT_DIR/emulator-account.pkey"
-      }
-    },
-    "mainnet-fork-defi-deployer": {
-      "address": "6d888f175c158410",
-      "key": {
-        "type": "file",
-        "location": "$PROJECT_DIR/emulator-account.pkey"
-      }
-    }
-  },
-  "deployments": {
-    "mainnet-fork": {
-      "mainnet-fork-deployer": [
-        "FlowALPMath",
-        {
-          "name": "MOET",
-          "args": [{ "value": "0.00000000", "type": "UFix64" }]
-        },
-        "FlowALPv0"
-      ],
-      "mainnet-fork-fyv-deployer": [
-        "MockDexSwapper",
-        "MockOracle"
-      ]
-    }
-  }
-}
-JSONEOF
+# Expand __PROJECT_DIR__ placeholder in the committed config template
+sed "s|__PROJECT_DIR__|$PROJECT_DIR|g" "$SCRIPT_DIR/flow.fork.json" > "$FORK_CONFIG"
+
+# Initialize the dynamic accounts config (empty, populated later)
+echo '{}' > "$DYNAMIC_CONFIG"
 
 # Create a working copy of flow.json so the CLI never writes back to the original.
 # Place it at the project root level so existing relative paths (./cadence/...) still resolve.
@@ -115,9 +53,12 @@ cp "$PROJECT_DIR/flow.json" "$BASE_CONFIG"
 # Ensure cleanup on exit
 trap 'rm -f "$BASE_CONFIG"' EXIT
 
-# Helper to attach config flags to flow command
+# Helper to attach config flags to flow command.
+# BASE_CONFIG: working copy of project flow.json (relative paths resolve from project root)
+# FORK_CONFIG: committed fork config (network, static accounts, deployments)
+# DYNAMIC_CONFIG: runtime config for dynamically-created test accounts
 flow_cmd() {
-    flow "$@" -f "$BASE_CONFIG" -f "$EXTRA_CONFIG"
+    flow "$@" -f "$BASE_CONFIG" -f "$FORK_CONFIG" -f "$DYNAMIC_CONFIG"
 }
 
 # Helper: send a transaction and assert success
@@ -235,11 +176,11 @@ echo "Created liquidator account: $LIQUIDATOR_ADDR"
 # Add test accounts to our extra config (using the generated key)
 jq --arg addr "${USER_ADDR#0x}" --arg keyfile "$KEY_FILE" \
     '.accounts["fork-user"] = {"address": $addr, "key": {"type": "file", "location": $keyfile}}' \
-    "$EXTRA_CONFIG" > "$WORK_DIR/flow.json.tmp" && mv "$WORK_DIR/flow.json.tmp" "$EXTRA_CONFIG"
+    "$DYNAMIC_CONFIG" > "$WORK_DIR/flow.json.tmp" && mv "$WORK_DIR/flow.json.tmp" "$DYNAMIC_CONFIG"
 
 jq --arg addr "${LIQUIDATOR_ADDR#0x}" --arg keyfile "$KEY_FILE" \
     '.accounts["fork-liquidator"] = {"address": $addr, "key": {"type": "file", "location": $keyfile}}' \
-    "$EXTRA_CONFIG" > "$WORK_DIR/flow.json.tmp" && mv "$WORK_DIR/flow.json.tmp" "$EXTRA_CONFIG"
+    "$DYNAMIC_CONFIG" > "$WORK_DIR/flow.json.tmp" && mv "$WORK_DIR/flow.json.tmp" "$DYNAMIC_CONFIG"
 
 echo ""
 
@@ -298,8 +239,8 @@ if echo "$CREATE_POS_RESULT" | jq -e '.error' > /dev/null 2>&1; then
 fi
 echo "  Position created successfully"
 
-# Extract position ID from the Rebalanced event (which contains the pid)
-PID=$(echo "$CREATE_POS_RESULT" | jq '[.events[] | select(.type | contains("FlowALPv0.Rebalanced")) | .values.value.fields[] | select(.name == "pid") | .value.value | tonumber] | first')
+# Extract position ID from the Opened event
+PID=$(echo "$CREATE_POS_RESULT" | jq '[.events[] | select(.type | contains("FlowALPv0.Opened")) | .values.value.fields[] | select(.name == "pid") | .value.value | tonumber] | first')
 echo "New position ID: $PID"
 echo ""
 
