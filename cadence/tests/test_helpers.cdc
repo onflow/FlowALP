@@ -31,6 +31,20 @@ access(all) let TEN_DAYS: Fix64 = 864_000.0
 access(all) let THIRTY_DAYS: Fix64 = 2_592_000.0   // 30 * 86400
 access(all) let ONE_YEAR: Fix64 = 31_557_600.0     // 365.25 * 86400
 
+// Mainnet constants
+// EVM Bridged Token Identifiers
+access(all) let MAINNET_WETH_TOKEN_ID = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590.Vault"
+access(all) let MAINNET_USDF_TOKEN_ID = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabed.Vault"
+access(all) let MAINNET_WBTC_TOKEN_ID = "A.1e4aa0b87d10b141.EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579.Vault"
+
+access(all) let MAINNET_MOET_TOKEN_ID = "A.6b00ff876c299c61.MOET.Vault"
+access(all) let MAINNET_FLOW_TOKEN_ID = "A.1654653399040a61.FlowToken.Vault"
+
+// Storage paths
+access(all) let MAINNET_USDF_STORAGE_PATH = /storage/EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabedVault
+access(all) let MAINNET_WETH_STORAGE_PATH = /storage/EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590Vault
+access(all) let MAINNET_WBTC_STORAGE_PATH = /storage/EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579Vault
+access(all) let MAINNET_MOET_STORAGE_PATH = /storage/moetTokenVault_0x6b00ff876c299c61
 
 /* --- Test execution helpers --- */
 
