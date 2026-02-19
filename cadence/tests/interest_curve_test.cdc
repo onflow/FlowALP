@@ -1,12 +1,8 @@
 import Test
 import "FlowToken"
-<<<<<<< HEAD
-import "FlowALPv1"
+import "FlowALPv0"
 import "FlowALPModels"
 import "FlowALPInterestRates"
-=======
-import "FlowALPv0"
->>>>>>> main
 import "FlowALPMath"
 import "test_helpers.cdc"
 
@@ -24,11 +20,7 @@ access(all)
 fun test_FixedCurve_returns_constant_rate() {
     // Create a fixed rate curve with 5% APY
     let fixedRate: UFix128 = 0.05
-<<<<<<< HEAD
     let curve = FlowALPInterestRates.FixedCurve(yearlyRate: fixedRate)
-=======
-    let curve = FlowALPv0.FixedRateInterestCurve(yearlyRate: fixedRate)
->>>>>>> main
 
     // Test with various credit and debit balances
     let rate1 = curve.interestRate(creditBalance: 100.0, debitBalance: 0.0)
@@ -41,11 +33,7 @@ fun test_FixedCurve_returns_constant_rate() {
 access(all)
 fun test_FixedCurve_accepts_zero_rate() {
     // Zero rate should be valid (0% APY)
-<<<<<<< HEAD
     let curve = FlowALPInterestRates.FixedCurve(yearlyRate: 0.0)
-=======
-    let curve = FlowALPv0.FixedRateInterestCurve(yearlyRate: 0.0)
->>>>>>> main
     let rate = curve.interestRate(creditBalance: 100.0, debitBalance: 50.0)
     Test.assertEqual(0.0 as UFix128, rate)
 }
@@ -61,11 +49,7 @@ fun test_KinkCurve_at_zero_utilization() {
     // - 1% base rate
     // - 4% slope1
     // - 60% slope2
-<<<<<<< HEAD
     let curve = FlowALPInterestRates.KinkCurve(
-=======
-    let curve = FlowALPv0.KinkInterestCurve(
->>>>>>> main
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -84,11 +68,7 @@ fun test_KinkCurve_before_kink() {
     // - 1% base rate
     // - 4% slope1
     // - 60% slope2
-<<<<<<< HEAD
     let curve = FlowALPInterestRates.KinkCurve(
-=======
-    let curve = FlowALPv0.KinkInterestCurve(
->>>>>>> main
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -106,11 +86,7 @@ fun test_KinkCurve_before_kink() {
 access(all)
 fun test_KinkCurve_at_kink() {
     // Create a kink curve
-<<<<<<< HEAD
     let curve = FlowALPInterestRates.KinkCurve(
-=======
-    let curve = FlowALPv0.KinkInterestCurve(
->>>>>>> main
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -127,11 +103,7 @@ fun test_KinkCurve_at_kink() {
 access(all)
 fun test_KinkCurve_after_kink() {
     // Create a kink curve
-<<<<<<< HEAD
     let curve = FlowALPInterestRates.KinkCurve(
-=======
-    let curve = FlowALPv0.KinkInterestCurve(
->>>>>>> main
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -151,11 +123,7 @@ fun test_KinkCurve_after_kink() {
 access(all)
 fun test_KinkCurve_at_full_utilization() {
     // Create a kink curve
-<<<<<<< HEAD
     let curve = FlowALPInterestRates.KinkCurve(
-=======
-    let curve = FlowALPv0.KinkInterestCurve(
->>>>>>> main
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -185,13 +153,8 @@ fun test_KinkCurve_at_full_utilization() {
 access(all)
 fun test_TokenState_with_FixedCurve() {
     // Create a TokenState with a fixed rate curve
-<<<<<<< HEAD
     let fixedCurve = FlowALPInterestRates.FixedCurve(yearlyRate: 0.10)
     var tokenState = FlowALPModels.TokenState(
-=======
-    let fixedCurve = FlowALPv0.FixedRateInterestCurve(yearlyRate: 0.10)
-    var tokenState = FlowALPv0.TokenState(
->>>>>>> main
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: fixedCurve,
         depositRate: 1.0,
@@ -220,21 +183,13 @@ fun test_TokenState_with_FixedCurve() {
 access(all)
 fun test_TokenState_with_KinkCurve() {
     // Create a TokenState with a kink curve
-<<<<<<< HEAD
     let kinkCurve = FlowALPInterestRates.KinkCurve(
-=======
-    let kinkCurve = FlowALPv0.KinkInterestCurve(
->>>>>>> main
         optimalUtilization: 0.80,
         baseRate: 0.02,
         slope1: 0.05,
         slope2: 0.50
     )
-<<<<<<< HEAD
     var tokenState = FlowALPModels.TokenState(
-=======
-    var tokenState = FlowALPv0.TokenState(
->>>>>>> main
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
@@ -258,21 +213,13 @@ fun test_TokenState_with_KinkCurve() {
 access(all)
 fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     // Create TokenState with KinkCurve (80% optimal, 2% base, 5% slope1, 50% slope2)
-<<<<<<< HEAD
     let kinkCurve = FlowALPInterestRates.KinkCurve(
-=======
-    let kinkCurve = FlowALPv0.KinkInterestCurve(
->>>>>>> main
         optimalUtilization: 0.80,
         baseRate: 0.02,
         slope1: 0.05,
         slope2: 0.50
     )
-<<<<<<< HEAD
     var tokenState = FlowALPModels.TokenState(
-=======
-    var tokenState = FlowALPv0.TokenState(
->>>>>>> main
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
@@ -316,13 +263,8 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
 // ============================================================================
 
 access(all)
-<<<<<<< HEAD
 fun test_KinkCurve_with_very_small_balances() {
     let curve = FlowALPInterestRates.KinkCurve(
-=======
-fun test_KinkInterestCurve_with_very_small_balances() {
-    let curve = FlowALPv0.KinkInterestCurve(
->>>>>>> main
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,
@@ -336,13 +278,8 @@ fun test_KinkInterestCurve_with_very_small_balances() {
 }
 
 access(all)
-<<<<<<< HEAD
 fun test_KinkCurve_with_large_balances() {
     let curve = FlowALPInterestRates.KinkCurve(
-=======
-fun test_KinkInterestCurve_with_large_balances() {
-    let curve = FlowALPv0.KinkInterestCurve(
->>>>>>> main
         optimalUtilization: 0.80,
         baseRate: 0.01,
         slope1: 0.04,

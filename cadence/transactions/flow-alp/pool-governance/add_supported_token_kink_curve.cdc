@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-import "FlowALPv1"
-import "FlowALPInterestRates"
-=======
 import "FlowALPv0"
->>>>>>> main
+import "FlowALPInterestRates"
 
 /// Adds a token type as supported to the stored pool with a kink interest curve.
 /// This uses KinkCurve for utilization-based variable interest rates,
@@ -35,11 +31,7 @@ transaction(
             tokenType: self.tokenType,
             collateralFactor: collateralFactor,
             borrowFactor: borrowFactor,
-<<<<<<< HEAD
             interestCurve: FlowALPInterestRates.KinkCurve(
-=======
-            interestCurve: FlowALPv0.KinkInterestCurve(
->>>>>>> main
                 optimalUtilization: optimalUtilization,
                 baseRate: baseRate,
                 slope1: slope1,

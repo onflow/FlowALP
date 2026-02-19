@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-import "FlowALPv1"
-import "FlowALPInterestRates"
-=======
 import "FlowALPv0"
->>>>>>> main
+import "FlowALPInterestRates"
 
 /// Adds a token type as supported to the stored pool with a fixed-rate interest curve.
 /// This uses FixedCurve for a constant yearly interest rate regardless of utilization.
@@ -31,11 +27,7 @@ transaction(
             tokenType: self.tokenType,
             collateralFactor: collateralFactor,
             borrowFactor: borrowFactor,
-<<<<<<< HEAD
             interestCurve: FlowALPInterestRates.FixedCurve(yearlyRate: yearlyRate),
-=======
-            interestCurve: FlowALPv0.FixedRateInterestCurve(yearlyRate: yearlyRate),
->>>>>>> main
             depositRate: depositRate,
             depositCapacityCap: depositCapacityCap
         )

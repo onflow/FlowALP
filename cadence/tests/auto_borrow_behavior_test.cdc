@@ -2,12 +2,8 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-<<<<<<< HEAD
-import "FlowALPv1"
-import "FlowALPModels"
-=======
 import "FlowALPv0"
->>>>>>> main
+import "FlowALPModels"
 import "test_helpers.cdc"
 
 access(all)
@@ -66,11 +62,7 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     
     // Find the MOET balance (which should be debt)
     var moetBalance: UFix64 = 0.0
-<<<<<<< HEAD
     var moetDirection: FlowALPModels.BalanceDirection? = nil
-=======
-    var moetDirection: FlowALPv0.BalanceDirection? = nil
->>>>>>> main
     for balance in details.balances {
         if balance.vaultType == Type<@MOET.Vault>() {
             moetBalance = balance.balance
@@ -79,11 +71,7 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     }
     
     // Verify MOET was auto-borrowed
-<<<<<<< HEAD
     Test.assert(moetDirection == FlowALPModels.BalanceDirection.Debit, 
-=======
-    Test.assert(moetDirection == FlowALPv0.BalanceDirection.Debit, 
->>>>>>> main
         message: "Expected MOET to be in Debit (borrowed) state")
     
     // Verify the amount is approximately what we calculated (within 0.01 tolerance)

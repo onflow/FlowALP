@@ -473,12 +473,12 @@ access(all) contract FlowALPModels {
         /// Time this pool most recently was unpaused
         access(self) var lastUnpausedAt: UInt64?
 
-        /// A trusted DEX (or set of DEXes) used by FlowALPv1 as a pricing oracle and trading counterparty for liquidations.
+        /// A trusted DEX (or set of DEXes) used by FlowALPv0 as a pricing oracle and trading counterparty for liquidations.
         /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
         /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs:
         ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
         ///
-        /// FlowALPv1 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
+        /// FlowALPv0 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
         /// It relies directly on the Swapper's returned by the configured SwapperProvider.
         access(self) var dex: {DeFiActions.SwapperProvider}
 

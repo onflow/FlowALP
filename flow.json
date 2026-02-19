@@ -22,7 +22,6 @@
 				"testing": "0000000000000007"
 			}
 		},
-<<<<<<< HEAD
 		"FlowALPInterestRates": {
 			"source": "./cadence/contracts/FlowALPInterestRates.cdc",
 			"aliases": {
@@ -35,12 +34,8 @@
 				"testing": "0000000000000008"
 			}
 		},
-		"FlowALPv1": {
-			"source": "./cadence/contracts/FlowALPv1.cdc",
-=======
 		"FlowALPv0": {
 			"source": "./cadence/contracts/FlowALPv0.cdc",
->>>>>>> main
 			"aliases": {
 				"testing": "0000000000000007"
 			}
@@ -301,12 +296,8 @@
 						}
 					]
 				},
-<<<<<<< HEAD
 				"FlowALPModels",
-				"FlowALPv1"
-=======
 				"FlowALPv0"
->>>>>>> main
 			]
 		},
 		"mainnet": {
@@ -322,12 +313,8 @@
 						}
 					]
 				},
-<<<<<<< HEAD
 				"FlowALPModels",
-				"FlowALPv1"
-=======
 				"FlowALPv0"
->>>>>>> main
 			]
 		},
 		"testnet": {
@@ -343,12 +330,8 @@
 						}
 					]
 				},
-<<<<<<< HEAD
 				"FlowALPModels",
-				"FlowALPv1"
-=======
 				"FlowALPv0"
->>>>>>> main
 			]
 		}
 	}
