@@ -17,8 +17,9 @@ access(all) fun setup() {
 }
 
 access(all) fun beforeEach() {
-    Test.commitBlock()
-    Test.reset(to: snapshot)
+    if snapshot != getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
 }
 
 access(all) fun test_router_add_oracle() {

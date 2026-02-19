@@ -457,7 +457,37 @@ access(all) fun test_allow_jitter() {
 }
 
 access(all) fun test_cron_job() {
-    Test.assert(false, message: "not implemented")
+    let info = createAggregatorWithCron(
+        signer: signer,
+        ofToken: Type<@FlowToken.Vault>(),
+        oracleCount: 1,
+        maxSpread: UFix64.max,
+        maxGradient: 1.0,
+        priceHistorySize: 5,
+        priceHistoryInterval: 59.0, // allow some jitter
+        maxPriceHistoryAge: 600.0, // 10 minutes
+        unitOfAccount: Type<@MOET.Vault>(),
+        cronExpression: "* * * * *", // every minute
+        cronHandlerStoragePath: StoragePath(identifier: "cronHandler")!,
+        keeperExecutionEffort: 7500,
+        executorExecutionEffort: 2500,
+        aggregatorCronHandlerStoragePath: StoragePath(identifier: "aggregatorCronHandler")!,
+    )
+    setMultiMockOraclePrice(
+        storageID: info.mockOracleStorageIDs[0],
+        forToken: Type<@FlowToken.Vault>(),
+        price: 1.0,
+    )
+    var i = 0;
+    Test.moveTime(by: 10.0)
+    while i < 5 {
+        let history = oracleAggregatorPriceHistory(storageID: info.aggregatorStorageID)
+        Test.assertEqual(history.length, i + 1)
+        let timeDelta = Fix64(getCurrentBlock().timestamp) - Fix64(history[i].timestamp)
+        Test.assert(timeDelta < 30.0, message: "timestamp mismatch")
+        i = i + 1
+        Test.moveTime(by: 60.0)
+    }
 }
 
 access(self) fun set_prices(info: CreateAggregatorInfo, prices: [UFix64?], forToken: Type) {
