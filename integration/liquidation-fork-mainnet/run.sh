@@ -40,21 +40,22 @@ DYNAMIC_CONFIG="$WORK_DIR/accounts.json"
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
 
+# Copy project flow.json to a sibling file at the project root so relative paths
+# (./cadence/...) still resolve. Cleaned up on exit; gitignored in case of interruption.
+BASE_CONFIG="$PROJECT_DIR/flow.fork-test.json"
+cp "$PROJECT_DIR/flow.json" "$BASE_CONFIG"
+trap 'rm -f "$BASE_CONFIG"' EXIT
+
 # Expand __PROJECT_DIR__ placeholder in the committed config template
 sed "s|__PROJECT_DIR__|$PROJECT_DIR|g" "$SCRIPT_DIR/flow.fork.json" > "$FORK_CONFIG"
 
 # Initialize the dynamic accounts config (empty, populated later)
 echo '{}' > "$DYNAMIC_CONFIG"
 
-# Make project flow.json read-only so the CLI can't write merged config back to it.
-# The CLI auto-discovers ./flow.json from cwd; this prevents it from being modified.
-chmod a-w "$PROJECT_DIR/flow.json"
-trap 'chmod u+w "$PROJECT_DIR/flow.json"' EXIT
-
 # Helper to attach config flags to flow command.
-# The project flow.json is read-only to prevent the CLI from writing merged config back.
+# Only references the copy and overlay configs — the original flow.json is never touched.
 flow_cmd() {
-    flow "$@" -f "$PROJECT_DIR/flow.json" -f "$FORK_CONFIG" -f "$DYNAMIC_CONFIG"
+    flow "$@" -f "$BASE_CONFIG" -f "$FORK_CONFIG" -f "$DYNAMIC_CONFIG"
 }
 
 # Helper: send a transaction and assert success
