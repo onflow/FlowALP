@@ -520,6 +520,17 @@ access(all) contract FlowALPModels {
         access(all) view fun isDebugLogging(): Bool
         access(all) view fun getSupportedTokens(): [Type]
         access(all) view fun isTokenSupported(tokenType: Type): Bool
+
+        /// Gets a swapper from the DEX for the given token pair.
+        ///
+        /// This function is used during liquidations to compare the liquidator's offer against the DEX price.
+        /// It expects that a swapper has been configured for every supported collateral-to-debt token pair.
+        ///
+        /// Panics if:
+        /// - No swapper is configured for the given token pair (seizeType -> debtType)
+        ///
+        /// @param seizeType: The collateral token type to swap from
+        /// @param debtType: The debt token type to swap to
         access(all) fun getSwapperForLiquidation(seizeType: Type, debtType: Type): {DeFiActions.Swapper}
 
         // Setters
@@ -1288,6 +1299,8 @@ access(all) contract FlowALPModels {
         access(all) view fun getGlobalLedgerKeys(): [Type]
 
         // --- Reserves ---
+        /// Returns a reference to the reserve vault for the given type, if the token type is supported.
+        /// If no reserve vault exists yet, and the token type is supported, the reserve vault is created.
         access(EImplementation) fun borrowOrCreateReserve(_ type: Type): auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
         access(EImplementation) fun borrowReserve(_ type: Type): auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
         access(all) view fun hasReserve(_ type: Type): Bool
@@ -1485,6 +1498,239 @@ access(all) contract FlowALPModels {
         access(EImplementation) fun removePositionLock(_ pid: UInt64) {
             self.positionLock.remove(key: pid)
         }
+    }
+
+    /* --- INTERNAL POSITION --- */
+
+    /// InternalPosition
+    ///
+    /// The InternalPosition interface defines the contract for accessing and mutating state
+    /// related to a single position within the Pool.
+    /// All state is accessed via getter/setter/borrow functions (no field declarations),
+    /// enabling future implementation upgrades (e.g. InternalPositionImplv2).
+    access(all) resource interface InternalPosition {
+
+        // --- Health Parameters ---
+
+        /// The position-specific target health, for auto-balancing purposes.
+        /// When the position health moves outside the range [minHealth, maxHealth], the balancing operation
+        /// should result in a position health of targetHealth.
+        access(all) view fun getTargetHealth(): UFix128
+
+        /// The position-specific minimum health threshold, below which a position is considered undercollateralized.
+        /// When a position is under-collateralized, it is eligible for rebalancing.
+        /// NOTE: An under-collateralized position is distinct from an unhealthy position, and cannot be liquidated
+        access(all) view fun getMinHealth(): UFix128
+
+        /// The position-specific maximum health threshold, above which a position is considered overcollateralized.
+        /// When a position is over-collateralized, it is eligible for rebalancing.
+        access(all) view fun getMaxHealth(): UFix128
+
+        /// Sets the Position's target health. See getTargetHealth for details.
+        access(all) fun setTargetHealth(_ targetHealth: UFix128)
+
+        /// Sets the Position's minimum health. See getMinHealth for details.
+        access(all) fun setMinHealth(_ minHealth: UFix128)
+
+        /// Sets the Position's maximum health. See getMaxHealth for details.
+        access(all) fun setMaxHealth(_ maxHealth: UFix128)
+
+        // --- Balances ---
+
+        /// Returns the balance for a given token type, or nil if no balance exists
+        access(all) view fun getBalance(_ type: Type): InternalBalance?
+
+        /// Sets the balance for a given token type
+        access(all) fun setBalance(_ type: Type, _ balance: InternalBalance)
+
+        /// Returns a mutable reference to the balance for a given token type, or nil if no balance exists.
+        /// Used for in-place mutations like recordDeposit/recordWithdrawal.
+        access(all) fun borrowBalance(_ type: Type): &InternalBalance?
+
+        /// Returns the set of token types for which the position has balances
+        access(all) view fun getBalanceKeys(): [Type]
+
+        /// Returns a value-copy of all balances, suitable for constructing a PositionView
+        access(all) fun copyBalances(): {Type: InternalBalance}
+
+        // --- Queued Deposits ---
+
+        /// Deposits a vault into the queue for the given token type.
+        /// If a queued deposit already exists for this type, the vault's balance is added to it.
+        access(all) fun depositToQueue(_ type: Type, vault: @{FungibleToken.Vault})
+
+        /// Removes and returns the queued deposit vault for the given token type, or nil if none exists
+        access(all) fun removeQueuedDeposit(_ type: Type): @{FungibleToken.Vault}?
+
+        /// Returns the token types that have queued deposits
+        access(all) view fun getQueuedDepositKeys(): [Type]
+
+        /// Returns the number of queued deposit entries
+        access(all) view fun getQueuedDepositsLength(): Int
+
+        /// Returns whether a queued deposit exists for the given token type
+        access(all) view fun hasQueuedDeposit(_ type: Type): Bool
+
+        // --- Draw Down Sink ---
+
+        /// Returns an authorized reference to the draw-down sink, or nil if none is configured.
+        /// The draw-down sink receives excess collateral when the position exceeds its maximum health.
+        access(all) fun borrowDrawDownSink(): auth(FungibleToken.Withdraw) &{DeFiActions.Sink}?
+
+        /// Sets the draw-down sink. If nil, the Pool will not push overflown value.
+        /// NOTE: If a non-nil value is provided, the Sink MUST accept MOET deposits or the operation will revert.
+        access(all) fun setDrawDownSink(_ sink: {DeFiActions.Sink}?)
+
+        // --- Top Up Source ---
+
+        /// Returns an authorized reference to the top-up source, or nil if none is configured.
+        /// The top-up source provides additional collateral when the position falls below its minimum health.
+        access(all) fun borrowTopUpSource(): auth(FungibleToken.Withdraw) &{DeFiActions.Source}?
+
+        /// Sets the top-up source. If nil, the Pool will not pull underflown value, and liquidation may occur.
+        access(all) fun setTopUpSource(_ source: {DeFiActions.Source}?)
+    }
+
+    /// InternalPositionImplv1 is the concrete implementation of InternalPosition.
+    /// Fields are private (access(self)) and accessed only via getter/setter/borrow functions.
+    access(all) resource InternalPositionImplv1: InternalPosition {
+
+        access(self) var targetHealth: UFix128
+        access(self) var minHealth: UFix128
+        access(self) var maxHealth: UFix128
+        access(self) var balances: {Type: InternalBalance}
+        access(self) var queuedDeposits: @{Type: {FungibleToken.Vault}}
+        access(self) var drawDownSink: {DeFiActions.Sink}?
+        access(self) var topUpSource: {DeFiActions.Source}?
+
+        init() {
+            self.balances = {}
+            self.queuedDeposits <- {}
+            self.targetHealth = 1.3
+            self.minHealth = 1.1
+            self.maxHealth = 1.5
+            self.drawDownSink = nil
+            self.topUpSource = nil
+        }
+
+        // --- Health Parameters ---
+
+        access(all) view fun getTargetHealth(): UFix128 {
+            return self.targetHealth
+        }
+
+        access(all) view fun getMinHealth(): UFix128 {
+            return self.minHealth
+        }
+
+        access(all) view fun getMaxHealth(): UFix128 {
+            return self.maxHealth
+        }
+
+        access(all) fun setTargetHealth(_ targetHealth: UFix128) {
+            pre {
+                targetHealth > self.minHealth: "Target health (\(targetHealth)) must be greater than min health (\(self.minHealth))"
+                targetHealth < self.maxHealth: "Target health (\(targetHealth)) must be less than max health (\(self.maxHealth))"
+            }
+            self.targetHealth = targetHealth
+        }
+
+        access(all) fun setMinHealth(_ minHealth: UFix128) {
+            pre {
+                minHealth > 1.0: "Min health (\(minHealth)) must be >1"
+                minHealth < self.targetHealth: "Min health (\(minHealth)) must be greater than target health (\(self.targetHealth))"
+            }
+            self.minHealth = minHealth
+        }
+
+        access(all) fun setMaxHealth(_ maxHealth: UFix128) {
+            pre {
+                maxHealth > self.targetHealth: "Max health (\(maxHealth)) must be greater than target health (\(self.targetHealth))"
+            }
+            self.maxHealth = maxHealth
+        }
+
+        // --- Balances ---
+
+        access(all) view fun getBalance(_ type: Type): InternalBalance? {
+            return self.balances[type]
+        }
+
+        access(all) fun setBalance(_ type: Type, _ balance: InternalBalance) {
+            self.balances[type] = balance
+        }
+
+        access(all) fun borrowBalance(_ type: Type): &InternalBalance? {
+            return &self.balances[type]
+        }
+
+        access(all) view fun getBalanceKeys(): [Type] {
+            return self.balances.keys
+        }
+
+        access(all) fun copyBalances(): {Type: InternalBalance} {
+            return self.balances
+        }
+
+        // --- Queued Deposits ---
+
+        access(all) fun depositToQueue(_ type: Type, vault: @{FungibleToken.Vault}) {
+            if self.queuedDeposits[type] == nil {
+                self.queuedDeposits[type] <-! vault
+            } else {
+                let ref = &self.queuedDeposits[type] as &{FungibleToken.Vault}?
+                    ?? panic("Expected queued deposit for type")
+                ref.deposit(from: <-vault)
+            }
+        }
+
+        access(all) fun removeQueuedDeposit(_ type: Type): @{FungibleToken.Vault}? {
+            return <- self.queuedDeposits.remove(key: type)
+        }
+
+        access(all) view fun getQueuedDepositKeys(): [Type] {
+            return self.queuedDeposits.keys
+        }
+
+        access(all) view fun getQueuedDepositsLength(): Int {
+            return self.queuedDeposits.length
+        }
+
+        access(all) view fun hasQueuedDeposit(_ type: Type): Bool {
+            return self.queuedDeposits[type] != nil
+        }
+
+        // --- Draw Down Sink ---
+
+        access(all) fun borrowDrawDownSink(): auth(FungibleToken.Withdraw) &{DeFiActions.Sink}? {
+            return &self.drawDownSink as auth(FungibleToken.Withdraw) &{DeFiActions.Sink}?
+        }
+
+        access(all) fun setDrawDownSink(_ sink: {DeFiActions.Sink}?) {
+            pre {
+                sink == nil || sink!.getSinkType() == Type<@MOET.Vault>():
+                    "Invalid Sink provided - Sink must accept MOET"
+            }
+            self.drawDownSink = sink
+        }
+
+        // --- Top Up Source ---
+
+        access(all) fun borrowTopUpSource(): auth(FungibleToken.Withdraw) &{DeFiActions.Source}? {
+            return &self.topUpSource as auth(FungibleToken.Withdraw) &{DeFiActions.Source}?
+        }
+
+        /// TODO(jord): User can provide top-up source containing unsupported token type. Then later rebalances will revert.
+        /// Possibly an attack vector on automated rebalancing, if multiple positions are rebalanced in the same transaction.
+        access(all) fun setTopUpSource(_ source: {DeFiActions.Source}?) {
+            self.topUpSource = source
+        }
+    }
+
+    /// Factory function to create a new InternalPositionImplv1 resource.
+    /// Required because Cadence resources can only be created within their containing contract.
+    access(all) fun createInternalPosition(): @{InternalPosition} {
+        return <- create InternalPositionImplv1()
     }
 
     /// Factory function to create a new PoolStateImpl resource.
