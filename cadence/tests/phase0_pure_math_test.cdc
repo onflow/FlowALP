@@ -14,8 +14,8 @@ fun setup() {
 
 // Helper to build a TokenSnapshot quickly
 access(all)
-fun snap(price: UFix128, creditIdx: UFix128, debitIdx: UFix128, cf: UFix128, bf: UFix128): {FlowALPModels.TokenSnapshot} {
-    return FlowALPModels.TokenSnapshotImplv1(
+fun snap(price: UFix128, creditIdx: UFix128, debitIdx: UFix128, cf: UFix128, bf: UFix128): FlowALPModels.TokenSnapshot {
+    return FlowALPModels.TokenSnapshot(
         price: price,
         credit: creditIdx,
         debit: debitIdx,
@@ -29,7 +29,7 @@ fun snap(price: UFix128, creditIdx: UFix128, debitIdx: UFix128, cf: UFix128, bf:
 access(all)
 fun test_healthFactor_zeroBalances_returnsInfinite() {  // Renamed for clarity
     let balances: {Type: FlowALPModels.InternalBalance} = {}
-    let snaps: {Type: {FlowALPModels.TokenSnapshot}} = {}
+    let snaps: {Type: FlowALPModels.TokenSnapshot} = {}
     let view = FlowALPModels.PositionView(
         balances: balances,
         snapshots: snaps,
@@ -46,7 +46,7 @@ access(all)
 fun test_healthFactor_zeroCollateral_positiveDebt_returnsZero() {
     let tDebt = Type<@MockYieldToken.Vault>()
 
-    let snapshots: {Type: {FlowALPModels.TokenSnapshot}} = {}
+    let snapshots: {Type: FlowALPModels.TokenSnapshot} = {}
     snapshots[tDebt] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.5, bf: 1.0)
 
     let balances: {Type: FlowALPModels.InternalBalance} = {}
@@ -74,7 +74,7 @@ fun test_healthFactor_simpleCollateralAndDebt() {
     let tDebt = Type<@MockYieldToken.Vault>()
 
     // Build snapshots: indices at 1.0 so true == scaled
-    let snapshots: {Type: {FlowALPModels.TokenSnapshot}} = {}
+    let snapshots: {Type: FlowALPModels.TokenSnapshot} = {}
     snapshots[tColl] = snap(price: 2.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.5, bf: 1.0)
     snapshots[tDebt] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.5, bf: 1.0)
 
@@ -107,7 +107,7 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     // Withdrawing MOET while having collateral in MockYieldToken
     let t = Type<@MOET.Vault>()
     let tColl = Type<@MockYieldToken.Vault>()
-    let snapshots: {Type: {FlowALPModels.TokenSnapshot}} = {}
+    let snapshots: {Type: FlowALPModels.TokenSnapshot} = {}
     snapshots[t] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.8, bf: 1.0)
     snapshots[tColl] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.8, bf: 1.0)
 
@@ -146,7 +146,7 @@ access(all)
 fun test_maxWithdraw_fromCollateralLimitedByHealth() {
     // Withdrawing from a credit position
     let t = Type<@MOET.Vault>()
-    let snapshots: {Type: {FlowALPModels.TokenSnapshot}} = {}
+    let snapshots: {Type: FlowALPModels.TokenSnapshot} = {}
     snapshots[t] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.5, bf: 1.0)
 
     let balances: {Type: FlowALPModels.InternalBalance} = {}

@@ -290,33 +290,15 @@ access(all) contract FlowALPModels {
     }
 
     /// Immutable snapshot of token-level data required for pure math operations
-    access(all) struct interface TokenSnapshot {
+    access(all) struct TokenSnapshot {
         /// The price of the token denominated in the pool's default token
-        access(all) view fun getPrice(): UFix128
+        access(all) let price: UFix128
         /// The credit interest index at the time the snapshot was taken
-        access(all) view fun getCreditIndex(): UFix128
+        access(all) let creditIndex: UFix128
         /// The debit interest index at the time the snapshot was taken
-        access(all) view fun getDebitIndex(): UFix128
+        access(all) let debitIndex: UFix128
         /// The risk parameters for this token
-        access(all) view fun getRisk(): {RiskParams}
-        /// Returns the effective debt (denominated in $) for the given debit balance of this snapshot's token.
-        /// See FlowALPMath.effectiveDebt for additional details.
-        access(all) view fun effectiveDebt(debitBalance: UFix128): UFix128
-        /// Returns the effective collateral (denominated in $) for the given credit balance of this snapshot's token.
-        /// See FlowALPMath.effectiveCollateral for additional details.
-        access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128
-    }
-
-    /// TokenSnapshotImplv1 is the concrete implementation of TokenSnapshot.
-    access(all) struct TokenSnapshotImplv1: TokenSnapshot {
-        /// The price of the token denominated in the pool's default token
-        access(self) let price: UFix128
-        /// The credit interest index at the time the snapshot was taken
-        access(self) let creditIndex: UFix128
-        /// The debit interest index at the time the snapshot was taken
-        access(self) let debitIndex: UFix128
-        /// The risk parameters for this token
-        access(self) let risk: {RiskParams}
+        access(all) let risk: {RiskParams}
 
         init(
             price: UFix128,
@@ -366,14 +348,14 @@ access(all) contract FlowALPModels {
         access(all) let balances: {Type: InternalBalance}
         /// Set of all token snapshots for which this position has a non-zero balance.
         /// If the position does not have a balance for a supported token, no entry for that token exists in this map.
-        access(all) let snapshots: {Type: {TokenSnapshot}}
+        access(all) let snapshots: {Type: TokenSnapshot}
         access(all) let defaultToken: Type
         access(all) let minHealth: UFix128
         access(all) let maxHealth: UFix128
 
         init(
             balances: {Type: InternalBalance},
-            snapshots: {Type: {TokenSnapshot}},
+            snapshots: {Type: TokenSnapshot},
             defaultToken: Type,
             min: UFix128,
             max: UFix128

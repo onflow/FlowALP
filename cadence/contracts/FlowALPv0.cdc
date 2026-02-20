@@ -52,7 +52,7 @@ access(all) contract FlowALPv0 {
     /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth
     access(all) view fun maxWithdraw(
         view: FlowALPModels.PositionView,
-        withdrawSnap: {FlowALPModels.TokenSnapshot},
+        withdrawSnap: FlowALPModels.TokenSnapshot,
         withdrawBal: FlowALPModels.InternalBalance?,
         targetHealth: UFix128
     ): UFix128 {
@@ -359,7 +359,7 @@ access(all) contract FlowALPv0 {
 
             // Build a TokenSnapshot for the requested withdraw type (may not exist in view.snapshots)
             let tokenState = self._borrowUpdatedTokenState(type: type)
-            let snap = FlowALPModels.TokenSnapshotImplv1(
+            let snap = FlowALPModels.TokenSnapshot(
                 price: UFix128(self.config.getPriceOracle().price(ofToken: type)!),
                 credit: tokenState.getCreditInterestIndex(),
                 debit: tokenState.getDebitInterestIndex(),
@@ -2329,11 +2329,11 @@ access(all) contract FlowALPv0 {
         /// Build a PositionView for the given position ID.
         access(all) fun buildPositionView(pid: UInt64): FlowALPModels.PositionView {
             let position = self._borrowPosition(pid: pid)
-            let snaps: {Type: FlowALPModels.TokenSnapshotImplv1} = {}
+            let snaps: {Type: FlowALPModels.TokenSnapshot} = {}
             let balancesCopy = position.copyBalances()
             for t in position.getBalanceKeys() {
                 let tokenState = self._borrowUpdatedTokenState(type: t)
-                snaps[t] = FlowALPModels.TokenSnapshotImplv1(
+                snaps[t] = FlowALPModels.TokenSnapshot(
                     price: UFix128(self.config.getPriceOracle().price(ofToken: t)!),
                     credit: tokenState.getCreditInterestIndex(),
                     debit: tokenState.getDebitInterestIndex(),
