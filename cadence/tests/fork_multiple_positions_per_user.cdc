@@ -28,11 +28,11 @@ access(all) let WBTC_VAULT_STORAGE_PATH = /storage/EVMVMBridgedToken_717dae2baf7
 // pool admin resources are stored there. Note: this is the same address as wbtcHolder.
 access(all) let protocolAccount = Test.getAccount(0x47f544294e3b7656)
 
-access(all) let usdfHolder = Test.getAccount(0xf18b50870aed46ad) // 25000
-access(all) let wethHolder = Test.getAccount(0xf62e3381a164f993) // 0.07032
-access(all) let wbtcHolder = Test.getAccount(0x47f544294e3b7656) // 0.0005
-access(all) let flowHolder = Test.getAccount(0xe467b9dd11fa00df) // 1921
-access(all) let usdcHolder = Test.getAccount(0xec6119051f7adc31) // 97
+access(all) let USDF_HOLDER = Test.getAccount(0xf18b50870aed46ad) // 25000
+access(all) let WETH_HOLDER = Test.getAccount(0xf62e3381a164f993) // 0.07032
+access(all) let WBTC_HOLDER = Test.getAccount(0x47f544294e3b7656) // 0.0005
+access(all) let FLOW_HOLDER = Test.getAccount(0xe467b9dd11fa00df) // 1921
+access(all) let USDC_HOLDER = Test.getAccount(0xec6119051f7adc31) // 97
 
 access(all) var snapshot: UInt64 = 0
 
@@ -244,7 +244,7 @@ access(all) fun testMultiplePositionsPerUser() {
     // Transfer FLOW from holder to LP
     log("Setting up liquidity provider with FLOW\n")
     let liquidityAmount = 800.0
-    transferTokensFromHolder(holder: flowHolder, recipient: lpUser, amount: liquidityAmount, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: lpUser, amount: liquidityAmount, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
 
     // LP deposits FLOW to create liquidity for borrowing
     createPosition(admin: protocolAccount, signer: lpUser, amount: liquidityAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
@@ -261,11 +261,11 @@ access(all) fun testMultiplePositionsPerUser() {
     // - wbtcHolder: 0.0005 WBTC x $50000 = $25
 
     let positions = [
-        {"type": FLOW_TOKEN_IDENTIFIER_MAINNET, "amount": 500.0, "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": flowHolder},
-        {"type": USDF_TOKEN_IDENTIFIER, "amount": 1500.0, "storagePath": USDF_VAULT_STORAGE_PATH, "name": "USDF", "holder": usdfHolder},
-        {"type": USDC_TOKEN_IDENTIFIER, "amount": 10.0, "storagePath": USDC_VAULT_STORAGE_PATH, "name": "USDC", "holder": usdcHolder},
-        {"type": WETH_TOKEN_IDENTIFIER, "amount": 0.05, "storagePath": WETH_VAULT_STORAGE_PATH, "name": "WETH", "holder": wethHolder},
-        {"type": WBTC_TOKEN_IDENTIFIER, "amount": 0.0004, "storagePath": WBTC_VAULT_STORAGE_PATH, "name": "WBTC", "holder": wbtcHolder}
+        {"type": FLOW_TOKEN_IDENTIFIER_MAINNET, "amount": 500.0, "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": FLOW_HOLDER},
+        {"type": USDF_TOKEN_IDENTIFIER, "amount": 1500.0, "storagePath": USDF_VAULT_STORAGE_PATH, "name": "USDF", "holder": USDF_HOLDER},
+        {"type": USDC_TOKEN_IDENTIFIER, "amount": 10.0, "storagePath": USDC_VAULT_STORAGE_PATH, "name": "USDC", "holder": USDC_HOLDER},
+        {"type": WETH_TOKEN_IDENTIFIER, "amount": 0.05, "storagePath": WETH_VAULT_STORAGE_PATH, "name": "WETH", "holder": WETH_HOLDER},
+        {"type": WBTC_TOKEN_IDENTIFIER, "amount": 0.0004, "storagePath": WBTC_VAULT_STORAGE_PATH, "name": "WBTC", "holder": WBTC_HOLDER}
     ]
 
     let debts = [100.0, 150.0, 5.0, 50.0, 8.0]
@@ -351,7 +351,7 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
 
     log("Setting up shared liquidity pool with limited capacity\n")
     let liquidityAmount = 400.0
-    transferTokensFromHolder(holder: flowHolder, recipient: lpUser, amount: liquidityAmount, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: lpUser, amount: liquidityAmount, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
 
     // LP deposits FLOW - this creates the shared liquidity pool
     createPosition(admin: protocolAccount, signer: lpUser, amount: liquidityAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
@@ -361,7 +361,7 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
 
     let userACollateral = 90.0  // 90 USDC
     log("Creating Position A with \(userACollateral) USDC collateral\n")
-    transferTokensFromHolder(holder: usdcHolder, recipient: user, amount: userACollateral, storagePath: USDC_VAULT_STORAGE_PATH, tokenName: "USDC")
+    transferTokensFromHolder(holder: USDC_HOLDER, recipient: user, amount: userACollateral, storagePath: USDC_VAULT_STORAGE_PATH, tokenName: "USDC")
     createPosition(admin: protocolAccount, signer: user, amount: userACollateral, vaultStoragePath: USDC_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     var openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
     let positionA_id = (openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid
@@ -370,7 +370,7 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
 
     let userBCollateral = 500.0  // 500 USDF
     log("Creating Position B with \(userBCollateral) USDF collateral\n")
-    transferTokensFromHolder(holder: usdfHolder, recipient: user, amount: userBCollateral, storagePath: USDF_VAULT_STORAGE_PATH, tokenName: "USDF")
+    transferTokensFromHolder(holder: USDF_HOLDER, recipient: user, amount: userBCollateral, storagePath: USDF_VAULT_STORAGE_PATH, tokenName: "USDF")
     createPosition(admin: protocolAccount, signer: user, amount: userBCollateral, vaultStoragePath: USDF_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
     let positionB_id = (openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid
@@ -484,7 +484,7 @@ access(all) fun testBatchLiquidations() {
 
     // LP deposits 600 FLOW to provide borrowing liquidity
     // (total borrows = 200+90+40+10+80 = 420 FLOW < 600)
-    transferTokensFromHolder(holder: flowHolder, recipient: lpUser, amount: 600.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: lpUser, amount: 600.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
     createPosition(admin: protocolAccount, signer: lpUser, amount: 600.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     // 5 positions with distinct collateral types:
@@ -500,11 +500,11 @@ access(all) fun testBatchLiquidations() {
     log("Creating 5 positions with different collateral types\n")
 
     let positions = [
-        {"type": USDF_TOKEN_IDENTIFIER,         "amount": 500.0,   "storagePath": USDF_VAULT_STORAGE_PATH, "name": "USDF", "holder": usdfHolder, "borrow": 200.0},
-        {"type": WETH_TOKEN_IDENTIFIER,         "amount": 0.06,    "storagePath": WETH_VAULT_STORAGE_PATH, "name": "WETH", "holder": wethHolder, "borrow": 90.0},
-        {"type": USDC_TOKEN_IDENTIFIER,         "amount": 80.0,    "storagePath": USDC_VAULT_STORAGE_PATH, "name": "USDC", "holder": usdcHolder, "borrow": 40.0},
-        {"type": WBTC_TOKEN_IDENTIFIER,         "amount": 0.0004,  "storagePath": WBTC_VAULT_STORAGE_PATH, "name": "WBTC", "holder": wbtcHolder, "borrow": 10.0},
-        {"type": FLOW_TOKEN_IDENTIFIER_MAINNET, "amount": 200.0,   "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": flowHolder, "borrow": 80.0}
+        {"type": USDF_TOKEN_IDENTIFIER,         "amount": 500.0,   "storagePath": USDF_VAULT_STORAGE_PATH, "name": "USDF", "holder": USDF_HOLDER, "borrow": 200.0},
+        {"type": WETH_TOKEN_IDENTIFIER,         "amount": 0.06,    "storagePath": WETH_VAULT_STORAGE_PATH, "name": "WETH", "holder": WETH_HOLDER, "borrow": 90.0},
+        {"type": USDC_TOKEN_IDENTIFIER,         "amount": 80.0,    "storagePath": USDC_VAULT_STORAGE_PATH, "name": "USDC", "holder": USDC_HOLDER, "borrow": 40.0},
+        {"type": WBTC_TOKEN_IDENTIFIER,         "amount": 0.0004,  "storagePath": WBTC_VAULT_STORAGE_PATH, "name": "WBTC", "holder": WBTC_HOLDER, "borrow": 10.0},
+        {"type": FLOW_TOKEN_IDENTIFIER_MAINNET, "amount": 200.0,   "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": FLOW_HOLDER, "borrow": 80.0}
     ]
 
     var userPids: [UInt64] = []
@@ -566,7 +566,7 @@ access(all) fun testBatchLiquidations() {
     // Setup protocol account FLOW vault as the DEX output source.
     // priceRatio = Pc_crashed / Pd = post-crash collateral price / FLOW price.
     // This must match the oracle prices exactly to pass the DEX/oracle deviation check.
-    transferTokensFromHolder(holder: flowHolder, recipient: protocolAccount, amount: 300.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: protocolAccount, amount: 300.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
 
     log("\nSetting up DEX swappers (priceRatio = post-crash Pc / Pd)\n")
     setMockDexPriceForPair(
@@ -608,11 +608,11 @@ access(all) fun testBatchLiquidations() {
     //   USDC=12:  partial;  (80-17)*0.85*0.5            = 26.775 → repay=12 → postHealth=26.775/28≈0.956
     log("\nSetting up liquidator account\n")
     let liquidator = Test.createAccount()
-    transferTokensFromHolder(holder: flowHolder, recipient: liquidator, amount: 250.0,   storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
-    transferTokensFromHolder(holder: usdfHolder, recipient: liquidator, amount: 1.0,     storagePath: USDF_VAULT_STORAGE_PATH, tokenName: "USDF")
-    transferTokensFromHolder(holder: wethHolder, recipient: liquidator, amount: 0.001,   storagePath: WETH_VAULT_STORAGE_PATH, tokenName: "WETH")
-    transferTokensFromHolder(holder: usdcHolder, recipient: liquidator, amount: 1.0,     storagePath: USDC_VAULT_STORAGE_PATH, tokenName: "USDC")
-    transferTokensFromHolder(holder: wbtcHolder, recipient: liquidator, amount: 0.00001, storagePath: WBTC_VAULT_STORAGE_PATH, tokenName: "WBTC")
+    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: liquidator, amount: 250.0,   storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensFromHolder(holder: USDF_HOLDER, recipient: liquidator, amount: 1.0,     storagePath: USDF_VAULT_STORAGE_PATH, tokenName: "USDF")
+    transferTokensFromHolder(holder: WETH_HOLDER, recipient: liquidator, amount: 0.001,   storagePath: WETH_VAULT_STORAGE_PATH, tokenName: "WETH")
+    transferTokensFromHolder(holder: USDC_HOLDER, recipient: liquidator, amount: 1.0,     storagePath: USDC_VAULT_STORAGE_PATH, tokenName: "USDC")
+    transferTokensFromHolder(holder: WBTC_HOLDER, recipient: liquidator, amount: 0.00001, storagePath: WBTC_VAULT_STORAGE_PATH, tokenName: "WBTC")
 
     // seize/repay values satisfy three constraints:
     //   1. seize < quote.inAmount         (offer beats DEX price)
@@ -731,7 +731,7 @@ access(all) fun testMassUnhealthyLiquidations() {
 
     // LP deposits 450 FLOW — covers the ~397 FLOW of total borrows with headroom.
     log("LP depositing 450 FLOW to shared liquidity pool\n")
-    transferTokensFromHolder(holder: flowHolder, recipient: lpUser, amount: 450.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: lpUser, amount: 450.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
     createPosition(admin: protocolAccount, signer: lpUser, amount: 450.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     //////////// Transfer collateral to user ///////////////////
@@ -740,9 +740,9 @@ access(all) fun testMassUnhealthyLiquidations() {
     // Group B: 45 positions × 2 USDC  = 90 USDC
     // Group C:  5 positions × 0.00009 WBTC = 0.00045 WBTC
     log("Transferring collateral: 500 USDF + 90 USDC + 0.00045 WBTC\n")
-    transferTokensFromHolder(holder: usdfHolder, recipient: user, amount: 500.0, storagePath: USDF_VAULT_STORAGE_PATH, tokenName: "USDF")
-    transferTokensFromHolder(holder: usdcHolder, recipient: user, amount: 90.0,  storagePath: USDC_VAULT_STORAGE_PATH, tokenName: "USDC")
-    transferTokensFromHolder(holder: wbtcHolder, recipient: user, amount: 0.00045, storagePath: WBTC_VAULT_STORAGE_PATH, tokenName: "WBTC")
+    transferTokensFromHolder(holder: USDF_HOLDER, recipient: user, amount: 500.0, storagePath: USDF_VAULT_STORAGE_PATH, tokenName: "USDF")
+    transferTokensFromHolder(holder: USDC_HOLDER, recipient: user, amount: 90.0,  storagePath: USDC_VAULT_STORAGE_PATH, tokenName: "USDC")
+    transferTokensFromHolder(holder: WBTC_HOLDER, recipient: user, amount: 0.00045, storagePath: WBTC_VAULT_STORAGE_PATH, tokenName: "WBTC")
 
     //////////// Create 100 positions ///////////////////
 
@@ -865,7 +865,7 @@ access(all) fun testMassUnhealthyLiquidations() {
     // Total DEX FLOW: 25×4.0 + 25×3.0 + 23×0.8 + 22×0.6 + 5×1.18
     //               = 100 + 75 + 18.4 + 13.2 + 5.90 = 212.50; transfer 230 for headroom
     log("Configuring DEX pairs: USDF→FLOW, USDC→FLOW, WBTC→FLOW\n")
-    transferTokensFromHolder(holder: flowHolder, recipient: protocolAccount, amount: 230.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: protocolAccount, amount: 230.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
     setMockDexPriceForPair(
         signer: protocolAccount,
         inVaultIdentifier: USDF_TOKEN_IDENTIFIER,
