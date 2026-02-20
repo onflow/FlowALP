@@ -1532,9 +1532,6 @@ access(all) contract FlowALPModels {
 
         /// Sets the lock state for a position. See isPositionLocked for additional details.
         access(EImplementation) fun setPositionLock(_ pid: UInt64, _ locked: Bool)
-
-        /// Removes the lock entry for a position. See isPositionLocked for additional details.
-        access(EImplementation) fun removePositionLock(_ pid: UInt64)
     }
 
     /// PoolStateImpl is the concrete implementation of PoolState.
@@ -1701,10 +1698,6 @@ access(all) contract FlowALPModels {
 
         access(EImplementation) fun setPositionLock(_ pid: UInt64, _ locked: Bool) {
             self.positionLock[pid] = locked
-        }
-
-        access(EImplementation) fun removePositionLock(_ pid: UInt64) {
-            self.positionLock.remove(key: pid)
         }
     }
 

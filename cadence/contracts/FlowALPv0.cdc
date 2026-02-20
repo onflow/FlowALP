@@ -175,27 +175,15 @@ access(all) contract FlowALPv0 {
             )
         }
 
-        // TODO(now): consolidate locking functions.
-
-        /// Marks the position as locked. Panics if the position is already locked.
-        access(self) fun _lockPosition(_ pid: UInt64) {
+        /// Locks a position. Used by Position resources to acquire the position lock.
+        access(FlowALPModels.EPosition) fun lockPosition(_ pid: UInt64) {
             assert(!self.state.isPositionLocked(pid), message: "Reentrancy: position \(pid) is locked")
             self.state.setPositionLock(pid, true)
         }
 
-        /// Marks the position as unlocked. No-op if the position is already unlocked.
-        access(self) fun _unlockPosition(_ pid: UInt64) {
-            self.state.removePositionLock(pid)
-        }
-
-        /// Locks a position. Used by Position resources to acquire the position lock.
-        access(FlowALPModels.EPosition) fun lockPosition(_ pid: UInt64) {
-            self._lockPosition(pid)
-        }
-
         /// Unlocks a position. Used by Position resources to release the position lock.
         access(FlowALPModels.EPosition) fun unlockPosition(_ pid: UInt64) {
-            self._unlockPosition(pid)
+            self.state.setPositionLock(pid, false)
         }
 
         ///////////////
@@ -514,7 +502,7 @@ access(all) contract FlowALPv0 {
                 !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
             
-            self._lockPosition(pid)
+            self.lockPosition(pid)
 
             let positionView = self.buildPositionView(pid: pid)
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
@@ -564,7 +552,7 @@ access(all) contract FlowALPv0 {
             // Execute the liquidation
             let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
             
-            self._unlockPosition(pid)
+            self.unlockPosition(pid)
             
             return <- seizedCollateral
         }
@@ -1217,7 +1205,7 @@ access(all) contract FlowALPv0 {
             self.state.incrementNextPositionID()
             self.positions[id] <-! FlowALPModels.createInternalPosition()
 
-            self._lockPosition(id)
+            self.lockPosition(id)
 
             FlowALPEvents.emitOpened(
                 pid: id,
@@ -1250,7 +1238,7 @@ access(all) contract FlowALPv0 {
 
             let position <- create Position(id: id, pool: poolCap)
 
-            self._unlockPosition(id)
+            self.unlockPosition(id)
             return <-position
         }
 
@@ -1400,7 +1388,7 @@ access(all) contract FlowALPv0 {
                 log("    [CONTRACT] depositAndPush(pid: \(pid), pushToDrawDownSink: \(pushToDrawDownSink))")
             }
 
-            self._lockPosition(pid)
+            self.lockPosition(pid)
 
             self._depositEffectsOnly(pid: pid, from: <-from)
 
@@ -1409,7 +1397,7 @@ access(all) contract FlowALPv0 {
                 self._rebalancePositionNoLock(pid: pid, force: true)
             }
 
-            self._unlockPosition(pid)
+            self.unlockPosition(pid)
         }
 
         /// Withdraws the requested funds from the specified position.
@@ -1452,12 +1440,12 @@ access(all) contract FlowALPv0 {
             post {
                 !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
-            self._lockPosition(pid)
+            self.lockPosition(pid)
             if self.config.isDebugLogging() {
                 log("    [CONTRACT] withdrawAndPull(pid: \(pid), type: \(type.identifier), amount: \(amount), pullFromTopUpSource: \(pullFromTopUpSource))")
             }
             if amount == 0.0 {
-                self._unlockPosition(pid)
+                self.unlockPosition(pid)
                 return <- DeFiActionsUtils.getEmptyVault(type)
             }
 
@@ -1587,7 +1575,7 @@ access(all) contract FlowALPv0 {
                 withdrawnUUID: withdrawn.uuid
             )
 
-            self._unlockPosition(pid)
+            self.unlockPosition(pid)
             return <- withdrawn
         }
 
@@ -1884,9 +1872,9 @@ access(all) contract FlowALPv0 {
             post {
                 !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
-            self._lockPosition(pid)
+            self.lockPosition(pid)
             self._rebalancePositionNoLock(pid: pid, force: force)
-            self._unlockPosition(pid)
+            self.unlockPosition(pid)
         }
 
         /// Attempts to rebalance a position toward its configured `targetHealth` without acquiring
@@ -2030,7 +2018,7 @@ access(all) contract FlowALPv0 {
             post {
                 !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
-            self._lockPosition(pid)
+            self.lockPosition(pid)
             let position = self._borrowPosition(pid: pid)
 
             // store types to avoid iterating while mutating
@@ -2060,7 +2048,7 @@ access(all) contract FlowALPv0 {
             // Now that we've deposited a non-zero amount of any queued deposits, we can rebalance
             // the position if necessary.
             self._rebalancePositionNoLock(pid: pid, force: false)
-            self._unlockPosition(pid)
+            self.unlockPosition(pid)
         }
 
         /// Updates interest rates for a token and collects stability fee.
