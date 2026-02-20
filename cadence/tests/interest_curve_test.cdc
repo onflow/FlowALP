@@ -154,7 +154,7 @@ access(all)
 fun test_TokenState_with_FixedCurve() {
     // Create a TokenState with a fixed rate curve
     let fixedCurve = FlowALPInterestRates.FixedCurve(yearlyRate: 0.10)
-    var tokenState = FlowALPModels.TokenState(
+    var tokenState = FlowALPModels.TokenStateImplv1(
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: fixedCurve,
         depositRate: 1.0,
@@ -168,7 +168,7 @@ fun test_TokenState_with_FixedCurve() {
 
     // Debit rate should be the per-second conversion of 10% yearly
     let expectedDebitRate = FlowALPv0.perSecondInterestRate(yearlyRate: 0.10)
-    Test.assertEqual(expectedDebitRate, tokenState.currentDebitRate)
+    Test.assertEqual(expectedDebitRate, tokenState.getCurrentDebitRate())
 
     // For FixedCurve, credit rate uses the SPREAD MODEL:
     // creditRate = debitRate * (1 - protocolFeeRate)
@@ -177,7 +177,7 @@ fun test_TokenState_with_FixedCurve() {
     // protocolFeeRate = 0.0 + 0.05 = 0.05 (default insuranceRate = 0.0, default stabilityFeeRate = 0.05)
     // creditYearly = 0.10 * (1 - 0.05) = 0.095
     let expectedCreditRate = FlowALPv0.perSecondInterestRate(yearlyRate: 0.095)
-    Test.assertEqual(expectedCreditRate, tokenState.currentCreditRate)
+    Test.assertEqual(expectedCreditRate, tokenState.getCurrentCreditRate())
 }
 
 access(all)
@@ -189,7 +189,7 @@ fun test_TokenState_with_KinkCurve() {
         slope1: 0.05,
         slope2: 0.50
     )
-    var tokenState = FlowALPModels.TokenState(
+    var tokenState = FlowALPModels.TokenStateImplv1(
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
@@ -207,7 +207,7 @@ fun test_TokenState_with_KinkCurve() {
     // Verify the debit rate
     let expectedYearlyRate: UFix128 = 0.0575
     let expectedDebitRate = FlowALPv0.perSecondInterestRate(yearlyRate: expectedYearlyRate)
-    Test.assertEqual(expectedDebitRate, tokenState.currentDebitRate)
+    Test.assertEqual(expectedDebitRate, tokenState.getCurrentDebitRate())
 }
 
 access(all)
@@ -219,7 +219,7 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
         slope1: 0.05,
         slope2: 0.50
     )
-    var tokenState = FlowALPModels.TokenState(
+    var tokenState = FlowALPModels.TokenStateImplv1(
         tokenType: Type<@FlowToken.Vault>(),
         interestCurve: kinkCurve,
         depositRate: 1.0,
@@ -231,7 +231,7 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     tokenState.increaseCreditBalance(by: 100.0)
 
     let rateAtZeroUtilization = FlowALPv0.perSecondInterestRate(yearlyRate: 0.02)
-    Test.assertEqual(rateAtZeroUtilization, tokenState.currentDebitRate)
+    Test.assertEqual(rateAtZeroUtilization, tokenState.getCurrentDebitRate())
 
     // Step 2: Add debt to create 50% utilization
     // credit: 100, debit: 100 → total: 200, utilization = 100/200 = 50%
@@ -239,7 +239,7 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     tokenState.increaseDebitBalance(by: 100.0)
 
     let rateAt50Utilization = FlowALPv0.perSecondInterestRate(yearlyRate: 0.05125)
-    Test.assertEqual(rateAt50Utilization, tokenState.currentDebitRate)
+    Test.assertEqual(rateAt50Utilization, tokenState.getCurrentDebitRate())
 
     // Step 3: Increase utilization to 90% (above kink)
     // credit: 100, debit: 900 → total: 1000, utilization = 900/1000 = 90%
@@ -248,14 +248,14 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     tokenState.increaseDebitBalance(by: 800.0)
 
     let rateAt90Util = FlowALPv0.perSecondInterestRate(yearlyRate: 0.32)
-    Test.assertEqual(rateAt90Util, tokenState.currentDebitRate)
+    Test.assertEqual(rateAt90Util, tokenState.getCurrentDebitRate())
 
     // Step 4: Decrease debt to lower utilization back to 0%
     // credit: 100, debit: 0 → utilization = 0% → rate = baseRate = 2%
     tokenState.decreaseDebitBalance(by: 900.0)
 
     let rateBackToZero = FlowALPv0.perSecondInterestRate(yearlyRate: 0.02)
-    Test.assertEqual(rateBackToZero, tokenState.currentDebitRate)
+    Test.assertEqual(rateBackToZero, tokenState.getCurrentDebitRate())
 }
 
 // ============================================================================

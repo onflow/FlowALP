@@ -67,7 +67,7 @@ access(all) contract FlowALPModels {
         /// amount is expressed in UFix128 (true token units) to operate in the internal UFix128 domain;
         /// public deposit APIs accept UFix64 and are converted at the boundary.
         ///
-        access(all) fun recordDeposit(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
+        access(all) fun recordDeposit(amount: UFix128, tokenState: &{TokenState}) {
             switch self.direction {
                 case BalanceDirection.Credit:
                     // Depositing into a credit position just increases the balance.
@@ -81,7 +81,7 @@ access(all) contract FlowALPModels {
 
                     let scaledDeposit = FlowALPMath.trueBalanceToScaledBalance(
                         amount,
-                        interestIndex: tokenState.creditInterestIndex
+                        interestIndex: tokenState.getCreditInterestIndex()
                     )
 
                     self.scaledBalance = self.scaledBalance + scaledDeposit
@@ -95,7 +95,7 @@ access(all) contract FlowALPModels {
 
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                         self.scaledBalance,
-                        interestIndex: tokenState.debitInterestIndex
+                        interestIndex: tokenState.getDebitInterestIndex()
                     )
 
                     // Harmonize comparison with withdrawal: treat an exact match as "does not flip to credit"
@@ -106,7 +106,7 @@ access(all) contract FlowALPModels {
 
                         self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
                             updatedBalance,
-                            interestIndex: tokenState.debitInterestIndex
+                            interestIndex: tokenState.getDebitInterestIndex()
                         )
 
                         // Decrease the total debit balance for the token
@@ -120,7 +120,7 @@ access(all) contract FlowALPModels {
                         self.direction = BalanceDirection.Credit
                         self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
                             updatedBalance,
-                            interestIndex: tokenState.creditInterestIndex
+                            interestIndex: tokenState.getCreditInterestIndex()
                         )
 
                         // Increase the credit balance AND decrease the debit balance
@@ -140,7 +140,7 @@ access(all) contract FlowALPModels {
         /// amount is expressed in UFix128 for the same rationale as deposits;
         /// public withdraw APIs are UFix64 and are converted at the boundary.
         ///
-        access(all) fun recordWithdrawal(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
+        access(all) fun recordWithdrawal(amount: UFix128, tokenState: &{TokenState}) {
             switch self.direction {
                 case BalanceDirection.Debit:
                     // Withdrawing from a debit position just increases the debt amount.
@@ -154,7 +154,7 @@ access(all) contract FlowALPModels {
 
                     let scaledWithdrawal = FlowALPMath.trueBalanceToScaledBalance(
                         amount,
-                        interestIndex: tokenState.debitInterestIndex
+                        interestIndex: tokenState.getDebitInterestIndex()
                     )
 
                     self.scaledBalance = self.scaledBalance + scaledWithdrawal
@@ -168,7 +168,7 @@ access(all) contract FlowALPModels {
                     // to see if this withdrawal will flip the position from credit to debit.
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                         self.scaledBalance,
-                        interestIndex: tokenState.creditInterestIndex
+                        interestIndex: tokenState.getCreditInterestIndex()
                     )
 
                     if trueBalance >= amount {
@@ -178,7 +178,7 @@ access(all) contract FlowALPModels {
 
                         self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
                             updatedBalance,
-                            interestIndex: tokenState.creditInterestIndex
+                            interestIndex: tokenState.getCreditInterestIndex()
                         )
 
                         // Decrease the total credit balance for the token
@@ -191,7 +191,7 @@ access(all) contract FlowALPModels {
                         self.direction = BalanceDirection.Debit
                         self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
                             updatedBalance,
-                            interestIndex: tokenState.debitInterestIndex
+                            interestIndex: tokenState.getDebitInterestIndex()
                         )
 
                         // Decrease the credit balance AND increase the debit balance
@@ -740,86 +740,92 @@ access(all) contract FlowALPModels {
 
     /// TokenState
     ///
-    /// The TokenState struct tracks values related to a single token Type within the Pool.
-    access(all) struct TokenState {
+    /// The TokenState interface defines the contract for accessing and mutating state
+    /// related to a single token Type within the Pool.
+    /// All state is accessed via getter/setter functions (no field declarations),
+    /// enabling future implementation upgrades (e.g. TokenStateImplv2).
+    access(all) struct interface TokenState {
 
-        access(EImplementation) var tokenType : Type
+        // --- Getters ---
+
+        /// The token type this state tracks
+        access(all) view fun getTokenType(): Type
 
         /// The timestamp at which the TokenState was last updated
-        access(EImplementation) var lastUpdate: UFix64
+        access(all) view fun getLastUpdate(): UFix64
 
         /// The total credit balance for this token, in a specific Pool.
         /// The total credit balance is the sum of balances of all positions with a credit balance (ie. they have lent this token).
         /// In other words, it is the the sum of net deposits among positions which are net creditors in this token.
-        access(EImplementation) var totalCreditBalance: UFix128
+        access(all) view fun getTotalCreditBalance(): UFix128
 
         /// The total debit balance for this token, in a specific Pool.
         /// The total debit balance is the sum of balances of all positions with a debit balance (ie. they have borrowed this token).
         /// In other words, it is the the sum of net withdrawals among positions which are net debtors in this token.
-        access(EImplementation) var totalDebitBalance: UFix128
+        access(all) view fun getTotalDebitBalance(): UFix128
 
         /// The index of the credit interest for the related token.
         ///
         /// Interest indices are 18-decimal fixed-point values (see FlowALPMath) and are stored as UFix128
         /// to maintain precision when converting between scaled and true balances and when compounding.
-        access(EImplementation) var creditInterestIndex: UFix128
+        access(all) view fun getCreditInterestIndex(): UFix128
 
         /// The index of the debit interest for the related token.
         ///
         /// Interest indices are 18-decimal fixed-point values (see FlowALPMath) and are stored as UFix128
         /// to maintain precision when converting between scaled and true balances and when compounding.
-        access(EImplementation) var debitInterestIndex: UFix128
+        access(all) view fun getDebitInterestIndex(): UFix128
 
         /// The per-second interest rate for credit of the associated token.
         ///
         /// For example, if the per-second rate is 1%, this value is 0.01.
         /// Stored as UFix128 to match index precision and avoid cumulative rounding during compounding.
-        access(EImplementation) var currentCreditRate: UFix128
+        access(all) view fun getCurrentCreditRate(): UFix128
 
         /// The per-second interest rate for debit of the associated token.
         ///
         /// For example, if the per-second rate is 1%, this value is 0.01.
         /// Stored as UFix128 for consistency with indices/rates math.
-        access(EImplementation) var currentDebitRate: UFix128
+        access(all) view fun getCurrentDebitRate(): UFix128
 
         /// The interest curve implementation used to calculate interest rate
-        access(EImplementation) var interestCurve: {FlowALPInterestRates.InterestCurve}
+        access(all) view fun getInterestCurve(): {FlowALPInterestRates.InterestCurve}
 
         /// The annual insurance rate applied to total debit when computing credit interest (default 0.1%)
-        access(EImplementation) var insuranceRate: UFix64
+        access(all) view fun getInsuranceRate(): UFix64
 
         /// Timestamp of the last insurance collection for this token.
-        access(EImplementation) var lastInsuranceCollectionTime: UFix64
+        access(all) view fun getLastInsuranceCollectionTime(): UFix64
 
         /// Swapper used to convert this token to MOET for insurance collection.
-        access(EImplementation) var insuranceSwapper: {DeFiActions.Swapper}?
+        access(all) view fun getInsuranceSwapper(): {DeFiActions.Swapper}?
 
         /// The stability fee rate to calculate stability (default 0.05, 5%).
-        access(EImplementation) var stabilityFeeRate: UFix64
+        access(all) view fun getStabilityFeeRate(): UFix64
 
         /// Timestamp of the last stability collection for this token.
-        access(EImplementation) var lastStabilityFeeCollectionTime: UFix64
+        access(all) view fun getLastStabilityFeeCollectionTime(): UFix64
 
         /// Per-position limit fraction of capacity (default 0.05 i.e., 5%)
-        access(EImplementation) var depositLimitFraction: UFix64
+        access(all) view fun getDepositLimitFraction(): UFix64
 
         /// The rate at which depositCapacity can increase over time. This is a tokens per hour rate,
         /// and should be applied to the depositCapacityCap once an hour.
-        access(EImplementation) var depositRate: UFix64
+        access(all) view fun getDepositRate(): UFix64
 
         /// The timestamp of the last deposit capacity update
-        access(EImplementation) var lastDepositCapacityUpdate: UFix64
+        access(all) view fun getLastDepositCapacityUpdate(): UFix64
 
         /// The limit on deposits of the related token
-        access(EImplementation) var depositCapacity: UFix64
+        access(all) view fun getDepositCapacity(): UFix64
 
         /// The upper bound on total deposits of the related token,
         /// limiting how much depositCapacity can reach
-        access(EImplementation) var depositCapacityCap: UFix64
+        access(all) view fun getDepositCapacityCap(): UFix64
 
-        /// Tracks per-user deposit usage for enforcing user deposit limits
-        /// Maps position ID -> usage amount (how much of each user's limit has been consumed for this token type)
-        access(EImplementation) var depositUsage: {UInt64: UFix64}
+        /// Returns the deposit usage for a specific position ID.
+        /// Returns 0.0 if no usage has been recorded for the position.
+        access(all) view fun getDepositUsageForPosition(_ pid: UInt64): UFix64
 
         /// The minimum balance size for the related token T per position.
         /// This minimum balance is denominated in units of token T.
@@ -827,7 +833,115 @@ access(all) contract FlowALPModels {
         /// - A balance of 0
         /// - A credit balance greater than or equal to M
         /// - A debit balance greater than or equal to M
-        access(EImplementation) var minimumTokenBalancePerPosition: UFix64
+        access(all) view fun getMinimumTokenBalancePerPosition(): UFix64
+
+        // --- Setters ---
+
+        /// Sets the insurance rate for this token state
+        access(all) fun setInsuranceRate(_ rate: UFix64)
+
+        /// Sets the last insurance collection timestamp
+        access(all) fun setLastInsuranceCollectionTime(_ lastInsuranceCollectionTime: UFix64)
+
+        /// Sets the swapper used for insurance collection (must swap from this token type to MOET)
+        access(all) fun setInsuranceSwapper(_ swapper: {DeFiActions.Swapper}?)
+
+        /// Sets the per-deposit limit fraction for this token state
+        access(all) fun setDepositLimitFraction(_ frac: UFix64)
+
+        /// Sets the deposit rate for this token state after settling the old rate
+        /// Argument expressed as tokens per hour
+        access(all) fun setDepositRate(_ hourlyRate: UFix64)
+
+        /// Sets the deposit capacity cap for this token state
+        access(all) fun setDepositCapacityCap(_ cap: UFix64)
+
+        /// Sets the minimum token balance per position for this token state
+        access(all) fun setMinimumTokenBalancePerPosition(_ minimum: UFix64)
+
+        /// Sets the stability fee rate for this token state.
+        access(all) fun setStabilityFeeRate(_ rate: UFix64)
+
+        /// Sets the last stability fee collection timestamp for this token state.
+        access(all) fun setLastStabilityFeeCollectionTime(_ lastStabilityFeeCollectionTime: UFix64)
+
+        /// Sets deposit capacity (used for time-based regeneration)
+        access(all) fun setDepositCapacity(_ capacity: UFix64)
+
+        /// Sets the interest curve for this token state
+        /// After updating the curve, also update the interest rates to reflect the new curve
+        access(all) fun setInterestCurve(_ curve: {FlowALPInterestRates.InterestCurve})
+
+        // --- Operational Methods ---
+
+        /// Calculates the per-user deposit limit cap based on depositLimitFraction * depositCapacityCap
+        access(all) view fun getUserDepositLimitCap(): UFix64
+
+        /// Decreases deposit capacity by the specified amount and tracks per-user deposit usage
+        /// (used when deposits are made)
+        access(all) fun consumeDepositCapacity(_ amount: UFix64, pid: UInt64)
+
+        /// Returns the per-deposit limit based on depositCapacity * depositLimitFraction
+        /// Rationale: cap per-deposit size to a fraction of the time-based
+        /// depositCapacity so a single large deposit cannot monopolize capacity.
+        /// Excess is queued and drained in chunks (see asyncUpdatePosition),
+        /// enabling fair throughput across many deposits in a block. The 5%
+        /// fraction is conservative and can be tuned by protocol parameters.
+        access(all) view fun depositLimit(): UFix64
+
+        /// Updates interest indices and regenerates deposit capacity for elapsed time
+        access(all) fun updateForTimeChange()
+
+        /// Called after any action that changes utilization (deposits, withdrawals, borrows, repays).
+        /// Recalculates interest rates based on the new credit/debit balance ratio.
+        access(all) fun updateForUtilizationChange()
+
+        /// Recalculates interest rates based on the current credit/debit balance ratio and interest curve
+        access(all) fun updateInterestRates()
+
+        /// Updates the credit and debit interest index for this token, accounting for time since the last update.
+        access(all) fun updateInterestIndices()
+
+        /// Regenerates deposit capacity over time based on depositRate
+        /// When capacity regenerates, all user deposit usage is reset for this token type
+        access(all) fun regenerateDepositCapacity()
+
+        /// Balance update helpers used by core accounting.
+        /// All balance changes automatically trigger updateForUtilizationChange()
+        /// which recalculates interest rates based on the new utilization ratio.
+        /// This ensures rates always reflect the current state of the pool
+        /// without requiring manual rate update calls.
+        access(all) fun increaseCreditBalance(by amount: UFix128)
+        access(all) fun decreaseCreditBalance(by amount: UFix128)
+        access(all) fun increaseDebitBalance(by amount: UFix128)
+        access(all) fun decreaseDebitBalance(by amount: UFix128)
+    }
+
+    /// TokenStateImplv1 is the concrete implementation of TokenState.
+    /// Fields are private (access(self)) and accessed only via getter/setter functions.
+    access(all) struct TokenStateImplv1: TokenState {
+
+        access(self) var tokenType: Type
+        access(self) var lastUpdate: UFix64
+        access(self) var totalCreditBalance: UFix128
+        access(self) var totalDebitBalance: UFix128
+        access(self) var creditInterestIndex: UFix128
+        access(self) var debitInterestIndex: UFix128
+        access(self) var currentCreditRate: UFix128
+        access(self) var currentDebitRate: UFix128
+        access(self) var interestCurve: {FlowALPInterestRates.InterestCurve}
+        access(self) var insuranceRate: UFix64
+        access(self) var lastInsuranceCollectionTime: UFix64
+        access(self) var insuranceSwapper: {DeFiActions.Swapper}?
+        access(self) var stabilityFeeRate: UFix64
+        access(self) var lastStabilityFeeCollectionTime: UFix64
+        access(self) var depositLimitFraction: UFix64
+        access(self) var depositRate: UFix64
+        access(self) var lastDepositCapacityUpdate: UFix64
+        access(self) var depositCapacity: UFix64
+        access(self) var depositCapacityCap: UFix64
+        access(self) var depositUsage: {UInt64: UFix64}
+        access(self) var minimumTokenBalancePerPosition: UFix64
 
         init(
             tokenType: Type,
@@ -858,18 +972,103 @@ access(all) contract FlowALPModels {
             self.minimumTokenBalancePerPosition = 1.0
         }
 
-        /// Sets the insurance rate for this token state
-        access(EImplementation) fun setInsuranceRate(_ rate: UFix64) {
+        // --- Getters ---
+
+        access(all) view fun getTokenType(): Type {
+            return self.tokenType
+        }
+
+        access(all) view fun getLastUpdate(): UFix64 {
+            return self.lastUpdate
+        }
+
+        access(all) view fun getTotalCreditBalance(): UFix128 {
+            return self.totalCreditBalance
+        }
+
+        access(all) view fun getTotalDebitBalance(): UFix128 {
+            return self.totalDebitBalance
+        }
+
+        access(all) view fun getCreditInterestIndex(): UFix128 {
+            return self.creditInterestIndex
+        }
+
+        access(all) view fun getDebitInterestIndex(): UFix128 {
+            return self.debitInterestIndex
+        }
+
+        access(all) view fun getCurrentCreditRate(): UFix128 {
+            return self.currentCreditRate
+        }
+
+        access(all) view fun getCurrentDebitRate(): UFix128 {
+            return self.currentDebitRate
+        }
+
+        access(all) view fun getInterestCurve(): {FlowALPInterestRates.InterestCurve} {
+            return self.interestCurve
+        }
+
+        access(all) view fun getInsuranceRate(): UFix64 {
+            return self.insuranceRate
+        }
+
+        access(all) view fun getLastInsuranceCollectionTime(): UFix64 {
+            return self.lastInsuranceCollectionTime
+        }
+
+        access(all) view fun getInsuranceSwapper(): {DeFiActions.Swapper}? {
+            return self.insuranceSwapper
+        }
+
+        access(all) view fun getStabilityFeeRate(): UFix64 {
+            return self.stabilityFeeRate
+        }
+
+        access(all) view fun getLastStabilityFeeCollectionTime(): UFix64 {
+            return self.lastStabilityFeeCollectionTime
+        }
+
+        access(all) view fun getDepositLimitFraction(): UFix64 {
+            return self.depositLimitFraction
+        }
+
+        access(all) view fun getDepositRate(): UFix64 {
+            return self.depositRate
+        }
+
+        access(all) view fun getLastDepositCapacityUpdate(): UFix64 {
+            return self.lastDepositCapacityUpdate
+        }
+
+        access(all) view fun getDepositCapacity(): UFix64 {
+            return self.depositCapacity
+        }
+
+        access(all) view fun getDepositCapacityCap(): UFix64 {
+            return self.depositCapacityCap
+        }
+
+        access(all) view fun getDepositUsageForPosition(_ pid: UInt64): UFix64 {
+            return self.depositUsage[pid] ?? 0.0
+        }
+
+        access(all) view fun getMinimumTokenBalancePerPosition(): UFix64 {
+            return self.minimumTokenBalancePerPosition
+        }
+
+        // --- Setters ---
+
+        access(all) fun setInsuranceRate(_ rate: UFix64) {
             self.insuranceRate = rate
         }
 
-        /// Sets the last insurance collection timestamp
-        access(EImplementation) fun setLastInsuranceCollectionTime(_ lastInsuranceCollectionTime: UFix64) {
+        access(all) fun setLastInsuranceCollectionTime(_ lastInsuranceCollectionTime: UFix64) {
             self.lastInsuranceCollectionTime = lastInsuranceCollectionTime
         }
 
-        /// Sets the swapper used for insurance collection (must swap from this token type to MOET)
-        access(EImplementation) fun setInsuranceSwapper(_ swapper: {DeFiActions.Swapper}?) {
+        access(all) fun setInsuranceSwapper(_ swapper: {DeFiActions.Swapper}?) {
             if let swapper = swapper {
                 assert(swapper.inType() == self.tokenType, message: "Insurance swapper must accept \(self.tokenType.identifier), not \(swapper.inType().identifier)")
                 assert(swapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
@@ -877,21 +1076,17 @@ access(all) contract FlowALPModels {
             self.insuranceSwapper = swapper
         }
 
-        /// Sets the per-deposit limit fraction for this token state
-        access(EImplementation) fun setDepositLimitFraction(_ frac: UFix64) {
+        access(all) fun setDepositLimitFraction(_ frac: UFix64) {
             self.depositLimitFraction = frac
         }
 
-        /// Sets the deposit rate for this token state after settling the old rate
-        /// Argument expressed as tokens per hour
-        access(EImplementation) fun setDepositRate(_ hourlyRate: UFix64) {
+        access(all) fun setDepositRate(_ hourlyRate: UFix64) {
             // settle using old rate if for some reason too much time has passed without regeneration
             self.regenerateDepositCapacity()
             self.depositRate = hourlyRate
         }
 
-        /// Sets the deposit capacity cap for this token state
-        access(EImplementation) fun setDepositCapacityCap(_ cap: UFix64) {
+        access(all) fun setDepositCapacityCap(_ cap: UFix64) {
             self.depositCapacityCap = cap
             // If current capacity exceeds the new cap, clamp it to the cap
             if self.depositCapacity > cap {
@@ -901,29 +1096,35 @@ access(all) contract FlowALPModels {
             self.lastDepositCapacityUpdate = getCurrentBlock().timestamp
         }
 
-        /// Sets the minimum token balance per position for this token state
-        access(EImplementation) fun setMinimumTokenBalancePerPosition(_ minimum: UFix64) {
+        access(all) fun setMinimumTokenBalancePerPosition(_ minimum: UFix64) {
             self.minimumTokenBalancePerPosition = minimum
         }
 
-        /// Sets the stability fee rate for this token state.
-        access(EImplementation) fun setStabilityFeeRate(_ rate: UFix64) {
+        access(all) fun setStabilityFeeRate(_ rate: UFix64) {
             self.stabilityFeeRate = rate
         }
 
-        /// Sets the last stability fee collection timestamp for this token state.
-        access(EImplementation) fun setLastStabilityFeeCollectionTime(_ lastStabilityFeeCollectionTime: UFix64) {
+        access(all) fun setLastStabilityFeeCollectionTime(_ lastStabilityFeeCollectionTime: UFix64) {
             self.lastStabilityFeeCollectionTime = lastStabilityFeeCollectionTime
         }
 
-        /// Calculates the per-user deposit limit cap based on depositLimitFraction * depositCapacityCap
-        access(EImplementation) fun getUserDepositLimitCap(): UFix64 {
+        access(all) fun setDepositCapacity(_ capacity: UFix64) {
+            self.depositCapacity = capacity
+        }
+
+        access(all) fun setInterestCurve(_ curve: {FlowALPInterestRates.InterestCurve}) {
+            self.interestCurve = curve
+            // Update rates immediately to reflect the new curve
+            self.updateInterestRates()
+        }
+
+        // --- Operational Methods ---
+
+        access(all) view fun getUserDepositLimitCap(): UFix64 {
             return self.depositLimitFraction * self.depositCapacityCap
         }
 
-        /// Decreases deposit capacity by the specified amount and tracks per-user deposit usage
-        /// (used when deposits are made)
-        access(EImplementation) fun consumeDepositCapacity(_ amount: UFix64, pid: UInt64) {
+        access(all) fun consumeDepositCapacity(_ amount: UFix64, pid: UInt64) {
             assert(
                 amount <= self.depositCapacity,
                 message: "cannot consume more than available deposit capacity"
@@ -942,131 +1143,20 @@ access(all) contract FlowALPModels {
             )
         }
 
-        /// Sets deposit capacity (used for time-based regeneration)
-        access(EImplementation) fun setDepositCapacity(_ capacity: UFix64) {
-            self.depositCapacity = capacity
-        }
-
-        /// Sets the interest curve for this token state
-        /// After updating the curve, also update the interest rates to reflect the new curve
-        access(EImplementation) fun setInterestCurve(_ curve: {FlowALPInterestRates.InterestCurve}) {
-            self.interestCurve = curve
-            // Update rates immediately to reflect the new curve
-            self.updateInterestRates()
-        }
-
-        /// Balance update helpers used by core accounting.
-        /// All balance changes automatically trigger updateForUtilizationChange()
-        /// which recalculates interest rates based on the new utilization ratio.
-        /// This ensures rates always reflect the current state of the pool
-        /// without requiring manual rate update calls.
-        access(EImplementation) fun increaseCreditBalance(by amount: UFix128) {
-            self.totalCreditBalance = self.totalCreditBalance + amount
-            self.updateForUtilizationChange()
-        }
-
-        access(EImplementation) fun decreaseCreditBalance(by amount: UFix128) {
-            if amount >= self.totalCreditBalance {
-                self.totalCreditBalance = 0.0
-            } else {
-                self.totalCreditBalance = self.totalCreditBalance - amount
-            }
-            self.updateForUtilizationChange()
-        }
-
-        access(EImplementation) fun increaseDebitBalance(by amount: UFix128) {
-            self.totalDebitBalance = self.totalDebitBalance + amount
-            self.updateForUtilizationChange()
-        }
-
-        access(EImplementation) fun decreaseDebitBalance(by amount: UFix128) {
-            if amount >= self.totalDebitBalance {
-                self.totalDebitBalance = 0.0
-            } else {
-                self.totalDebitBalance = self.totalDebitBalance - amount
-            }
-            self.updateForUtilizationChange()
-        }
-
-        // Updates the credit and debit interest index for this token, accounting for time since the last update.
-        access(EImplementation) fun updateInterestIndices() {
-            let currentTime = getCurrentBlock().timestamp
-            let dt = currentTime - self.lastUpdate
-
-            // No time elapsed or already at cap → nothing to do
-            if dt <= 0.0 {
-                return
-            }
-
-            // Update interest indices (dt > 0 ensures sensible compounding)
-            self.creditInterestIndex = FlowALPMath.compoundInterestIndex(
-                oldIndex: self.creditInterestIndex,
-                perSecondRate: self.currentCreditRate,
-                elapsedSeconds: dt
-            )
-            self.debitInterestIndex = FlowALPMath.compoundInterestIndex(
-                oldIndex: self.debitInterestIndex,
-                perSecondRate: self.currentDebitRate,
-                elapsedSeconds: dt
-            )
-
-            // Record the moment we accounted for
-            self.lastUpdate = currentTime
-        }
-
-        /// Regenerates deposit capacity over time based on depositRate
-        /// Note: dt should be calculated before updateInterestIndices() updates lastUpdate
-        /// When capacity regenerates, all user deposit usage is reset for this token type
-        access(EImplementation) fun regenerateDepositCapacity() {
-            let currentTime = getCurrentBlock().timestamp
-            let dt = currentTime - self.lastDepositCapacityUpdate
-            let hourInSeconds = 3600.0
-            if dt >= hourInSeconds { // 1 hour
-                let multiplier = dt / hourInSeconds
-                let oldCap = self.depositCapacityCap
-                let newDepositCapacityCap = self.depositRate * multiplier + self.depositCapacityCap
-
-                self.depositCapacityCap = newDepositCapacityCap
-
-                // Set the deposit capacity to the new deposit capacity cap, i.e. regenerate the capacity
-                self.setDepositCapacity(newDepositCapacityCap)
-
-                // Regenerate user usage for this token type as well
-                self.depositUsage = {}
-
-                self.lastDepositCapacityUpdate = currentTime
-
-                FlowALPEvents.emitDepositCapacityRegenerated(
-                    tokenType: self.tokenType,
-                    oldCapacityCap: oldCap,
-                    newCapacityCap: newDepositCapacityCap
-                )
-            }
-        }
-
-        // Deposit limit function
-        // Rationale: cap per-deposit size to a fraction of the time-based
-        // depositCapacity so a single large deposit cannot monopolize capacity.
-        // Excess is queued and drained in chunks (see asyncUpdatePosition),
-        // enabling fair throughput across many deposits in a block. The 5%
-        // fraction is conservative and can be tuned by protocol parameters.
-        access(EImplementation) fun depositLimit(): UFix64 {
+        access(all) view fun depositLimit(): UFix64 {
             return self.depositCapacity * self.depositLimitFraction
         }
 
-
-        access(EImplementation) fun updateForTimeChange() {
+        access(all) fun updateForTimeChange() {
             self.updateInterestIndices()
             self.regenerateDepositCapacity()
         }
 
-        /// Called after any action that changes utilization (deposits, withdrawals, borrows, repays).
-        /// Recalculates interest rates based on the new credit/debit balance ratio.
-        access(EImplementation) fun updateForUtilizationChange() {
+        access(all) fun updateForUtilizationChange() {
             self.updateInterestRates()
         }
 
-        access(EImplementation) fun updateInterestRates() {
+        access(all) fun updateInterestRates() {
             let debitRate = self.interestCurve.interestRate(
                 creditBalance: self.totalCreditBalance,
                 debitBalance: self.totalDebitBalance
@@ -1103,6 +1193,85 @@ access(all) contract FlowALPModels {
             self.currentDebitRate = FlowALPMath.perSecondInterestRate(yearlyRate: debitRate)
         }
 
+        access(all) fun updateInterestIndices() {
+            let currentTime = getCurrentBlock().timestamp
+            let dt = currentTime - self.lastUpdate
+
+            // No time elapsed or already at cap → nothing to do
+            if dt <= 0.0 {
+                return
+            }
+
+            // Update interest indices (dt > 0 ensures sensible compounding)
+            self.creditInterestIndex = FlowALPMath.compoundInterestIndex(
+                oldIndex: self.creditInterestIndex,
+                perSecondRate: self.currentCreditRate,
+                elapsedSeconds: dt
+            )
+            self.debitInterestIndex = FlowALPMath.compoundInterestIndex(
+                oldIndex: self.debitInterestIndex,
+                perSecondRate: self.currentDebitRate,
+                elapsedSeconds: dt
+            )
+
+            // Record the moment we accounted for
+            self.lastUpdate = currentTime
+        }
+
+        access(all) fun regenerateDepositCapacity() {
+            let currentTime = getCurrentBlock().timestamp
+            let dt = currentTime - self.lastDepositCapacityUpdate
+            let hourInSeconds = 3600.0
+            if dt >= hourInSeconds { // 1 hour
+                let multiplier = dt / hourInSeconds
+                let oldCap = self.depositCapacityCap
+                let newDepositCapacityCap = self.depositRate * multiplier + self.depositCapacityCap
+
+                self.depositCapacityCap = newDepositCapacityCap
+
+                // Set the deposit capacity to the new deposit capacity cap, i.e. regenerate the capacity
+                self.setDepositCapacity(newDepositCapacityCap)
+
+                // Regenerate user usage for this token type as well
+                self.depositUsage = {}
+
+                self.lastDepositCapacityUpdate = currentTime
+
+                FlowALPEvents.emitDepositCapacityRegenerated(
+                    tokenType: self.tokenType,
+                    oldCapacityCap: oldCap,
+                    newCapacityCap: newDepositCapacityCap
+                )
+            }
+        }
+
+        access(all) fun increaseCreditBalance(by amount: UFix128) {
+            self.totalCreditBalance = self.totalCreditBalance + amount
+            self.updateForUtilizationChange()
+        }
+
+        access(all) fun decreaseCreditBalance(by amount: UFix128) {
+            if amount >= self.totalCreditBalance {
+                self.totalCreditBalance = 0.0
+            } else {
+                self.totalCreditBalance = self.totalCreditBalance - amount
+            }
+            self.updateForUtilizationChange()
+        }
+
+        access(all) fun increaseDebitBalance(by amount: UFix128) {
+            self.totalDebitBalance = self.totalDebitBalance + amount
+            self.updateForUtilizationChange()
+        }
+
+        access(all) fun decreaseDebitBalance(by amount: UFix128) {
+            if amount >= self.totalDebitBalance {
+                self.totalDebitBalance = 0.0
+            } else {
+                self.totalDebitBalance = self.totalDebitBalance - amount
+            }
+            self.updateForUtilizationChange()
+        }
     }
 
     /* --- POOL STATE --- */
@@ -1113,9 +1282,9 @@ access(all) contract FlowALPModels {
     access(all) resource interface PoolState {
 
         // --- Global Ledger (TokenState per token type) ---
-        access(EImplementation) fun borrowTokenState(_ type: Type): auth(EImplementation) &TokenState?
-        access(all) view fun getTokenState(_ type: Type): TokenState?
-        access(EImplementation) fun setTokenState(_ type: Type, _ state: TokenState)
+        access(EImplementation) fun borrowTokenState(_ type: Type): &{TokenState}?
+        access(all) view fun getTokenState(_ type: Type): {TokenState}?
+        access(EImplementation) fun setTokenState(_ type: Type, _ state: {TokenState})
         access(all) view fun getGlobalLedgerKeys(): [Type]
 
         // --- Reserves ---
@@ -1159,7 +1328,7 @@ access(all) contract FlowALPModels {
     /// This extraction enables future upgrades and testing of state management in isolation.
     access(all) resource PoolStateImpl: PoolState {
 
-        access(self) var globalLedger: {Type: TokenState}
+        access(self) var globalLedger: {Type: {TokenState}}
         access(self) var reserves: @{Type: {FungibleToken.Vault}}
         access(self) var insuranceFund: @MOET.Vault
         access(self) var nextPositionID: UInt64
@@ -1169,7 +1338,7 @@ access(all) contract FlowALPModels {
         access(self) var positionLock: {UInt64: Bool}
 
         init(
-            globalLedger: {Type: TokenState},
+            globalLedger: {Type: {TokenState}},
             reserves: @{Type: {FungibleToken.Vault}},
             insuranceFund: @MOET.Vault,
             nextPositionID: UInt64,
@@ -1190,15 +1359,15 @@ access(all) contract FlowALPModels {
 
         // --- Global Ledger ---
 
-        access(EImplementation) fun borrowTokenState(_ type: Type): auth(EImplementation) &TokenState? {
+        access(EImplementation) fun borrowTokenState(_ type: Type): &{TokenState}? {
             return &self.globalLedger[type]
         }
 
-        access(all) view fun getTokenState(_ type: Type): TokenState? {
+        access(all) view fun getTokenState(_ type: Type): {TokenState}? {
             return self.globalLedger[type]
         }
 
-        access(EImplementation) fun setTokenState(_ type: Type, _ state: TokenState) {
+        access(EImplementation) fun setTokenState(_ type: Type, _ state: {TokenState}) {
             self.globalLedger[type] = state
         }
 
@@ -1321,7 +1490,7 @@ access(all) contract FlowALPModels {
     /// Factory function to create a new PoolStateImpl resource.
     /// Required because Cadence resources can only be created within their containing contract.
     access(all) fun createPoolState(
-        globalLedger: {Type: TokenState},
+        globalLedger: {Type: {TokenState}},
         reserves: @{Type: {FungibleToken.Vault}},
         insuranceFund: @MOET.Vault,
         nextPositionID: UInt64,
