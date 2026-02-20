@@ -3192,6 +3192,8 @@ access(all) contract FlowALPv0 {
 
     /* --- PUBLIC METHODS ---- */
 
+    // TODO(now): remove delegate methods
+
     /// Checks that the DEX price does not deviate from the oracle price by more than the given threshold.
     /// Delegates to FlowALPMath.dexOraclePriceDeviationInRange.
     access(all) view fun dexOraclePriceDeviationInRange(dexPrice: UFix64, oraclePrice: UFix64, maxDeviationBps: UInt16): Bool {

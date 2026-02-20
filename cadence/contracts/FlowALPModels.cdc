@@ -58,9 +58,26 @@ access(all) contract FlowALPModels {
 
         /// Records a deposit of the defined amount, updating the inner scaledBalance as well as relevant values
         /// in the provided TokenState.
+        ///
+        /// It's assumed the TokenState and InternalBalance relate to the same token Type,
+        /// but since neither struct have values defining the associated token,
+        /// callers should be sure to make the arguments do in fact relate to the same token Type.
+        ///
+        /// amount is expressed in UFix128 (true token units) to operate in the internal UFix128 domain;
+        /// public deposit APIs accept UFix64 and are converted at the boundary.
+        ///
         access(all) fun recordDeposit(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
             switch self.direction {
                 case BalanceDirection.Credit:
+                    // Depositing into a credit position just increases the balance.
+                    //
+                    // To maximize precision, we could convert the scaled balance to a true balance,
+                    // add the deposit amount, and then convert the result back to a scaled balance.
+                    //
+                    // However, this will only cause problems for very small deposits (fractions of a cent),
+                    // so we save computational cycles by just scaling the deposit amount
+                    // and adding it directly to the scaled balance.
+
                     let scaledDeposit = FlowALPMath.trueBalanceToScaledBalance(
                         amount,
                         interestIndex: tokenState.creditInterestIndex
@@ -72,12 +89,18 @@ access(all) contract FlowALPModels {
                     tokenState.increaseCreditBalance(by: amount)
 
                 case BalanceDirection.Debit:
+                    // When depositing into a debit position, we first need to compute the true balance
+                    // to see if this deposit will flip the position from debit to credit.
+
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                         self.scaledBalance,
                         interestIndex: tokenState.debitInterestIndex
                     )
 
+                    // Harmonize comparison with withdrawal: treat an exact match as "does not flip to credit"
                     if trueBalance >= amount {
+                        // The deposit isn't big enough to clear the debt,
+                        // so we just decrement the debt.
                         let updatedBalance = trueBalance - amount
 
                         self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
@@ -85,9 +108,12 @@ access(all) contract FlowALPModels {
                             interestIndex: tokenState.debitInterestIndex
                         )
 
+                        // Decrease the total debit balance for the token
                         tokenState.decreaseDebitBalance(by: amount)
 
                     } else {
+                        // The deposit is enough to clear the debt,
+                        // so we switch to a credit position.
                         let updatedBalance = amount - trueBalance
 
                         self.direction = BalanceDirection.Credit
@@ -96,6 +122,7 @@ access(all) contract FlowALPModels {
                             interestIndex: tokenState.creditInterestIndex
                         )
 
+                        // Increase the credit balance AND decrease the debit balance
                         tokenState.increaseCreditBalance(by: updatedBalance)
                         tokenState.decreaseDebitBalance(by: trueBalance)
                     }
@@ -104,9 +131,26 @@ access(all) contract FlowALPModels {
 
         /// Records a withdrawal of the defined amount, updating the inner scaledBalance
         /// as well as relevant values in the provided TokenState.
+        ///
+        /// It's assumed the TokenState and InternalBalance relate to the same token Type,
+        /// but since neither struct have values defining the associated token,
+        /// callers should be sure to make the arguments do in fact relate to the same token Type.
+        ///
+        /// amount is expressed in UFix128 for the same rationale as deposits;
+        /// public withdraw APIs are UFix64 and are converted at the boundary.
+        ///
         access(all) fun recordWithdrawal(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
             switch self.direction {
                 case BalanceDirection.Debit:
+                    // Withdrawing from a debit position just increases the debt amount.
+                    //
+                    // To maximize precision, we could convert the scaled balance to a true balance,
+                    // subtract the withdrawal amount, and then convert the result back to a scaled balance.
+                    //
+                    // However, this will only cause problems for very small withdrawals (fractions of a cent),
+                    // so we save computational cycles by just scaling the withdrawal amount
+                    // and subtracting it directly from the scaled balance.
+
                     let scaledWithdrawal = FlowALPMath.trueBalanceToScaledBalance(
                         amount,
                         interestIndex: tokenState.debitInterestIndex
@@ -114,15 +158,21 @@ access(all) contract FlowALPModels {
 
                     self.scaledBalance = self.scaledBalance + scaledWithdrawal
 
+                    // Increase the total debit balance for the token
                     tokenState.increaseDebitBalance(by: amount)
 
                 case BalanceDirection.Credit:
+                    // When withdrawing from a credit position,
+                    // we first need to compute the true balance
+                    // to see if this withdrawal will flip the position from credit to debit.
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                         self.scaledBalance,
                         interestIndex: tokenState.creditInterestIndex
                     )
 
                     if trueBalance >= amount {
+                        // The withdrawal isn't big enough to push the position into debt,
+                        // so we just decrement the credit balance.
                         let updatedBalance = trueBalance - amount
 
                         self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
@@ -130,8 +180,11 @@ access(all) contract FlowALPModels {
                             interestIndex: tokenState.creditInterestIndex
                         )
 
+                        // Decrease the total credit balance for the token
                         tokenState.decreaseCreditBalance(by: amount)
                     } else {
+                        // The withdrawal is enough to push the position into debt,
+                        // so we switch to a debit position.
                         let updatedBalance = amount - trueBalance
 
                         self.direction = BalanceDirection.Debit
@@ -140,6 +193,7 @@ access(all) contract FlowALPModels {
                             interestIndex: tokenState.debitInterestIndex
                         )
 
+                        // Decrease the credit balance AND increase the debit balance
                         tokenState.decreaseCreditBalance(by: trueBalance)
                         tokenState.increaseDebitBalance(by: updatedBalance)
                     }
@@ -147,9 +201,18 @@ access(all) contract FlowALPModels {
         }
     }
 
-    /// RiskParams interface for token risk parameters used in effective collateral/debt computations.
+    /// Risk parameters for a token used in effective collateral/debt computations.
+    /// The collateral and borrow factors are fractional values which represent a discount to the "true/market" value of the token.
+    /// The size of this discount indicates a subjective assessment of risk for the token.
+    /// The difference between the effective value and "true" value represents the safety buffer available to prevent loss.
+    /// - collateralFactor: the factor used to derive effective collateral
+    /// - borrowFactor: the factor used to derive effective debt
     access(all) struct interface RiskParams {
+        /// The factor (Fc) used to determine effective collateral, in the range [0, 1]
+        /// See FlowALPMath.effectiveCollateral for additional detail.
         access(all) view fun getCollateralFactor(): UFix128
+        /// The factor (Fd) used to determine effective debt, in the range [0, 1]
+        /// See FlowALPMath.effectiveDebt for additional detail.
         access(all) view fun getBorrowFactor(): UFix128
     }
 
@@ -179,13 +242,17 @@ access(all) contract FlowALPModels {
         }
     }
 
-    /// TokenSnapshot interface for immutable token-level data required for pure math operations
+    /// Immutable snapshot of token-level data required for pure math operations
     access(all) struct interface TokenSnapshot {
         access(all) view fun getPrice(): UFix128
         access(all) view fun getCreditIndex(): UFix128
         access(all) view fun getDebitIndex(): UFix128
         access(all) view fun getRisk(): {RiskParams}
+        /// Returns the effective debt (denominated in $) for the given debit balance of this snapshot's token.
+        /// See FlowALPMath.effectiveDebt for additional details.
         access(all) view fun effectiveDebt(debitBalance: UFix128): UFix128
+        /// Returns the effective collateral (denominated in $) for the given credit balance of this snapshot's token.
+        /// See FlowALPMath.effectiveCollateral for additional details.
         access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128
     }
 
@@ -224,10 +291,14 @@ access(all) contract FlowALPModels {
             return self.risk
         }
 
+        /// Returns the effective debt (denominated in $) for the given debit balance of this snapshot's token.
+        /// See FlowALPMath.effectiveDebt for additional details.
         access(all) view fun effectiveDebt(debitBalance: UFix128): UFix128 {
             return FlowALPMath.effectiveDebt(debit: debitBalance, price: self.price, borrowFactor: self.risk.getBorrowFactor())
         }
 
+        /// Returns the effective collateral (denominated in $) for the given credit balance of this snapshot's token.
+        /// See FlowALPMath.effectiveCollateral for additional details.
         access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128 {
             return FlowALPMath.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.getCollateralFactor())
         }
@@ -236,8 +307,10 @@ access(all) contract FlowALPModels {
     /// Copy-only representation of a position used by pure math (no storage refs)
     access(all) struct PositionView {
         /// Set of all non-zero balances in the position.
+        /// If the position does not have a balance for a supported token, no entry for that token exists in this map.
         access(all) let balances: {Type: InternalBalance}
         /// Set of all token snapshots for which this position has a non-zero balance.
+        /// If the position does not have a balance for a supported token, no entry for that token exists in this map.
         access(all) let snapshots: {Type: {TokenSnapshot}}
         access(all) let defaultToken: Type
         access(all) let minHealth: UFix128
@@ -258,6 +331,7 @@ access(all) contract FlowALPModels {
         }
 
         /// Returns the true balance of the given token in this position, accounting for interest.
+        /// Returns balance 0.0 if the position has no balance stored for the given token.
         access(all) view fun trueBalance(ofToken: Type): UFix128 {
             if let balance = self.balances[ofToken] {
                 if let tokenSnapshot = self.snapshots[ofToken] {
@@ -272,6 +346,7 @@ access(all) contract FlowALPModels {
                     panic("unreachable")
                 }
             }
+            // If the token doesn't exist in the position, the balance is 0
             return 0.0
         }
     }
@@ -315,8 +390,15 @@ access(all) contract FlowALPModels {
     /// as well as its current health.
     access(all) struct BalanceSheet {
 
+        /// Effective collateral is a normalized valuation of collateral deposited into this position, denominated in $.
+        /// In combination with effective debt, this determines how much additional debt can be taken out by this position.
         access(all) let effectiveCollateral: UFix128
+
+        /// Effective debt is a normalized valuation of debt withdrawn against this position, denominated in $.
+        /// In combination with effective collateral, this determines how much additional debt can be taken out by this position.
         access(all) let effectiveDebt: UFix128
+
+        /// The health of the related position
         access(all) let health: UFix128
 
         init(
@@ -365,10 +447,16 @@ access(all) contract FlowALPModels {
     /// PositionBalance
     ///
     /// A structure returned externally to report a position's balance for a particular token.
+    /// This structure is NOT used internally.
     access(all) struct PositionBalance {
 
+        /// The token type for which the balance details relate to
         access(all) let vaultType: Type
+
+        /// Whether the balance is a Credit or Debit
         access(all) let direction: BalanceDirection
+
+        /// The balance of the token for the related Position
         access(all) let balance: UFix64
 
         init(
@@ -385,11 +473,19 @@ access(all) contract FlowALPModels {
     /// PositionDetails
     ///
     /// A structure returned externally to report all of the details associated with a position.
+    /// This structure is NOT used internally.
     access(all) struct PositionDetails {
 
+        /// Balance details about each Vault Type deposited to the related Position
         access(all) let balances: [PositionBalance]
+
+        /// The default token Type of the Pool in which the related position is held
         access(all) let poolDefaultToken: Type
+
+        /// The available balance of the Pool's default token Type
         access(all) let defaultTokenAvailableBalance: UFix64
+
+        /// The current health of the related position
         access(all) let health: UFix128
 
         init(

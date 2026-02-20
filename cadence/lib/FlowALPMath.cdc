@@ -143,19 +143,39 @@ access(all) contract FlowALPMath {
     }
 
     /// Returns the effective collateral (denominated in $) for the given credit balance of some token T.
-    /// Ce = (Nc)(Pc)(Fc)
+    /// Effective Collateral is defined:
+    ///   Ce = (Nc)(Pc)(Fc)
+    /// Where:
+    /// Ce = Effective Collateral 
+    /// Nc = Number of Collateral Tokens
+    /// Pc = Collateral Token Price
+    /// Fc = Collateral Factor
+    ///
+    /// @param credit           The credit balance of the position for token T.
+    /// @param price            The price of token T ($/T).
+    /// @param collateralFactor The collateral factor for token T (see RiskParams for details).
     access(all) view fun effectiveCollateral(credit: UFix128, price: UFix128, collateralFactor: UFix128): UFix128 {
         return (credit * price) * collateralFactor
     }
 
     /// Returns the effective debt (denominated in $) for the given debit balance of some token T.
-    /// De = (Nd)(Pd)(Fd)
+    /// Effective Debt is defined:
+    ///   De = (Nd)(Pd)(Fd)
+    /// Where:
+    /// De = Effective Debt 
+    /// Nd = Number of Debt Tokens
+    /// Pd = Debt Token Price
+    /// Fd = Borrow Factor
+    ///
+    /// @param debit       The debit balance of the position for token T.
+    /// @param price       The price of token T ($/T).
+    /// @param borowFactor The borrow factor for token T (see RiskParams for details).
     access(all) view fun effectiveDebt(debit: UFix128, price: UFix128, borrowFactor: UFix128): UFix128 {
         return (debit * price) / borrowFactor
     }
 
-    /// Returns a health value computed from the provided effective collateral and debt values
-    /// where health is a ratio of effective collateral over effective debt
+    /// Returns a health value computed from the provided effective collateral and debt values.
+    /// The health factor is the ratio of effective collateral over effective debt.
     access(all) view fun healthComputation(effectiveCollateral: UFix128, effectiveDebt: UFix128): UFix128 {
         if effectiveDebt == 0.0 {
             return UFix128.max
