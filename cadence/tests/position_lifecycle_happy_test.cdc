@@ -2,7 +2,7 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-import "FlowCreditMarket"
+import "FlowALPv0"
 import "test_helpers.cdc"
 
 // -----------------------------------------------------------------------------
@@ -50,7 +50,7 @@ fun testPositionLifecycleHappyPath() {
 
     // open wrapped position (pushToDrawDownSink)
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
@@ -76,7 +76,7 @@ fun testPositionLifecycleHappyPath() {
     // The first position created has ID 0
     let positionId: UInt64 = 0
     let repayRes = executeTransaction(
-        "../transactions/flow-credit-market/position/repay_and_close_position.cdc",
+        "../transactions/flow-alp/position/repay_and_close_position.cdc",
         [positionId],
         user
     )

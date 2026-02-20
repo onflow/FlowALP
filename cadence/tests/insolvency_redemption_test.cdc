@@ -1,10 +1,10 @@
 import Test
 import BlockchainHelpers
 import "test_helpers.cdc"
-import "FlowCreditMarket"
+import "FlowALPv0"
 import "MOET"
 import "FlowToken"
-import "FlowCreditMarketMath"
+import "FlowALPMath"
 
 access(all) var snapshot: UInt64 = 0
 
@@ -49,7 +49,7 @@ fun test_borrower_full_redemption_insolvency() {
 
     // Open wrapped position and deposit Flow as collateral
     let openRes = _executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [1000.0, /storage/flowTokenVault, true],
         borrower
     )
@@ -58,13 +58,13 @@ fun test_borrower_full_redemption_insolvency() {
     // Force insolvency (HF < 1.0)
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 0.6)
     let hAfter = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(FlowCreditMarketMath.toUFix64Round(hAfter) < 1.0, message: "Expected HF < 1.0 after price drop")
+    Test.assert(FlowALPMath.toUFix64Round(hAfter) < 1.0, message: "Expected HF < 1.0 after price drop")
 
     // Inspect position to get MOET debt
     let details = getPositionDetails(pid: pid, beFailed: false)
     var moetDebt: UFix64 = 0.0
     for b in details.balances {
-        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowCreditMarket.BalanceDirection.Debit {
+        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALPv0.BalanceDirection.Debit {
             moetDebt = b.balance
         }
     }
@@ -76,7 +76,7 @@ fun test_borrower_full_redemption_insolvency() {
     // Execute borrower redemption: repay MOET (pulled from topUpSource) and withdraw Flow up to availableBalance
     // Note: use the helper tx which withdraws availableBalance with pullFromTopUpSource=true
     let closeRes = _executeTransaction(
-        "../transactions/flow-credit-market/position/repay_and_close_position.cdc",
+        "../transactions/flow-alp/position/repay_and_close_position.cdc",
         [pid],
         borrower
     )
@@ -87,8 +87,8 @@ fun test_borrower_full_redemption_insolvency() {
     var postMoetDebt: UFix64 = 0.0
     var postFlowColl: UFix64 = 0.0
     for b in detailsAfter.balances {
-        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowCreditMarket.BalanceDirection.Debit { postMoetDebt = b.balance }
-        if b.vaultType == Type<@FlowToken.Vault>() && b.direction == FlowCreditMarket.BalanceDirection.Credit { postFlowColl = b.balance }
+        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALPv0.BalanceDirection.Debit { postMoetDebt = b.balance }
+        if b.vaultType == Type<@FlowToken.Vault>() && b.direction == FlowALPv0.BalanceDirection.Credit { postFlowColl = b.balance }
     }
     Test.assertEqual(0.0, postMoetDebt)
     Test.assertEqual(0.0, postFlowColl)

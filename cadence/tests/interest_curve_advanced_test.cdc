@@ -3,8 +3,8 @@ import BlockchainHelpers
 
 import "MOET"
 import "FlowToken"
-import "FlowCreditMarket"
-import "FlowCreditMarketMath"
+import "FlowALPv0"
+import "FlowALPMath"
 import "test_helpers.cdc"
 
 // =============================================================================
@@ -95,7 +95,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // The `false` parameter = not auto-borrowing, just supplying liquidity.
     // This creates position ID 0 (first position in the pool).
     let createLpPosRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [100_000.0, MOET.VaultStoragePath, false],
         lp
     )
@@ -148,7 +148,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // With 10,000 FLOW × 0.8 collateralFactor / 1.3 healthFactor ≈ 6153.85 MOET borrowed.
     // This creates position ID 1 (second position in the pool).
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [10_000.0, FLOW_VAULT_STORAGE_PATH, true],
         borrower
     )

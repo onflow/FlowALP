@@ -1,16 +1,65 @@
-# Test Coverage Analysis - TidalProtocol (FlowCreditMarket)
+# Test Inventory and Coverage Notes (FlowALP; `FlowALPv0` Implementation)
 
-**Analysis Date:** 2026-01-28
-**Repository:** TidalProtocol
-**Core Contract:** FlowCreditMarket.cdc
-**Test Coverage:** 89.7%
-**Total Core Tests:** 31 test files
+**Last Reviewed:** 2026-02-14  
+**Core Contract:** `cadence/contracts/FlowALPv0.cdc`  
+**Test Files:** Git-tracked tests under `cadence/tests/*_test.cdc`  
+**Coverage:** Coverage artifacts are generated locally (e.g. `coverage.json`, `coverage.lcov`) and are ignored by git.
+
+**Naming:** FlowALP refers to the protocol; the Cadence implementation under test in this repo is deployed as the `FlowALPv0` contract.
+
+## Current Test File Inventory
+
+```text
+cadence/tests/MockDexSwapper_quote_test.cdc
+cadence/tests/adversarial_recursive_withdraw_source_test.cdc
+cadence/tests/adversarial_type_spoofing_test.cdc
+cadence/tests/async_update_position_test.cdc
+cadence/tests/auto_borrow_behavior_test.cdc
+cadence/tests/cap_test.cdc
+cadence/tests/deposit_capacity_test.cdc
+cadence/tests/flowALPMath_pow_test.cdc
+cadence/tests/funds_available_above_target_health_test.cdc
+cadence/tests/funds_required_for_target_health_test.cdc
+cadence/tests/governance_parameters_test.cdc
+cadence/tests/insolvency_redemption_test.cdc
+cadence/tests/insurance_collection_formula_test.cdc
+cadence/tests/insurance_collection_test.cdc
+cadence/tests/insurance_rate_test.cdc
+cadence/tests/insurance_swapper_test.cdc
+cadence/tests/interest_accrual_integration_test.cdc
+cadence/tests/interest_curve_advanced_test.cdc
+cadence/tests/interest_curve_test.cdc
+cadence/tests/liquidation_phase1_test.cdc
+cadence/tests/paid_auto_balance_test.cdc
+cadence/tests/phase0_pure_math_test.cdc
+cadence/tests/platform_integration_test.cdc
+cadence/tests/pool_creation_workflow_test.cdc
+cadence/tests/pool_pause_test.cdc
+cadence/tests/position_health_constraints_test.cdc
+cadence/tests/position_lifecycle_happy_test.cdc
+cadence/tests/position_lifecycle_unhappy_test.cdc
+cadence/tests/rebalance_overcollateralised_test.cdc
+cadence/tests/rebalance_undercollateralised_test.cdc
+cadence/tests/reserve_withdrawal_test.cdc
+cadence/tests/stability_collection_formula_test.cdc
+cadence/tests/stability_collection_test.cdc
+cadence/tests/stability_fee_rate_test.cdc
+cadence/tests/token_governance_addition_test.cdc
+cadence/tests/update_interest_rate_test.cdc
+cadence/tests/withdraw_stability_funds_test.cdc
+cadence/tests/zero_debt_withdrawal_test.cdc
+```
 
 ---
 
+## Historical Narrative (May Be Outdated)
+
+The sections below are a walkthrough of the test suite (original draft date: 2026-01-28).
+Treat any specific coverage percentages, repository labels, and file counts below as non-authoritative unless re-validated.
+
 ## Executive Summary
 
-This document provides a comprehensive analysis of the existing test coverage for the FlowCreditMarket lending protocol, an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The protocol has achieved 89.7% code coverage with 31 core test files covering fundamental operations, interest mechanics, liquidations, and edge cases.
+This document provides a walkthrough of the existing test coverage for the FlowALP protocol as implemented by the `FlowALPv0` contract: an automated lending system similar to Aave built on the Flow blockchain using the Cadence programming language. The implementation has an extensive test suite covering fundamental operations, interest mechanics, liquidations, and edge cases.
 
 This analysis identifies areas of strong test coverage and highlights high-priority gaps that should be addressed to improve protocol security, resilience, and robustness.
 
@@ -30,23 +79,26 @@ This analysis identifies areas of strong test coverage and highlights high-prior
 
 ### Overview
 
-The FlowCreditMarket protocol has comprehensive test coverage across the following categories:
+The FlowALP protocol (as implemented by `FlowALPv0`) has comprehensive test coverage across the following categories:
 
-| Category | Number of Tests | Coverage Level |
-|----------|----------------|----------------|
-| Position Lifecycle & Basic Operations | 5 files | High |
-| Interest Mechanics & Accrual | 6 files | Very High |
-| Liquidation System | 1 file (multiple scenarios) | High |
-| Rebalancing & Health Management | 5 files | High |
-| Deposit Capacity & Rate Limiting | 1 file (5 sub-tests) | High |
-| Reserve & Fee Management | 1 file | Medium |
-| Edge Cases & Validation | 3 files | High |
-| Integration & Platform Tests | 1 file (4 tests) | Medium |
-| Mathematical Operations | 15+ files | Very High |
+| Category                              | Number of Tests             | Coverage Level |
+| ------------------------------------- | --------------------------- | -------------- |
+| Position Lifecycle & Basic Operations | 5 files                     | High           |
+| Interest Mechanics & Accrual          | 6 files                     | Very High      |
+| Liquidation System                    | 1 file (multiple scenarios) | High           |
+| Rebalancing & Health Management       | 5 files                     | High           |
+| Deposit Capacity & Rate Limiting      | 1 file (5 sub-tests)        | High           |
+| Reserve & Fee Management              | 1 file                      | Medium         |
+| Edge Cases & Validation               | 3 files                     | High           |
+| Integration & Platform Tests          | 1 file (4 tests)            | Medium         |
+| Mathematical Operations               | 15+ files                   | Very High      |
+
+Note: categories overlap (a single file can contribute to multiple rows), and the file counts are intended as a navigation aid rather than an authoritative breakdown.
 
 ### Test Execution Framework
 
 The protocol uses Cadence's native Test framework with:
+
 - Flow CLI's built-in `flow test` command
 - Custom test helpers (`test_helpers.cdc`) for common operations
 - Mock contracts for external dependencies (MockOracle, MockDexSwapper, etc.)
@@ -59,11 +111,12 @@ The protocol uses Cadence's native Test framework with:
 
 ### Test File Location
 
-All core FlowCreditMarket tests are located in `/cadence/tests/` directory.
+All core `FlowALPv0` implementation tests are located in `cadence/tests/`.
 
 ### Common Test Patterns
 
 Tests follow these patterns:
+
 1. **Setup Phase:** Deploy contracts, configure parameters, create accounts
 2. **Execution Phase:** Perform operations (deposits, borrows, liquidations)
 3. **Validation Phase:** Assert expected outcomes using:
@@ -177,7 +230,7 @@ The `test_helpers.cdc` file provides:
 
 ---
 
-#### interest_mechanics_test.cdc
+#### interest_accrual_integration_test.cdc
 **Purpose:** Core interest calculation mechanics
 
 **Coverage:**
@@ -218,7 +271,8 @@ The `test_helpers.cdc` file provides:
 
 **Formula Tested:**
 ```
-insuranceAmount = totalDebitBalance * insuranceRate * (timeElapsed / secondsPerYear)
+insuranceAmount = debitIncome * insuranceRate
+debitIncome = totalDebitBalance * (currentDebitRate^timeElapsed - 1.0)
 ```
 
 **Example Values:**
@@ -496,15 +550,15 @@ newCapacity = depositRate * (timeElapsed / 3600) + oldCapacity
 
 ### 9. Mathematical Operations Tests
 
-The protocol includes 15+ test files for mathematical operations:
+The protocol includes math-focused tests such as:
 
-- **flowcreditmarketmath_pow_test.cdc** - Power function (exponentiation)
-- **flowcreditmarketmath_exp_test.cdc** - Exponential function (e^x)
-- **flowcreditmarketmath_compound_test.cdc** - Compound interest calculation
-- **flowcreditmarketmath_ln_test.cdc** - Natural logarithm
-- **flowcreditmarketmath_conversions_test.cdc** - UFix64 ↔ UFix128 conversions
-- **flowcreditmarketmath_rounding_test.cdc** - Rounding operations
-- And additional math validation tests
+- **flowALPMath_pow_test.cdc** - Power function (exponentiation)
+- **phase0_pure_math_test.cdc** - Core health and max-withdraw pure math invariants
+- **interest_curve_test.cdc** - Fixed and kink curve behavior/constraints
+- **update_interest_rate_test.cdc** - Debit/credit rate update behavior by curve type
+- **funds_available_above_target_health_test.cdc** - Funds-available calculations across scenarios
+- **funds_required_for_target_health_test.cdc** - Funds-required calculations across scenarios
+- Additional math-adjacent integration coverage: `interest_accrual_integration_test.cdc`, `interest_curve_advanced_test.cdc`, and `liquidation_phase1_test.cdc`
 
 **Coverage:**
 - Fixed-point arithmetic (128-bit precision)
@@ -1113,11 +1167,12 @@ Test: Connector provides false quote, transaction validates and reverts
 
 ## Conclusion
 
-The FlowCreditMarket protocol has achieved strong test coverage (89.7%) across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
+The `FlowALPv0` implementation of the FlowALP protocol has strong test coverage across core functionality including position management, interest mechanics, liquidations, and rebalancing. The existing test suite provides a solid foundation for protocol security.
 
 However, significant gaps exist in multi-collateral scenarios, oracle failure handling, advanced liquidation cases, and adversarial attack vectors. Addressing these high-priority gaps will substantially improve protocol robustness and production readiness.
 
 The recommended testing additions focus on:
+
 - Multi-asset operations and cross-collateral borrowing
 - Oracle resilience and manipulation resistance
 - Complex liquidation scenarios with multiple assets
@@ -1129,6 +1184,6 @@ Implementing these test enhancements will increase confidence in the protocol's 
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2026-01-28
+**Document Version:** 1.1
+**Last Updated:** 2026-02-14
 **Next Review:** After implementation of high-priority test gaps

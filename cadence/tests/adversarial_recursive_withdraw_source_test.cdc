@@ -2,7 +2,7 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-import "FlowCreditMarket"
+import "FlowALPv0"
 import "DeFiActions"
 import "DeFiActionsUtils"
 import "FlowToken"
@@ -98,8 +98,8 @@ fun testRecursiveWithdrawSource() {
     Test.expect(openRes, Test.beSucceeded())
 
     // Read the newly opened position id from the latest Opened event.
-    var evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
+    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
     positionID = openedEvt.pid
     log("[TEST] Position opened with ID: \(positionID)")
 
@@ -119,7 +119,7 @@ fun testRecursiveWithdrawSource() {
     // In this test, the topUpSource behavior is adversarial: it attempts to re-enter
     // the pool during the pull/deposit flow. We expect the transaction to fail.
     let withdrawRes = executeTransaction(
-        "./transactions/flow-credit-market/pool-management/withdraw_from_position.cdc",
+        "./transactions/flow-alp/pool-management/withdraw_from_position.cdc",
         [positionID, flowTokenIdentifier, 1500.0, true], // pullFromTopUpSource: true
         userAccount
     )

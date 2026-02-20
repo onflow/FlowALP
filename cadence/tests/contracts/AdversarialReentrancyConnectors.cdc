@@ -3,7 +3,7 @@ import "FungibleTokenMetadataViews"
 
 import "DeFiActionsUtils"
 import "DeFiActions"
-import "FlowCreditMarket"
+import "FlowALPv0"
 
 import "MOET"
 import "FlowToken"
@@ -107,12 +107,12 @@ access(all) contract AdversarialReentrancyConnectors {
 
     access(all) resource LiveData {
         /// Optional: Pool capability for recursive withdrawAndPull call
-        access(all) var recursivePool: Capability<auth(FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>?
+        access(all) var recursivePool: Capability<auth(FlowALPv0.EPosition) &FlowALPv0.Pool>?
         /// Optional: Position ID for recursive withdrawAndPull call
         access(all) var recursivePositionID: UInt64?
 
         init() { self.recursivePositionID = nil; self.recursivePool = nil }
-        access(all) fun setRecursivePool(_ pool: Capability<auth(FlowCreditMarket.EPosition) &FlowCreditMarket.Pool>) {
+        access(all) fun setRecursivePool(_ pool: Capability<auth(FlowALPv0.EPosition) &FlowALPv0.Pool>) {
             self.recursivePool = pool
         }
         access(all) fun setRecursivePositionID(_ positionID: UInt64) {

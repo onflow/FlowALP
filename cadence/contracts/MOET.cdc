@@ -2,10 +2,6 @@ import "FungibleToken"
 import "MetadataViews"
 import "FungibleTokenMetadataViews"
 
-///
-/// THIS CONTRACT IS A MOCK AND IS NOT INTENDED FOR USE IN PRODUCTION
-/// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-///
 access(all) contract MOET : FungibleToken {
 
     /// Total supply of MOET in existence
@@ -58,9 +54,9 @@ access(all) contract MOET : FungibleToken {
                 )
                 let medias = MetadataViews.Medias([media])
                 return FungibleTokenMetadataViews.FTDisplay(
-                    name: "FlowCreditMarket USD",
+                    name: "FlowALP USD",
                     symbol: "MOET",
-                    description: "A mocked version of FlowCreditMarket stablecoin",
+                    description: "A Mean Of Exchange Token / FlowALP stablecoin",
                     externalURL: MetadataViews.ExternalURL("https://flow.com"),
                     logos: medias,
                     socials: {

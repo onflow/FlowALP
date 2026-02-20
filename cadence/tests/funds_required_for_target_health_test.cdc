@@ -4,8 +4,8 @@ import BlockchainHelpers
 import "test_helpers.cdc"
 
 import "MOET"
-import "FlowCreditMarket"
-import "FlowCreditMarketMath"
+import "FlowALPv0"
+import "FlowALPMath"
 
 access(all) let userAccount = Test.createAccount()
 
@@ -78,7 +78,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, true],
         userAccount
     )
@@ -89,13 +89,13 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
     Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
+    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowCreditMarket.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! FlowCreditMarket.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALPv0.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
@@ -140,7 +140,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
@@ -151,12 +151,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy() {
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
+    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowCreditMarket.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let health = getPositionHealth(pid: positionID, beFailed: false)
@@ -199,7 +199,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollatera
     }
 
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
@@ -210,12 +210,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollatera
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
+    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowCreditMarket.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let health = getPositionHealth(pid: positionID, beFailed: false)
@@ -274,7 +274,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     }
 
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, true],
         userAccount
     )
@@ -285,13 +285,13 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
+    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowCreditMarket.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! FlowCreditMarket.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALPv0.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
@@ -354,7 +354,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromUndercollater
     }
 
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
@@ -365,12 +365,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromUndercollater
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
+    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowCreditMarket.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let actualHealthBeforePriceDecrease = getPositionHealth(pid: positionID, beFailed: false)
@@ -429,7 +429,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     }
 
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, true],
         userAccount
     )
@@ -440,13 +440,13 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
+    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowCreditMarket.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! FlowCreditMarket.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALPv0.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
@@ -536,7 +536,7 @@ fun runFundsRequiredForTargetHealthAfterWithdrawing(
         expectedRequired = (valueDiff * INT_TARGET_HEALTH) / intFLOWPrice
         expectedRequired = expectedRequired / intFLOWCollateralFactor
     }
-    let ufixExpectedRequired = FlowCreditMarketMath.toUFix64Round(expectedRequired)
+    let ufixExpectedRequired = FlowALPMath.toUFix64Round(expectedRequired)
 
     log("[TEST] existingFLOWCollateral: \(existingFLOWCollateral)")
     log("[TEST] existingBorrowed: \(existingBorrowed)")

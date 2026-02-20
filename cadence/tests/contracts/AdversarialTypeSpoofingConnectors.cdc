@@ -9,7 +9,7 @@ import "MOET"
 
 /// This contract holds a DeFiActions Source which spoofs its token type.
 /// (`getSourceType` returns a different type than what is actually returned in a withdrawal.)
-/// This is used to verify that FlowCreditMarket does not blindly trust the purported token type of top-up vaults.
+/// This is used to verify that FlowALPv0 does not blindly trust the purported token type of top-up vaults.
 access(all) contract AdversarialTypeSpoofingConnectors {
 
     access(all) struct VaultSourceFakeType : DeFiActions.Source {

@@ -1,6 +1,6 @@
 import "FungibleToken"
 import "FlowToken"
-import "FlowCreditMarket"
+import "FlowALPv0"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
@@ -12,14 +12,14 @@ transaction(
     tokenTypeIdentifier: String,
     amount: UFix64
 ) {
-    let position: auth(FungibleToken.Withdraw) &FlowCreditMarket.Position
+    let position: auth(FungibleToken.Withdraw) &FlowALPv0.Position
     let tokenType: Type
     let receiverVault: &{FungibleToken.Receiver}
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
         // Borrow the PositionManager from constant storage path
-        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowCreditMarket.EPositionAdmin) &FlowCreditMarket.PositionManager>(
-                from: FlowCreditMarket.PositionStoragePath
+        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(
+                from: FlowALPv0.PositionStoragePath
             )
             ?? panic("Could not find PositionManager in signer's storage")
 

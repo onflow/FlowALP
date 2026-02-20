@@ -2,7 +2,7 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
-import "FlowCreditMarket"
+import "FlowALPv0"
 import "test_helpers.cdc"
 
 access(all)
@@ -44,7 +44,7 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
 
     // Create position with pushToDrawDownSink=true to trigger auto-rebalancing
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, true],  // pushToDrawDownSink=true triggers auto-borrow
         user
     )
@@ -61,7 +61,7 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     
     // Find the MOET balance (which should be debt)
     var moetBalance: UFix64 = 0.0
-    var moetDirection: FlowCreditMarket.BalanceDirection? = nil
+    var moetDirection: FlowALPv0.BalanceDirection? = nil
     for balance in details.balances {
         if balance.vaultType == Type<@MOET.Vault>() {
             moetBalance = balance.balance
@@ -70,7 +70,7 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     }
     
     // Verify MOET was auto-borrowed
-    Test.assert(moetDirection == FlowCreditMarket.BalanceDirection.Debit, 
+    Test.assert(moetDirection == FlowALPv0.BalanceDirection.Debit, 
         message: "Expected MOET to be in Debit (borrowed) state")
     
     // Verify the amount is approximately what we calculated (within 0.01 tolerance)
@@ -108,7 +108,7 @@ fun testNoAutoBorrowWhenPushToDrawDownSinkFalse() {
 
     // Create position with pushToDrawDownSink=false to prevent auto-rebalancing
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [1_000.0, FLOW_VAULT_STORAGE_PATH, false],  // pushToDrawDownSink=false prevents auto-borrow
         user
     )
