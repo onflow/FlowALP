@@ -7,6 +7,7 @@ import "AdversarialTypeSpoofingConnectors"
 import "MOET"
 import "FlowToken"
 import "FlowALPv0"
+import "FlowALPModels"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
@@ -26,9 +27,9 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     // this DeFiActions Source that will allow for the repayment of a loan if the position becomes undercollateralized
     let source: {DeFiActions.Source}
     // the position manager in the signer's account where we should store the new position
-    let positionManager: auth(FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager
+    let positionManager: auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager
     // the authorized Pool capability
-    let poolCap: Capability<auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool>
+    let poolCap: Capability<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>
     // reference to signer's account for saving capability back
     let signerAccount: auth(LoadValue,BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account
 
@@ -77,11 +78,11 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
             // Publish read-only capability publicly
             signer.capabilities.publish(readCap, at: FlowALPv0.PositionPublicPath)
         }
-        self.positionManager = signer.storage.borrow<auth(FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath)
+        self.positionManager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath)
             ?? panic("PositionManager not found")
 
         // Load the authorized Pool capability from storage
-        self.poolCap = signer.storage.load<Capability<auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool>>(
+        self.poolCap = signer.storage.load<Capability<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>>(
             from: FlowALPv0.PoolCapStoragePath
         ) ?? panic("Could not load Pool capability from storage - ensure the signer has been granted Pool access with EParticipant entitlement")
     }

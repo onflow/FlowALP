@@ -1,4 +1,5 @@
 import "FlowALPv0"
+import "FlowALPModels"
 import "FlowALPRebalancerv1"
 import "FlowTransactionScheduler"
 
@@ -33,7 +34,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
     /// Returns a RebalancerPaid resource; the underlying Rebalancer is stored in this contract and
     /// the first run is scheduled. Caller should register the returned uuid with a Supervisor.
     access(all) fun createPaidRebalancer(
-        positionRebalanceCapability: Capability<auth(FlowALPv0.ERebalance) &FlowALPv0.Position>,
+        positionRebalanceCapability: Capability<auth(FlowALPModels.ERebalance) &FlowALPv0.Position>,
     ): @RebalancerPaid {
         assert(positionRebalanceCapability.check(), message: "Invalid position rebalance capability")
         let rebalancer <- FlowALPRebalancerv1.createRebalancer(
@@ -64,7 +65,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
         /// Borrow a paid rebalancer with Configure and ERebalance auth (e.g. for setRecurringConfig or rebalance).
         access(all) fun borrowAuthorizedRebalancer(
             uuid: UInt64,
-        ): auth(FlowALPv0.ERebalance, FlowALPRebalancerv1.Rebalancer.Configure) &FlowALPRebalancerv1.Rebalancer? {
+        ): auth(FlowALPModels.ERebalance, FlowALPRebalancerv1.Rebalancer.Configure) &FlowALPRebalancerv1.Rebalancer? {
             return FlowALPRebalancerPaidv1.borrowRebalancer(uuid: uuid)
         }
 
@@ -125,8 +126,8 @@ access(all) contract FlowALPRebalancerPaidv1 {
 
     access(self) fun borrowRebalancer(
         uuid: UInt64,
-    ): auth(FlowALPv0.ERebalance, FlowALPRebalancerv1.Rebalancer.Configure) &FlowALPRebalancerv1.Rebalancer? {
-        return self.account.storage.borrow<auth(FlowALPv0.ERebalance, FlowALPRebalancerv1.Rebalancer.Configure) &FlowALPRebalancerv1.Rebalancer>(from: self.getPath(uuid: uuid))
+    ): auth(FlowALPModels.ERebalance, FlowALPRebalancerv1.Rebalancer.Configure) &FlowALPRebalancerv1.Rebalancer? {
+        return self.account.storage.borrow<auth(FlowALPModels.ERebalance, FlowALPRebalancerv1.Rebalancer.Configure) &FlowALPRebalancerv1.Rebalancer>(from: self.getPath(uuid: uuid))
     }
 
     access(self) fun removePaidRebalancer(uuid: UInt64) {
@@ -145,7 +146,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
     /// Issue a capability to the stored Rebalancer and set it on the Rebalancer so it can pass itself to the scheduler as the execute callback.
     access(self) fun setSelfCapability(
         uuid: UInt64,
-    ) : auth(FlowALPv0.ERebalance, FlowALPRebalancerv1.Rebalancer.Configure) &FlowALPRebalancerv1.Rebalancer {
+    ) : auth(FlowALPModels.ERebalance, FlowALPRebalancerv1.Rebalancer.Configure) &FlowALPRebalancerv1.Rebalancer {
         let selfCap = self.account.capabilities.storage.issue<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>(self.getPath(uuid: uuid))
         // The Rebalancer is stored in the contract storage (storeRebalancer),
         // it needs a capability pointing to itself to pass to the scheduler.

@@ -37,46 +37,6 @@ access(all) contract FlowALPv0 {
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
-    /// EPosition
-    ///
-    /// Entitlement for managing positions within the pool.
-    /// This entitlement grants access to position-specific operations including deposits, withdrawals,
-    /// rebalancing, and health parameter management for any position in the pool.
-    ///
-    /// Note that this entitlement provides access to all positions in the pool,
-    /// not just individual position owners' positions.
-    access(all) entitlement EPosition
-
-    /// ERebalance
-    ///
-    /// Entitlement for rebalancing positions.
-    access(all) entitlement ERebalance
-
-    /// EGovernance
-    ///
-    /// Entitlement for governance operations that control pool-wide parameters and configuration.
-    /// This entitlement grants access to administrative functions that affect the entire pool,
-    /// including liquidation settings, token support, interest rates, and protocol parameters.
-    ///
-    /// This entitlement should be granted only to trusted governance entities that manage
-    /// the protocol's risk parameters and operational settings.
-    access(all) entitlement EGovernance
-
-    /// EParticipant
-    ///
-    /// Entitlement for general participant operations that allow users to interact with the pool
-    /// at a basic level. This entitlement grants access to position creation and basic deposit
-    /// operations without requiring full position ownership.
-    ///
-    /// This entitlement is more permissive than EPosition and allows anyone to create positions
-    /// and make deposits, enabling public participation in the protocol while maintaining
-    /// separation between position creation and position management.
-    access(all) entitlement EParticipant
-
-    /// Grants access to configure drawdown sinks, top-up sources, and other position settings, for the Position resource.
-    /// Withdrawal access is provided using FungibleToken.Withdraw.
-    access(all) entitlement EPositionAdmin
-
     /* --- NUMERIC TYPES POLICY ---
         - External/public APIs (Vault amounts, deposits/withdrawals, events) use UFix64.
         - Internal accounting and risk math use UFix128: scaled/true balances, interest indices/rates,
@@ -229,12 +189,12 @@ access(all) contract FlowALPv0 {
         }
 
         /// Locks a position. Used by Position resources to acquire the position lock.
-        access(EPosition) fun lockPosition(_ pid: UInt64) {
+        access(FlowALPModels.EPosition) fun lockPosition(_ pid: UInt64) {
             self._lockPosition(pid)
         }
 
         /// Unlocks a position. Used by Position resources to release the position lock.
-        access(EPosition) fun unlockPosition(_ pid: UInt64) {
+        access(FlowALPModels.EPosition) fun unlockPosition(_ pid: UInt64) {
             self._unlockPosition(pid)
         }
 
@@ -1235,7 +1195,7 @@ access(all) contract FlowALPv0 {
         /// Returns a Position resource that provides fine-grained access control through entitlements.
         /// The caller must store the Position resource in their account and manage access to it.
         /// Clients are recommended to use the PositionManager collection type to manage their Positions.
-        access(EParticipant) fun createPosition(
+        access(FlowALPModels.EParticipant) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DeFiActions.Sink},
             repaymentSource: {DeFiActions.Source}?,
@@ -1282,7 +1242,7 @@ access(all) contract FlowALPv0 {
 
             // Create a capability to the Pool for the Position resource
             // The Pool is stored in the FlowALPv0 contract account
-            let poolCap = FlowALPv0.account.capabilities.storage.issue<auth(EPosition) &Pool>(
+            let poolCap = FlowALPv0.account.capabilities.storage.issue<auth(FlowALPModels.EPosition) &Pool>(
                 FlowALPv0.PoolStoragePath
             )
 
@@ -1309,7 +1269,7 @@ access(all) contract FlowALPv0 {
 
         /// Allows anyone to deposit funds into any position.
         /// If the provided Vault is not supported by the Pool, the operation reverts.
-        access(EParticipant) fun depositToPosition(pid: UInt64, from: @{FungibleToken.Vault}) {
+        access(FlowALPModels.EParticipant) fun depositToPosition(pid: UInt64, from: @{FungibleToken.Vault}) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
@@ -1421,7 +1381,7 @@ access(all) contract FlowALPv0 {
         /// Deposits the provided funds to the specified position with the configurable `pushToDrawDownSink` option.
         /// If `pushToDrawDownSink` is true, excess value putting the position above its max health
         /// is pushed to the position's configured `drawDownSink`.
-        access(EPosition) fun depositAndPush(
+        access(FlowALPModels.EPosition) fun depositAndPush(
             pid: UInt64,
             from: @{FungibleToken.Vault},
             pushToDrawDownSink: Bool
@@ -1457,7 +1417,7 @@ access(all) contract FlowALPv0 {
         /// Callers should be careful that the withdrawal does not put their position under its target health,
         /// especially if the position doesn't have a configured `topUpSource` from which to repay borrowed funds
         /// in the event of undercollaterlization.
-        access(EPosition) fun withdraw(pid: UInt64, amount: UFix64, type: Type): @{FungibleToken.Vault} {
+        access(FlowALPModels.EPosition) fun withdraw(pid: UInt64, amount: UFix64, type: Type): @{FungibleToken.Vault} {
             pre {
                 !self.isPausedOrWarmup(): "Withdrawals are paused by governance"
             }
@@ -1476,7 +1436,7 @@ access(all) contract FlowALPv0 {
         /// If `pullFromTopUpSource` is true, deficient value putting the position below its min health
         /// is pulled from the position's configured `topUpSource`.
         /// TODO(jord): ~150-line function - consider refactoring.
-        access(EPosition) fun withdrawAndPull(
+        access(FlowALPModels.EPosition) fun withdrawAndPull(
             pid: UInt64,
             type: Type,
             amount: UFix64,
@@ -1637,12 +1597,12 @@ access(all) contract FlowALPv0 {
 
         /// Returns a mutable reference to the pool's configuration.
         /// Use this to update config fields that don't require events or side effects.
-        access(EGovernance) fun borrowConfig(): &{FlowALPModels.PoolConfig} {
+        access(FlowALPModels.EGovernance) fun borrowConfig(): &{FlowALPModels.PoolConfig} {
             return &self.config
         }
 
         /// Pauses the pool, temporarily preventing further withdrawals, deposits, and liquidations
-        access(EGovernance) fun pausePool() {
+        access(FlowALPModels.EGovernance) fun pausePool() {
             if self.config.isPaused() {
                 return
             }
@@ -1651,7 +1611,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Unpauses the pool, and starts the warm-up window
-        access(EGovernance) fun unpausePool() {
+        access(FlowALPModels.EGovernance) fun unpausePool() {
             if !self.config.isPaused() {
                 return
             }
@@ -1666,7 +1626,7 @@ access(all) contract FlowALPv0 {
 
         /// Adds a new token type to the pool with the given parameters defining borrowing limits on collateral,
         /// interest accumulation, deposit rate limiting, and deposit size capacity
-        access(EGovernance) fun addSupportedToken(
+        access(FlowALPModels.EGovernance) fun addSupportedToken(
             tokenType: Type,
             collateralFactor: UFix64,
             borrowFactor: UFix64,
@@ -1707,7 +1667,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Updates the insurance rate for a given token (fraction in [0,1])
-        access(EGovernance) fun setInsuranceRate(tokenType: Type, insuranceRate: UFix64) {
+        access(FlowALPModels.EGovernance) fun setInsuranceRate(tokenType: Type, insuranceRate: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
@@ -1736,7 +1696,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Sets the insurance swapper for a given token type (must swap from tokenType to MOET)
-        access(EGovernance) fun setInsuranceSwapper(tokenType: Type, swapper: {DeFiActions.Swapper}?) {
+        access(FlowALPModels.EGovernance) fun setInsuranceSwapper(tokenType: Type, swapper: {DeFiActions.Swapper}?) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
@@ -1762,7 +1722,7 @@ access(all) contract FlowALPv0 {
         /// Manually triggers insurance collection for a given token type.
         /// This is useful for governance to collect accrued insurance on-demand.
         /// Insurance is calculated based on time elapsed since last collection.
-        access(EGovernance) fun collectInsurance(tokenType: Type) {
+        access(FlowALPModels.EGovernance) fun collectInsurance(tokenType: Type) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
@@ -1770,7 +1730,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Updates the per-deposit limit fraction for a given token (fraction in [0,1])
-        access(EGovernance) fun setDepositLimitFraction(tokenType: Type, fraction: UFix64) {
+        access(FlowALPModels.EGovernance) fun setDepositLimitFraction(tokenType: Type, fraction: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
@@ -1783,7 +1743,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Updates the deposit rate for a given token (tokens per hour)
-        access(EGovernance) fun setDepositRate(tokenType: Type, hourlyRate: UFix64) {
+        access(FlowALPModels.EGovernance) fun setDepositRate(tokenType: Type, hourlyRate: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
@@ -1793,7 +1753,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Updates the deposit capacity cap for a given token
-        access(EGovernance) fun setDepositCapacityCap(tokenType: Type, cap: UFix64) {
+        access(FlowALPModels.EGovernance) fun setDepositCapacityCap(tokenType: Type, cap: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
@@ -1803,7 +1763,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Updates the minimum token balance per position for a given token
-        access(EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minimum: UFix64) {
+        access(FlowALPModels.EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minimum: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
@@ -1819,7 +1779,7 @@ access(all) contract FlowALPv0 {
         ///
         ///
         /// Emits: StabilityFeeRateUpdated
-        access(EGovernance) fun setStabilityFeeRate(tokenType: Type, stabilityFeeRate: UFix64) {
+        access(FlowALPModels.EGovernance) fun setStabilityFeeRate(tokenType: Type, stabilityFeeRate: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
@@ -1842,7 +1802,7 @@ access(all) contract FlowALPv0 {
         /// Withdraws stability funds collected from the stability fee for a given token
         ///
         /// Emits: StabilityFundWithdrawn
-        access(EGovernance) fun withdrawStabilityFund(tokenType: Type, amount: UFix64, recipient: &{FungibleToken.Receiver}) {
+        access(FlowALPModels.EGovernance) fun withdrawStabilityFund(tokenType: Type, amount: UFix64, recipient: &{FungibleToken.Receiver}) {
             pre {
                 self.state.hasStabilityFund(tokenType): "No stability fund exists for token type \(tokenType.identifier)"
                 amount > 0.0: "Withdrawal amount must be positive"
@@ -1866,7 +1826,7 @@ access(all) contract FlowALPv0 {
         /// Manually triggers fee collection for a given token type.
         /// This is useful for governance to collect accrued stability on-demand.
         /// Fee is calculated based on time elapsed since last collection.
-        access(EGovernance) fun collectStability(tokenType: Type) {
+        access(FlowALPModels.EGovernance) fun collectStability(tokenType: Type) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
@@ -1893,7 +1853,7 @@ access(all) contract FlowALPv0 {
         /// Important: Before changing the curve, we must first compound any accrued interest at the
         /// OLD rate. Otherwise, interest that accrued since lastUpdate would be calculated using the
         /// new rate, which would be incorrect.
-        access(EGovernance) fun setInterestCurve(tokenType: Type, interestCurve: {FlowALPInterestRates.InterestCurve}) {
+        access(FlowALPModels.EGovernance) fun setInterestCurve(tokenType: Type, interestCurve: {FlowALPInterestRates.InterestCurve}) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
@@ -1917,7 +1877,7 @@ access(all) contract FlowALPv0 {
         /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
-        access(EPosition | ERebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
+        access(FlowALPModels.EPosition | FlowALPModels.ERebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
@@ -2362,7 +2322,7 @@ access(all) contract FlowALPv0 {
 
         /// Returns a reference to the InternalPosition for the given position ID.
         /// Used by Position resources to directly access their InternalPosition.
-        access(EPosition) view fun borrowPosition(pid: UInt64): &{FlowALPModels.InternalPosition} {
+        access(FlowALPModels.EPosition) view fun borrowPosition(pid: UInt64): &{FlowALPModels.InternalPosition} {
             return self._borrowPosition(pid: pid)
         }
 
@@ -2392,7 +2352,7 @@ access(all) contract FlowALPv0 {
             )
         }
 
-        access(EGovernance) fun setPriceOracle(_ newOracle: {DeFiActions.PriceOracle}) {
+        access(FlowALPModels.EGovernance) fun setPriceOracle(_ newOracle: {DeFiActions.PriceOracle}) {
             self.config.setPriceOracle(newOracle, defaultToken: self.state.getDefaultToken())
             self.state.setPositionsNeedingUpdates(self.positions.keys)
 
@@ -2455,7 +2415,7 @@ access(all) contract FlowALPv0 {
     /// From a Position, a user can deposit and withdraw funds as well as construct DeFiActions components enabling
     /// value flows in and out of the Position from within the context of DeFiActions stacks.
     /// Unauthorized Position references allow depositing only, and are considered safe to publish.
-    /// The EPositionAdmin entitlement protects sensitive withdrawal and configuration methods.
+    /// The FlowALPModels.EPositionAdmin entitlement protects sensitive withdrawal and configuration methods.
     ///
     /// Position resources are held in user accounts and provide access to one position (by pid).
     /// Clients are recommended to use PositionManager to manage access to Positions.
@@ -2466,11 +2426,11 @@ access(all) contract FlowALPv0 {
         access(all) let id: UInt64
 
         /// An authorized Capability to the Pool for which this Position was opened.
-        access(self) let pool: Capability<auth(EPosition) &Pool>
+        access(self) let pool: Capability<auth(FlowALPModels.EPosition) &Pool>
 
         init(
             id: UInt64,
-            pool: Capability<auth(EPosition) &Pool>
+            pool: Capability<auth(FlowALPModels.EPosition) &Pool>
         ) {
             pre {
                 pool.check():
@@ -2509,7 +2469,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Sets the target health of the Position
-        access(EPositionAdmin) fun setTargetHealth(targetHealth: UFix64) {
+        access(FlowALPModels.EPositionAdmin) fun setTargetHealth(targetHealth: UFix64) {
             let pool = self.pool.borrow()!
             let pos = pool.borrowPosition(pid: self.id)
             pos.setTargetHealth(UFix128(targetHealth))
@@ -2523,7 +2483,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Sets the minimum health of the Position
-        access(EPositionAdmin) fun setMinHealth(minHealth: UFix64) {
+        access(FlowALPModels.EPositionAdmin) fun setMinHealth(minHealth: UFix64) {
             let pool = self.pool.borrow()!
             let pos = pool.borrowPosition(pid: self.id)
             pos.setMinHealth(UFix128(minHealth))
@@ -2537,7 +2497,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Sets the maximum health of the position
-        access(EPositionAdmin) fun setMaxHealth(maxHealth: UFix64) {
+        access(FlowALPModels.EPositionAdmin) fun setMaxHealth(maxHealth: UFix64) {
             let pool = self.pool.borrow()!
             let pos = pool.borrowPosition(pid: self.id)
             pos.setMaxHealth(UFix128(maxHealth))
@@ -2671,7 +2631,7 @@ access(all) contract FlowALPv0 {
         /// configured for the pool. Providing a new sink will replace the existing sink.
         ///
         /// Pass nil to configure the position to not push tokens when the Position exceeds its maximum health.
-        access(EPositionAdmin) fun provideSink(sink: {DeFiActions.Sink}?) {
+        access(FlowALPModels.EPositionAdmin) fun provideSink(sink: {DeFiActions.Sink}?) {
             let pool = self.pool.borrow()!
             pool.lockPosition(self.id)
             let pos = pool.borrowPosition(pid: self.id)
@@ -2687,7 +2647,7 @@ access(all) contract FlowALPv0 {
         /// configured for the pool. Providing a new source will replace the existing source.
         ///
         /// Pass nil to configure the position to not pull tokens.
-        access(EPositionAdmin) fun provideSource(source: {DeFiActions.Source}?) {
+        access(FlowALPModels.EPositionAdmin) fun provideSource(source: {DeFiActions.Source}?) {
             let pool = self.pool.borrow()!
             pool.lockPosition(self.id)
             let pos = pool.borrowPosition(pid: self.id)
@@ -2703,7 +2663,7 @@ access(all) contract FlowALPv0 {
         /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
-        access(EPosition | ERebalance) fun rebalance(force: Bool) {
+        access(FlowALPModels.EPosition | FlowALPModels.ERebalance) fun rebalance(force: Bool) {
             let pool = self.pool.borrow()!
             pool.rebalancePosition(pid: self.id, force: force)
         }
@@ -2724,7 +2684,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Adds a new position to the manager.
-        access(EPositionAdmin) fun addPosition(position: @Position) {
+        access(FlowALPModels.EPositionAdmin) fun addPosition(position: @Position) {
             let pid = position.id
             let old <- self.positions[pid] <- position
             if old != nil {
@@ -2734,7 +2694,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Removes and returns a position from the manager.
-        access(EPositionAdmin) fun removePosition(pid: UInt64): @Position {
+        access(FlowALPModels.EPositionAdmin) fun removePosition(pid: UInt64): @Position {
             if let position <- self.positions.remove(key: pid) {
                 return <-position
             }
@@ -2743,8 +2703,8 @@ access(all) contract FlowALPv0 {
 
         /// Internal method that returns a reference to a position authorized with all entitlements.
         /// Callers who wish to provide a partially authorized reference can downcast the result as needed.
-        access(EPositionAdmin) fun borrowAuthorizedPosition(pid: UInt64): auth(FungibleToken.Withdraw, EPositionAdmin) &Position {
-            return (&self.positions[pid] as auth(FungibleToken.Withdraw, EPositionAdmin) &Position?)
+        access(FlowALPModels.EPositionAdmin) fun borrowAuthorizedPosition(pid: UInt64): auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &Position {
+            return (&self.positions[pid] as auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &Position?)
                 ?? panic("Position with pid=\(pid) not found in PositionManager")
         }
 
@@ -2776,7 +2736,7 @@ access(all) contract FlowALPv0 {
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
 
         /// An authorized Capability on the Pool for which the related Position is in
-        access(self) let pool: Capability<auth(EPosition) &Pool>
+        access(self) let pool: Capability<auth(FlowALPModels.EPosition) &Pool>
 
         /// The ID of the position in the Pool
         access(self) let positionID: UInt64
@@ -2790,7 +2750,7 @@ access(all) contract FlowALPv0 {
 
         init(
             id: UInt64,
-            pool: Capability<auth(EPosition) &Pool>,
+            pool: Capability<auth(FlowALPModels.EPosition) &Pool>,
             type: Type,
             pushToDrawDownSink: Bool
         ) {
@@ -2850,7 +2810,7 @@ access(all) contract FlowALPv0 {
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
 
         /// An authorized Capability on the Pool for which the related Position is in
-        access(self) let pool: Capability<auth(EPosition) &Pool>
+        access(self) let pool: Capability<auth(FlowALPModels.EPosition) &Pool>
 
         /// The ID of the position in the Pool
         access(self) let positionID: UInt64
@@ -2864,7 +2824,7 @@ access(all) contract FlowALPv0 {
 
         init(
             id: UInt64,
-            pool: Capability<auth(EPosition) &Pool>,
+            pool: Capability<auth(FlowALPModels.EPosition) &Pool>,
             type: Type,
             pullFromTopUpSource: Bool
         ) {

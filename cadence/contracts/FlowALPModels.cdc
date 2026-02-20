@@ -18,6 +18,48 @@ access(all) contract FlowALPModels {
     /// and process queued operations. It should not be granted to external users.
     access(all) entitlement EImplementation
 
+    /// EPosition
+    ///
+    /// Entitlement for managing positions within the pool.
+    /// This entitlement grants access to position-specific operations including deposits, withdrawals,
+    /// rebalancing, and health parameter management for any position in the pool.
+    ///
+    /// Note that this entitlement provides access to all positions in the pool,
+    /// not just individual position owners' positions.
+    access(all) entitlement EPosition
+
+    /// ERebalance
+    ///
+    /// Entitlement for rebalancing positions.
+    access(all) entitlement ERebalance
+
+    /// EGovernance
+    ///
+    /// Entitlement for governance operations that control pool-wide parameters and configuration.
+    /// This entitlement grants access to administrative functions that affect the entire pool,
+    /// including liquidation settings, token support, interest rates, and protocol parameters.
+    ///
+    /// This entitlement should be granted only to trusted governance entities that manage
+    /// the protocol's risk parameters and operational settings.
+    access(all) entitlement EGovernance
+
+    /// EParticipant
+    ///
+    /// Entitlement for general participant operations that allow users to interact with the pool
+    /// at a basic level. This entitlement grants access to position creation and basic deposit
+    /// operations without requiring full position ownership.
+    ///
+    /// This entitlement is more permissive than EPosition and allows anyone to create positions
+    /// and make deposits, enabling public participation in the protocol while maintaining
+    /// separation between position creation and position management.
+    access(all) entitlement EParticipant
+
+    /// EPositionAdmin
+    ///
+    /// Grants access to configure drawdown sinks, top-up sources, and other position settings, for the Position resource.
+    /// Withdrawal access is provided using FungibleToken.Withdraw.
+    access(all) entitlement EPositionAdmin
+
     /// BalanceDirection
     ///
     /// The direction of a given balance
