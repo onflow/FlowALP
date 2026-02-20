@@ -167,7 +167,7 @@ fun test_TokenState_with_FixedCurve() {
     tokenState.increaseDebitBalance(by: 50.0)
 
     // Debit rate should be the per-second conversion of 10% yearly
-    let expectedDebitRate = FlowALPv0.perSecondInterestRate(yearlyRate: 0.10)
+    let expectedDebitRate = FlowALPMath.perSecondInterestRate(yearlyRate: 0.10)
     Test.assertEqual(expectedDebitRate, tokenState.getCurrentDebitRate())
 
     // For FixedCurve, credit rate uses the SPREAD MODEL:
@@ -176,7 +176,7 @@ fun test_TokenState_with_FixedCurve() {
     // debitRate = 0.10
     // protocolFeeRate = 0.0 + 0.05 = 0.05 (default insuranceRate = 0.0, default stabilityFeeRate = 0.05)
     // creditYearly = 0.10 * (1 - 0.05) = 0.095
-    let expectedCreditRate = FlowALPv0.perSecondInterestRate(yearlyRate: 0.095)
+    let expectedCreditRate = FlowALPMath.perSecondInterestRate(yearlyRate: 0.095)
     Test.assertEqual(expectedCreditRate, tokenState.getCurrentCreditRate())
 }
 
@@ -206,7 +206,7 @@ fun test_TokenState_with_KinkCurve() {
 
     // Verify the debit rate
     let expectedYearlyRate: UFix128 = 0.0575
-    let expectedDebitRate = FlowALPv0.perSecondInterestRate(yearlyRate: expectedYearlyRate)
+    let expectedDebitRate = FlowALPMath.perSecondInterestRate(yearlyRate: expectedYearlyRate)
     Test.assertEqual(expectedDebitRate, tokenState.getCurrentDebitRate())
 }
 
@@ -230,7 +230,7 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     // credit: 100, debit: 0 → utilization = 0% → rate = baseRate = 2%
     tokenState.increaseCreditBalance(by: 100.0)
 
-    let rateAtZeroUtilization = FlowALPv0.perSecondInterestRate(yearlyRate: 0.02)
+    let rateAtZeroUtilization = FlowALPMath.perSecondInterestRate(yearlyRate: 0.02)
     Test.assertEqual(rateAtZeroUtilization, tokenState.getCurrentDebitRate())
 
     // Step 2: Add debt to create 50% utilization
@@ -238,7 +238,7 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     // rate = 0.02 + (0.05 × 0.50 / 0.80) = 0.02 + 0.03125 = 0.05125
     tokenState.increaseDebitBalance(by: 100.0)
 
-    let rateAt50Utilization = FlowALPv0.perSecondInterestRate(yearlyRate: 0.05125)
+    let rateAt50Utilization = FlowALPMath.perSecondInterestRate(yearlyRate: 0.05125)
     Test.assertEqual(rateAt50Utilization, tokenState.getCurrentDebitRate())
 
     // Step 3: Increase utilization to 90% (above kink)
@@ -247,14 +247,14 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     // rate = 0.02 + 0.05 + (0.50 × 0.50) = 0.32
     tokenState.increaseDebitBalance(by: 800.0)
 
-    let rateAt90Util = FlowALPv0.perSecondInterestRate(yearlyRate: 0.32)
+    let rateAt90Util = FlowALPMath.perSecondInterestRate(yearlyRate: 0.32)
     Test.assertEqual(rateAt90Util, tokenState.getCurrentDebitRate())
 
     // Step 4: Decrease debt to lower utilization back to 0%
     // credit: 100, debit: 0 → utilization = 0% → rate = baseRate = 2%
     tokenState.decreaseDebitBalance(by: 900.0)
 
-    let rateBackToZero = FlowALPv0.perSecondInterestRate(yearlyRate: 0.02)
+    let rateBackToZero = FlowALPMath.perSecondInterestRate(yearlyRate: 0.02)
     Test.assertEqual(rateBackToZero, tokenState.getCurrentDebitRate())
 }
 

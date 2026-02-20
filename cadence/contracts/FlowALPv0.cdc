@@ -2885,32 +2885,6 @@ access(all) contract FlowALPv0 {
         }
     }
 
-    /* --- PUBLIC METHODS ---- */
-
-    // TODO(now): remove delegate methods
-
-    /// Checks that the DEX price does not deviate from the oracle price by more than the given threshold.
-    /// Delegates to FlowALPMath.dexOraclePriceDeviationInRange.
-    access(all) view fun dexOraclePriceDeviationInRange(dexPrice: UFix64, oraclePrice: UFix64, maxDeviationBps: UInt16): Bool {
-        return FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps)
-    }
-
-    /// Converts a yearly interest rate to a per-second multiplication factor.
-    /// Delegates to FlowALPMath.perSecondInterestRate.
-    access(all) view fun perSecondInterestRate(yearlyRate: UFix128): UFix128 {
-        return FlowALPMath.perSecondInterestRate(yearlyRate: yearlyRate)
-    }
-
-    /// Returns the compounded interest index reflecting the passage of time.
-    /// Delegates to FlowALPMath.compoundInterestIndex.
-    access(all) view fun compoundInterestIndex(
-        oldIndex: UFix128,
-        perSecondRate: UFix128,
-        elapsedSeconds: UFix64
-    ): UFix128 {
-        return FlowALPMath.compoundInterestIndex(oldIndex: oldIndex, perSecondRate: perSecondRate, elapsedSeconds: elapsedSeconds)
-    }
-
     /* --- INTERNAL METHODS --- */
 
     /// Returns a reference to the contract account's MOET Minter resource
