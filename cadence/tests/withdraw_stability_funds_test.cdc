@@ -4,6 +4,7 @@ import BlockchainHelpers
 import "MOET"
 import "FlowToken"
 import "FlowALPv0"
+import "FlowALPEvents"
 import "test_helpers.cdc"
 
 access(all) var snapshot: UInt64 = 0
@@ -200,9 +201,9 @@ fun test_withdrawStabilityFund_success_fullAmount() {
     Test.assertEqual(recipientBalanceBefore! + collectedAmount, recipientBalanceAfter!)
 
     // verify StabilityFundWithdrawn event was emitted
-    let events = Test.eventsOfType(Type<FlowALPv0.StabilityFundWithdrawn>())
+    let events = Test.eventsOfType(Type<FlowALPEvents.StabilityFundWithdrawn>())
     Test.assert(events.length > 0, message: "StabilityFundWithdrawn event should be emitted")
-    let stabilityFundWithdrawnEvent = events[events.length - 1] as! FlowALPv0.StabilityFundWithdrawn
+    let stabilityFundWithdrawnEvent = events[events.length - 1] as! FlowALPEvents.StabilityFundWithdrawn
     Test.assertEqual(MOET_TOKEN_IDENTIFIER, stabilityFundWithdrawnEvent.tokenType)
     Test.assertEqual(collectedAmount, stabilityFundWithdrawnEvent.amount)
 }

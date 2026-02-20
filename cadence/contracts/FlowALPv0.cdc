@@ -8,6 +8,7 @@ import "MOET"
 import "FlowALPMath"
 import "FlowALPInterestRates"
 import "FlowALPModels"
+import "FlowALPEvents"
 
 access(all) contract FlowALPv0 {
 
@@ -33,124 +34,6 @@ access(all) contract FlowALPv0 {
 
     /// The canonical PublicPath where PositionManager can be accessed publicly
     access(all) let PositionPublicPath: PublicPath
-
-    /* --- EVENTS ---- */
-
-    // Prefer Type in events for stronger typing; off-chain can stringify via .identifier
-
-    access(all) event Opened(
-        pid: UInt64,
-        poolUUID: UInt64
-    )
-
-    access(all) event Deposited(
-        pid: UInt64,
-        poolUUID: UInt64,
-        vaultType: Type,
-        amount: UFix64,
-        depositedUUID: UInt64
-    )
-
-    access(all) event Withdrawn(
-        pid: UInt64,
-        poolUUID: UInt64,
-        vaultType: Type,
-        amount: UFix64,
-        withdrawnUUID: UInt64
-    )
-
-    access(all) event Rebalanced(
-        pid: UInt64,
-        poolUUID: UInt64,
-        atHealth: UFix128,
-        amount: UFix64,
-        fromUnder: Bool
-    )
-
-    /// Emitted when the pool is paused, which disables all user actions temporarily.
-    access(all) event PoolPaused(
-        poolUUID: UInt64
-    )
-
-    /// Emitted when the pool is unpaused, which re-enables all functionality when the Pool was previously paused.
-    access(all) event PoolUnpaused(
-        poolUUID: UInt64,
-        warmupEndsAt: UInt64
-    )
-
-    access(all) event LiquidationExecuted(
-        pid: UInt64,
-        poolUUID: UInt64,
-        debtType: String,
-        repayAmount: UFix64,
-        seizeType: String,
-        seizeAmount: UFix64,
-        newHF: UFix128
-    )
-
-    access(all) event LiquidationExecutedViaDex(
-        pid: UInt64,
-        poolUUID: UInt64,
-        seizeType: String,
-        seized: UFix64,
-        debtType: String,
-        repaid: UFix64,
-        slippageBps: UInt16,
-        newHF: UFix128
-    )
-
-    access(all) event PriceOracleUpdated(
-        poolUUID: UInt64,
-        newOracleType: String
-    )
-
-    access(all) event InterestCurveUpdated(
-        poolUUID: UInt64,
-        tokenType: String,
-        curveType: String
-    )
-
-    //// Emitted each time the insurance rate is updated for a specific token in a specific pool.
-    //// The insurance rate is an annual percentage; for example a value of 0.001 indicates 0.1%.
-    access(all) event InsuranceRateUpdated(
-        poolUUID: UInt64,
-        tokenType: String,
-        insuranceRate: UFix64,
-    )
-
-    /// Emitted each time an insurance fee is collected for a specific token in a specific pool.
-    /// The insurance amount is the amount of insurance collected, denominated in MOET.
-    access(all) event InsuranceFeeCollected(
-        poolUUID: UInt64,
-        tokenType: String,
-        insuranceAmount: UFix64,
-        collectionTime: UFix64,
-    )
-
-    //// Emitted each time the stability rate is updated for a specific token in a specific pool.
-    //// The stability rate is an annual percentage; the default value is 0.05 (5%).
-    access(all) event StabilityFeeRateUpdated(
-        poolUUID: UInt64,
-        tokenType: String,
-        stabilityFeeRate: UFix64,
-    )
-
-    /// Emitted each time an stability fee is collected for a specific token in a specific pool.
-    /// The stability amount is the amount of stability collected, denominated in token type.
-    access(all) event StabilityFeeCollected(
-        poolUUID: UInt64,
-        tokenType: String,
-        stabilityAmount: UFix64,
-        collectionTime: UFix64,
-    )
-
-    /// Emitted each time funds are withdrawn from the stability fund for a specific token in a specific pool.
-    /// The amount is the quantity withdrawn, denominated in the token type.
-    access(all) event StabilityFundWithdrawn(
-        poolUUID: UInt64,
-        tokenType: String,
-        amount: UFix64,
-    )
 
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
 
@@ -883,7 +766,7 @@ access(all) contract FlowALPv0 {
             let newHealth = self.positionHealth(pid: pid)
             // TODO: sanity check health here? for auto-liquidating, we may need to perform a bounded search which could result in unbounded error in the final health
 
-            emit LiquidationExecuted(
+            FlowALPEvents.emitLiquidationExecuted(
             	pid: pid,
             	poolUUID: self.uuid,
             	debtType: debtType.identifier,
@@ -1498,7 +1381,7 @@ access(all) contract FlowALPv0 {
 
             self._lockPosition(id)
 
-            emit Opened(
+            FlowALPEvents.emitOpened(
                 pid: id,
                 poolUUID: self.uuid
             )
@@ -1654,7 +1537,7 @@ access(all) contract FlowALPv0 {
 
             self._queuePositionForUpdateIfNecessary(pid: pid)
 
-            emit Deposited(
+            FlowALPEvents.emitDeposited(
                 pid: pid,
                 poolUUID: self.uuid,
                 vaultType: type,
@@ -1865,7 +1748,7 @@ access(all) contract FlowALPv0 {
 
             let withdrawn <- reserveVault.withdraw(amount: amount)
 
-            emit Withdrawn(
+            FlowALPEvents.emitWithdrawn(
                 pid: pid,
                 poolUUID: self.uuid,
                 vaultType: type,
@@ -1893,7 +1776,7 @@ access(all) contract FlowALPv0 {
                 return
             }
             self.config.setPaused(true)
-            emit PoolPaused(poolUUID: self.uuid)
+            FlowALPEvents.emitPoolPaused(poolUUID: self.uuid)
         }
 
         /// Unpauses the pool, and starts the warm-up window
@@ -1904,7 +1787,7 @@ access(all) contract FlowALPv0 {
             self.config.setPaused(false)
             let now = UInt64(getCurrentBlock().timestamp)
             self.config.setLastUnpausedAt(now)
-            emit PoolUnpaused(
+            FlowALPEvents.emitPoolUnpaused(
                 poolUUID: self.uuid,
                 warmupEndsAt: now + self.config.getWarmupSec()
             )
@@ -1974,10 +1857,10 @@ access(all) contract FlowALPv0 {
             }
             tsRef.setInsuranceRate(insuranceRate)
 
-            emit InsuranceRateUpdated(
+            FlowALPEvents.emitInsuranceRateUpdated(
                 poolUUID: self.uuid,
                 tokenType: tokenType.identifier,
-                insuranceRate: insuranceRate,
+                insuranceRate: insuranceRate
             )
         }
 
@@ -2078,10 +1961,10 @@ access(all) contract FlowALPv0 {
                 ?? panic("Invariant: token state missing")
             tsRef.setStabilityFeeRate(stabilityFeeRate)
             
-            emit StabilityFeeRateUpdated(
+            FlowALPEvents.emitStabilityFeeRateUpdated(
                 poolUUID: self.uuid,
                 tokenType: tokenType.identifier,
-                stabilityFeeRate: stabilityFeeRate,
+                stabilityFeeRate: stabilityFeeRate
             )
         }
 
@@ -2102,10 +1985,10 @@ access(all) contract FlowALPv0 {
             let withdrawn <- fundRef.withdraw(amount: amount)
             recipient.deposit(from: <-withdrawn)
 
-            emit StabilityFundWithdrawn(
+            FlowALPEvents.emitStabilityFundWithdrawn(
                 poolUUID: self.uuid,
                 tokenType: tokenType.identifier,
-                amount: amount,
+                amount: amount
             )
         }
 
@@ -2148,7 +2031,7 @@ access(all) contract FlowALPv0 {
             let tsRef = self._borrowUpdatedTokenState(type: tokenType)
             // Now safe to set the new curve - subsequent interest will accrue at the new rate
             tsRef.setInterestCurve(interestCurve)
-            emit InterestCurveUpdated(
+            FlowALPEvents.emitInterestCurveUpdated(
                 poolUUID: self.uuid,
                 tokenType: tokenType.identifier,
                 curveType: interestCurve.getType().identifier
@@ -2215,7 +2098,7 @@ access(all) contract FlowALPv0 {
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
                     assert(pulledVault.getType() == topUpType, message: "topUpSource returned unexpected token type")
 
-                    emit Rebalanced(
+                    FlowALPEvents.emitRebalanced(
                         pid: pid,
                         poolUUID: self.uuid,
                         atHealth: balanceSheet.health,
@@ -2268,7 +2151,7 @@ access(all) contract FlowALPv0 {
                         )
                         let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
 
-                        emit Rebalanced(
+                        FlowALPEvents.emitRebalanced(
                             pid: pid,
                             poolUUID: self.uuid,
                             atHealth: balanceSheet.health,
@@ -2383,7 +2266,7 @@ access(all) contract FlowALPv0 {
                     fundRef.deposit(from: <-collectedVault)
                 }
 
-                emit StabilityFeeCollected(
+                FlowALPEvents.emitStabilityFeeCollected(
                     poolUUID: self.uuid,
                     tokenType: tokenType.identifier,
                     stabilityAmount: collectedBalance,
@@ -2597,7 +2480,7 @@ access(all) contract FlowALPv0 {
                     // Deposit collected MOET into insurance fund
                     self.state.depositToInsuranceFund(from: <-collectedMOET)
 
-                    emit InsuranceFeeCollected(
+                    FlowALPEvents.emitInsuranceFeeCollected(
                         poolUUID: self.uuid,
                         tokenType: tokenType.identifier,
                         insuranceAmount: collectedMOETBalance,
@@ -2649,7 +2532,7 @@ access(all) contract FlowALPv0 {
             self.config.setPriceOracle(newOracle, defaultToken: self.state.getDefaultToken())
             self.state.setPositionsNeedingUpdates(self.positions.keys)
 
-            emit PriceOracleUpdated(
+            FlowALPEvents.emitPriceOracleUpdated(
                 poolUUID: self.uuid,
                 newOracleType: newOracle.getType().identifier
             )

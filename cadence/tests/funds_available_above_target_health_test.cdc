@@ -5,6 +5,7 @@ import "test_helpers.cdc"
 
 import "MOET"
 import "FlowALPv0"
+import "FlowALPEvents"
 import "FlowALPModels"
 
 access(all) let userAccount = Test.createAccount()
@@ -94,8 +95,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     Test.assert(equalWithinVariance(expectedBorrowAmount, balanceAfterBorrow),
         message: "Expected MOET balance to be ~\(expectedBorrowAmount), but got \(balanceAfterBorrow)")
 
-    let evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    let evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
@@ -177,8 +178,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     let expectedBorrowAmount = 0.0
     Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
-    let evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    let evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
@@ -248,8 +249,8 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     let expectedBorrowAmount = 0.0
     Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
-    let evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    let evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)

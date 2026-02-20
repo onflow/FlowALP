@@ -106,6 +106,13 @@ fun deployContracts() {
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
+        name: "FlowALPEvents",
+        path: "../contracts/FlowALPEvents.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
         name: "FlowALPModels",
         path: "../contracts/FlowALPModels.cdc",
         arguments: []

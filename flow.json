@@ -46,6 +46,12 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"FlowALPEvents": {
+			"source": "./cadence/contracts/FlowALPEvents.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"FlowALPInterestRates": {
 			"source": "./cadence/contracts/FlowALPInterestRates.cdc",
 			"aliases": {
@@ -55,7 +61,7 @@
 		"FlowALPModels": {
 			"source": "./cadence/contracts/FlowALPModels.cdc",
 			"aliases": {
-				"testing": "0000000000000008"
+				"testing": "0000000000000007"
 			}
 		},
 		"FlowALPMath": {
@@ -362,6 +368,7 @@
 						}
 					]
 				},
+				"FlowALPEvents",
 				"FlowALPModels",
 				"FlowALPv0"
 			]
@@ -379,6 +386,7 @@
 						}
 					]
 				},
+				"FlowALPEvents",
 				"FlowALPModels",
 				"FlowALPv0"
 			],
@@ -421,6 +429,7 @@
 						}
 					]
 				},
+				"FlowALPEvents",
 				"FlowALPModels",
 				"FlowALPv0"
 			],

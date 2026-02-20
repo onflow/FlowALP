@@ -4,6 +4,7 @@ import "DeFiActionsUtils"
 import "MOET"
 import "FlowALPMath"
 import "FlowALPInterestRates"
+import "FlowALPEvents"
 
 access(all) contract FlowALPModels {
 
@@ -735,21 +736,6 @@ access(all) contract FlowALPModels {
         }
     }
 
-    /* --- EVENTS --- */
-
-    access(all) event DepositCapacityRegenerated(
-        tokenType: Type,
-        oldCapacityCap: UFix64,
-        newCapacityCap: UFix64
-    )
-
-    access(all) event DepositCapacityConsumed(
-        tokenType: Type,
-        pid: UInt64,
-        amount: UFix64,
-        remainingCapacity: UFix64
-    )
-
     /* --- TOKEN STATE --- */
 
     /// TokenState
@@ -948,7 +934,7 @@ access(all) contract FlowALPModels {
             let currentUserUsage = self.depositUsage[pid] ?? 0.0
             self.depositUsage[pid] = currentUserUsage + amount
 
-            emit DepositCapacityConsumed(
+            FlowALPEvents.emitDepositCapacityConsumed(
                 tokenType: self.tokenType,
                 pid: pid,
                 amount: amount,
@@ -1050,7 +1036,7 @@ access(all) contract FlowALPModels {
 
                 self.lastDepositCapacityUpdate = currentTime
 
-                emit DepositCapacityRegenerated(
+                FlowALPEvents.emitDepositCapacityRegenerated(
                     tokenType: self.tokenType,
                     oldCapacityCap: oldCap,
                     newCapacityCap: newDepositCapacityCap
