@@ -35,6 +35,24 @@ access(all) fun priceOracleRouterPrice(ofToken: Type): UFix64? {
     return res.returnValue as! UFix64?
 }
 
+access(all) fun priceOracleRouterGetSupportedTokens(): [Type] {
+    let res = _executeScript(
+        "./scripts/price-oracle-router/get_supported_tokens.cdc",
+        [],
+    )
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! [Type]
+}
+
+access(all) fun priceOracleRouterIsTokenSupported(tokenType: Type): Bool {
+    let res = _executeScript(
+        "./scripts/price-oracle-router/is_token_supported.cdc",
+        [tokenType],
+    )
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! Bool
+}
+
 // --- Helper Functions ---
 
 access(self) fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signers: [Test.TestAccount]): Test.TransactionResult {

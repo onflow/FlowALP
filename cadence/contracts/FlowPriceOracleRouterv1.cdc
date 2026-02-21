@@ -4,7 +4,7 @@ import "DeFiActions"
 /// routes by token type: one oracle per token. All oracles must share the
 /// same unit of account. Config (oracles, unit of account) is immutable at
 /// creation to avoid accidental changes in production.
-/// Use this when the protocol needs one oracle reference but prices come 
+/// Use this when the protocol needs one oracle reference but prices come
 /// from different sources per token.
 access(all) contract FlowPriceOracleRouterv1 {
 
@@ -36,6 +36,14 @@ access(all) contract FlowPriceOracleRouterv1 {
 
         access(all) view fun unitOfAccount(): Type {
             return self.unitOfAccountType
+        }
+
+        access(all) view fun getSupportedTokens(): [Type] {
+            return self.oracles.keys
+        }
+
+        access(all) view fun isTokenSupported(tokenType: Type): Bool {
+            return self.oracles[tokenType] != nil
         }
 
         access(all) view fun id(): UInt64 {

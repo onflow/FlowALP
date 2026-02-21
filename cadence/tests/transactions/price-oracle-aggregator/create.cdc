@@ -15,9 +15,10 @@ transaction(
     maxSpread: UFix64,
     baseTolerance: UFix64,
     driftExpansionRate: UFix64,
-    priceHistorySize: Int,
+    priceHistorySize: UInt8,
     priceHistoryInterval: UFix64,
     maxPriceHistoryAge: UFix64,
+    minimumPriceHistory: UInt8,
     unitOfAccount: Type,
 ) {
     let oracles: [{DeFiActions.PriceOracle}]
@@ -41,6 +42,7 @@ transaction(
             priceHistorySize: priceHistorySize,
             priceHistoryInterval: priceHistoryInterval,
             maxPriceHistoryAge: maxPriceHistoryAge,
+            minimumPriceHistory: minimumPriceHistory,
             unitOfAccount: unitOfAccount
         )
     }

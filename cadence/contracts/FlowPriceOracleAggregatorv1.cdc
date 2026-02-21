@@ -17,7 +17,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
     access(all) event StorageCreated(storageID: UInt64)
     /// At least one underlying oracle did not return a price for the requested
     /// token.
-    access(all) event PriceNotAvailable()
+    access(all) event PriceNotAvailable(oracleType: Type)
     /// Spread between min and max oracle prices exceeded the configured
     /// tolerance.
     access(all) event PriceNotWithinSpreadTolerance(
@@ -55,12 +55,16 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         /// Additional allowance per minute to account for natural price drift.
         access(all) let driftExpansionRate: UFix64
         /// Size of the price history array.
-        access(all) let priceHistorySize: Int
+        access(all) let priceHistorySize: UInt8
         /// Min time between two consecutive history entries.
         access(all) let priceHistoryInterval: UFix64
         /// Maximum age of a price history entry. History entries older than
         /// this are ignored when computing history stability.
         access(all) let maxPriceHistoryAge: UFix64
+        /// Minimum number of (non-expired) history entries required for the
+        /// history to be considered stable. If fewer entries exist, price()
+        /// returns nil.
+        access(all) let minimumPriceHistory: UInt8
         /// Unit of account type for this oracle.
         access(all) let unitOfAccountType: Type
 
@@ -70,9 +74,10 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             maxSpread: UFix64,
             baseTolerance: UFix64,
             driftExpansionRate: UFix64,
-            priceHistorySize: Int,
+            priceHistorySize: UInt8,
             priceHistoryInterval: UFix64,
             maxPriceHistoryAge: UFix64,
+            minimumPriceHistory: UInt8,
             unitOfAccount: Type,
         ) {
             pre {
@@ -84,6 +89,8 @@ access(all) contract FlowPriceOracleAggregatorv1 {
                     "baseTolerance must be <= 10000.0"
                 driftExpansionRate <= 10000.0:
                     "driftExpansionRate must be <= 10000.0"
+                minimumPriceHistory <= priceHistorySize:
+                    "minimumPriceHistory must be <= priceHistorySize"
             }
             self.ofToken = ofToken
             self.oracles = oracles
@@ -94,6 +101,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             self.priceHistorySize = priceHistorySize
             self.priceHistoryInterval = priceHistoryInterval
             self.maxPriceHistoryAge = maxPriceHistoryAge
+            self.minimumPriceHistory = minimumPriceHistory
             self.unitOfAccountType = unitOfAccount
         }
 
@@ -106,45 +114,41 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             pre {
                 self.ofToken == ofToken: "ofToken type mismatch"
             }
-            let price = self.getPriceUncheckedHistory()
+            let now = getCurrentBlock().timestamp
+            let price = self.getPriceUncheckedHistory(now: now)
             if price == nil {
                 return nil
             }
-            self.tryAddPriceToHistoryInternal(price: price!)
-            if !self.isHistoryStable(currentPrice: price!) {
+            let validPrice = price!
+            if !self.isHistoryStable(currentPrice: validPrice, now: now) {
                 return nil
             }
-            return price
+            return validPrice
         }
 
         /// Permissionless: anyone may call. Appends current aggregated price
         /// to history if available and interval has elapsed.
         /// Idempotent; safe to call from a cron/scheduler.
         access(all) fun tryAddPriceToHistory() {
-            let price = self.getPriceUncheckedHistory()
-            if price == nil {
-                return
-            }
-            self.tryAddPriceToHistoryInternal(price: price!)
+            let _ = self.getPriceUncheckedHistory(
+                now: getCurrentBlock().timestamp
+            )
         }
 
-        access(self) fun getPriceUncheckedHistory(): UFix64? {
+        /// Returns the current aggregated price, checks if it is within spread
+        /// tolerance and adds it to the history.
+        /// **Does not validate that the history is stable.**
+        access(self) fun getPriceUncheckedHistory(now: UFix64): UFix64? {
             let prices = self.getPrices()
             if prices == nil || prices!.length == 0 {
                 return nil
             }
-            let minAndMaxPrices = self.getMinAndMaxPrices(prices: prices!)
-            if !self.isWithinSpreadTolerance(
-                minPrice: minAndMaxPrices.min,
-                maxPrice: minAndMaxPrices.max,
-            ) {
+            if !self.isWithinSpreadTolerance(prices: prices!) {
                 return nil
             }
-            return self.trimmedMeanPrice(
-                prices: prices!,
-                minPrice: minAndMaxPrices.min,
-                maxPrice: minAndMaxPrices.max,
-            )
+            let price = self.trimmedMeanPrice(prices: prices!)
+            self.tryAddPriceToHistoryInternal(price: price!, now: now)
+            return price
         }
 
         access(self) fun getPrices(): [UFix64]? {
@@ -152,7 +156,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             for oracle in self.oracles {
                 let price = oracle.price(ofToken: self.ofToken)
                 if price == nil {
-                    emit PriceNotAvailable()
+                    emit PriceNotAvailable(oracleType: oracle.getType())
                     return nil
                 }
                 prices.append(price!)
@@ -160,7 +164,10 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             return prices
         }
 
-        access(self) fun getMinAndMaxPrices(prices: [UFix64]): MinAndMaxPrices {
+        access(self) view fun isWithinSpreadTolerance(prices: [UFix64]): Bool {
+            if prices.length == 0 {
+                return false
+            }
             var minPrice = UFix64.max
             var maxPrice = UFix64.min
             for price in prices {
@@ -171,13 +178,9 @@ access(all) contract FlowPriceOracleAggregatorv1 {
                     maxPrice = price
                 }
             }
-            return MinAndMaxPrices(min: minPrice, max: maxPrice)
-        }
-
-        access(self) view fun isWithinSpreadTolerance(
-            minPrice: UFix64,
-            maxPrice: UFix64,
-        ): Bool {
+            if minPrice == 0.0 {
+                return false
+            }
             let spread = (maxPrice - minPrice) / minPrice
             if spread > self.maxSpread {
                 emit PriceNotWithinSpreadTolerance(
@@ -189,11 +192,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             return true
         }
 
-        access(self) view fun trimmedMeanPrice(
-            prices: [UFix64],
-            minPrice: UFix64,
-            maxPrice: UFix64,
-        ): UFix64? {
+        access(self) view fun trimmedMeanPrice(prices: [UFix64]): UFix64? {
             let count = prices.length
 
             // Handle edge cases where trimming isn't possible
@@ -202,24 +201,32 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             if count == 2 { return (prices[0] + prices[1]) / 2.0 }
 
             var totalSum = 0.0
+            var minPrice = UFix64.max
+            var maxPrice = UFix64.min
             for price in prices {
+                if price < minPrice {
+                    minPrice = price
+                }
+                if price > maxPrice {
+                    maxPrice = price
+                }
                 totalSum = totalSum + price
             }
             let trimmedSum = totalSum - minPrice - maxPrice
             return trimmedSum / UFix64(count - 2)
         }
 
-        access(self) fun isHistoryStable(currentPrice: UFix64): Bool {
-            let now = getCurrentBlock().timestamp
-
+        access(self) fun isHistoryStable(currentPrice: UFix64, now: UFix64): Bool {
+            var validEntryCount = 0 as UInt8
             for entry in self.priceHistory {
                 let deltaT = now - UFix64(entry.timestamp)
-                let deltaTMinutes = deltaT / 60.0
+
                 // Skip entries that are too old to be relevant for the
                 // stability check
                 if deltaT > self.maxPriceHistoryAge {
                     continue
                 }
+                validEntryCount = validEntryCount + 1
 
                 // Calculate the absolute relative difference (delta P / P)
                 var relativeDiff = 0.0
@@ -233,6 +240,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
 
                 // The "n" component: baseTolerance
                 // The "mx" component: driftExpansionRate * deltaT
+                let deltaTMinutes = deltaT / 60.0
                 let totalAllowedTolerance = self.baseTolerance + (self.driftExpansionRate * deltaTMinutes)
 
                 if relativeDiff > totalAllowedTolerance {
@@ -244,11 +252,10 @@ access(all) contract FlowPriceOracleAggregatorv1 {
                     return false
                 }
             }
-            return true
+            return validEntryCount >= self.minimumPriceHistory
         }
 
-        access(self) fun tryAddPriceToHistoryInternal(price: UFix64) {
-            let now = getCurrentBlock().timestamp
+        access(self) fun tryAddPriceToHistoryInternal(price: UFix64, now: UFix64) {
             // Only append if enough time has passed since the last entry.
             if self.priceHistory.length > 0 {
                 let lastEntry = self.priceHistory[self.priceHistory.length - 1]
@@ -259,8 +266,8 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             }
             let newEntry = PriceHistoryEntry(price: price, timestamp: now)
             self.priceHistory.append(newEntry)
-            if self.priceHistory.length > self.priceHistorySize {
-                self.priceHistory.removeFirst()
+            if self.priceHistory.length > Int(self.priceHistorySize) {
+                let _ = self.priceHistory.removeFirst()
             }
         }
     }
@@ -277,6 +284,9 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         init(storageID: UInt64) {
             self.storageID = storageID
             self.uniqueID = DeFiActions.createUniqueIdentifier()
+            if FlowPriceOracleAggregatorv1.storage.containsKey(self.storageID) == false {
+                panic("Storage not found for storageID: \(self.storageID)")
+            }
         }
 
         access(all) fun price(ofToken: Type): UFix64? {
@@ -351,9 +361,10 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         maxSpread: UFix64,
         baseTolerance: UFix64,
         driftExpansionRate: UFix64,
-        priceHistorySize: Int,
+        priceHistorySize: UInt8,
         priceHistoryInterval: UFix64,
         maxPriceHistoryAge: UFix64,
+        minimumPriceHistory: UInt8,
         unitOfAccount: Type,
     ): UInt64 {
         let priceOracleAggregator <- create PriceOracleAggregatorStorage(
@@ -365,6 +376,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             priceHistorySize: priceHistorySize,
             priceHistoryInterval: priceHistoryInterval,
             maxPriceHistoryAge: maxPriceHistoryAge,
+            minimumPriceHistory: minimumPriceHistory,
             unitOfAccount: unitOfAccount
         )
         let id = priceOracleAggregator.uuid
@@ -383,17 +395,6 @@ access(all) contract FlowPriceOracleAggregatorv1 {
     /// for the given storage. Must be stored and registered with FlowCron.
     access(all) fun createPriceOracleCronHandler(storageID: UInt64): @PriceOracleCronHandler {
         return <- create PriceOracleCronHandler(storageID: storageID)
-    }
-
-    /// Helper struct to store the min and max of a set of prices.
-    access(all) struct MinAndMaxPrices {
-        access(all) let min: UFix64
-        access(all) let max: UFix64
-
-        init(min: UFix64, max: UFix64) {
-            self.min = min
-            self.max = max
-        }
     }
 
     /// Struct to store one entry in the aggregator's price history array for
