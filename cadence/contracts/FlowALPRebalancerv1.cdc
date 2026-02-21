@@ -43,30 +43,46 @@ access(all) contract FlowALPRebalancerv1 {
     access(all) struct interface RecurringConfig {
         /// How frequently the rebalance will be executed (in seconds)
         access(all) view fun getInterval(): UInt64
+        /// The scheduler priority level for the scheduled transaction
         access(all) view fun getPriority(): FlowTransactionScheduler.Priority
+        /// The execution effort budget for the scheduled transaction
         access(all) view fun getExecutionEffort(): UInt64
         /// The margin to multiply with the estimated fees for the scheduled transaction
         /// feePaid = estimate.flowFee * estimationMargin
         access(all) view fun getEstimationMargin(): UFix64
-        /// The force rebalance flag
+        /// Whether to force rebalance even when the position is already balanced
         access(all) view fun getForceRebalance(): Bool
         /// The txFunder used to fund the rebalance - must provide FLOW and accept FLOW
         access(contract) fun getTxFunder(): {DeFiActions.Sink, DeFiActions.Source}
     }
 
+    /// Default implementation of RecurringConfig.
     access(all) struct RecurringConfigImplv1: RecurringConfig {
+        /// How frequently the rebalance will be executed (in seconds)
         access(all) let interval: UInt64
+        /// The scheduler priority level for the scheduled transaction
         access(all) let priority: FlowTransactionScheduler.Priority
+        /// The execution effort budget for the scheduled transaction
         access(all) let executionEffort: UInt64
+        /// The margin to multiply with the estimated fees for the scheduled transaction
+        /// feePaid = estimate.flowFee * estimationMargin
         access(all) let estimationMargin: UFix64
+        /// Whether to force rebalance even when the position is already balanced
         access(all) let forceRebalance: Bool
+        /// The txFunder used to fund the rebalance - must provide FLOW and accept FLOW
         access(contract) var txFunder: {DeFiActions.Sink, DeFiActions.Source}
 
+        /// @return How frequently the rebalance will be executed (in seconds)
         access(all) view fun getInterval(): UInt64 { return self.interval }
+        /// @return The scheduler priority level for the scheduled transaction
         access(all) view fun getPriority(): FlowTransactionScheduler.Priority { return self.priority }
+        /// @return The execution effort budget for the scheduled transaction
         access(all) view fun getExecutionEffort(): UInt64 { return self.executionEffort }
+        /// @return The fee estimation margin multiplier
         access(all) view fun getEstimationMargin(): UFix64 { return self.estimationMargin }
+        /// @return Whether to force rebalance even when the position is already balanced
         access(all) view fun getForceRebalance(): Bool { return self.forceRebalance }
+        /// @return The txFunder used to fund the rebalance
         access(contract) fun getTxFunder(): {DeFiActions.Sink, DeFiActions.Source} { return self.txFunder }
 
         init(
