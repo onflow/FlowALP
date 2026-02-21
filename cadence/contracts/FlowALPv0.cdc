@@ -1585,8 +1585,8 @@ access(all) contract FlowALPv0 {
 
         /// Returns a mutable reference to the pool's configuration.
         /// Use this to update config fields that don't require events or side effects.
-        access(FlowALPModels.EGovernance) fun borrowConfig(): &{FlowALPModels.PoolConfig} {
-            return &self.config
+        access(FlowALPModels.EGovernance) fun borrowConfig(): auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolConfig} {
+            return &self.config as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolConfig}
         }
 
         /// Pauses the pool, temporarily preventing further withdrawals, deposits, and liquidations
@@ -2089,7 +2089,7 @@ access(all) contract FlowALPv0 {
 
         /// Collects insurance by withdrawing from reserves and swapping to MOET.
         access(self) fun _collectInsurance(
-            tokenState: &{FlowALPModels.TokenState},
+            tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
             oraclePrice: UFix64,
             maxDeviationBps: UInt16
@@ -2141,7 +2141,7 @@ access(all) contract FlowALPv0 {
 
         /// Collects stability funds by withdrawing from reserves.
         access(self) fun _collectStability(
-            tokenState: &{FlowALPModels.TokenState},
+            tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
         ): @{FungibleToken.Vault}? {
             let currentTime = getCurrentBlock().timestamp
@@ -2258,7 +2258,7 @@ access(all) contract FlowALPv0 {
         /// A convenience function that returns a reference to a particular token state, making sure it's up-to-date for
         /// the passage of time. This should always be used when accessing a token state to avoid missing interest
         /// updates (duplicate calls to updateForTimeChange() are a nop within a single block).
-        access(self) fun _borrowUpdatedTokenState(type: Type): &{FlowALPModels.TokenState} {
+        access(self) fun _borrowUpdatedTokenState(type: Type): auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState} {
             let state = self.state.borrowTokenState(type)!
             state.updateForTimeChange()
             return state
@@ -2303,14 +2303,14 @@ access(all) contract FlowALPv0 {
         }
 
         /// Returns an authorized reference to the requested InternalPosition or `nil` if the position does not exist
-        access(self) view fun _borrowPosition(pid: UInt64): &{FlowALPModels.InternalPosition} {
-            return &self.positions[pid] as &{FlowALPModels.InternalPosition}?
+        access(self) view fun _borrowPosition(pid: UInt64): auth(FlowALPModels.EImplementation) &{FlowALPModels.InternalPosition} {
+            return &self.positions[pid] as auth(FlowALPModels.EImplementation) &{FlowALPModels.InternalPosition}?
                 ?? panic("Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool")
         }
 
         /// Returns a reference to the InternalPosition for the given position ID.
         /// Used by Position resources to directly access their InternalPosition.
-        access(FlowALPModels.EPosition) view fun borrowPosition(pid: UInt64): &{FlowALPModels.InternalPosition} {
+        access(FlowALPModels.EPosition) view fun borrowPosition(pid: UInt64): auth(FlowALPModels.EImplementation) &{FlowALPModels.InternalPosition} {
             return self._borrowPosition(pid: pid)
         }
 
