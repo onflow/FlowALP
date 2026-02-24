@@ -9,30 +9,10 @@ import "MOET"
 import "FlowALPv0"
 import "test_helpers.cdc"
 
-// Real mainnet token identifiers (overriding test_helpers for mainnet)
-access(all) let FLOW_TOKEN_IDENTIFIER_MAINNET = "A.1654653399040a61.FlowToken.Vault"
-access(all) let USDC_TOKEN_IDENTIFIER = "A.f1ab99c82dee3526.USDCFlow.Vault"
-access(all) let USDF_TOKEN_IDENTIFIER = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabed.Vault"
-access(all) let WETH_TOKEN_IDENTIFIER = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590.Vault"
-access(all) let WBTC_TOKEN_IDENTIFIER = "A.1e4aa0b87d10b141.EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579.Vault"
-access(all) let MOET_TOKEN_IDENTIFIER_MAINNET = "A.6b00ff876c299c61.MOET.Vault"
-
-// Storage paths for different token types
-access(all) let USDC_VAULT_STORAGE_PATH = /storage/usdcFlowVault
-access(all) let USDF_VAULT_STORAGE_PATH = /storage/EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabedVault
-access(all) let WETH_VAULT_STORAGE_PATH = /storage/EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590Vault
-access(all) let WBTC_VAULT_STORAGE_PATH = /storage/EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579Vault
-
 // Protocol account: in fork mode, Test.deployContract() deploys to the contract's mainnet
 // alias address. FlowALPv0's mainnet alias is 0x47f544294e3b7656, so PoolFactory and all
 // pool admin resources are stored there. Note: this is the same address as wbtcHolder.
 access(all) let protocolAccount = Test.getAccount(0x47f544294e3b7656)
-
-access(all) let USDF_HOLDER = Test.getAccount(0xf18b50870aed46ad) // 25000
-access(all) let WETH_HOLDER = Test.getAccount(0xf62e3381a164f993) // 0.07032
-access(all) let WBTC_HOLDER = Test.getAccount(0x47f544294e3b7656) // 0.0005
-access(all) let FLOW_HOLDER = Test.getAccount(0xe467b9dd11fa00df) // 1921
-access(all) let USDC_HOLDER = Test.getAccount(0xec6119051f7adc31) // 97
 
 access(all) var snapshot: UInt64 = 0
 
@@ -73,7 +53,7 @@ access(all) fun setup() {
     err = Test.deployContract(
         name: "MockOracle",
         path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [MOET_TOKEN_IDENTIFIER_MAINNET]
+        arguments: [MAINNET_MOET_TOKEN_IDENTIFIER]
     )
     Test.expect(err, Test.beNil())
 
@@ -100,20 +80,20 @@ access(all) fun setup() {
     )
     Test.expect(err, Test.beNil())
 
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER_MAINNET, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     // Setup pool with real mainnet token prices
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, price: 1.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: USDC_TOKEN_IDENTIFIER, price: 1.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: USDF_TOKEN_IDENTIFIER, price: 1.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: WETH_TOKEN_IDENTIFIER, price: 3500.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: WBTC_TOKEN_IDENTIFIER, price: 50000.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MOET_TOKEN_IDENTIFIER_MAINNET, price: 1.0)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, price: 1.0)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER, price: 1.0)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, price: 1.0)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WETH_TOKEN_IDENTIFIER, price: 3500.0)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER, price: 50000.0)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER, price: 1.0)
 
     // Add multiple token types as supported collateral (FLOW, USDC, USDF, WETH, WBTC)
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
-        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET,
+        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -122,7 +102,7 @@ access(all) fun setup() {
 
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
-        tokenTypeIdentifier: USDC_TOKEN_IDENTIFIER,
+        tokenTypeIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER,
         collateralFactor: 0.85,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -131,7 +111,7 @@ access(all) fun setup() {
 
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
-        tokenTypeIdentifier: USDF_TOKEN_IDENTIFIER,
+        tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
         collateralFactor: 0.85,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -140,7 +120,7 @@ access(all) fun setup() {
 
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
-        tokenTypeIdentifier: WETH_TOKEN_IDENTIFIER,
+        tokenTypeIdentifier: MAINNET_WETH_TOKEN_IDENTIFIER,
         collateralFactor: 0.75,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -148,82 +128,20 @@ access(all) fun setup() {
     )
 
     // Set minimum deposit for WETH to 0.01 (since holder only has 0.07032)
-    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: WETH_TOKEN_IDENTIFIER, minimum: 0.01)
+    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: MAINNET_WETH_TOKEN_IDENTIFIER, minimum: 0.01)
 
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
-        tokenTypeIdentifier: WBTC_TOKEN_IDENTIFIER,
+        tokenTypeIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER,
         collateralFactor: 0.75,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
     )
     // Set minimum deposit for WBTC to 0.00001 (since holder only has 0.0005)
-    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: WBTC_TOKEN_IDENTIFIER, minimum: 0.00001)
+    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER, minimum: 0.00001)
 
     snapshot = getCurrentBlockHeight()
-}
-
-// Transfer tokens from holder to recipient (creates vault for recipient if needed)
-access(all) fun transferTokensFromHolder(holder: Test.TestAccount, recipient: Test.TestAccount, amount: UFix64, storagePath: StoragePath, tokenName: String) {
-    let tx = Test.Transaction(
-        code: Test.readFile("../transactions/test/transfer_tokens_with_setup.cdc"),
-        authorizers: [holder.address, recipient.address],
-        signers: [holder, recipient],
-        arguments: [amount, storagePath]
-    )
-    let result = Test.executeTransaction(tx)
-    Test.expect(result, Test.beSucceeded())
-}
-
-// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
-// The liquidator must hold sufficient debt tokens upfront.
-access(all) fun batchManualLiquidation(
-    pids: [UInt64],
-    debtVaultIdentifier: String,
-    seizeVaultIdentifiers: [String],
-    seizeAmounts: [UFix64],
-    repayAmounts: [UFix64],
-    signer: Test.TestAccount
-) {
-    let res = _executeTransaction(
-        "../transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
-        [pids, debtVaultIdentifier, seizeVaultIdentifiers, seizeAmounts, repayAmounts],
-        signer
-    )
-    Test.expect(res, Test.beSucceeded())
-}
-
-// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
-// chunkSize to stay within the computation limit.
-access(all) fun batchLiquidateViaMockDex(
-    pids: [UInt64],
-    debtVaultIdentifier: String,
-    seizeVaultIdentifiers: [String],
-    seizeAmounts: [UFix64],
-    repayAmounts: [UFix64],
-    chunkSize: Int,
-    signer: Test.TestAccount
-) {
-    let total = pids.length
-    let numChunks = (total + chunkSize - 1) / chunkSize
-    for i in InclusiveRange(0, numChunks - 1) {
-        let startIdx = i * chunkSize
-        var endIdx = startIdx + chunkSize
-        if endIdx > total {
-            endIdx = total
-        }
-        let res = _executeTransaction(
-            "../transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
-            [pids.slice(from: startIdx, upTo: endIdx),
-                debtVaultIdentifier,
-                seizeVaultIdentifiers.slice(from: startIdx, upTo: endIdx),
-                seizeAmounts.slice(from: startIdx, upTo: endIdx),
-                repayAmounts.slice(from: startIdx, upTo: endIdx)],
-            signer
-        )
-        Test.expect(res, Test.beSucceeded())
-    }
 }
 
 // Test Multiple Positions Per User
@@ -244,7 +162,7 @@ access(all) fun testMultiplePositionsPerUser() {
     // Transfer FLOW from holder to LP
     log("Setting up liquidity provider with FLOW\n")
     let liquidityAmount = 800.0
-    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: lpUser, amount: liquidityAmount, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, from: MAINNET_FLOW_HOLDER, to: lpUser, amount: liquidityAmount)
 
     // LP deposits FLOW to create liquidity for borrowing
     createPosition(admin: protocolAccount, signer: lpUser, amount: liquidityAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
@@ -261,11 +179,11 @@ access(all) fun testMultiplePositionsPerUser() {
     // - wbtcHolder: 0.0005 WBTC x $50000 = $25
 
     let positions = [
-        {"type": FLOW_TOKEN_IDENTIFIER_MAINNET, "amount": 500.0, "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": FLOW_HOLDER},
-        {"type": USDF_TOKEN_IDENTIFIER, "amount": 1500.0, "storagePath": USDF_VAULT_STORAGE_PATH, "name": "USDF", "holder": USDF_HOLDER},
-        {"type": USDC_TOKEN_IDENTIFIER, "amount": 10.0, "storagePath": USDC_VAULT_STORAGE_PATH, "name": "USDC", "holder": USDC_HOLDER},
-        {"type": WETH_TOKEN_IDENTIFIER, "amount": 0.05, "storagePath": WETH_VAULT_STORAGE_PATH, "name": "WETH", "holder": WETH_HOLDER},
-        {"type": WBTC_TOKEN_IDENTIFIER, "amount": 0.0004, "storagePath": WBTC_VAULT_STORAGE_PATH, "name": "WBTC", "holder": WBTC_HOLDER}
+        {"type": MAINNET_FLOW_TOKEN_IDENTIFIER, "amount": 500.0, "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": MAINNET_FLOW_HOLDER},
+        {"type": MAINNET_USDF_TOKEN_IDENTIFIER, "amount": 1500.0, "storagePath": MAINNET_USDF_STORAGE_PATH, "name": "USDF", "holder": MAINNET_USDF_HOLDER},
+        {"type": MAINNET_USDC_TOKEN_IDENTIFIER, "amount": 10.0, "storagePath": MAINNET_USDC_STORAGE_PATH, "name": "USDC", "holder": MAINNET_USDC_HOLDER},
+        {"type": MAINNET_WETH_TOKEN_IDENTIFIER, "amount": 0.05, "storagePath": MAINNET_WETH_STORAGE_PATH, "name": "WETH", "holder": MAINNET_WETH_HOLDER},
+        {"type": MAINNET_WBTC_TOKEN_IDENTIFIER, "amount": 0.0004, "storagePath": MAINNET_WBTC_STORAGE_PATH, "name": "WBTC", "holder": MAINNET_WBTC_HOLDER}
     ]
 
     let debts = [100.0, 150.0, 5.0, 50.0, 8.0]
@@ -280,7 +198,7 @@ access(all) fun testMultiplePositionsPerUser() {
         let holder = position["holder"]! as! Test.TestAccount
 
         // Transfer tokens from holder to user
-        transferTokensFromHolder(holder: holder, recipient: user, amount: collateralAmount, storagePath: storagePath, tokenName: collateralName)
+        transferTokensWithSetup(tokenIdentifier: collateralType, from: holder, to: user, amount: collateralAmount)
 
         createPosition(admin: protocolAccount, signer: user, amount: collateralAmount, vaultStoragePath: storagePath, pushToDrawDownSink: false)
         let openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
@@ -298,7 +216,7 @@ access(all) fun testMultiplePositionsPerUser() {
     var healths: [UFix128] = []
     for i, debt in debts {
         let pid = userPids[i]
-        borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: debt, beFailed: false)
+        borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: debt, beFailed: false)
 
         // Get health factor
         let health = getPositionHealth(pid: pid, beFailed: false)
@@ -316,7 +234,7 @@ access(all) fun testMultiplePositionsPerUser() {
     log("Testing isolation by borrowing more from Position \(isolationTestPid)\n")
 
     log("\n  Action: Borrow 100 more FLOW from Position \(isolationTestPid)\n")
-    borrowFromPosition(signer: user, positionId: isolationTestPid, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: additionalDebt, beFailed: false)
+    borrowFromPosition(signer: user, positionId: isolationTestPid, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: additionalDebt, beFailed: false)
 
     // Get health of all positions after
     var healthsAfterBorrow: [UFix128] = []
@@ -351,7 +269,7 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
 
     log("Setting up shared liquidity pool with limited capacity\n")
     let liquidityAmount = 400.0
-    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: lpUser, amount: liquidityAmount, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, from: MAINNET_FLOW_HOLDER, to: lpUser, amount: liquidityAmount)
 
     // LP deposits FLOW - this creates the shared liquidity pool
     createPosition(admin: protocolAccount, signer: lpUser, amount: liquidityAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
@@ -361,8 +279,8 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
 
     let userACollateral = 90.0  // 90 USDC
     log("Creating Position A with \(userACollateral) USDC collateral\n")
-    transferTokensFromHolder(holder: USDC_HOLDER, recipient: user, amount: userACollateral, storagePath: USDC_VAULT_STORAGE_PATH, tokenName: "USDC")
-    createPosition(admin: protocolAccount, signer: user, amount: userACollateral, vaultStoragePath: USDC_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER, from: MAINNET_USDC_HOLDER, to: user, amount: userACollateral)
+    createPosition(admin: protocolAccount, signer: user, amount: userACollateral, vaultStoragePath: MAINNET_USDC_STORAGE_PATH, pushToDrawDownSink: false)
     var openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
     let positionA_id = (openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid
 
@@ -370,8 +288,8 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
 
     let userBCollateral = 500.0  // 500 USDF
     log("Creating Position B with \(userBCollateral) USDF collateral\n")
-    transferTokensFromHolder(holder: USDF_HOLDER, recipient: user, amount: userBCollateral, storagePath: USDF_VAULT_STORAGE_PATH, tokenName: "USDF")
-    createPosition(admin: protocolAccount, signer: user, amount: userBCollateral, vaultStoragePath: USDF_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: user, amount: userBCollateral)
+    createPosition(admin: protocolAccount, signer: user, amount: userBCollateral, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
     openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
     let positionB_id = (openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid
 
@@ -382,7 +300,7 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
     // Max Borrow = 76.50 / 1.1 (minHealth) = 69.55 FLOW
     // Health after borrow = 76.50 / 60 = 1.275
     let positionA_borrow1 = 60.0  // Borrow 60 FLOW (within max 69.55)
-    borrowFromPosition(signer: user, positionId: positionA_id, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionA_borrow1, beFailed: false)
+    borrowFromPosition(signer: user, positionId: positionA_id, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionA_borrow1, beFailed: false)
 
     let healthA_after1 = getPositionHealth(pid: positionA_id, beFailed: false)
     log("  Position A borrowed \(positionA_borrow1) FLOW - Health: \(healthA_after1)\n")
@@ -397,7 +315,7 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
     // Max Borrow = 425.00 / 1.1 (minHealth) = 386.36 FLOW
     let positionB_borrow1 = 340.0  // Borrow 340 FLOW (within max 386.36 borrow and 340 remaining liquidity)
     log("  Attempting to borrow \(positionB_borrow1) FLOW...")
-    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionB_borrow1, beFailed: false)
+    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionB_borrow1, beFailed: false)
     log("  Success - Position B borrowed \(positionB_borrow1) FLOW")
     let healthB_after1 = getPositionHealth(pid: positionB_id, beFailed: false)
     log("  Position B Health: \(healthB_after1)\n")
@@ -409,7 +327,7 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
     // Position B can't borrow more because remaining liquidity is 0
     let positionB_borrow2_attempt = 1.0
     log("  Attempting to borrow \(positionB_borrow2_attempt) FLOW...")
-    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionB_borrow2_attempt, beFailed: true)
+    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionB_borrow2_attempt, beFailed: true)
     log("  Failed as expected - remaining liquidity is 0\n")
 
     let healthB_after2 = getPositionHealth(pid: positionB_id, beFailed: false)
@@ -440,7 +358,7 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
     log("  Position B health: \(healthB_before_priceChange)")
 
     // Crash USDC price (Position A's collateral) from $1.0 to $0.5
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: USDC_TOKEN_IDENTIFIER, price: 0.5)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER, price: 0.5)
 
     let healthA_after_crash = getPositionHealth(pid: positionA_id, beFailed: false)
     log("  Position A health after price crash: \(healthA_after_crash)\n")
@@ -459,7 +377,7 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
     // Position B has: 425 effective collateral, 340 borrowed, can borrow up to 46.36 more
     let positionB_borrow3 = 30.0  // Well within remaining capacity (40 FLOW available, 46.36 max allowed)
     log("  Position B attempts to borrow \(positionB_borrow3) FLOW after Position A's health deterioration...")
-    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionB_borrow3, beFailed: false)
+    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionB_borrow3, beFailed: false)
     log("  Success - Position B can still borrow despite Position A's poor health\n")
 
     let healthB_final = getPositionHealth(pid: positionB_id, beFailed: false)
@@ -484,7 +402,7 @@ access(all) fun testBatchLiquidations() {
 
     // LP deposits 600 FLOW to provide borrowing liquidity
     // (total borrows = 200+90+40+10+80 = 420 FLOW < 600)
-    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: lpUser, amount: 600.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, from: MAINNET_FLOW_HOLDER, to: lpUser, amount: 600.0)
     createPosition(admin: protocolAccount, signer: lpUser, amount: 600.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     // 5 positions with distinct collateral types:
@@ -500,22 +418,23 @@ access(all) fun testBatchLiquidations() {
     log("Creating 5 positions with different collateral types\n")
 
     let positions = [
-        {"type": USDF_TOKEN_IDENTIFIER,         "amount": 500.0,   "storagePath": USDF_VAULT_STORAGE_PATH, "name": "USDF", "holder": USDF_HOLDER, "borrow": 200.0},
-        {"type": WETH_TOKEN_IDENTIFIER,         "amount": 0.06,    "storagePath": WETH_VAULT_STORAGE_PATH, "name": "WETH", "holder": WETH_HOLDER, "borrow": 90.0},
-        {"type": USDC_TOKEN_IDENTIFIER,         "amount": 80.0,    "storagePath": USDC_VAULT_STORAGE_PATH, "name": "USDC", "holder": USDC_HOLDER, "borrow": 40.0},
-        {"type": WBTC_TOKEN_IDENTIFIER,         "amount": 0.0004,  "storagePath": WBTC_VAULT_STORAGE_PATH, "name": "WBTC", "holder": WBTC_HOLDER, "borrow": 10.0},
-        {"type": FLOW_TOKEN_IDENTIFIER_MAINNET, "amount": 200.0,   "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": FLOW_HOLDER, "borrow": 80.0}
+        {"type": MAINNET_USDF_TOKEN_IDENTIFIER,         "amount": 500.0,   "storagePath": MAINNET_USDF_STORAGE_PATH, "name": "USDF", "holder": MAINNET_USDF_HOLDER, "borrow": 200.0},
+        {"type": MAINNET_WETH_TOKEN_IDENTIFIER,         "amount": 0.06,    "storagePath": MAINNET_WETH_STORAGE_PATH, "name": "WETH", "holder": MAINNET_WETH_HOLDER, "borrow": 90.0},
+        {"type": MAINNET_USDC_TOKEN_IDENTIFIER,         "amount": 80.0,    "storagePath": MAINNET_USDC_STORAGE_PATH, "name": "USDC", "holder": MAINNET_USDC_HOLDER, "borrow": 40.0},
+        {"type": MAINNET_WBTC_TOKEN_IDENTIFIER,         "amount": 0.0004,  "storagePath": MAINNET_WBTC_STORAGE_PATH, "name": "WBTC", "holder": MAINNET_WBTC_HOLDER, "borrow": 10.0},
+        {"type": MAINNET_FLOW_TOKEN_IDENTIFIER, "amount": 200.0,   "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": MAINNET_FLOW_HOLDER, "borrow": 80.0}
     ]
 
     var userPids: [UInt64] = []
 
     for i, position in positions {
+        let collateralType = position["type"]! as! String
         let collateralName = position["name"]! as! String
         let collateralAmount = position["amount"]! as! UFix64
         let storagePath = position["storagePath"]! as! StoragePath
         let holder = position["holder"]! as! Test.TestAccount
 
-        transferTokensFromHolder(holder: holder, recipient: user, amount: collateralAmount, storagePath: storagePath, tokenName: collateralName)
+        transferTokensWithSetup(tokenIdentifier: collateralType, from: holder, to: user, amount: collateralAmount)
         createPosition(admin: protocolAccount, signer: user, amount: collateralAmount, vaultStoragePath: storagePath, pushToDrawDownSink: false)
         let openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
         userPids.append((openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid)
@@ -528,7 +447,7 @@ access(all) fun testBatchLiquidations() {
         let borrowAmount = position["borrow"]! as! UFix64
         let collateralName = position["name"]! as! String
 
-        borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: borrowAmount, beFailed: false)
+        borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: borrowAmount, beFailed: false)
 
         let health = getPositionHealth(pid: pid, beFailed: false)
         healths.append(health)
@@ -537,10 +456,10 @@ access(all) fun testBatchLiquidations() {
 
     // Crash collateral prices. FLOW stays at $1.0 so userPids[4] stays healthy.
     log("\nCrashing collateral prices to trigger liquidations\n")
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: USDF_TOKEN_IDENTIFIER, price: 0.3)     // -70%
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: WETH_TOKEN_IDENTIFIER, price: 1050.0)  // -70%
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: USDC_TOKEN_IDENTIFIER, price: 0.5)     // -50%
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: WBTC_TOKEN_IDENTIFIER, price: 25000.0) // -50%
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, price: 0.3)     // -70%
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WETH_TOKEN_IDENTIFIER, price: 1050.0)  // -70%
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER, price: 0.5)     // -50%
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER, price: 25000.0) // -50%
 
     log("\nPosition health after price crash:\n")
     for i in InclusiveRange(0, 4) {
@@ -566,34 +485,34 @@ access(all) fun testBatchLiquidations() {
     // Setup protocol account FLOW vault as the DEX output source.
     // priceRatio = Pc_crashed / Pd = post-crash collateral price / FLOW price.
     // This must match the oracle prices exactly to pass the DEX/oracle deviation check.
-    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: protocolAccount, amount: 300.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, from: MAINNET_FLOW_HOLDER, to: protocolAccount, amount: 300.0)
 
     log("\nSetting up DEX swappers (priceRatio = post-crash Pc / Pd)\n")
     setMockDexPriceForPair(
         signer: protocolAccount,
-        inVaultIdentifier: USDF_TOKEN_IDENTIFIER,
-        outVaultIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET,
+        inVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
+        outVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
         vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
         priceRatio: 0.3     // $0.30 USDF / $1.00 FLOW
     )
     setMockDexPriceForPair(
         signer: protocolAccount,
-        inVaultIdentifier: WETH_TOKEN_IDENTIFIER,
-        outVaultIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET,
+        inVaultIdentifier: MAINNET_WETH_TOKEN_IDENTIFIER,
+        outVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
         vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
         priceRatio: 1050.0  // $1050 WETH / $1.00 FLOW
     )
     setMockDexPriceForPair(
         signer: protocolAccount,
-        inVaultIdentifier: USDC_TOKEN_IDENTIFIER,
-        outVaultIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET,
+        inVaultIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER,
+        outVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
         vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
         priceRatio: 0.5     // $0.50 USDC / $1.00 FLOW
     )
     setMockDexPriceForPair(
         signer: protocolAccount,
-        inVaultIdentifier: WBTC_TOKEN_IDENTIFIER,
-        outVaultIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET,
+        inVaultIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER,
+        outVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
         vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
         priceRatio: 25000.0 // $25000 WBTC / $1.00 FLOW
     )
@@ -608,11 +527,11 @@ access(all) fun testBatchLiquidations() {
     //   USDC=12:  partial;  (80-17)*0.85*0.5            = 26.775 → repay=12 → postHealth=26.775/28≈0.956
     log("\nSetting up liquidator account\n")
     let liquidator = Test.createAccount()
-    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: liquidator, amount: 250.0,   storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
-    transferTokensFromHolder(holder: USDF_HOLDER, recipient: liquidator, amount: 1.0,     storagePath: USDF_VAULT_STORAGE_PATH, tokenName: "USDF")
-    transferTokensFromHolder(holder: WETH_HOLDER, recipient: liquidator, amount: 0.001,   storagePath: WETH_VAULT_STORAGE_PATH, tokenName: "WETH")
-    transferTokensFromHolder(holder: USDC_HOLDER, recipient: liquidator, amount: 1.0,     storagePath: USDC_VAULT_STORAGE_PATH, tokenName: "USDC")
-    transferTokensFromHolder(holder: WBTC_HOLDER, recipient: liquidator, amount: 0.00001, storagePath: WBTC_VAULT_STORAGE_PATH, tokenName: "WBTC")
+    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, from: MAINNET_FLOW_HOLDER, to: liquidator, amount: 250.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 1.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_WETH_TOKEN_IDENTIFIER, from: MAINNET_WETH_HOLDER, to: liquidator, amount: 0.001)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER, from: MAINNET_USDC_HOLDER, to: liquidator, amount: 1.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER, from: MAINNET_WBTC_HOLDER, to: liquidator, amount: 0.00001)
 
     // seize/repay values satisfy three constraints:
     //   1. seize < quote.inAmount         (offer beats DEX price)
@@ -637,13 +556,13 @@ access(all) fun testBatchLiquidations() {
 
     log("\nExecuting batch liquidation of 4 positions (2 full, 2 partial) in SINGLE transaction...\n")
     let batchPids          = [userPids[0],           userPids[1],           userPids[2],           userPids[3]          ]
-    let batchSeizeTypes    = [USDF_TOKEN_IDENTIFIER, WETH_TOKEN_IDENTIFIER, USDC_TOKEN_IDENTIFIER, WBTC_TOKEN_IDENTIFIER]
+    let batchSeizeTypes    = [MAINNET_USDF_TOKEN_IDENTIFIER, MAINNET_WETH_TOKEN_IDENTIFIER, MAINNET_USDC_TOKEN_IDENTIFIER, MAINNET_WBTC_TOKEN_IDENTIFIER]
     let batchSeizeAmounts  = [147.0,                 0.035,                 17.0,                  0.00011              ]
     let batchRepayAmounts  = [113.0,                 71.0,                  12.0,                  4.0                  ]
 
     batchManualLiquidation(
         pids: batchPids,
-        debtVaultIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET,
+        debtVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
         seizeVaultIdentifiers: batchSeizeTypes,
         seizeAmounts: batchSeizeAmounts,
         repayAmounts: batchRepayAmounts,
@@ -710,9 +629,6 @@ access(all) fun testBatchLiquidations() {
 //                                                          DEX:  0.8 < 0.6/0.6    = 1.00
 //     WBTC:       seize 0.00003 WBTC,  repay 1.18 FLOW → post = (0.00006)×22500/(2.5-1.18)  = 1.023
 //                                                          DEX:  0.00003 < 1.18/30000 = 0.0000393
-//
-//   Batch order (worst health first): USDF-high (0.729) → USDC-high (0.729) → WBTC (0.810) → USDF-mod (0.850) → USDC-mod (0.850)
-//
 // Token budget (mainnet):
 //   flowHolder  (1921 FLOW): 450 LP + 230 DEX source = 680 FLOW total
 //   usdfHolder (25000 USDF): 500 USDF for 50 positions
@@ -731,7 +647,7 @@ access(all) fun testMassUnhealthyLiquidations() {
 
     // LP deposits 450 FLOW — covers the ~397 FLOW of total borrows with headroom.
     log("LP depositing 450 FLOW to shared liquidity pool\n")
-    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: lpUser, amount: 450.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, from: MAINNET_FLOW_HOLDER, to: lpUser, amount: 450.0)
     createPosition(admin: protocolAccount, signer: lpUser, amount: 450.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     //////////// Transfer collateral to user ///////////////////
@@ -740,9 +656,9 @@ access(all) fun testMassUnhealthyLiquidations() {
     // Group B: 45 positions × 2 USDC  = 90 USDC
     // Group C:  5 positions × 0.00009 WBTC = 0.00045 WBTC
     log("Transferring collateral: 500 USDF + 90 USDC + 0.00045 WBTC\n")
-    transferTokensFromHolder(holder: USDF_HOLDER, recipient: user, amount: 500.0, storagePath: USDF_VAULT_STORAGE_PATH, tokenName: "USDF")
-    transferTokensFromHolder(holder: USDC_HOLDER, recipient: user, amount: 90.0,  storagePath: USDC_VAULT_STORAGE_PATH, tokenName: "USDC")
-    transferTokensFromHolder(holder: WBTC_HOLDER, recipient: user, amount: 0.00045, storagePath: WBTC_VAULT_STORAGE_PATH, tokenName: "WBTC")
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: user, amount: 500.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER, from: MAINNET_USDC_HOLDER, to: user, amount: 90.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER, from: MAINNET_WBTC_HOLDER, to: user, amount: 0.00045)
 
     //////////// Create 100 positions ///////////////////
 
@@ -751,7 +667,7 @@ access(all) fun testMassUnhealthyLiquidations() {
     // Group A — 50 USDF positions
     log("Creating 50 USDF positions (10 USDF each)...\n")
     for i in InclusiveRange(0, 49) {
-        createPosition(admin: protocolAccount, signer: user, amount: 10.0, vaultStoragePath: USDF_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+        createPosition(admin: protocolAccount, signer: user, amount: 10.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
         let openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
         allPids.append((openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid)
     }
@@ -759,7 +675,7 @@ access(all) fun testMassUnhealthyLiquidations() {
     // Group B — 45 USDC positions
     log("Creating 45 USDC positions (2 USDC each)...\n")
     for i in InclusiveRange(50, 94) {
-        createPosition(admin: protocolAccount, signer: user, amount: 2.0, vaultStoragePath: USDC_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+        createPosition(admin: protocolAccount, signer: user, amount: 2.0, vaultStoragePath: MAINNET_USDC_STORAGE_PATH, pushToDrawDownSink: false)
         let openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
         allPids.append((openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid)
     }
@@ -767,7 +683,7 @@ access(all) fun testMassUnhealthyLiquidations() {
     // Group C — 5 WBTC positions
     log("Creating 5 WBTC positions (0.00009 WBTC each)...\n")
     for i in InclusiveRange(95, 99) {
-        createPosition(admin: protocolAccount, signer: user, amount: 0.00009, vaultStoragePath: WBTC_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+        createPosition(admin: protocolAccount, signer: user, amount: 0.00009, vaultStoragePath: MAINNET_WBTC_STORAGE_PATH, pushToDrawDownSink: false)
         let openEvts = Test.eventsOfType(Type<FlowALPv0.Opened>())
         allPids.append((openEvts[openEvts.length - 1] as! FlowALPv0.Opened).pid)
     }
@@ -781,10 +697,10 @@ access(all) fun testMassUnhealthyLiquidations() {
     //   moderate  [25..49]: borrow 6.0 FLOW → health = (10×1.0×0.85)/6.0  = 1.417
     log("Borrowing FLOW from 50 USDF positions...\n")
     for i in InclusiveRange(0, 24) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 7.0, beFailed: false)
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 7.0, beFailed: false)
     }
     for i in InclusiveRange(25, 49) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 6.0, beFailed: false)
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 6.0, beFailed: false)
     }
 
     // Group B — USDC positions:
@@ -792,17 +708,17 @@ access(all) fun testMassUnhealthyLiquidations() {
     //   moderate  [73..94]: borrow 1.2 FLOW → health = (2×1.0×0.85)/1.2  = 1.417
     log("Borrowing FLOW from 45 USDC positions...\n")
     for i in InclusiveRange(50, 72) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 1.4, beFailed: false)
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 1.4, beFailed: false)
     }
     for i in InclusiveRange(73, 94) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 1.2, beFailed: false)
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 1.2, beFailed: false)
     }
 
     // Group C — WBTC positions:
     //   uniform  [95..99]: borrow 2.5 FLOW → health = (0.00009×50000×0.75)/2.5 = 1.350
     log("Borrowing FLOW from 5 WBTC positions...\n")
     for i in InclusiveRange(95, 99) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 2.5, beFailed: false)
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 2.5, beFailed: false)
     }
 
     // Confirm all 100 positions are healthy before the crash
@@ -820,9 +736,9 @@ access(all) fun testMassUnhealthyLiquidations() {
     //   USDC high: (2×0.60×0.85)/1.4         = 0.729   USDC mod:  (2×0.60×0.85)/1.2        = 0.850
     //   WBTC:      (0.00009×30000×0.75)/2.5  = 0.810
     log("All three collateral types crash 40% simultaneously\n")
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: USDF_TOKEN_IDENTIFIER, price: 0.6)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: USDC_TOKEN_IDENTIFIER, price: 0.6)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: WBTC_TOKEN_IDENTIFIER, price: 30000.0)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, price: 0.6)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER, price: 0.6)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER, price: 30000.0)
 
     // Capture post-crash health by token type and verify all positions are unhealthy
     var usdfHealths: [UFix128] = []
@@ -865,25 +781,25 @@ access(all) fun testMassUnhealthyLiquidations() {
     // Total DEX FLOW: 25×4.0 + 25×3.0 + 23×0.8 + 22×0.6 + 5×1.18
     //               = 100 + 75 + 18.4 + 13.2 + 5.90 = 212.50; transfer 230 for headroom
     log("Configuring DEX pairs: USDF→FLOW, USDC→FLOW, WBTC→FLOW\n")
-    transferTokensFromHolder(holder: FLOW_HOLDER, recipient: protocolAccount, amount: 230.0, storagePath: FLOW_VAULT_STORAGE_PATH, tokenName: "FLOW")
+    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, from: MAINNET_FLOW_HOLDER, to: protocolAccount, amount: 230.0)
     setMockDexPriceForPair(
         signer: protocolAccount,
-        inVaultIdentifier: USDF_TOKEN_IDENTIFIER,
-        outVaultIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET,
+        inVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
+        outVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
         vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
         priceRatio: 0.6      // $0.60 USDF / $1.00 FLOW
     )
     setMockDexPriceForPair(
         signer: protocolAccount,
-        inVaultIdentifier: USDC_TOKEN_IDENTIFIER,
-        outVaultIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET,
+        inVaultIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER,
+        outVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
         vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
         priceRatio: 0.6      // $0.60 USDC / $1.00 FLOW
     )
     setMockDexPriceForPair(
         signer: protocolAccount,
-        inVaultIdentifier: WBTC_TOKEN_IDENTIFIER,
-        outVaultIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET,
+        inVaultIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER,
+        outVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
         vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
         priceRatio: 30000.0  // $30000 WBTC / $1.00 FLOW
     )
@@ -904,35 +820,35 @@ access(all) fun testMassUnhealthyLiquidations() {
     // USDF high-risk [0..24]
     for i in InclusiveRange(0, 24) {
         batchPids.append(allPids[i])
-        batchSeize.append(USDF_TOKEN_IDENTIFIER)
+        batchSeize.append(MAINNET_USDF_TOKEN_IDENTIFIER)
         batchAmounts.append(4.0)
         batchRepay.append(4.0)
     }
     // USDC high-risk [50..72]
     for i in InclusiveRange(50, 72) {
         batchPids.append(allPids[i])
-        batchSeize.append(USDC_TOKEN_IDENTIFIER)
+        batchSeize.append(MAINNET_USDC_TOKEN_IDENTIFIER)
         batchAmounts.append(0.8)
         batchRepay.append(0.8)
     }
     // WBTC uniform [95..99]
     for i in InclusiveRange(95, 99) {
         batchPids.append(allPids[i])
-        batchSeize.append(WBTC_TOKEN_IDENTIFIER)
+        batchSeize.append(MAINNET_WBTC_TOKEN_IDENTIFIER)
         batchAmounts.append(0.00003)
         batchRepay.append(1.18)
     }
     // USDF moderate [25..49]
     for i in InclusiveRange(25, 49) {
         batchPids.append(allPids[i])
-        batchSeize.append(USDF_TOKEN_IDENTIFIER)
+        batchSeize.append(MAINNET_USDF_TOKEN_IDENTIFIER)
         batchAmounts.append(4.0)
         batchRepay.append(3.0)
     }
     // USDC moderate [73..94]
     for i in InclusiveRange(73, 94) {
         batchPids.append(allPids[i])
-        batchSeize.append(USDC_TOKEN_IDENTIFIER)
+        batchSeize.append(MAINNET_USDC_TOKEN_IDENTIFIER)
         batchAmounts.append(0.8)
         batchRepay.append(0.6)
     }
@@ -946,7 +862,7 @@ access(all) fun testMassUnhealthyLiquidations() {
     log("Liquidating all 100 positions via DEX in chunks of 10...\n")
     batchLiquidateViaMockDex(
         pids: batchPids,
-        debtVaultIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET,
+        debtVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
         seizeVaultIdentifiers: batchSeize,
         seizeAmounts: batchAmounts,
         repayAmounts: batchRepay,
@@ -981,7 +897,7 @@ access(all) fun testMassUnhealthyLiquidations() {
     }
 
     // Protocol solvency: FLOW reserve must remain positive after mass liquidation
-    let reserveBalance = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER_MAINNET)
+    let reserveBalance = getReserveBalance(vaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER)
     log("Protocol FLOW reserve after mass liquidation: \(reserveBalance)\n")
     Test.assert(reserveBalance > 0.0, message: "Protocol must remain solvent (positive FLOW reserve) after mass liquidation")
 }
