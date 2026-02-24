@@ -3025,7 +3025,7 @@ access(all) contract FlowALPv0 {
 
             // This is applied to both credit and debit balances, with the main goal being to avoid dust positions.
             assert(
-                remainingBalance = 0.0 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
+                remainingBalance == 0.0 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
                 message: "Withdrawal would leave position below minimum balance requirement of \(self.globalLedger[type]!.minimumTokenBalancePerPosition). Remaining balance would be \(remainingBalance)."
             )
 
