@@ -46,10 +46,10 @@ access(all) let MAINNET_WETH_STORAGE_PATH = /storage/EVMVMBridgedToken_2f6f07cdc
 access(all) let MAINNET_WBTC_STORAGE_PATH = /storage/EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579Vault
 access(all) let MAINNET_MOET_STORAGE_PATH = /storage/moetTokenVault_0x6b00ff876c299c61
 
-access(all) let MAINNET_PROTOCOL_ACCOUNT = Test.getAccount(0x6b00ff876c299c61)
-access(all) let MAINNET_USDF_HOLDER = Test.getAccount(0xf18b50870aed46ad)
-access(all) let MAINNET_WETH_HOLDER = Test.getAccount(0xf62e3381a164f993)
-access(all) let MAINNET_WBTC_HOLDER = Test.getAccount(0x47f544294e3b7656)
+access(all) let MAINNET_PROTOCOL_ACCOUNT_ADDRESS: Address = 0x6b00ff876c299c61
+access(all) let MAINNET_USDF_HOLDER_ADDRESS: Address = 0xf18b50870aed46ad
+access(all) let MAINNET_WETH_HOLDER_ADDRESS: Address = 0xf62e3381a164f993
+access(all) let MAINNET_WBTC_HOLDER_ADDRESS: Address = 0x47f544294e3b7656
 
 /* --- Test execution helpers --- */
 

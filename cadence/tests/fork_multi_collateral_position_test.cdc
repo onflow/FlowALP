@@ -10,6 +10,11 @@ import "FlowALPv0"
 
 import "test_helpers.cdc"
 
+access(all) let MAINNET_PROTOCOL_ACCOUNT = Test.getAccount(MAINNET_PROTOCOL_ACCOUNT_ADDRESS)
+access(all) let MAINNET_USDF_HOLDER = Test.getAccount(MAINNET_USDF_HOLDER_ADDRESS)
+access(all) let MAINNET_WETH_HOLDER = Test.getAccount(MAINNET_WETH_HOLDER_ADDRESS)
+access(all) let MAINNET_WBTC_HOLDER = Test.getAccount(MAINNET_WBTC_HOLDER_ADDRESS)
+
 // -----------------------------------------------------------------------------
 // Multi-Collateral Position Tests with EVM Bridged Tokens
 // -----------------------------------------------------------------------------
