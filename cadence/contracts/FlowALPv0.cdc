@@ -57,6 +57,18 @@ access(all) contract FlowALPv0 {
         withdrawnUUID: UInt64
     )
 
+    /// Emitted when a position is closed via the closePosition() method.
+    /// This indicates a full position closure with debt repayment and collateral extraction.
+    access(all) event PositionClosed(
+        pid: UInt64,
+        poolUUID: UInt64,
+        repaymentAmount: UFix64,
+        repaymentType: Type,
+        collateralAmount: UFix64,
+        collateralType: Type,
+        finalDebt: UFix128
+    )
+
     access(all) event Rebalanced(
         pid: UInt64,
         poolUUID: UInt64,
@@ -3013,7 +3025,7 @@ access(all) contract FlowALPv0 {
 
             // This is applied to both credit and debit balances, with the main goal being to avoid dust positions.
             assert(
-                remainingBalance < 0.00000300 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
+                remainingBalance = 0.0 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
                 message: "Withdrawal would leave position below minimum balance requirement of \(self.globalLedger[type]!.minimumTokenBalancePerPosition). Remaining balance would be \(remainingBalance)."
             )
 
@@ -3032,6 +3044,157 @@ access(all) contract FlowALPv0 {
 
             self._unlockPosition(pid)
             return <- withdrawn
+        }
+
+        /// Closes a position by repaying all debt and returning all residual collateral.
+        /// This is the recommended way to close a leveraged position that may have dust residuals.
+        ///
+        /// This method follows the same pattern as withdrawAndPull():
+        /// - Pulls ONLY the exact amount needed from the repayment source
+        /// - Returns ALL collateral (including dust) as a vault
+        ///
+        /// Steps:
+        /// 1. Calculates total debt
+        /// 2. Pulls exact repayment amount from source
+        /// 3. Deposits repayment to eliminate debt
+        /// 4. Verifies debt is fully repaid (near-zero)
+        /// 5. Withdraws ALL remaining collateral (including dust)
+        /// 6. Returns collateral vault
+        ///
+        /// @param pid: Position ID to close
+        /// @param repaymentSource: Source to pull debt repayment from (e.g., AutoBalancer with YT)
+        /// @param collateralType: Type of collateral to extract and return (e.g., FlowToken)
+        /// @return Vault containing all collateral including dust
+        access(EPosition) fun closePosition(
+            pid: UInt64,
+            repaymentSource: auth(FungibleToken.Withdraw) &{DeFiActions.Source},
+            collateralType: Type
+        ): @{FungibleToken.Vault} {
+            pre {
+                !self.isPausedOrWarmup(): "Operations are paused by governance"
+                self.positions[pid] != nil: "Invalid position ID"
+            }
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
+
+            self._lockPosition(pid)
+
+            if self.debugLogging {
+                log("    [CONTRACT] closePosition(pid: \(pid), collateralType: \(collateralType.identifier))")
+            }
+
+            // Step 1: Calculate total debt that needs to be repaid
+            let positionDetails = self.getPositionDetails(pid: pid)
+            var totalDebtAmount: UFix64 = 0.0
+            var debtType: Type? = nil
+
+            for balance in positionDetails.balances {
+                if balance.direction == BalanceDirection.Debit {
+                    // Accumulate debt (assuming single debt type for now)
+                    totalDebtAmount = totalDebtAmount + UFix64(balance.balance)
+                    debtType = balance.vaultType
+                }
+            }
+
+            // Verify we have debt to repay (or allow closing if already no debt)
+            if totalDebtAmount == 0.0 {
+                // No debt - just withdraw all collateral
+                let collateralBalance = self.buildPositionView(pid: pid).trueBalance(ofToken: collateralType)
+                let withdrawn <- self.withdrawAndPull(
+                    pid: pid,
+                    type: collateralType,
+                    amount: UFix64(collateralBalance),
+                    pullFromTopUpSource: false
+                )
+
+                emit PositionClosed(
+                    pid: pid,
+                    poolUUID: self.uuid,
+                    repaymentAmount: 0.0,
+                    repaymentType: collateralType,
+                    collateralAmount: withdrawn.balance,
+                    collateralType: collateralType,
+                    finalDebt: 0.0
+                )
+
+                self._unlockPosition(pid)
+                return <-withdrawn
+            }
+
+            // Step 3: Pull EXACT amount needed from repayment source
+            let repaymentVault <- repaymentSource.withdrawAvailable(maxAmount: totalDebtAmount)
+            let actualRepayment = repaymentVault.balance
+            let repaymentType = repaymentVault.getType()
+
+            // Verify source provided sufficient funds
+            assert(
+                actualRepayment >= totalDebtAmount * 0.9999,  // Allow 0.01% slippage for rounding
+                message: "Repayment source provided insufficient funds: \(actualRepayment) < \(totalDebtAmount)"
+            )
+
+            // Step 4: Deposit repayment funds to eliminate debt
+            self._depositEffectsOnly(pid: pid, from: <-repaymentVault)
+
+            // Step 5: Verify debt is fully repaid
+            let updatedDetails = self.getPositionDetails(pid: pid)
+            var totalEffectiveDebt: UFix128 = 0.0
+
+            for balance in updatedDetails.balances {
+                if balance.direction == BalanceDirection.Debit {
+                    let tokenState = self._borrowUpdatedTokenState(type: balance.vaultType)
+                    totalEffectiveDebt = totalEffectiveDebt + tokenState.effectiveDebt(debitBalance: balance.balance)
+                }
+            }
+
+            // Require debt to be near-zero (allow tiny precision errors)
+            assert(
+                totalEffectiveDebt < UFix128(0.00001),
+                message: "Cannot close position - outstanding debt remains: \(totalEffectiveDebt) USD. ".concat(
+                    "Repayment of \(actualRepayment) was insufficient.")
+            )
+
+            // Step 6: Calculate total collateral balance
+            var collateralBalance: UFix128 = 0.0
+
+            for balance in updatedDetails.balances {
+                if balance.vaultType == collateralType && balance.direction == BalanceDirection.Credit {
+                    collateralBalance = balance.balance
+                    break
+                }
+            }
+
+            assert(
+                collateralBalance > 0.0,
+                message: "No collateral of type \(collateralType.identifier) found in position"
+            )
+
+            // Step 7: Withdraw ALL collateral (including dust via withdrawAndPull's dust sweeping)
+            // Note: Position is already locked, so we use withdrawAndPull which will try to lock again
+            // We need to unlock first, then let withdrawAndPull lock it
+            self._unlockPosition(pid)
+
+            let collateral <- self.withdrawAndPull(
+                pid: pid,
+                type: collateralType,
+                amount: UFix64(collateralBalance),
+                pullFromTopUpSource: false
+            )
+
+            let finalCollateralAmount = collateral.balance
+
+            // Emit event for position closure
+            emit PositionClosed(
+                pid: pid,
+                poolUUID: self.uuid,
+                repaymentAmount: actualRepayment,
+                repaymentType: repaymentType,
+                collateralAmount: finalCollateralAmount,
+                collateralType: collateralType,
+                finalDebt: totalEffectiveDebt
+            )
+
+            return <-collateral
         }
 
         ///////////////////////
@@ -3962,6 +4125,27 @@ access(all) contract FlowALPv0 {
                 type: type,
                 amount: amount,
                 pullFromTopUpSource: pullFromTopUpSource
+            )
+        }
+
+        /// Closes the position by repaying all debt and returning all residual collateral.
+        /// This is the recommended way to close a leveraged position that may have dust residuals.
+        ///
+        /// This is a convenience wrapper that delegates to Pool.closePosition().
+        /// See Pool.closePosition() for detailed documentation.
+        ///
+        /// @param repaymentSource: Source to pull debt repayment from (e.g., AutoBalancer with YT)
+        /// @param collateralType: Type of collateral to extract and return (e.g., FlowToken)
+        /// @return Vault containing all collateral including dust
+        access(FungibleToken.Withdraw) fun closePosition(
+            repaymentSource: auth(FungibleToken.Withdraw) &{DeFiActions.Source},
+            collateralType: Type
+        ): @{FungibleToken.Vault} {
+            let pool = self.pool.borrow()!
+            return <- pool.closePosition(
+                pid: self.id,
+                repaymentSource: repaymentSource,
+                collateralType: collateralType
             )
         }
 
