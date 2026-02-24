@@ -1,7 +1,7 @@
 import Test
 import BlockchainHelpers
 
-import "FlowPriceOracleRouterv1"
+import "PriceOracleRouterv1"
 import "FlowToken"
 import "MOET"
 import "ExampleToken1"

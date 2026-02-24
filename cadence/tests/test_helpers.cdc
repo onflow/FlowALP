@@ -119,8 +119,8 @@ fun deployContracts() {
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
-        name: "FlowPriceOracleAggregatorv1",
-        path: "../contracts/FlowPriceOracleAggregatorv1.cdc",
+        name: "PriceOracleAggregatorv1",
+        path: "../contracts/PriceOracleAggregatorv1.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -206,8 +206,8 @@ fun deployContracts() {
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
-        name: "FlowPriceOracleRouterv1",
-        path: "../contracts/FlowPriceOracleRouterv1.cdc",
+        name: "PriceOracleRouterv1",
+        path: "../contracts/PriceOracleRouterv1.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())

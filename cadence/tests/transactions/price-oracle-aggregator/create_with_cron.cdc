@@ -1,5 +1,5 @@
 import "DeFiActions"
-import "FlowPriceOracleAggregatorv1"
+import "PriceOracleAggregatorv1"
 import "FlowTransactionScheduler"
 import "FlowTransactionSchedulerUtils"
 import "FungibleToken"
@@ -42,7 +42,7 @@ transaction(
     }
 
     execute {
-        let uuid = FlowPriceOracleAggregatorv1.createPriceOracleAggregatorStorage(
+        let uuid = PriceOracleAggregatorv1.createPriceOracleAggregatorStorage(
             ofToken: ofToken,
             oracles: self.oracles,
             maxSpread: maxSpread,
@@ -57,7 +57,7 @@ transaction(
 
         // Create cron handler for the aggregator, look at flow-cron for reference
 
-        let aggregatorCronHandler <- FlowPriceOracleAggregatorv1.createPriceOracleCronHandler(storageID: uuid)
+        let aggregatorCronHandler <- PriceOracleAggregatorv1.createPriceOracleCronHandler(storageID: uuid)
         self.signer.storage.save(<-aggregatorCronHandler, to: aggregatorCronHandlerStoragePath)
         let wrappedHandlerCap = self.signer.capabilities.storage.issue<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>(aggregatorCronHandlerStoragePath)
         assert(wrappedHandlerCap.check(), message: "Invalid wrapped handler capability")

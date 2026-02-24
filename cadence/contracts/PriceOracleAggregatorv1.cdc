@@ -2,7 +2,7 @@ import "FlowToken"
 import "DeFiActions"
 import "FlowTransactionScheduler"
 
-/// FlowPriceOracleAggregatorv1 combines multiple `DeFiActions.PriceOracle`
+/// PriceOracleAggregatorv1 combines multiple `DeFiActions.PriceOracle`
 /// sources into a single trusted oracle. A price is returned only when:
 /// - All oracles return a value (no missing data),
 /// - The spread between min and max oracle prices is within `maxSpread`,
@@ -11,7 +11,7 @@ import "FlowTransactionScheduler"
 /// One aggregator instance = one market (one token type). For multiple
 /// markets, create one storage per market and use a router to expose them.
 /// Config is immutable at creation to avoid accidental changes in production.
-access(all) contract FlowPriceOracleAggregatorv1 {
+access(all) contract PriceOracleAggregatorv1 {
 
     /// Emitted when a new aggregator storage is created.
     access(all) event StorageCreated(storageID: UInt64)
@@ -143,11 +143,12 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             if prices == nil || prices!.length == 0 {
                 return nil
             }
-            if !self.isWithinSpreadTolerance(prices: prices!) {
+            let validPrices = prices!
+            if !self.isWithinSpreadTolerance(prices: validPrices) {
                 return nil
             }
-            let price = self.trimmedMeanPrice(prices: prices!)
-            self.tryAddPriceToHistoryInternal(price: price!, now: now)
+            let price = self.trimmedMeanPrice(prices: validPrices)
+            self.tryAddPriceToHistoryInternal(price: price, now: now)
             return price
         }
 
@@ -192,11 +193,12 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             return true
         }
 
-        access(self) view fun trimmedMeanPrice(prices: [UFix64]): UFix64? {
+        /// will panic if prices is empty
+        access(self) view fun trimmedMeanPrice(prices: [UFix64]): UFix64 {
             let count = prices.length
 
             // Handle edge cases where trimming isn't possible
-            if count == 0 { return nil }
+            if count == 0 { panic("No prices to compute trimmed mean") }
             if count == 1 { return prices[0] }
             if count == 2 { return (prices[0] + prices[1]) / 2.0 }
 
@@ -259,8 +261,8 @@ access(all) contract FlowPriceOracleAggregatorv1 {
             // Only append if enough time has passed since the last entry.
             if self.priceHistory.length > 0 {
                 let lastEntry = self.priceHistory[self.priceHistory.length - 1]
-                let timeSinceLastEntry = now - lastEntry.timestamp
-                if timeSinceLastEntry < self.priceHistoryInterval {
+                let nextEntryTimestamp = lastEntry.timestamp + self.priceHistoryInterval
+                if now < nextEntryTimestamp {
                     return
                 }
             }
@@ -284,7 +286,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         init(storageID: UInt64) {
             self.storageID = storageID
             self.uniqueID = DeFiActions.createUniqueIdentifier()
-            if FlowPriceOracleAggregatorv1.storage.containsKey(self.storageID) == false {
+            if PriceOracleAggregatorv1.storage.containsKey(self.storageID) == false {
                 panic("Storage not found for storageID: \(self.storageID)")
             }
         }
@@ -326,7 +328,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         }
 
         access(self) view fun borrowPriceOracleAggregator(): &PriceOracleAggregatorStorage {
-            return (&FlowPriceOracleAggregatorv1.storage[self.storageID])!
+            return (&PriceOracleAggregatorv1.storage[self.storageID])!
         }
     }
 
@@ -348,7 +350,7 @@ access(all) contract FlowPriceOracleAggregatorv1 {
         }
 
         access(self) view fun borrowPriceOracleAggregator(): &PriceOracleAggregatorStorage {
-            return (&FlowPriceOracleAggregatorv1.storage[self.storageID])!
+            return (&PriceOracleAggregatorv1.storage[self.storageID])!
         }
     }
 

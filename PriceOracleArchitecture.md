@@ -11,8 +11,8 @@ Two contracts implement this design:
 
 | Contract | Role |
 |----------|------|
-| **FlowPriceOracleAggregatorv1** | Combines multiple price sources for **one** market (e.g. several FLOW/USDC oracles). Returns a price only when sources agree within spread tolerance and short-term history is within `baseTolerance` + `driftExpansionRate` (stability). |
-| **FlowPriceOracleRouterv1** | Exposes **one** `DeFiActions.PriceOracle` that routes by token type. Each token has its own oracle; typically each oracle is an aggregator. |
+| **PriceOracleAggregatorv1** | Combines multiple price sources for **one** market (e.g. several FLOW/USDC oracles). Returns a price only when sources agree within spread tolerance and short-term history is within `baseTolerance` + `driftExpansionRate` (stability). |
+| **PriceOracleRouterv1** | Exposes **one** `DeFiActions.PriceOracle` that routes by token type. Each token has its own oracle; typically each oracle is an aggregator. |
 
 Typical usage: create one **aggregator** per market (same token pair, multiple sources), then register each aggregator in a **router** under the corresponding token type. The protocol then uses the router as its single oracle.
 
@@ -25,7 +25,7 @@ The **Aggregator** and **Router** are immutable by design to eliminate the risks
 * **Timelock Compatibility:** Since updates require a fresh deployment, it is easy to implement an "Escape Period" (Timelock). This introduces a mandatory delay before a new oracle address takes effect, giving users time to react or exit before the change goes live.
 * **Transparent Auditing:** Every change is recorded on-chain via the `PriceOracleUpdated` event, ensuring all shifts in logic or parameters are visible and expected.
 
-## FlowPriceOracleAggregatorv1
+## PriceOracleAggregatorv1
 
 One aggregated oracle per “market” (e.g. FLOW in USDC). Multiple underlying oracles, single unit of account, fixed tolerances.
 - **Price flow:**
@@ -99,7 +99,7 @@ Implementationally, entries older than `maxPriceHistoryAge` are ignored when eva
 
 **Parameter units:** `maxSpread`, `baseTolerance`, and `driftExpansionRate` are dimensionless relative values (e.g. `0.01` = 1%, `1.0` = 100%). All are bounded by the contract to ≤ 10000.0.
 
-## FlowPriceOracleRouterv1
+## PriceOracleRouterv1
 
 Single oracle interface that routes by **token type**. Each token type maps to an oracle. This makes it easy to combine different aggregators without the need to supply different kinds of thresholds for individual token types.
 

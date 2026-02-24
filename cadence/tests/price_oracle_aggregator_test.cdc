@@ -1,7 +1,7 @@
 import Test
 import BlockchainHelpers
 
-import "FlowPriceOracleAggregatorv1"
+import "PriceOracleAggregatorv1"
 import "FlowToken"
 import "MOET"
 import "MultiMockOracle"
@@ -590,9 +590,9 @@ access(all) fun test_events() {
         storageID: info.aggregatorStorageID,
         ofToken: Type<@FlowToken.Vault>()
     )
-    let notAvailEvents = Test.eventsOfType(Type<FlowPriceOracleAggregatorv1.PriceNotAvailable>())
+    let notAvailEvents = Test.eventsOfType(Type<PriceOracleAggregatorv1.PriceNotAvailable>())
     Test.assert(notAvailEvents.length == 1, message: "expected exactly one PriceNotAvailable event")
-    let notAvailData = notAvailEvents[0] as! FlowPriceOracleAggregatorv1.PriceNotAvailable
+    let notAvailData = notAvailEvents[0] as! PriceOracleAggregatorv1.PriceNotAvailable
     Test.assert(notAvailData.oracleType == Type<MultiMockOracle.PriceOracle>(), message: "oracleType should be MultiMockOracle.PriceOracle")
 
     // 2. PriceNotWithinSpreadTolerance: spread between oracles exceeds maxSpread
@@ -605,9 +605,9 @@ access(all) fun test_events() {
         storageID: info.aggregatorStorageID,
         ofToken: Type<@FlowToken.Vault>()
     )
-    let spreadEvents = Test.eventsOfType(Type<FlowPriceOracleAggregatorv1.PriceNotWithinSpreadTolerance>())
+    let spreadEvents = Test.eventsOfType(Type<PriceOracleAggregatorv1.PriceNotWithinSpreadTolerance>())
     Test.assert(spreadEvents.length == 1, message: "expected exactly one PriceNotWithinSpreadTolerance event")
-    let spreadData = spreadEvents[0] as! FlowPriceOracleAggregatorv1.PriceNotWithinSpreadTolerance
+    let spreadData = spreadEvents[0] as! PriceOracleAggregatorv1.PriceNotWithinSpreadTolerance
     Test.assert(spreadData.spread >= 2.0, message: "spread should be greater than 2.0")
     Test.assert(spreadData.maxAllowedSpread >= 1.0, message: "maxAllowedSpread should be greater than 1.0")
 
@@ -637,9 +637,9 @@ access(all) fun test_events() {
         storageID: info.aggregatorStorageID,
         ofToken: Type<@FlowToken.Vault>()
     )
-    let historyEvents = Test.eventsOfType(Type<FlowPriceOracleAggregatorv1.PriceNotWithinHistoryTolerance>())
+    let historyEvents = Test.eventsOfType(Type<PriceOracleAggregatorv1.PriceNotWithinHistoryTolerance>())
     Test.assert(historyEvents.length == 1, message: "expected exactly one PriceNotWithinHistoryTolerance event got \(historyEvents.length)")
-    let historyData = historyEvents[0] as! FlowPriceOracleAggregatorv1.PriceNotWithinHistoryTolerance
+    let historyData = historyEvents[0] as! PriceOracleAggregatorv1.PriceNotWithinHistoryTolerance
     Test.assert(historyData.relativeDiff >= 2.0, message: "relativeDiff should be greater than 2.0 got \(historyData.relativeDiff)")
     let deltaTInRange = historyData.deltaTMinutes >= 50.0 / 60.0 && historyData.deltaTMinutes <= 1.0
     Test.assert(deltaTInRange, message: "deltaTMinutes should be between \(50.0 / 60.0) and 1.0 got \(historyData.deltaTMinutes)")
@@ -704,9 +704,9 @@ access(self) fun set_prices(info: CreateAggregatorInfo, prices: [UFix64?], forTo
 
 access(self) fun logFailEvents() {
     let failureEvents = [
-        Type<FlowPriceOracleAggregatorv1.PriceNotAvailable>(),
-        Type<FlowPriceOracleAggregatorv1.PriceNotWithinSpreadTolerance>(),
-        Type<FlowPriceOracleAggregatorv1.PriceNotWithinHistoryTolerance>()
+        Type<PriceOracleAggregatorv1.PriceNotAvailable>(),
+        Type<PriceOracleAggregatorv1.PriceNotWithinSpreadTolerance>(),
+        Type<PriceOracleAggregatorv1.PriceNotWithinHistoryTolerance>()
     ]
     for eventType in failureEvents {
         let events = Test.eventsOfType(eventType)

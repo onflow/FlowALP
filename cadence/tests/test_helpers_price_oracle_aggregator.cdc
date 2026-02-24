@@ -1,6 +1,6 @@
 import Test
 import "DeFiActions"
-import "FlowPriceOracleAggregatorv1"
+import "PriceOracleAggregatorv1"
 import "MultiMockOracle"
 
 access(all) struct CreateAggregatorInfo {
@@ -31,8 +31,8 @@ access(all) fun createAggregator(
         []
     )
     Test.expect(res, Test.beSucceeded())
-    let aggregatorCreatedEvents = Test.eventsOfType(Type<FlowPriceOracleAggregatorv1.StorageCreated>())
-    let aggregatorCreatedData = aggregatorCreatedEvents[aggregatorCreatedEvents.length - 1] as! FlowPriceOracleAggregatorv1.StorageCreated
+    let aggregatorCreatedEvents = Test.eventsOfType(Type<PriceOracleAggregatorv1.StorageCreated>())
+    let aggregatorCreatedData = aggregatorCreatedEvents[aggregatorCreatedEvents.length - 1] as! PriceOracleAggregatorv1.StorageCreated
     let oracleCreatedEvents = Test.eventsOfType(Type<MultiMockOracle.OracleCreated>())
     let oracleIDs: [UInt64] = []
     var i = oracleCreatedEvents.length - oracleCount
@@ -71,8 +71,8 @@ access(all) fun createAggregatorWithCron(
         [signer]
     )
     Test.expect(res, Test.beSucceeded())
-    let aggregatorCreatedEvents = Test.eventsOfType(Type<FlowPriceOracleAggregatorv1.StorageCreated>())
-    let aggregatorCreatedData = aggregatorCreatedEvents[aggregatorCreatedEvents.length - 1] as! FlowPriceOracleAggregatorv1.StorageCreated
+    let aggregatorCreatedEvents = Test.eventsOfType(Type<PriceOracleAggregatorv1.StorageCreated>())
+    let aggregatorCreatedData = aggregatorCreatedEvents[aggregatorCreatedEvents.length - 1] as! PriceOracleAggregatorv1.StorageCreated
     let oracleCreatedEvents = Test.eventsOfType(Type<MultiMockOracle.OracleCreated>())
     let oracleIDs: [UInt64] = []
     var i = oracleCreatedEvents.length - oracleCount
@@ -158,13 +158,13 @@ access(all) fun oracleAggregatorAssertPriceTx(
 
 access(all) fun oracleAggregatorPriceHistory(
     storageID: UInt64,
-): [FlowPriceOracleAggregatorv1.PriceHistoryEntry] {
+): [PriceOracleAggregatorv1.PriceHistoryEntry] {
     let res = _executeScript(
         "./scripts/price-oracle-aggregator/history.cdc",
         [storageID]
     )
     Test.expect(res, Test.beSucceeded())
-    return res.returnValue as! [FlowPriceOracleAggregatorv1.PriceHistoryEntry]
+    return res.returnValue as! [PriceOracleAggregatorv1.PriceHistoryEntry]
 }
 
 // --- Helper Functions ---

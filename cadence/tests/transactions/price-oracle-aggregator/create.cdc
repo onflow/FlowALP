@@ -1,5 +1,5 @@
 import "DeFiActions"
-import "FlowPriceOracleAggregatorv1"
+import "PriceOracleAggregatorv1"
 import "FlowTransactionScheduler"
 import "FlowTransactionSchedulerUtils"
 import "FungibleToken"
@@ -33,7 +33,7 @@ transaction(
     }
 
     execute {
-        let _ = FlowPriceOracleAggregatorv1.createPriceOracleAggregatorStorage(
+        let _ = PriceOracleAggregatorv1.createPriceOracleAggregatorStorage(
             ofToken: ofToken,
             oracles: self.oracles,
             maxSpread: maxSpread,

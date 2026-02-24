@@ -76,14 +76,14 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowPriceOracleAggregatorv1": {
-			"source": "./cadence/contracts/FlowPriceOracleAggregatorv1.cdc",
+		"PriceOracleAggregatorv1": {
+			"source": "./cadence/contracts/PriceOracleAggregatorv1.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowPriceOracleRouterv1": {
-			"source": "./cadence/contracts/FlowPriceOracleRouterv1.cdc",
+		"PriceOracleRouterv1": {
+			"source": "./cadence/contracts/PriceOracleRouterv1.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}

@@ -1,4 +1,4 @@
-import "FlowPriceOracleAggregatorv1"
+import "PriceOracleAggregatorv1"
 
 transaction(
     storageID: UInt64,
@@ -6,7 +6,7 @@ transaction(
     price: UFix64?,
 ) {
     execute {
-        let realPrice = FlowPriceOracleAggregatorv1.createPriceOracleAggregator(storageID: storageID).price(
+        let realPrice = PriceOracleAggregatorv1.createPriceOracleAggregator(storageID: storageID).price(
             ofToken: forToken,
         )
         if price != realPrice {

@@ -1,12 +1,12 @@
 import "DeFiActions"
 
-/// FlowPriceOracleRouterv1 exposes a single `DeFiActions.PriceOracle` that
+/// PriceOracleRouterv1 exposes a single `DeFiActions.PriceOracle` that
 /// routes by token type: one oracle per token. All oracles must share the
 /// same unit of account. Config (oracles, unit of account) is immutable at
 /// creation to avoid accidental changes in production.
 /// Use this when the protocol needs one oracle reference but prices come
 /// from different sources per token.
-access(all) contract FlowPriceOracleRouterv1 {
+access(all) contract PriceOracleRouterv1 {
 
     /// Router implementing `DeFiActions.PriceOracle`: dispatches
     /// `price(ofToken)` to the oracle for that token type. All oracles must

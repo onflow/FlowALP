@@ -1,4 +1,4 @@
-import "FlowPriceOracleRouterv1"
+import "PriceOracleRouterv1"
 import "OracleStorage"
 import "DeFiActions"
 import "MultiMockOracle"
@@ -18,7 +18,7 @@ transaction(
             oracle.setPrice(forToken: oracleOfToken, price: price)
             oracles[oracleOfToken] = oracle
         }
-        let router = FlowPriceOracleRouterv1.createPriceOracleRouter(
+        let router = PriceOracleRouterv1.createPriceOracleRouter(
             unitOfAccount: unitOfAccount,
             oracles: oracles,
         )
