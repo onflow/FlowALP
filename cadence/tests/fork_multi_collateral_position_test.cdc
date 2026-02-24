@@ -229,7 +229,7 @@ fun test_multi_collateral_position() {
     //
     // Debt (effectiveDebt = balance * price / borrowFactor):
     //   MOET: 1204 * $1.00 / BF(1.0) = $1204
-    // Total debt: $1000
+    // Total debt: $1204
     //
     // Health = $1325 / $1204 = 1.100498338870431893687707
     
@@ -430,7 +430,7 @@ fun test_cross_asset_chain() {
     setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID, minimum: tinyDeposit)
     createPosition(admin: protocolAccount, signer: wethLp, amount: 0.05, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
     
-    // WBTC LP (0.00049 WBTC available)
+    // WBTC LP (0.0004 WBTC available)
     let wbtcLp = Test.createAccount()
     res = setupGenericVault(wbtcLp, vaultIdentifier: MAINNET_WBTC_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
