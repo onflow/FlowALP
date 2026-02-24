@@ -351,25 +351,51 @@ fun test_cross_asset_flow_usdf_weth_borrowing() {
     //   FLOW: 1000 * $1.00 * 0.8 = $800
     // Total collateral: $800
     //
+    // Debt: $0
+    //
+    // Health = $800 / $0 = ∞ (UFix128.max)
+    //
     // Max borrow = (effectiveCollateral / minHealth) * borrowFactor / price
     //   Max USDF: ($800 / 1.1) * 0.95 = 690.90909091 USDF
     
+    var health: UFix128 = getPositionHealth(pid: pid, beFailed: false)
+    Test.assertEqual(CEILING_HEALTH, health)
+    
     let usdfBorrowAmount: UFix64 = 500.0
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, amount: usdfBorrowAmount, beFailed: false)
-    
-    var health = getPositionHealth(pid: pid, beFailed: false)
-   // Test.assertEqual(CEILING_HEALTH, health)
-    
+
+    // Collateral (effectiveCollateral = balance * price * collateralFactor): 
+    //   FLOW: 1000 * $1.00 * 0.8 = $800
+    // Total collateral: $800
+    //
+    // Debt (effectiveDebt = balance * price / borrowFactor): 
+    //   USDF: 500 * $1.00 / 0.95 = $526.315789474
+    //
+    // Health = $800 / $526.315789474 = 1.52
+    var expectedHealth: UFix128 = 1.52
+    health = getPositionHealth(pid: pid, beFailed: false)
+    Test.assertEqual(expectedHealth, health)
+
     // STEP 4: Deposit borrowed USDF as collateral
     depositToPosition(signer: user, positionID: pid, amount: usdfBorrowAmount, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
     
     // New collateral (effectiveCollateral = balance * price * collateralFactor):
     //   FLOW: 1000 * $1.00 * 0.8 = $800
     //   USDF: 500 * $1.00 * 0.9 = $450
-    //   Total collateral: $1250
+    // Total collateral: $1250
     //
     // Debt (effectiveDebt = balance * price / borrowFactor): 
-    //   USDF: 500 * $1.00 / 0.9 = $450
+    //   USDF: 500 * $1.00 / 0.95 = $526.315789474
+    //
+    // After netting USDF (credit 500 - debt 500 = 0):
+    //
+    // Collateral: 
+    //   FLOW: 1000 * $1.00 * 0.8 = $800
+    // Total collateral: $800
+    //
+    // Debt $0
+    //
+    // Health = $800 / $0 = ∞ (UFix128.max)
     
     health = getPositionHealth(pid: pid, beFailed: false)
     Test.assertEqual(CEILING_HEALTH, health)
@@ -386,7 +412,7 @@ fun test_cross_asset_flow_usdf_weth_borrowing() {
     //   USDF: 500 * $1.00 * 0.9 = $450
     //
     // Debt (effectiveDebt = balance * price / borrowFactor):
-    //   USDF: 500 * $1.00 / 0.9 = $450
+    //   USDF: 500 * $1.00 / 0.95 = $526.315789474
     //   WETH: 0.04 * $2000 / 0.85 = $94.12
     //
     // After netting USDF (credit 500 - debt 500 = 0):
@@ -399,7 +425,7 @@ fun test_cross_asset_flow_usdf_weth_borrowing() {
     // Health = $800 / $94.117647059 = 8.5
     
     health = getPositionHealth(pid: pid, beFailed: false)
-    let expectedHealth: UFix128 = 8.5
+    expectedHealth = 8.5
     Test.assertEqual(expectedHealth, health)
 }
 
