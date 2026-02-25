@@ -750,16 +750,32 @@ fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFail
 
 access(all)
 fun manualLiquidation(
-    signer: Test.TestAccount, 
-    pid: UInt64, 
-    debtVaultIdentifier: String, 
-    seizeVaultIdentifier: String, 
-    seizeAmount: UFix64, 
+    signer: Test.TestAccount,
+    pid: UInt64,
+    debtVaultIdentifier: String,
+    seizeVaultIdentifier: String,
+    seizeAmount: UFix64,
     repayAmount: UFix64,
 ): Test.TransactionResult {
     return _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, debtVaultIdentifier, seizeVaultIdentifier, seizeAmount, repayAmount],
+        signer
+    )
+}
+
+access(all)
+fun liquidateViaMockDex(
+    signer: Test.TestAccount,
+    pid: UInt64,
+    debtVaultIdentifier: String,
+    seizeVaultIdentifier: String,
+    seizeAmount: UFix64,
+    repayAmount: UFix64,
+): Test.TransactionResult {
+    return _executeTransaction(
+        "../transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
+        [[pid], debtVaultIdentifier, [seizeVaultIdentifier], [seizeAmount], [repayAmount]],
         signer
     )
 }
