@@ -91,6 +91,14 @@ access(all) contract PriceOracleAggregatorv1 {
                     "driftExpansionRate must be <= 10000.0"
                 minimumPriceHistory <= priceHistorySize:
                     "minimumPriceHistory must be <= priceHistorySize"
+                maxPriceHistoryAge >= priceHistoryInterval * UFix64(minimumPriceHistory + 1):
+                    "maxPriceHistoryAge must be >= priceHistoryInterval * (minimumPriceHistory + 1)"
+            }
+            if priceHistorySize == 0 && priceHistoryInterval != 0.0 {
+                panic("if priceHistorySize == 0, priceHistoryInterval must be 0.0")
+            }
+            if priceHistorySize != 0 && priceHistoryInterval == 0.0 {
+                panic("if priceHistorySize != 0, priceHistoryInterval must be > 0.0")
             }
             self.ofToken = ofToken
             self.oracles = oracles
@@ -147,7 +155,7 @@ access(all) contract PriceOracleAggregatorv1 {
             if !self.isWithinSpreadTolerance(prices: validPrices) {
                 return nil
             }
-            let price = self.trimmedMeanPrice(prices: validPrices)
+            let price = self.averagePrice(prices: validPrices)
             self.tryAddPriceToHistoryInternal(price: price, now: now)
             return price
         }
@@ -193,29 +201,17 @@ access(all) contract PriceOracleAggregatorv1 {
             return true
         }
 
-        /// will panic if prices is empty
-        access(self) view fun trimmedMeanPrice(prices: [UFix64]): UFix64 {
-            let count = prices.length
-
-            // Handle edge cases where trimming isn't possible
-            if count == 0 { panic("No prices to compute trimmed mean") }
-            if count == 1 { return prices[0] }
-            if count == 2 { return (prices[0] + prices[1]) / 2.0 }
-
+        /// Returns the arithmetic mean of all oracle prices.
+        /// Panics if prices is empty.
+        access(self) view fun averagePrice(prices: [UFix64]): UFix64 {
+            if prices.length == 0 {
+                panic("No prices to compute average")
+            }
             var totalSum = 0.0
-            var minPrice = UFix64.max
-            var maxPrice = UFix64.min
             for price in prices {
-                if price < minPrice {
-                    minPrice = price
-                }
-                if price > maxPrice {
-                    maxPrice = price
-                }
                 totalSum = totalSum + price
             }
-            let trimmedSum = totalSum - minPrice - maxPrice
-            return trimmedSum / UFix64(count - 2)
+            return totalSum / UFix64(prices.length)
         }
 
         access(self) fun isHistoryStable(currentPrice: UFix64, now: UFix64): Bool {

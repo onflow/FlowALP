@@ -32,19 +32,17 @@ One aggregated oracle per “market” (e.g. FLOW in USDC). Multiple underlying 
   1. Collect prices from all oracles for the requested token.
   2. If any oracle returns nil → emit `PriceNotAvailable`, return nil.
   3. Compute min/max; if spread > `maxSpread` → emit `PriceNotWithinSpreadTolerance`, return nil.
-  4. Compute aggregated price (trimmed mean: drop min and max, average the rest).
+  4. Compute aggregated price as the arithmetic mean of all oracle prices.
   5. Check short-term stability: compare current price to recent history; for each history entry the allowed relative difference is `baseTolerance + driftExpansionRate * deltaTMinutes`; if any relative difference exceeds that → emit `PriceNotWithinHistoryTolerance`, return nil.
   6. Otherwise return the aggregated price.
 - **History:** An array of `(price, timestamp)` is maintained. Updates are permissionless via `tryAddPriceToHistory()` (idempotent); A FlowCron job should be created to call this regularly.
 Additionally every call to price() will also attempt to store the price in the history.
 
-## Aggregate price (trimmed mean)
+## Aggregate price (average)
 
-To avoid the complexity of a full median, the aggregator uses a **trimmed mean**: remove the single maximum and single minimum, then average the rest. This reduces the impact of a single outlier.
+The aggregator uses the **arithmetic mean** of all oracle prices:
 
-- With 1 oracle: that price.
-- With 2 oracles: arithmetic mean.
-- With 3+ oracles: trimmed mean `(sum - min - max) / (count - 2)`.
+- **Average:** `sum(prices) / count`. Same for any number of oracles (1, 2, 3+).
 
 ## Oracle spread (coherence)
 

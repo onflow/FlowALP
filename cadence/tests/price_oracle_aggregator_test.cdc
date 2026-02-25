@@ -106,19 +106,19 @@ access(all) fun test_average_price() {
         expectedPrice: 2.0,
     ), TestRunAveragePrice(
         prices: [1.0, 2.0, 10.0],
-        expectedPrice: 2.0,
+        expectedPrice: 4.33333333,
     ), TestRunAveragePrice(
         prices: [1.0, 9.0, 10.0],
-        expectedPrice: 9.0,
+        expectedPrice: 6.66666666,
     ), TestRunAveragePrice(
         prices: [1.0, 1.0, 2.0],
-        expectedPrice: 1.0,
+        expectedPrice: 1.33333333,
     ), TestRunAveragePrice(
         prices: [1.0, 1.0, 1.0],
         expectedPrice: 1.0,
     ), TestRunAveragePrice(
         prices: [1.0, 1.0, 2.0, 3.0],
-        expectedPrice: 1.5,
+        expectedPrice: 1.75,
     ), TestRunAveragePrice(
         prices: [1.0, 2.0, 3.0, 4.0, 5.0],
         expectedPrice: 3.0,
@@ -226,7 +226,7 @@ access(all) fun test_spread() {
         prices: [1.0, 2.0],
         expectedPrice: 1.5,
     ),
-    // Loose spread, three oracles: accept median/average 1.5
+    // Loose spread, three oracles: accept average 1.5
     TestRunSpread(
         maxSpread: 10000.0,
         prices: [1.0, 1.5, 2.0],
