@@ -3094,15 +3094,15 @@ access(all) contract FlowALPv0 {
             }
 
             // Step 1: Calculate total debt that needs to be repaid (NO LOCK NEEDED - read-only)
+            // Note: Debt is always MOET in this protocol
             let positionDetails = self.getPositionDetails(pid: pid)
             var totalDebtAmount: UFix64 = 0.0
-            var debtType: Type? = nil
+            let debtType = Type<@MOET.Vault>()
 
             for balance in positionDetails.balances {
                 if balance.direction == BalanceDirection.Debit {
-                    // Accumulate debt (assuming single debt type for now)
-                    totalDebtAmount = totalDebtAmount + UFix64(balance.balance)
-                    debtType = balance.vaultType
+                    // Accumulate debt (balance is already UFix64, no rounding needed here)
+                    totalDebtAmount = totalDebtAmount + balance.balance
                 }
             }
 
@@ -3179,7 +3179,9 @@ access(all) contract FlowALPv0 {
                 ?? panic("Collateral factor not found for \(collateralType.identifier)")
 
             // Remaining debt in USD / (collateral price * collateral factor) = collateral needed
-            let collateralNeededForDebt = UFix64(totalEffectiveDebt / (UFix128(collateralPrice) * UFix128(collateralFactor)))
+            // Round UP to ensure protocol keeps enough collateral to cover debt
+            let collateralNeededRaw = totalEffectiveDebt / (UFix128(collateralPrice) * UFix128(collateralFactor))
+            let collateralNeededForDebt = FlowALPMath.toUFix64RoundUp(collateralNeededRaw)
 
             // Total available collateral in position
             let totalCollateralAvailable = UFix64(collateralBalance)
@@ -3223,10 +3225,13 @@ access(all) contract FlowALPv0 {
                 // Calculate collateral needed to maintain target health:
                 // (collateralValue * collateralFactor) / (debtValue / borrowFactor) >= targetHealth
                 // collateralValue >= (targetHealth * debtValue) / (collateralFactor * borrowFactor)
-                let borrowFactor = self.borrowFactor[debtType ?? repaymentType] ?? 1.0
+                // Debt is always MOET, so use MOET's borrow factor
+                let borrowFactor = self.borrowFactor[debtType] ?? 1.0
 
                 let minCollateralValue = UFix64(targetHealth) * UFix64(totalEffectiveDebt) / (collateralFactor * borrowFactor)
-                let minCollateralAmount = minCollateralValue / collateralPrice
+                // Round UP to ensure protocol keeps enough collateral
+                let minCollateralAmountRaw = UFix128(minCollateralValue) / UFix128(collateralPrice)
+                let minCollateralAmount = FlowALPMath.toUFix64RoundUp(minCollateralAmountRaw)
 
                 // Get total collateral
                 let totalCollateral = UFix64(positionView.trueBalance(ofToken: collateralType))
@@ -4117,21 +4122,24 @@ access(all) contract FlowALPv0 {
         /// Returns the total debt amount and debt token type for this position.
         /// This is a convenience method for strategies to avoid recalculating debt from balances.
         ///
-        /// @return DebtInfo struct with amount and tokenType. If no debt exists, returns DebtInfo(0.0, nil).
+        /// Note: Debt is always in MOET in this protocol.
+        /// Rounds up to ensure protocol doesn't accumulate rounding errors.
+        ///
+        /// @return DebtInfo struct with amount (rounded up) and tokenType (always MOET).
         access(all) fun getTotalDebt(): DebtInfo {
             let pool = self.pool.borrow()!
             let balances = pool.getPositionDetails(pid: self.id).balances
             var totalDebtAmount: UFix64 = 0.0
-            var debtType: Type? = nil
 
             for balance in balances {
                 if balance.direction == BalanceDirection.Debit {
-                    totalDebtAmount = totalDebtAmount + UFix64(balance.balance)
-                    debtType = balance.vaultType
+                    // Accumulate debt (balance is already UFix64, no rounding needed here)
+                    totalDebtAmount = totalDebtAmount + balance.balance
                 }
             }
 
-            return DebtInfo(amount: totalDebtAmount, tokenType: debtType)
+            // Debt is always MOET in this protocol
+            return DebtInfo(amount: totalDebtAmount, tokenType: Type<@MOET.Vault>())
         }
 
         /// Returns the balance available for withdrawal of a given Vault type. If pullFromTopUpSource is true, the
