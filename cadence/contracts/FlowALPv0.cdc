@@ -3114,7 +3114,12 @@ access(all) contract FlowALPv0 {
 
             // Handle no-debt case
             if totalDebtAmount == 0.0 {
-                // No debt - destroy repayment vault and just withdraw all collateral
+                // No debt - assert repayment vault is empty before destroying
+                assert(
+                    repaymentVault.balance == 0.0,
+                    message: "Position has no debt but repayment vault contains \(repaymentVault.balance) \(repaymentType.identifier). ".concat(
+                        "Either withdraw these funds or deposit them to the position separately.")
+                )
                 destroy repaymentVault
 
                 let collateralBalance = self.buildPositionView(pid: pid).trueBalance(ofToken: collateralType)
@@ -3139,11 +3144,20 @@ access(all) contract FlowALPv0 {
                 return <-withdrawn
             }
 
-            // Step 3: Accept repayment vault (allow overshoot - extra funds help ensure full repayment)
-            // Users can provide more than needed to handle rounding/slippage/circular dependencies
-            // Note: We don't enforce minimum here - we'll check final debt after deposit instead
+            // Step 3: Validate repayment vault and handle precision shortfalls
+            // Assert repayment vault is correct token type (MOET)
+            assert(
+                repaymentType == debtType,
+                message: "Repayment vault type mismatch. Expected: \(debtType.identifier), Got: \(repaymentType.identifier)"
+            )
+
+            assert(
+                repaymentVault.balance >= totalDebtAmount,
+                message: "Repayment should cover full debt amount"
+            )
 
             // Step 4: Deposit repayment funds to eliminate debt (under lock)
+            // Note: _depositEffectsOnly consumes the entire vault
             self._depositEffectsOnly(pid: pid, from: <-repaymentVault)
 
             // Step 5: Verify debt is acceptably low (allow tolerance for overshoot scenarios)
@@ -4123,9 +4137,10 @@ access(all) contract FlowALPv0 {
         /// This is a convenience method for strategies to avoid recalculating debt from balances.
         ///
         /// Note: Debt is always in MOET in this protocol.
-        /// Rounds up to ensure protocol doesn't accumulate rounding errors.
+        /// Returns exact debt amount - no buffer needed since measurement and repayment happen
+        /// in the same transaction (no interest accrual between reads).
         ///
-        /// @return DebtInfo struct with amount (rounded up) and tokenType (always MOET).
+        /// @return DebtInfo struct with exact debt amount and tokenType (always MOET).
         access(all) fun getTotalDebt(): DebtInfo {
             let pool = self.pool.borrow()!
             let balances = pool.getPositionDetails(pid: self.id).balances
@@ -4133,12 +4148,16 @@ access(all) contract FlowALPv0 {
 
             for balance in balances {
                 if balance.direction == BalanceDirection.Debit {
-                    // Accumulate debt (balance is already UFix64, no rounding needed here)
+                    // Accumulate debt amount
                     totalDebtAmount = totalDebtAmount + balance.balance
                 }
             }
 
             // Debt is always MOET in this protocol
+            // NOTE: Strategies using this must ensure their swap sources have sufficient
+            // liquidity. SwapSource.minimumAvailable() may return slightly less than
+            // actual debt due to source liquidity constraints or precision loss in
+            // swap calculations. Strategies should handle this appropriately.
             return DebtInfo(amount: totalDebtAmount, tokenType: Type<@MOET.Vault>())
         }
 
