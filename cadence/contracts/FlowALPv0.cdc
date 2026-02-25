@@ -3240,9 +3240,9 @@ access(all) contract FlowALPv0 {
                 // Get total collateral
                 let totalCollateral = UFix64(positionView.trueBalance(ofToken: collateralType))
 
-                // Withdraw total minus minimum (with small buffer for safety)
-                if totalCollateral > minCollateralAmount + 1.0 {
-                    withdrawAmount = totalCollateral - minCollateralAmount - 1.0
+                // Withdraw total minus minimum
+                if totalCollateral > minCollateralAmount {
+                    withdrawAmount = totalCollateral - minCollateralAmount
                 } else {
                     withdrawAmount = 0.0
                 }
