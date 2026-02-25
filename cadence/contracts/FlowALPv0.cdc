@@ -3206,23 +3206,15 @@ access(all) contract FlowALPv0 {
             )
 
             // Step 7: Withdraw collateral while maintaining position health
-            // If there's remaining debt, we need to leave enough collateral to keep position healthy
-
-            // Unlock before withdrawal (withdrawAndPull will lock again)
-            self._unlockPosition(pid)
+            // IMPORTANT: Keep position locked throughout withdrawal to prevent race conditions
+            // Do NOT unlock before withdrawal - we do direct withdrawal while holding the lock
 
             // Determine withdrawal amount based on remaining debt
-            var collateral: @{FungibleToken.Vault}? <- nil
+            var withdrawAmount: UFix64 = 0.0
 
             if totalEffectiveDebt == 0.0 {
                 // No remaining debt - withdraw all collateral
-                let fullBalance = UFix64(positionView.trueBalance(ofToken: collateralType))
-                collateral <-! self.withdrawAndPull(
-                    pid: pid,
-                    type: collateralType,
-                    amount: fullBalance,
-                    pullFromTopUpSource: false
-                )
+                withdrawAmount = UFix64(positionView.trueBalance(ofToken: collateralType))
             } else {
                 // Remaining debt exists - calculate safe withdrawal maintaining target health
                 let position = self._borrowPosition(pid: pid)
@@ -3240,15 +3232,40 @@ access(all) contract FlowALPv0 {
                 let totalCollateral = UFix64(positionView.trueBalance(ofToken: collateralType))
 
                 // Withdraw total minus minimum (with small buffer for safety)
-                let safeWithdrawAmount = totalCollateral > minCollateralAmount + 1.0
-                    ? totalCollateral - minCollateralAmount - 1.0
-                    : 0.0
-
-                if safeWithdrawAmount > 0.0 {
-                    collateral <-! self.withdrawAndPull(pid: pid, type: collateralType, amount: safeWithdrawAmount, pullFromTopUpSource: false)
+                if totalCollateral > minCollateralAmount + 1.0 {
+                    withdrawAmount = totalCollateral - minCollateralAmount - 1.0
                 } else {
-                    collateral <-! DeFiActionsUtils.getEmptyVault(collateralType)
+                    withdrawAmount = 0.0
                 }
+            }
+
+            // Perform direct withdrawal while holding lock (no health check needed for close)
+            var collateral: @{FungibleToken.Vault}? <- nil
+
+            if withdrawAmount > 0.0 {
+                let position = self._borrowPosition(pid: pid)
+                let tokenState = self._borrowUpdatedTokenState(type: collateralType)
+                let reserveVault = (&self.reserves[collateralType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+
+                // Record withdrawal in position balance
+                if position.balances[collateralType] == nil {
+                    position.balances[collateralType] = InternalBalance(
+                        direction: BalanceDirection.Credit,
+                        scaledBalance: 0.0
+                    )
+                }
+                position.balances[collateralType]!.recordWithdrawal(
+                    amount: UFix128(withdrawAmount),
+                    tokenState: tokenState
+                )
+
+                // Queue for update if necessary
+                self._queuePositionForUpdateIfNecessary(pid: pid)
+
+                // Withdraw from reserves
+                collateral <-! reserveVault.withdraw(amount: withdrawAmount)
+            } else {
+                collateral <-! DeFiActionsUtils.getEmptyVault(collateralType)
             }
 
             let finalCollateral <- collateral!
@@ -3264,6 +3281,17 @@ access(all) contract FlowALPv0 {
                 collateralType: collateralType,
                 finalDebt: totalEffectiveDebt
             )
+
+            emit Withdrawn(
+                pid: pid,
+                poolUUID: self.uuid,
+                vaultType: collateralType,
+                amount: finalCollateralAmount,
+                withdrawnUUID: finalCollateral.uuid
+            )
+
+            // Unlock position now that all operations are complete
+            self._unlockPosition(pid)
 
             return <-finalCollateral
         }
@@ -4086,6 +4114,26 @@ access(all) contract FlowALPv0 {
             return pool.getPositionDetails(pid: self.id).balances
         }
 
+        /// Returns the total debt amount and debt token type for this position.
+        /// This is a convenience method for strategies to avoid recalculating debt from balances.
+        ///
+        /// @return DebtInfo struct with amount and tokenType. If no debt exists, returns DebtInfo(0.0, nil).
+        access(all) fun getTotalDebt(): DebtInfo {
+            let pool = self.pool.borrow()!
+            let balances = pool.getPositionDetails(pid: self.id).balances
+            var totalDebtAmount: UFix64 = 0.0
+            var debtType: Type? = nil
+
+            for balance in balances {
+                if balance.direction == BalanceDirection.Debit {
+                    totalDebtAmount = totalDebtAmount + UFix64(balance.balance)
+                    debtType = balance.vaultType
+                }
+            }
+
+            return DebtInfo(amount: totalDebtAmount, tokenType: debtType)
+        }
+
         /// Returns the balance available for withdrawal of a given Vault type. If pullFromTopUpSource is true, the
         /// calculation will be made assuming the position is topped up if the withdrawal amount puts the Position
         /// below its min health. If pullFromTopUpSource is false, the calculation will return the balance currently
@@ -4576,6 +4624,22 @@ access(all) contract FlowALPv0 {
     ///
     /// A structure returned externally to report a position's balance for a particular token.
     /// This structure is NOT used internally.
+    /// DebtInfo
+    ///
+    /// A structure returned by getTotalDebt() to report the total debt and debt token type.
+    access(all) struct DebtInfo {
+        /// The total amount of debt
+        access(all) let amount: UFix64
+
+        /// The type of the debt token (nil if no debt)
+        access(all) let tokenType: Type?
+
+        init(amount: UFix64, tokenType: Type?) {
+            self.amount = amount
+            self.tokenType = tokenType
+        }
+    }
+
     access(all) struct PositionBalance {
 
         /// The token type for which the balance details relate to
