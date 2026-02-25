@@ -3008,7 +3008,9 @@ access(all) contract FlowALPv0 {
                 amount: uintAmount,
                 tokenState: tokenState
             )
-
+            // Attempt to pull additional collateral from the top-up source (if configured)
+            // to keep the position above minHealth after the withdrawal.
+            // Regardless of whether a top-up occurs, the position must be healthy post-withdrawal.
             let postHealth = self.positionHealth(pid: pid)
             assert(
                 postHealth >= 1.0,
