@@ -28,6 +28,10 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+      - uses: actions/cache@v4
+        with:
+          path: ./imports
+          key: flow-deps-${{ hashFiles('flow.json') }}
       - name: Install Flow CLI
         env:
           FLOW_CLI_VERSION: v2.7.2
