@@ -3009,23 +3009,11 @@ access(all) contract FlowALPv0 {
                 tokenState: tokenState
             )
 
-            // Check if we're withdrawing a debt token (debit balance)
-            let isDebtToken = position.balances[type]!.direction == BalanceDirection.Debit
-
-            // Attempt to pull additional collateral from the top-up source (if configured)
-            // to keep the position above minHealth after the withdrawal.
-            //
-            // IMPORTANT: Skip health check if withdrawing debt token with pullFromTopUpSource=true
-            // In this case, we're getting funds for external use (e.g., closePosition repayment),
-            // and temporarily increasing debt is expected as part of the close flow.
-            // The debt will be immediately repaid by the calling context (closePosition).
-            if !isDebtToken || !pullFromTopUpSource {
-                let postHealth = self.positionHealth(pid: pid)
-                assert(
-                    postHealth >= 1.0,
-                    message: "Post-withdrawal position health (\(postHealth)) is unhealthy"
-                )
-            }
+            let postHealth = self.positionHealth(pid: pid)
+            assert(
+                postHealth >= 1.0,
+                message: "Post-withdrawal position health (\(postHealth)) is unhealthy"
+            )
 
             // Ensure that the remaining balance meets the minimum requirement (or is zero)
             // Building the position view does require copying the balances, so it's less efficient than accessing the balance directly.
@@ -3153,7 +3141,7 @@ access(all) contract FlowALPv0 {
 
             assert(
                 repaymentVault.balance >= totalDebtAmount,
-                message: "Repayment should cover full debt amount"
+                message: "Repayment should cover full debt amount provided: \(repaymentVault.balance.toString()), required: \(totalDebtAmount.toString())"
             )
 
             // Step 4: Deposit repayment funds to eliminate debt (under lock)
