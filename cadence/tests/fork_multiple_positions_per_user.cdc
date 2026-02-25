@@ -885,7 +885,7 @@ access(all) fun testMassUnhealthyLiquidations() {
     for i in InclusiveRange(0, 44) {
         let pidIdx = i + 50
         let h = getPositionHealth(pid: allPids[pidIdx], beFailed: false)
-        Test.assert(h > usdcHealths[i], message: "USDC pos \(allPids[i]) health must improve: \(usdcHealths[i]) → \(h)")
+        Test.assert(h > usdcHealths[i], message: "USDC pos \(allPids[pidIdx]) health must improve: \(usdcHealths[i]) → \(h)")
         Test.assert(h > 1.0, message: "USDC pos \(allPids[pidIdx]) must be healthy again (got \(h))")
     }
     // WBTC [95..99]
