@@ -884,7 +884,7 @@ access(all) fun batchLiquidateViaMockDex(
             endIdx = total
         }
         let res = _executeTransaction(
-            "../transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
+            "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
             [pids.slice(from: startIdx, upTo: endIdx),
                 debtVaultIdentifier,
                 seizeVaultIdentifiers.slice(from: startIdx, upTo: endIdx),
