@@ -4469,7 +4469,7 @@ access(all) contract FlowALPv0 {
     ///
     /// A wrapper struct that holds a reference to a Source
     /// This allows passing references as Source values to closePosition()
-access(all) struct PositionSource: DeFiActions.Source {
+    access(all) struct PositionSource: DeFiActions.Source {
 
         /// An optional DeFiActions.UniqueIdentifier that identifies this Sink with the DeFiActions stack its a part of
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
