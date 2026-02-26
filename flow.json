@@ -58,8 +58,20 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"FlowALPHealth": {
+			"source": "./cadence/contracts/FlowALPHealth.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"FlowALPModels": {
 			"source": "./cadence/contracts/FlowALPModels.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"FlowALPPositionResources": {
+			"source": "./cadence/contracts/FlowALPPositionResources.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}

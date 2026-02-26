@@ -13,23 +13,24 @@ import "FungibleToken"
 import "FlowToken"
 import "DeFiActions"
 import "FlowALPv0"
+import "FlowALPPositionResources"
 import "FlowALPModels"
 import "MOET"
 
 transaction(positionId: UInt64) {
 
-    let position: auth(FungibleToken.Withdraw) &FlowALPv0.Position
+    let position: auth(FungibleToken.Withdraw) &FlowALPPositionResources.Position
     let receiverRef: &{FungibleToken.Receiver}
     let moetWithdrawRef: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
 
     prepare(borrower: auth(BorrowValue) &Account) {
         // Borrow the PositionManager from constant storage path with both required entitlements
-        let manager = borrower.storage.borrow<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(
+        let manager = borrower.storage.borrow<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>(
             from: FlowALPv0.PositionStoragePath
         ) ?? panic("Could not find PositionManager in storage")
 
         // Borrow the position with withdraw entitlement
-        self.position = manager.borrowAuthorizedPosition(pid: positionId) as! auth(FungibleToken.Withdraw) &FlowALPv0.Position
+        self.position = manager.borrowAuthorizedPosition(pid: positionId) as! auth(FungibleToken.Withdraw) &FlowALPPositionResources.Position
 
         // Get receiver reference for depositing withdrawn collateral
         self.receiverRef = borrower.capabilities.borrow<&{FungibleToken.Receiver}>(

@@ -1,4 +1,5 @@
 import "FlowALPv0"
+import "FlowALPPositionResources"
 import "FlowALPModels"
 import "FungibleToken"
 
@@ -11,13 +12,13 @@ transaction(
 ) {
     let tokenType: Type
     let receiverRef: &{FungibleToken.Receiver}
-    let positionManager: auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager
+    let positionManager: auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager
 
     prepare(signer: auth(Storage, Capabilities, BorrowValue) &Account) {
         self.tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier: ".concat(tokenTypeIdentifier))
 
-        self.positionManager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath)
+        self.positionManager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>(from: FlowALPv0.PositionStoragePath)
             ?? panic("PositionManager not found")
 
         // Get capability (NOT optional), then borrow a reference (optional)

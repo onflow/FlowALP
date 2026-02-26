@@ -2,6 +2,7 @@ import "FungibleToken"
 import "DeFiActions"
 import "DeFiActionsUtils"
 import "FlowALPv0"
+import "FlowALPPositionResources"
 import "FlowALPModels"
 import "MOET"
 import "DummyConnectors"
@@ -11,7 +12,7 @@ transaction {
         let pool = admin.storage.borrow<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
 
         // Ensure PositionManager exists
-        if admin.storage.borrow<&FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath) == nil {
+        if admin.storage.borrow<&FlowALPPositionResources.PositionManager>(from: FlowALPv0.PositionStoragePath) == nil {
             let manager <- FlowALPv0.createPositionManager()
             admin.storage.save(<-manager, to: FlowALPv0.PositionStoragePath)
         }
@@ -28,7 +29,7 @@ transaction {
         let pid = position.id
 
         // Add position to manager
-        let manager = admin.storage.borrow<&FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath)!
+        let manager = admin.storage.borrow<&FlowALPPositionResources.PositionManager>(from: FlowALPv0.PositionStoragePath)!
         manager.addPosition(position: <-position)
 
         // Also allowed with EParticipant:
