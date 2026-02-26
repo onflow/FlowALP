@@ -5,6 +5,8 @@ import "test_helpers.cdc"
 
 import "MOET"
 import "FlowALPv0"
+import "FlowALPEvents"
+import "FlowALPModels"
 
 access(all) let userAccount = Test.createAccount()
 
@@ -93,20 +95,26 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     Test.assert(equalWithinVariance(expectedBorrowAmount, balanceAfterBorrow),
         message: "Expected MOET balance to be ~\(expectedBorrowAmount), but got \(balanceAfterBorrow)")
 
-    let evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    let evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
-    let moetBalance = positionDetails.balances[1]
-    let flowPositionBalance = positionDetails.balances[0]
-    Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
+    // Find balances by direction rather than relying on array ordering
+    var flowPositionBalance: FlowALPModels.PositionBalance? = nil
+    var moetBalance: FlowALPModels.PositionBalance? = nil
+    for b in positionDetails.balances {
+        if b.direction == FlowALPModels.BalanceDirection.Credit {
+            flowPositionBalance = b
+        } else {
+            moetBalance = b
+        }
+    }
+    Test.assertEqual(positionFundingAmount, flowPositionBalance!.balance)
 
-    Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance.balance),
-        message: "Expected borrow amount to be \(expectedBorrowAmount), but got \(moetBalance.balance)")
-    Test.assertEqual(FlowALPv0.BalanceDirection.Credit, flowPositionBalance.direction)
-    Test.assertEqual(FlowALPv0.BalanceDirection.Debit, moetBalance.direction)
+    Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance!.balance),
+        message: "Expected borrow amount to be \(expectedBorrowAmount), but got \(moetBalance!.balance)")
 
     Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)")
@@ -170,15 +178,15 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     let expectedBorrowAmount = 0.0
     Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
-    let evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    let evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
     let flowPositionBalance = positionDetails.balances[0]
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
-    Test.assertEqual(FlowALPv0.BalanceDirection.Credit, flowPositionBalance.direction)
+    Test.assertEqual(FlowALPModels.BalanceDirection.Credit, flowPositionBalance.direction)
 
     Test.assertEqual(CEILING_HEALTH, health)
 
@@ -241,15 +249,15 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     let expectedBorrowAmount = 0.0
     Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
-    let evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    let evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
     let flowPositionBalance = positionDetails.balances[0]
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
-    Test.assertEqual(FlowALPv0.BalanceDirection.Credit, flowPositionBalance.direction)
+    Test.assertEqual(FlowALPModels.BalanceDirection.Credit, flowPositionBalance.direction)
 
     let priceIncrease = 0.25
     let newPrice = flowStartPrice * (1.0 + priceIncrease)

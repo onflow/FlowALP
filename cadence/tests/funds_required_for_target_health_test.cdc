@@ -5,6 +5,7 @@ import "test_helpers.cdc"
 
 import "MOET"
 import "FlowALPv0"
+import "FlowALPEvents"
 import "FlowALPMath"
 
 access(all) let userAccount = Test.createAccount()
@@ -89,13 +90,13 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
     Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! FlowALPv0.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALPEvents.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
@@ -151,12 +152,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy() {
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let health = getPositionHealth(pid: positionID, beFailed: false)
@@ -210,12 +211,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollatera
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let health = getPositionHealth(pid: positionID, beFailed: false)
@@ -285,13 +286,13 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! FlowALPv0.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALPEvents.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
@@ -365,12 +366,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromUndercollater
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let actualHealthBeforePriceDecrease = getPositionHealth(pid: positionID, beFailed: false)
@@ -440,13 +441,13 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! FlowALPv0.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALPEvents.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)

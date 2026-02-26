@@ -5,6 +5,7 @@ import "FungibleTokenConnectors"
 
 import "MOET"
 import "FlowALPv0"
+import "FlowALPModels"
 
 /// Opens a Position, providing collateral from the provided storage vault.
 /// The created Position is stored in the signer's account storage. A PositionManager is created if none already exists.
@@ -18,7 +19,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     // this DeFiActions Source that will allow for the repayment of a loan if the position becomes undercollateralized
     let source: {DeFiActions.Source}
     // the authorized Pool capability
-    let poolCap: Capability<auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool>
+    let poolCap: Capability<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>
     // reference to signer's account for saving capability back
     let signerAccount: auth(Storage) &Account
 
@@ -59,7 +60,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
         )
 
         // Load the authorized Pool capability from storage
-        self.poolCap = signer.storage.load<Capability<auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool>>(
+        self.poolCap = signer.storage.load<Capability<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>>(
             from: FlowALPv0.PoolCapStoragePath
         ) ?? panic("Could not load Pool capability from storage - ensure the signer has been granted Pool access with EParticipant entitlement")
     }
