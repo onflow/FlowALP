@@ -120,6 +120,20 @@ fun deployContracts() {
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
+        name: "FlowALPHealth",
+        path: "../contracts/FlowALPHealth.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowALPPositionResources",
+        path: "../contracts/FlowALPPositionResources.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
         name: "FlowALPv0",
         path: "../contracts/FlowALPv0.cdc",
         arguments: []

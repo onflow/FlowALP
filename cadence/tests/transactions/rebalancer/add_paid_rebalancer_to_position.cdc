@@ -1,4 +1,5 @@
 import "FlowALPv0"
+import "FlowALPPositionResources"
 import "FlowALPModels"
 import "FlowALPRebalancerv1"
 import "FlowALPRebalancerPaidv1"
@@ -11,7 +12,7 @@ transaction(positionStoragePath: StoragePath, paidRebalancerStoragePath: Storage
     }
 
     execute {
-        let rebalanceCap = self.signer.capabilities.storage.issue<auth(FlowALPModels.ERebalance) &FlowALPv0.Position>(
+        let rebalanceCap = self.signer.capabilities.storage.issue<auth(FlowALPModels.ERebalance) &FlowALPPositionResources.Position>(
             positionStoragePath
         )
         let paidRebalancer <- FlowALPRebalancerPaidv1.createPaidRebalancer(
