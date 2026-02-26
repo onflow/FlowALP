@@ -23,7 +23,7 @@ access(all) let MAX_HEALTH = 1.5
 access(all) let INT_MIN_HEALTH: UFix128 = 1.1
 access(all) let INT_TARGET_HEALTH: UFix128 = 1.3
 access(all) let INT_MAX_HEALTH: UFix128 = 1.5
-access(all) let CEILING_HEALTH: UFix128 = UFix128.max      // infinite health when debt ~ 0.0
+access(all) let CEILING_HEALTH = UFix128.max      // infinite health when debt ~ 0.0
 
 // Time constants
 access(all) let DAY: Fix64 = 86_400.0
@@ -50,12 +50,16 @@ access(all) let MAINNET_USDF_STORAGE_PATH = /storage/EVMVMBridgedToken_2aabea205
 access(all) let MAINNET_WETH_STORAGE_PATH = /storage/EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590Vault
 access(all) let MAINNET_WBTC_STORAGE_PATH = /storage/EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579Vault
 
-// Biggest token holders
-access(all) let MAINNET_USDF_HOLDER = Test.getAccount(0xf18b50870aed46ad) // 25000
-access(all) let MAINNET_WETH_HOLDER = Test.getAccount(0xf62e3381a164f993) // 0.07032
-access(all) let MAINNET_WBTC_HOLDER = Test.getAccount(0x47f544294e3b7656) // 0.0005
-access(all) let MAINNET_FLOW_HOLDER = Test.getAccount(0xe467b9dd11fa00df) // 1921
-access(all) let MAINNET_USDC_HOLDER = Test.getAccount(0xec6119051f7adc31) // 97
+// Mainnet account addresses (used in fork tests)
+// Note: MAINNET_PROTOCOL_ACCOUNT shares its address with MAINNET_WBTC_HOLDER (0x47f544294e3b7656).
+// In fork mode, Test.deployContract() deploys FlowALPv0 to its mainnet alias, so PoolFactory
+// and all pool admin resources are stored at MAINNET_PROTOCOL_ACCOUNT_ADDRESS.
+access(all) let MAINNET_PROTOCOL_ACCOUNT_ADDRESS: Address = 0x47f544294e3b7656
+access(all) let MAINNET_USDF_HOLDER_ADDRESS: Address = 0xf18b50870aed46ad
+access(all) let MAINNET_WETH_HOLDER_ADDRESS: Address = 0xf62e3381a164f993
+access(all) let MAINNET_WBTC_HOLDER_ADDRESS: Address = 0x47f544294e3b7656
+access(all) let MAINNET_FLOW_HOLDER_ADDRESS: Address = 0xe467b9dd11fa00df
+access(all) let MAINNET_USDC_HOLDER_ADDRESS: Address = 0xec6119051f7adc31
 
 /* --- Test execution helpers --- */
 
