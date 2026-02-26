@@ -135,7 +135,7 @@
 		"Burner": {
 			"source": "mainnet://f233dcee88fe0abe.Burner",
 			"hash": "71af18e227984cd434a3ad00bb2f3618b76482842bae920ee55662c37c8bf331",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "f233dcee88fe0abe",
@@ -146,7 +146,7 @@
 		"EVM": {
 			"source": "mainnet://e467b9dd11fa00df.EVM",
 			"hash": "960b0c7df7ee536956af196fba8c8d5dd4f7a89a4ecc61467e31287c4617b0dd",
-			"block_height": 141019535,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "e467b9dd11fa00df",
@@ -157,7 +157,7 @@
 		"FlowCron": {
 			"source": "mainnet://6dec6e64a13b881e.FlowCron",
 			"hash": "ab570aabfb4d3ee01537ad85ad789ed13ac193ba447bc037365d51d748272cd5",
-			"block_height": 141024643,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "6dec6e64a13b881e",
@@ -169,7 +169,7 @@
 		"FlowCronUtils": {
 			"source": "mainnet://6dec6e64a13b881e.FlowCronUtils",
 			"hash": "498c32c1345b9b1db951a18e4ea94325b8c9c05ea691f2d9b6af75b886ab51a2",
-			"block_height": 141024643,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "6dec6e64a13b881e",
@@ -181,7 +181,7 @@
 		"FlowFees": {
 			"source": "mainnet://f919ee77447b7497.FlowFees",
 			"hash": "341cc0f3cc847d6b787c390133f6a5e6c867c111784f09c5c0083c47f2f1df64",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "e5a8b7f23e8b548f",
 				"mainnet": "f919ee77447b7497",
@@ -192,7 +192,7 @@
 		"FlowStorageFees": {
 			"source": "mainnet://e467b9dd11fa00df.FlowStorageFees",
 			"hash": "a92c26fb2ea59725441fa703aa4cd811e0fc56ac73d649a8e12c1e72b67a8473",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "e467b9dd11fa00df",
@@ -203,7 +203,7 @@
 		"FlowToken": {
 			"source": "mainnet://1654653399040a61.FlowToken",
 			"hash": "f82389e2412624ffa439836b00b42e6605b0c00802a4e485bc95b8930a7eac38",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "0ae53cb6e3f42a79",
 				"mainnet": "1654653399040a61",
@@ -214,7 +214,7 @@
 		"FlowTransactionScheduler": {
 			"source": "mainnet://e467b9dd11fa00df.FlowTransactionScheduler",
 			"hash": "23157cf7d70534e45b0ab729133232d0ffb3cdae52661df1744747cb1f8c0495",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "e467b9dd11fa00df",
@@ -225,7 +225,7 @@
 		"FlowTransactionSchedulerUtils": {
 			"source": "mainnet://e467b9dd11fa00df.FlowTransactionSchedulerUtils",
 			"hash": "71a1febab6b9ba76abec36dab1e61b1c377e44fbe627e5fac649deb71b727877",
-			"block_height": 141019535,
+			"block_height": 143445158,
 			"aliases": {
 				"mainnet": "e467b9dd11fa00df",
 				"mainnet-fork": "e467b9dd11fa00df"
@@ -234,7 +234,7 @@
 		"FungibleToken": {
 			"source": "mainnet://f233dcee88fe0abe.FungibleToken",
 			"hash": "4b74edfe7d7ddfa70b703c14aa731a0b2e7ce016ce54d998bfd861ada4d240f6",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "ee82856bf20e2aa6",
 				"mainnet": "f233dcee88fe0abe",
@@ -245,7 +245,7 @@
 		"FungibleTokenMetadataViews": {
 			"source": "mainnet://f233dcee88fe0abe.FungibleTokenMetadataViews",
 			"hash": "70477f80fd7678466c224507e9689f68f72a9e697128d5ea54d19961ec856b3c",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "ee82856bf20e2aa6",
 				"mainnet": "f233dcee88fe0abe",
@@ -256,7 +256,7 @@
 		"MetadataViews": {
 			"source": "mainnet://1d7e57aa55817448.MetadataViews",
 			"hash": "b290b7906d901882b4b62e596225fb2f10defb5eaaab4a09368f3aee0e9c18b1",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
@@ -267,7 +267,7 @@
 		"NonFungibleToken": {
 			"source": "mainnet://1d7e57aa55817448.NonFungibleToken",
 			"hash": "a258de1abddcdb50afc929e74aca87161d0083588f6abf2b369672e64cf4a403",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
@@ -278,7 +278,7 @@
 		"ViewResolver": {
 			"source": "mainnet://1d7e57aa55817448.ViewResolver",
 			"hash": "374a1994046bac9f6228b4843cb32393ef40554df9bd9907a702d098a2987bde",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
@@ -313,14 +313,6 @@
 				"resourceID": "projects/dl-flow-devex-production/locations/us-central1/keyRings/tidal-keyring/cryptoKeys/tidal_admin_pk/cryptoKeyVersions/1"
 			}
 		},
-		"mainnet-fyv-deployer": {
-			"address": "b1d63873c3cc9f79",
-			"key": {
-				"type": "google-kms",
-				"hashAlgorithm": "SHA2_256",
-				"resourceID": "projects/dl-flow-devex-production/locations/us-central1/keyRings/tidal-keyring/cryptoKeys/tidal_admin_pk/cryptoKeyVersions/1"
-			}
-		},
 		"mainnet-fork-deployer": {
 			"address": "6b00ff876c299c61",
 			"key": {
@@ -333,6 +325,14 @@
 			"key": {
 				"type": "file",
 				"location": "emulator-account.pkey"
+			}
+		},
+		"mainnet-fyv-deployer": {
+			"address": "b1d63873c3cc9f79",
+			"key": {
+				"type": "google-kms",
+				"hashAlgorithm": "SHA2_256",
+				"resourceID": "projects/dl-flow-devex-production/locations/us-central1/keyRings/tidal-keyring/cryptoKeys/tidal_admin_pk/cryptoKeyVersions/1"
 			}
 		},
 		"testnet-deployer": {
@@ -394,7 +394,6 @@
 				"MockDexSwapper",
 				"MockOracle"
 			]
-
 		},
 		"mainnet-fork": {
 			"mainnet-fork-deployer": [
@@ -414,7 +413,6 @@
 				"MockDexSwapper",
 				"MockOracle"
 			]
-
 		},
 		"testnet": {
 			"testnet-deployer": [

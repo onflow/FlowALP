@@ -27,7 +27,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
 
     /// Default RecurringConfig for all newly created paid rebalancers. Must be set by Admin before
     /// createPaidRebalancer is used. Includes txFunder, which pays for scheduled rebalance transactions.
-    access(all) var defaultRecurringConfig: FlowALPRebalancerv1.RecurringConfig?
+    access(all) var defaultRecurringConfig: {FlowALPRebalancerv1.RecurringConfig}?
     access(all) var adminStoragePath: StoragePath
 
     /// Create a paid rebalancer for the given position. Uses defaultRecurringConfig (must be set).
@@ -51,14 +51,14 @@ access(all) contract FlowALPRebalancerPaidv1 {
     /// Admin resource: controls default config and per-rebalancer config; can remove paid rebalancers.
     access(all) resource Admin {
         /// Set the default RecurringConfig for all newly created paid rebalancers (interval, txFunder, etc.).
-        access(all) fun updateDefaultRecurringConfig(recurringConfig: FlowALPRebalancerv1.RecurringConfig) {
+        access(all) fun updateDefaultRecurringConfig(recurringConfig: {FlowALPRebalancerv1.RecurringConfig}) {
             FlowALPRebalancerPaidv1.defaultRecurringConfig = recurringConfig
             emit UpdatedDefaultRecurringConfig(
-                interval: recurringConfig.interval,
-                priority: recurringConfig.priority.rawValue,
-                executionEffort: recurringConfig.executionEffort,
-                estimationMargin: recurringConfig.estimationMargin,
-                forceRebalance: recurringConfig.forceRebalance,
+                interval: recurringConfig.getInterval(),
+                priority: recurringConfig.getPriority().rawValue,
+                executionEffort: recurringConfig.getExecutionEffort(),
+                estimationMargin: recurringConfig.getEstimationMargin(),
+                forceRebalance: recurringConfig.getForceRebalance(),
             )
         }
 
@@ -72,7 +72,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
         /// Update the RecurringConfig for a specific paid rebalancer (interval, txFunder, etc.).
         access(all) fun updateRecurringConfig(
             uuid: UInt64,
-            recurringConfig: FlowALPRebalancerv1.RecurringConfig)
+            recurringConfig: {FlowALPRebalancerv1.RecurringConfig})
         {
             let rebalancer = FlowALPRebalancerPaidv1.borrowRebalancer(uuid: uuid)!
             rebalancer.setRecurringConfig(recurringConfig)
