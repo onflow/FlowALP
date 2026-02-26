@@ -111,6 +111,20 @@ fun deployContracts() {
     )
     Test.expect(err, Test.beNil())
 
+    err = Test.deployContract(
+        name: "MultiMockOracle",
+        path: "./contracts/MultiMockOracle.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "PriceOracleAggregatorv1",
+        path: "../contracts/PriceOracleAggregatorv1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
     let initialYieldTokenSupply = 0.0
     err = Test.deployContract(
         name: "MockYieldToken",
@@ -187,6 +201,34 @@ fun deployContracts() {
     err = Test.deployContract(
         name: "FlowALPSupervisorv1",
         path: "../contracts/FlowALPSupervisorv1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "PriceOracleRouterv1",
+        path: "../contracts/PriceOracleRouterv1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "OracleStorage",
+        path: "./contracts/OracleStorage.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "ExampleToken1",
+        path: "./contracts/ExampleToken1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "ExampleToken2",
+        path: "./contracts/ExampleToken2.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
@@ -675,7 +717,7 @@ fun collectStability(
         [ tokenTypeIdentifier ],
         signer
     )
-    
+
     return res
 }
 
@@ -692,7 +734,7 @@ fun withdrawStabilityFund(
         [tokenTypeIdentifier, amount, recipient, recipientPath],
         signer
     )
-    
+
     return res
 }
 

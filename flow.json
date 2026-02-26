@@ -46,6 +46,18 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"ExampleToken1": {
+			"source": "./cadence/tests/contracts/ExampleToken1.cdc",
+			"aliases": {
+				"testing": "0000000000000008"
+			}
+		},
+		"ExampleToken2": {
+			"source": "./cadence/tests/contracts/ExampleToken2.cdc",
+			"aliases": {
+				"testing": "0000000000000008"
+			}
+		},
 		"FlowALPMath": {
 			"source": "./cadence/lib/FlowALPMath.cdc",
 			"aliases": {
@@ -79,11 +91,7 @@
 		"FungibleTokenConnectors": {
 			"source": "./FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
 			"aliases": {
-				"emulator": "045a1763c93006ca",
-				"mainnet": "0c237e1265caa7a3",
-				"mainnet-fork": "0c237e1265caa7a3",
-				"testing": "0000000000000006",
-				"testnet": "4cd02f8de4122c84"
+				"testing": "0000000000000006"
 			}
 		},
 		"MOET": {
@@ -108,6 +116,30 @@
 		},
 		"MockYieldToken": {
 			"source": "./cadence/contracts/mocks/MockYieldToken.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"MultiMockOracle": {
+			"source": "./cadence/tests/contracts/MultiMockOracle.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"OracleStorage": {
+			"source": "./cadence/tests/contracts/OracleStorage.cdc",
+			"aliases": {
+				"testing": "0000000000000008"
+			}
+		},
+		"PriceOracleAggregatorv1": {
+			"source": "./cadence/contracts/PriceOracleAggregatorv1.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
+		"PriceOracleRouterv1": {
+			"source": "./cadence/contracts/PriceOracleRouterv1.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
