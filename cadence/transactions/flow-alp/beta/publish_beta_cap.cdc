@@ -3,9 +3,9 @@ import "FlowALPv0"
 transaction(grantee: Address) {
 
     prepare(admin: auth(IssueStorageCapabilityController, PublishInboxCapability) &Account) {
-        let poolCap: Capability<auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool> =
+        let poolCap =
             admin.capabilities.storage.issue<
-                auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool
+                auth(FlowALPv0.EParticipant) &FlowALPv0.Pool
             >(FlowALPv0.PoolStoragePath)
 
         assert(poolCap.check(), message: "Failed to issue beta capability")
