@@ -30,7 +30,7 @@ access(all) fun test_single_oracle() {
         maxSpread: 10000.0,
         baseTolerance: 10000.0,
         driftExpansionRate: 10000.0,
-        priceHistorySize: 0,
+        maxPriceHistorySize: 0,
         priceHistoryInterval: 0.0,
         maxPriceHistoryAge: 0.0,
         minimumPriceHistory: 0,
@@ -63,7 +63,7 @@ access(all) fun test_multiple_oracles() {
             maxSpread: 10000.0,
             baseTolerance: 10000.0,
             driftExpansionRate: 10000.0,
-            priceHistorySize: 0,
+            maxPriceHistorySize: 0,
             priceHistoryInterval: 0.0,
             maxPriceHistoryAge: 0.0,
             minimumPriceHistory: 0,
@@ -150,7 +150,7 @@ access(all) fun test_average_price() {
             maxSpread: 10000.0,
             baseTolerance: 10000.0,
             driftExpansionRate: 10000.0,
-            priceHistorySize: 0,
+            maxPriceHistorySize: 0,
             priceHistoryInterval: 0.0,
             maxPriceHistoryAge: 0.0,
             minimumPriceHistory: 0,
@@ -251,7 +251,7 @@ access(all) fun test_spread() {
             maxSpread: testRun.maxSpread,
             baseTolerance: 10000.0,
             driftExpansionRate: 10000.0,
-            priceHistorySize: 0,
+            maxPriceHistorySize: 0,
             priceHistoryInterval: 0.0,
             maxPriceHistoryAge: 0.0,
             minimumPriceHistory: 0,
@@ -413,7 +413,7 @@ access(all) fun test_history() {
             maxSpread: 10000.0,
             baseTolerance: testRun.baseTolerance,
             driftExpansionRate: testRun.driftExpansionRate,
-            priceHistorySize: UInt8(testRun.priceHistory.length),
+            maxPriceHistorySize: UInt8(testRun.priceHistory.length),
             priceHistoryInterval: UFix64(testRun.priceHistoryDelay - 1.0), // allow some jitter
             maxPriceHistoryAge: 600.0, // 10 minutes
             minimumPriceHistory: 0,
@@ -462,7 +462,7 @@ access(self) fun test_incomplete_price_history() {
         maxSpread: 10000.0,
         baseTolerance: 0.0,
         driftExpansionRate: 1.0,
-        priceHistorySize: UInt8(priceHistory.length),
+        maxPriceHistorySize: UInt8(priceHistory.length),
         priceHistoryInterval: 59.0, // allow some jitter
         maxPriceHistoryAge: 600.0, // 10 minutes
         minimumPriceHistory: 0,
@@ -497,7 +497,7 @@ access(self) fun test_old_price_history() {
         maxSpread: 10000.0,
         baseTolerance: 0.0,
         driftExpansionRate: 1.0,
-        priceHistorySize: UInt8(priceHistory.length),
+        maxPriceHistorySize: UInt8(priceHistory.length),
         priceHistoryInterval: 59.0, // allow some jitter
         maxPriceHistoryAge: 150.0,
         minimumPriceHistory: 0,
@@ -530,7 +530,7 @@ access(all) fun test_minimum_price_history() {
         maxSpread: 10000.0,
         baseTolerance: 10000.0,
         driftExpansionRate: 10000.0,
-        priceHistorySize: 10,
+        maxPriceHistorySize: 10,
         priceHistoryInterval: 59.0,
         maxPriceHistoryAge: 600.0, // 20 minutes
         minimumPriceHistory: 5,
@@ -569,7 +569,7 @@ access(all) fun test_events() {
         maxSpread: 1.0,
         baseTolerance: 1.0,
         driftExpansionRate: 1.0,
-        priceHistorySize: 1,
+        maxPriceHistorySize: 1,
         priceHistoryInterval: 60.0,
         maxPriceHistoryAge: 600.0,
         minimumPriceHistory: 0,
@@ -656,7 +656,7 @@ access(all) fun test_cron_job() {
         maxSpread: 10000.0,
         baseTolerance: 10000.0,
         driftExpansionRate: 10000.0,
-        priceHistorySize: 5,
+        maxPriceHistorySize: 5,
         priceHistoryInterval: 59.0, // allow some jitter
         maxPriceHistoryAge: 600.0, // 10 minutes
         minimumPriceHistory: 0,

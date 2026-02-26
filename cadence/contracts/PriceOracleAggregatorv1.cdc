@@ -54,8 +54,8 @@ access(all) contract PriceOracleAggregatorv1 {
         access(all) let baseTolerance: UFix64
         /// Additional allowance per minute to account for natural price drift.
         access(all) let driftExpansionRate: UFix64
-        /// Size of the price history array.
-        access(all) let priceHistorySize: UInt8
+        /// Max size of the price history array.
+        access(all) let maxPriceHistorySize: UInt8
         /// Min time between two consecutive history entries.
         access(all) let priceHistoryInterval: UFix64
         /// Maximum age of a price history entry. History entries older than
@@ -74,7 +74,7 @@ access(all) contract PriceOracleAggregatorv1 {
             maxSpread: UFix64,
             baseTolerance: UFix64,
             driftExpansionRate: UFix64,
-            priceHistorySize: UInt8,
+            maxPriceHistorySize: UInt8,
             priceHistoryInterval: UFix64,
             maxPriceHistoryAge: UFix64,
             minimumPriceHistory: UInt8,
@@ -89,16 +89,16 @@ access(all) contract PriceOracleAggregatorv1 {
                     "baseTolerance must be <= 10000.0"
                 driftExpansionRate <= 10000.0:
                     "driftExpansionRate must be <= 10000.0"
-                minimumPriceHistory <= priceHistorySize:
-                    "minimumPriceHistory must be <= priceHistorySize"
+                minimumPriceHistory <= maxPriceHistorySize:
+                    "minimumPriceHistory must be <= maxPriceHistorySize"
                 maxPriceHistoryAge >= priceHistoryInterval * UFix64(minimumPriceHistory + 1):
                     "maxPriceHistoryAge must be >= priceHistoryInterval * (minimumPriceHistory + 1)"
             }
-            if priceHistorySize == 0 && priceHistoryInterval != 0.0 {
-                panic("if priceHistorySize == 0, priceHistoryInterval must be 0.0")
+            if maxPriceHistorySize == 0 && priceHistoryInterval != 0.0 {
+                panic("if maxPriceHistorySize == 0, priceHistoryInterval must be 0.0")
             }
-            if priceHistorySize != 0 && priceHistoryInterval == 0.0 {
-                panic("if priceHistorySize != 0, priceHistoryInterval must be > 0.0")
+            if maxPriceHistorySize != 0 && priceHistoryInterval == 0.0 {
+                panic("if maxPriceHistorySize != 0, priceHistoryInterval must be > 0.0")
             }
             self.ofToken = ofToken
             self.oracles = oracles
@@ -106,7 +106,7 @@ access(all) contract PriceOracleAggregatorv1 {
             self.maxSpread = maxSpread
             self.baseTolerance = baseTolerance
             self.driftExpansionRate = driftExpansionRate
-            self.priceHistorySize = priceHistorySize
+            self.maxPriceHistorySize = maxPriceHistorySize
             self.priceHistoryInterval = priceHistoryInterval
             self.maxPriceHistoryAge = maxPriceHistoryAge
             self.minimumPriceHistory = minimumPriceHistory
@@ -264,7 +264,7 @@ access(all) contract PriceOracleAggregatorv1 {
             }
             let newEntry = PriceHistoryEntry(price: price, timestamp: now)
             self.priceHistory.append(newEntry)
-            if self.priceHistory.length > Int(self.priceHistorySize) {
+            if self.priceHistory.length > Int(self.maxPriceHistorySize) {
                 let _ = self.priceHistory.removeFirst()
             }
         }
@@ -359,7 +359,7 @@ access(all) contract PriceOracleAggregatorv1 {
         maxSpread: UFix64,
         baseTolerance: UFix64,
         driftExpansionRate: UFix64,
-        priceHistorySize: UInt8,
+        maxPriceHistorySize: UInt8,
         priceHistoryInterval: UFix64,
         maxPriceHistoryAge: UFix64,
         minimumPriceHistory: UInt8,
@@ -371,7 +371,7 @@ access(all) contract PriceOracleAggregatorv1 {
             maxSpread: maxSpread,
             baseTolerance: baseTolerance,
             driftExpansionRate: driftExpansionRate,
-            priceHistorySize: priceHistorySize,
+            maxPriceHistorySize: maxPriceHistorySize,
             priceHistoryInterval: priceHistoryInterval,
             maxPriceHistoryAge: maxPriceHistoryAge,
             minimumPriceHistory: minimumPriceHistory,

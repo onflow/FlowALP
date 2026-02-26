@@ -19,7 +19,7 @@ access(all) fun createAggregator(
     maxSpread: UFix64,
     baseTolerance: UFix64,
     driftExpansionRate: UFix64,
-    priceHistorySize: UInt8,
+    maxPriceHistorySize: UInt8,
     priceHistoryInterval: UFix64,
     maxPriceHistoryAge: UFix64,
     minimumPriceHistory: UInt8,
@@ -27,7 +27,7 @@ access(all) fun createAggregator(
 ): CreateAggregatorInfo {
     let res = _executeTransaction(
         "./transactions/price-oracle-aggregator/create.cdc",
-        [ofToken, oracleCount, maxSpread, baseTolerance, driftExpansionRate, priceHistorySize, priceHistoryInterval, maxPriceHistoryAge, minimumPriceHistory, unitOfAccount],
+        [ofToken, oracleCount, maxSpread, baseTolerance, driftExpansionRate, maxPriceHistorySize, priceHistoryInterval, maxPriceHistoryAge, minimumPriceHistory, unitOfAccount],
         []
     )
     Test.expect(res, Test.beSucceeded())
@@ -54,7 +54,7 @@ access(all) fun createAggregatorWithCron(
     maxSpread: UFix64,
     baseTolerance: UFix64,
     driftExpansionRate: UFix64,
-    priceHistorySize: UInt8,
+    maxPriceHistorySize: UInt8,
     priceHistoryInterval: UFix64,
     maxPriceHistoryAge: UFix64,
     minimumPriceHistory: UInt8,
@@ -67,7 +67,7 @@ access(all) fun createAggregatorWithCron(
 ): CreateAggregatorInfo {
     let res = _executeTransaction(
         "./transactions/price-oracle-aggregator/create_with_cron.cdc",
-        [ofToken, oracleCount, maxSpread, baseTolerance, driftExpansionRate, priceHistorySize, priceHistoryInterval, maxPriceHistoryAge, minimumPriceHistory, unitOfAccount, cronExpression, cronHandlerStoragePath, keeperExecutionEffort, executorExecutionEffort, aggregatorCronHandlerStoragePath],
+        [ofToken, oracleCount, maxSpread, baseTolerance, driftExpansionRate, maxPriceHistorySize, priceHistoryInterval, maxPriceHistoryAge, minimumPriceHistory, unitOfAccount, cronExpression, cronHandlerStoragePath, keeperExecutionEffort, executorExecutionEffort, aggregatorCronHandlerStoragePath],
         [signer]
     )
     Test.expect(res, Test.beSucceeded())
