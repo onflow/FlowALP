@@ -1892,10 +1892,17 @@ access(all) contract FlowALPv0 {
                         : tokenState.debitInterestIndex
                 )
 
+                // Conservative rounding:
+                // - Debits (debt/withdrawals from position): round UP to ensure we require enough
+                // - Credits (deposits/collateral): round DOWN to avoid overpromising available funds
+                let balanceUFix64 = balance.direction == BalanceDirection.Debit
+                    ? FlowALPMath.toUFix64RoundUp(trueBalance)
+                    : FlowALPMath.toUFix64RoundDown(trueBalance)
+
                 balances.append(PositionBalance(
                     vaultType: type,
                     direction: balance.direction,
-                    balance: FlowALPMath.toUFix64Round(trueBalance)
+                    balance: balanceUFix64
                 ))
             }
 
@@ -3085,13 +3092,15 @@ access(all) contract FlowALPv0 {
 
             // Step 1: Calculate total debt that needs to be repaid (NO LOCK NEEDED - read-only)
             // Note: Debt is always MOET in this protocol
+            // Use standard position details which applies conservative rounding (UP for debits)
+            // to ensure protocol safety - we always require full repayment of debt
             let positionDetails = self.getPositionDetails(pid: pid)
             var totalDebtAmount: UFix64 = 0.0
             let debtType = Type<@MOET.Vault>()
 
             for balance in positionDetails.balances {
                 if balance.direction == BalanceDirection.Debit {
-                    // Accumulate debt (balance is already UFix64, no rounding needed here)
+                    // Accumulate debt (balance is already UFix64 with conservative rounding applied)
                     totalDebtAmount = totalDebtAmount + balance.balance
                 }
             }
@@ -3220,7 +3229,9 @@ access(all) contract FlowALPv0 {
 
             if totalEffectiveDebt == 0.0 {
                 // No remaining debt - withdraw all collateral
-                withdrawAmount = UFix64(positionView.trueBalance(ofToken: collateralType))
+                // Round DOWN to ensure we never try to withdraw more than what's in the vault
+                // (UFix128→UFix64 conversion can introduce precision errors)
+                withdrawAmount = FlowALPMath.toUFix64RoundDown(positionView.trueBalance(ofToken: collateralType))
             } else {
                 // Remaining debt exists - calculate safe withdrawal maintaining target health
                 let position = self._borrowPosition(pid: pid)
