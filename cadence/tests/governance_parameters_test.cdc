@@ -17,7 +17,8 @@ fun test_setGovernanceParams_and_exercise_paths() {
     // 1) Set insurance swapper
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())

@@ -118,8 +118,9 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
 
      // set insurance swapper
     let res = setInsuranceSwapper(
-        signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        signer: PROTOCOL_ACCOUNT, 
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())

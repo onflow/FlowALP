@@ -631,12 +631,13 @@ fun setInsuranceRate(
 access(all)
 fun setInsuranceSwapper(
     signer: Test.TestAccount,
-    tokenTypeIdentifier: String,
+    swapperInTypeIdentifier: String,
+    swapperOutTypeIdentifier: String,
     priceRatio: UFix64,
 ): Test.TransactionResult {
     let res = _executeTransaction(
         "./transactions/flow-alp/pool-governance/set_insurance_swapper_mock.cdc",
-        [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, MOET_TOKEN_IDENTIFIER],
+        [ swapperInTypeIdentifier, priceRatio, swapperInTypeIdentifier, swapperOutTypeIdentifier],
         signer
     )
     return res

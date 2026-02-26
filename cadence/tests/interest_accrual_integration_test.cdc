@@ -172,7 +172,8 @@ fun test_moet_debit_accrues_interest() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -403,7 +404,8 @@ fun test_moet_credit_accrues_interest_with_insurance() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -589,7 +591,8 @@ fun test_flow_debit_accrues_interest() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -777,7 +780,8 @@ fun test_flow_credit_accrues_interest_with_insurance() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -955,7 +959,8 @@ fun test_insurance_deduction_verification() {
     // Expected Credit Rate: 10% - 1% = 9%
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -1176,7 +1181,8 @@ fun test_combined_all_interest_scenarios() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
