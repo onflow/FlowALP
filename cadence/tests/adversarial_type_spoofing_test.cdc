@@ -59,10 +59,13 @@ fun testMaliciousSource() {
     Test.expect(openRes, Test.beSucceeded())
 
     // withdraw 1337 Flow from the position
-    let withdrawRes = executeTransaction(
-        "./transactions/flow-alp/pool-management/withdraw_from_position.cdc",
-        [1 as UInt64, flowTokenIdentifier, 1337.0, true],
-        hackerAccount
+    let withdrawRes = withdrawFromPosition(
+        signer: hackerAccount,
+        positionId: 1,
+        tokenTypeIdentifier: flowTokenIdentifier,
+        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: 1337.0,
+        pullFromTopUpSource: true
     )
     Test.expect(withdrawRes, Test.beFailed())
 

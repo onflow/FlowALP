@@ -50,6 +50,7 @@ access(all) let MAINNET_PROTOCOL_ACCOUNT_ADDRESS: Address = 0x6b00ff876c299c61
 access(all) let MAINNET_USDF_HOLDER_ADDRESS: Address = 0xf18b50870aed46ad
 access(all) let MAINNET_WETH_HOLDER_ADDRESS: Address = 0xf62e3381a164f993
 access(all) let MAINNET_WBTC_HOLDER_ADDRESS: Address = 0x47f544294e3b7656
+access(all) let MAINNET_FLOW_HOLDER_ADDRESS: Address = 0x92674150c9213fc9
 
 /* --- Test execution helpers --- */
 
@@ -552,13 +553,13 @@ fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeId
 }
 
 access(all)
-fun withdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, pullFromTopUpSource: Bool) {
+fun withdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, receiverVaultStoragePath: StoragePath, amount: UFix64, pullFromTopUpSource: Bool): Test.TransactionResult{
     let withdrawRes = _executeTransaction(
         "./transactions/position-manager/withdraw_from_position.cdc",
-        [positionId, tokenTypeIdentifier, amount, pullFromTopUpSource],
+        [positionId, tokenTypeIdentifier, receiverVaultStoragePath, amount, pullFromTopUpSource],
         signer
     )
-    Test.expect(withdrawRes, Test.beSucceeded())
+    return withdrawRes
 }
 
 access(all)

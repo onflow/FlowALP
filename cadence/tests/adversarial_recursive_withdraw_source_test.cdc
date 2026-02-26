@@ -119,10 +119,14 @@ fun testRecursiveWithdrawSource() {
     //
     // In this test, the topUpSource behavior is adversarial: it attempts to re-enter
     // the pool during the pull/deposit flow. We expect the transaction to fail.
-    let withdrawRes = executeTransaction(
-        "./transactions/flow-alp/pool-management/withdraw_from_position.cdc",
-        [positionID, flowTokenIdentifier, 1500.0, true], // pullFromTopUpSource: true
-        userAccount
+    let withdrawRes = withdrawFromPosition(
+        signer: userAccount,
+        positionId: positionID,
+        tokenTypeIdentifier: flowTokenIdentifier,
+        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: 1500.0,
+        pullFromTopUpSource: true
+
     )
     Test.expect(withdrawRes, Test.beFailed())
 

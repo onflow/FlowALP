@@ -69,10 +69,13 @@ fun test_pool_pause_deposit_withdrawal() {
     Test.expect(depositRes, Test.beFailed())
 
     // Can't withdraw from existing position
-    let withdrawRes = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [0, FLOW_TOKEN_IDENTIFIER, initialDepositAmount/2.0, false],
-        user1
+    let withdrawRes = withdrawFromPosition(
+        signer: user1,
+        positionId: 0,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: initialDepositAmount/2.0,
+        pullFromTopUpSource: false
     )
     Test.expect(withdrawRes, Test.beFailed())
 
@@ -101,10 +104,13 @@ fun test_pool_pause_deposit_withdrawal() {
     Test.expect(depositRes2, Test.beSucceeded())
 
     // Withdrawing from position should still fail during warmup period
-    let withdrawRes2 = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [0 as UInt64, FLOW_TOKEN_IDENTIFIER, initialDepositAmount/2.0, false],
-        user1
+    let withdrawRes2 = withdrawFromPosition(
+        signer: user1,
+        positionId: 0,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: initialDepositAmount/2.0,
+        pullFromTopUpSource: false
     )
     Test.expect(withdrawRes2, Test.beFailed())
 
@@ -121,12 +127,13 @@ fun test_pool_pause_deposit_withdrawal() {
     // ---------------------------------------------------------
 
     // Withdrawing from position should now succeed
-    let withdrawRes3 = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [0 as UInt64, FLOW_TOKEN_IDENTIFIER, initialDepositAmount/2.0, false],
-        user1
+    let withdrawRes3 = withdrawFromPosition(
+        signer: user1,
+        positionId: 0,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: initialDepositAmount/2.0,
+        pullFromTopUpSource: false
     )
     Test.expect(withdrawRes3, Test.beSucceeded())
-
-
 }
