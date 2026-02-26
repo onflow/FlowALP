@@ -19,7 +19,7 @@ transaction(paidRebalancerAdminStoragePath: StoragePath) {
         let sinkSource = FungibleTokenConnectors.VaultSinkAndSource(min: nil, max: nil, vault: self.vaultCapability, uniqueID: nil)
         assert(sinkSource.minimumAvailable() > 0.0, message: "Insufficient funds available")
 
-        let config = FlowALPRebalancerv1.RecurringConfig(
+        let config = FlowALPRebalancerv1.RecurringConfigImplv1(
             interval: 100,
             priority: FlowTransactionScheduler.Priority.Medium,
             executionEffort: 1000,

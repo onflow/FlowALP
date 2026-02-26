@@ -1,9 +1,32 @@
 {
 	"contracts": {
+		"AdversarialReentrancyConnectors": {
+			"source": "./cadence/tests/contracts/AdversarialReentrancyConnectors.cdc",
+			"aliases": {
+				"testing": "0000000000000008"
+			}
+		},
+		"AdversarialTypeSpoofingConnectors": {
+			"source": "./cadence/tests/contracts/AdversarialTypeSpoofingConnectors.cdc",
+			"aliases": {
+				"testing": "0000000000000008"
+			}
+		},
+		"BandOracleConnectors": {
+			"source": "./FlowActions/cadence/contracts/connectors/band-oracle/BandOracleConnectors.cdc",
+			"aliases": {
+				"emulator": "045a1763c93006ca",
+				"mainnet": "e36ef556b8b5d955",
+				"mainnet-fork": "e36ef556b8b5d955",
+				"testing": "0000000000000006",
+				"testnet": "bb76ea2f8aad74a0"
+			}
+		},
 		"DeFiActions": {
 			"source": "./FlowActions/cadence/contracts/interfaces/DeFiActions.cdc",
 			"aliases": {
 				"mainnet": "6d888f175c158410",
+				"mainnet-fork": "6d888f175c158410",
 				"testing": "0000000000000006",
 				"testnet": "0b11b1848a8aa2c0"
 			}
@@ -12,18 +35,13 @@
 			"source": "./FlowActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
 			"aliases": {
 				"mainnet": "6d888f175c158410",
+				"mainnet-fork": "6d888f175c158410",
 				"testing": "0000000000000006",
 				"testnet": "0b11b1848a8aa2c0"
 			}
 		},
 		"DummyConnectors": {
 			"source": "./cadence/contracts/mocks/DummyConnectors.cdc",
-			"aliases": {
-				"testing": "0000000000000007"
-			}
-		},
-		"FlowALPv0": {
-			"source": "./cadence/contracts/FlowALPv0.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
@@ -52,10 +70,20 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"FlowALPv0": {
+			"source": "./cadence/contracts/FlowALPv0.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"FungibleTokenConnectors": {
 			"source": "./FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
 			"aliases": {
-				"testing": "0000000000000006"
+				"emulator": "045a1763c93006ca",
+				"mainnet": "0c237e1265caa7a3",
+				"mainnet-fork": "0c237e1265caa7a3",
+				"testing": "0000000000000006",
+				"testnet": "4cd02f8de4122c84"
 			}
 		},
 		"MOET": {
@@ -67,13 +95,15 @@
 		"MockDexSwapper": {
 			"source": "./cadence/contracts/mocks/MockDexSwapper.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"testnet": "d2580caf2ef07c2f"
 			}
 		},
 		"MockOracle": {
 			"source": "./cadence/contracts/mocks/MockOracle.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"testnet": "d2580caf2ef07c2f"
 			}
 		},
 		"MockYieldToken": {
@@ -81,158 +111,160 @@
 			"aliases": {
 				"testing": "0000000000000007"
 			}
-		},
-		"AdversarialReentrancyConnectors": {
-			"source": "./cadence/tests/contracts/AdversarialReentrancyConnectors.cdc",
-			"aliases": {
-				"testing": "0000000000000008"
-			}
-		},
-		"AdversarialTypeSpoofingConnectors": {
-			"source": "./cadence/tests/contracts/AdversarialTypeSpoofingConnectors.cdc",
-			"aliases": {
-				"testing": "0000000000000008"
-			}
 		}
 	},
 	"dependencies": {
 		"Burner": {
 			"source": "mainnet://f233dcee88fe0abe.Burner",
 			"hash": "71af18e227984cd434a3ad00bb2f3618b76482842bae920ee55662c37c8bf331",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "f233dcee88fe0abe",
+				"mainnet-fork": "f233dcee88fe0abe",
 				"testnet": "9a0766d93b6608b7"
 			}
 		},
 		"EVM": {
 			"source": "mainnet://e467b9dd11fa00df.EVM",
 			"hash": "960b0c7df7ee536956af196fba8c8d5dd4f7a89a4ecc61467e31287c4617b0dd",
-			"block_height": 141019535,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "e467b9dd11fa00df",
+				"mainnet-fork": "e467b9dd11fa00df",
 				"testnet": "8c5303eaa26202d6"
 			}
 		},
 		"FlowCron": {
 			"source": "mainnet://6dec6e64a13b881e.FlowCron",
 			"hash": "ab570aabfb4d3ee01537ad85ad789ed13ac193ba447bc037365d51d748272cd5",
-			"block_height": 141024643,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "6dec6e64a13b881e",
-				"testnet": "5cbfdec870ee216d",
-				"testing": "0000000000000007"
+				"mainnet-fork": "6dec6e64a13b881e",
+				"testing": "0000000000000007",
+				"testnet": "5cbfdec870ee216d"
 			}
 		},
 		"FlowCronUtils": {
 			"source": "mainnet://6dec6e64a13b881e.FlowCronUtils",
 			"hash": "498c32c1345b9b1db951a18e4ea94325b8c9c05ea691f2d9b6af75b886ab51a2",
-			"block_height": 141024643,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "6dec6e64a13b881e",
-				"testnet": "5cbfdec870ee216d",
-				"testing": "0000000000000007"
+				"mainnet-fork": "6dec6e64a13b881e",
+				"testing": "0000000000000007",
+				"testnet": "5cbfdec870ee216d"
 			}
 		},
 		"FlowFees": {
 			"source": "mainnet://f919ee77447b7497.FlowFees",
 			"hash": "341cc0f3cc847d6b787c390133f6a5e6c867c111784f09c5c0083c47f2f1df64",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "e5a8b7f23e8b548f",
 				"mainnet": "f919ee77447b7497",
+				"mainnet-fork": "f919ee77447b7497",
 				"testnet": "912d5440f7e3769e"
 			}
 		},
 		"FlowStorageFees": {
 			"source": "mainnet://e467b9dd11fa00df.FlowStorageFees",
 			"hash": "a92c26fb2ea59725441fa703aa4cd811e0fc56ac73d649a8e12c1e72b67a8473",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "e467b9dd11fa00df",
+				"mainnet-fork": "e467b9dd11fa00df",
 				"testnet": "8c5303eaa26202d6"
 			}
 		},
 		"FlowToken": {
 			"source": "mainnet://1654653399040a61.FlowToken",
 			"hash": "f82389e2412624ffa439836b00b42e6605b0c00802a4e485bc95b8930a7eac38",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "0ae53cb6e3f42a79",
 				"mainnet": "1654653399040a61",
+				"mainnet-fork": "1654653399040a61",
 				"testnet": "7e60df042a9c0868"
 			}
 		},
 		"FlowTransactionScheduler": {
 			"source": "mainnet://e467b9dd11fa00df.FlowTransactionScheduler",
 			"hash": "23157cf7d70534e45b0ab729133232d0ffb3cdae52661df1744747cb1f8c0495",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "e467b9dd11fa00df",
+				"mainnet-fork": "e467b9dd11fa00df",
 				"testnet": "8c5303eaa26202d6"
 			}
 		},
 		"FlowTransactionSchedulerUtils": {
 			"source": "mainnet://e467b9dd11fa00df.FlowTransactionSchedulerUtils",
 			"hash": "71a1febab6b9ba76abec36dab1e61b1c377e44fbe627e5fac649deb71b727877",
-			"block_height": 141019535,
+			"block_height": 143445158,
 			"aliases": {
-				"mainnet": "e467b9dd11fa00df"
+				"mainnet": "e467b9dd11fa00df",
+				"mainnet-fork": "e467b9dd11fa00df"
 			}
 		},
 		"FungibleToken": {
 			"source": "mainnet://f233dcee88fe0abe.FungibleToken",
 			"hash": "4b74edfe7d7ddfa70b703c14aa731a0b2e7ce016ce54d998bfd861ada4d240f6",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "ee82856bf20e2aa6",
 				"mainnet": "f233dcee88fe0abe",
+				"mainnet-fork": "f233dcee88fe0abe",
 				"testnet": "9a0766d93b6608b7"
 			}
 		},
 		"FungibleTokenMetadataViews": {
 			"source": "mainnet://f233dcee88fe0abe.FungibleTokenMetadataViews",
 			"hash": "70477f80fd7678466c224507e9689f68f72a9e697128d5ea54d19961ec856b3c",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "ee82856bf20e2aa6",
 				"mainnet": "f233dcee88fe0abe",
+				"mainnet-fork": "f233dcee88fe0abe",
 				"testnet": "9a0766d93b6608b7"
 			}
 		},
 		"MetadataViews": {
 			"source": "mainnet://1d7e57aa55817448.MetadataViews",
 			"hash": "b290b7906d901882b4b62e596225fb2f10defb5eaaab4a09368f3aee0e9c18b1",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
+				"mainnet-fork": "1d7e57aa55817448",
 				"testnet": "631e88ae7f1d7c20"
 			}
 		},
 		"NonFungibleToken": {
 			"source": "mainnet://1d7e57aa55817448.NonFungibleToken",
 			"hash": "a258de1abddcdb50afc929e74aca87161d0083588f6abf2b369672e64cf4a403",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
+				"mainnet-fork": "1d7e57aa55817448",
 				"testnet": "631e88ae7f1d7c20"
 			}
 		},
 		"ViewResolver": {
 			"source": "mainnet://1d7e57aa55817448.ViewResolver",
 			"hash": "374a1994046bac9f6228b4843cb32393ef40554df9bd9907a702d098a2987bde",
-			"block_height": 139085361,
+			"block_height": 143445158,
 			"aliases": {
 				"emulator": "f8d6e0586b0a20c7",
 				"mainnet": "1d7e57aa55817448",
+				"mainnet-fork": "1d7e57aa55817448",
 				"testnet": "631e88ae7f1d7c20"
 			}
 		}
@@ -240,6 +272,10 @@
 	"networks": {
 		"emulator": "127.0.0.1:3569",
 		"mainnet": "access.mainnet.nodes.onflow.org:9000",
+		"mainnet-fork": {
+			"host": "127.0.0.1:3569",
+			"fork": "mainnet"
+		},
 		"testing": "127.0.0.1:3569",
 		"testnet": "access.devnet.nodes.onflow.org:9000"
 	},
@@ -259,8 +295,38 @@
 				"resourceID": "projects/dl-flow-devex-production/locations/us-central1/keyRings/tidal-keyring/cryptoKeys/tidal_admin_pk/cryptoKeyVersions/1"
 			}
 		},
+		"mainnet-fork-deployer": {
+			"address": "6b00ff876c299c61",
+			"key": {
+				"type": "file",
+				"location": "emulator-account.pkey"
+			}
+		},
+		"mainnet-fork-fyv-deployer": {
+			"address": "b1d63873c3cc9f79",
+			"key": {
+				"type": "file",
+				"location": "emulator-account.pkey"
+			}
+		},
+		"mainnet-fyv-deployer": {
+			"address": "b1d63873c3cc9f79",
+			"key": {
+				"type": "google-kms",
+				"hashAlgorithm": "SHA2_256",
+				"resourceID": "projects/dl-flow-devex-production/locations/us-central1/keyRings/tidal-keyring/cryptoKeys/tidal_admin_pk/cryptoKeyVersions/1"
+			}
+		},
 		"testnet-deployer": {
 			"address": "426f0458ced60037",
+			"key": {
+				"type": "google-kms",
+				"hashAlgorithm": "SHA2_256",
+				"resourceID": "projects/dl-flow-devex-staging/locations/us-central1/keyRings/tidal-keyring/cryptoKeys/tidal_admin_pk/cryptoKeyVersions/1"
+			}
+		},
+		"testnet-fyv-deployer": {
+			"address": "d2580caf2ef07c2f",
 			"key": {
 				"type": "google-kms",
 				"hashAlgorithm": "SHA2_256",
@@ -299,6 +365,29 @@
 					]
 				},
 				"FlowALPv0"
+			],
+			"mainnet-fyv-deployer": [
+				"MockDexSwapper",
+				"MockOracle"
+			]
+		},
+		"mainnet-fork": {
+			"mainnet-fork-deployer": [
+				"FlowALPMath",
+				{
+					"name": "MOET",
+					"args": [
+						{
+							"value": "0.00000000",
+							"type": "UFix64"
+						}
+					]
+				},
+				"FlowALPv0"
+			],
+			"mainnet-fork-fyv-deployer": [
+				"MockDexSwapper",
+				"MockOracle"
 			]
 		},
 		"testnet": {
@@ -314,6 +403,10 @@
 					]
 				},
 				"FlowALPv0"
+			],
+			"testnet-fyv-deployer": [
+				"MockDexSwapper",
+				"MockOracle"
 			]
 		}
 	}
