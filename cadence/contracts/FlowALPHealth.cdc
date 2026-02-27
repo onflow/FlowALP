@@ -124,6 +124,7 @@ access(all) contract FlowALPHealth {
             if potentialHealth >= targetHealth {
                 // We can reach the target health by paying off some or all of the debt. We can easily
                 // compute how many units of the token would be needed to reach the target health.
+                let healthChange = targetHealth - healthAfterWithdrawal
                 let requiredEffectiveDebt = effectiveDebtAfterWithdrawal
                     - (effectiveCollateralAfterWithdrawal / targetHealth)
 
