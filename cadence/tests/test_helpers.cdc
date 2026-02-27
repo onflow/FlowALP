@@ -32,6 +32,31 @@ access(all) let TEN_DAYS: Fix64 = 864_000.0
 access(all) let THIRTY_DAYS: Fix64 = 2_592_000.0   // 30 * 86400
 access(all) let ONE_YEAR: Fix64 = 31_557_600.0     // 365.25 * 86400
 
+// Mainnet constants
+// EVM Bridged Token Identifiers
+access(all) let MAINNET_MOET_TOKEN_ID = "A.6b00ff876c299c61.MOET.Vault"
+access(all) let MAINNET_FLOW_TOKEN_ID = "A.1654653399040a61.FlowToken.Vault"
+
+// Real mainnet token identifiers
+access(all) let MAINNET_FLOW_TOKEN_IDENTIFIER = "A.1654653399040a61.FlowToken.Vault"
+access(all) let MAINNET_USDC_TOKEN_IDENTIFIER = "A.f1ab99c82dee3526.USDCFlow.Vault"
+access(all) let MAINNET_USDF_TOKEN_IDENTIFIER = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabed.Vault"
+access(all) let MAINNET_WETH_TOKEN_IDENTIFIER = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590.Vault"
+access(all) let MAINNET_WBTC_TOKEN_IDENTIFIER = "A.1e4aa0b87d10b141.EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579.Vault"
+access(all) let MAINNET_MOET_TOKEN_IDENTIFIER = "A.6b00ff876c299c61.MOET.Vault"
+
+// Storage paths for different token types
+access(all) let MAINNET_USDC_STORAGE_PATH = /storage/usdcFlowVault
+access(all) let MAINNET_USDF_STORAGE_PATH = /storage/EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabedVault
+access(all) let MAINNET_WETH_STORAGE_PATH = /storage/EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590Vault
+access(all) let MAINNET_WBTC_STORAGE_PATH = /storage/EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579Vault
+
+// Biggest token holders
+access(all) let MAINNET_USDF_HOLDER = Test.getAccount(0xf18b50870aed46ad) // 25000
+access(all) let MAINNET_WETH_HOLDER = Test.getAccount(0xf62e3381a164f993) // 0.07032
+access(all) let MAINNET_WBTC_HOLDER = Test.getAccount(0x47f544294e3b7656) // 0.0005
+access(all) let MAINNET_FLOW_HOLDER = Test.getAccount(0xe467b9dd11fa00df) // 1921
+access(all) let MAINNET_USDC_HOLDER = Test.getAccount(0xec6119051f7adc31) // 97
 
 /* --- Test execution helpers --- */
 
@@ -393,6 +418,23 @@ fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, pri
     Test.expect(setRes, Test.beSucceeded())
 }
 
+access(all)
+fun getOraclePrice(tokenIdentifier: String): UFix64 {
+    let result = Test.executeScript(
+        Test.readFile("../scripts/flow-alp/get_oracle_price.cdc"),
+        [tokenIdentifier]
+    )
+
+    if result.error != nil {
+        panic("Failed to get oracle price: ".concat(result.error!.message))
+    }
+
+    let price = result.returnValue! as! UFix64?
+        ?? panic("No price set for token: ".concat(tokenIdentifier))
+
+    return price
+}
+
 /// Sets a swapper for the given pair with the given price ratio.
 /// This overwrites any previously stored swapper for this pair, if any exists.
 /// This is intended to be used in tests both to set an initial DEX price for a supported token,
@@ -499,9 +541,9 @@ fun setPoolPauseState(
 }
 
 access(all)
-fun createPosition(signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
+fun createPosition(admin: Test.TestAccount, signer: Test.TestAccount, amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: Bool) {
     // Grant beta access to the signer if they don't have it yet
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, signer)
+    grantBetaPoolParticipantAccess(admin, signer)
 
     let openRes = _executeTransaction(
         "../transactions/flow-alp/position/create_position.cdc",
@@ -545,10 +587,10 @@ fun depositToPositionNotManaged(signer: Test.TestAccount, positionStoragePath: S
 }
 
 access(all)
-fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, beFailed: Bool) {
+fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, vaultStoragePath: StoragePath, amount: UFix64, beFailed: Bool) {
     let borrowRes = _executeTransaction(
         "./transactions/position-manager/borrow_from_position.cdc",
-        [positionId, tokenTypeIdentifier, amount],
+        [positionId, tokenTypeIdentifier, vaultStoragePath, amount],
         signer
     )
     Test.expect(borrowRes, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -729,9 +771,46 @@ fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFail
 }
 
 access(all)
+fun manualLiquidation(
+    signer: Test.TestAccount,
+    pid: UInt64,
+    debtVaultIdentifier: String,
+    seizeVaultIdentifier: String,
+    seizeAmount: UFix64,
+    repayAmount: UFix64,
+): Test.TransactionResult {
+    return _executeTransaction(
+        "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
+        [pid, debtVaultIdentifier, seizeVaultIdentifier, seizeAmount, repayAmount],
+        signer
+    )
+}
+
+access(all)
+fun liquidateViaMockDex(
+    signer: Test.TestAccount,
+    pid: UInt64,
+    debtVaultIdentifier: String,
+    seizeVaultIdentifier: String,
+    seizeAmount: UFix64,
+    repayAmount: UFix64,
+): Test.TransactionResult {
+    return _executeTransaction(
+        "../transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
+        [[pid], debtVaultIdentifier, [seizeVaultIdentifier], [seizeAmount], [repayAmount]],
+        signer
+    )
+}
+
+access(all)
 fun setupMoetVault(_ signer: Test.TestAccount, beFailed: Bool) {
     let setupRes = _executeTransaction("../transactions/moet/setup_vault.cdc", [], signer)
     Test.expect(setupRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun setupGenericVault(_ signer: Test.TestAccount, vaultIdentifier: String): Test.TransactionResult {
+    return _executeTransaction("../transactions/fungible-tokens/setup_generic_vault.cdc", [vaultIdentifier], signer)
 }
 
 access(all)
@@ -778,6 +857,82 @@ fun sendFlow(from: Test.TestAccount, to: Test.TestAccount, amount: UFix64) {
     Test.expect(res, Test.beSucceeded())
 }
 
+/// Transfers any fungible token from one account to another using the token identifier
+access(all)
+fun transferFungibleTokens(
+    tokenIdentifier: String,
+    from: Test.TestAccount,
+    to: Test.TestAccount,
+    amount: UFix64
+) {
+    let transferTx = Test.Transaction(
+        code: Test.readFile("../transactions/fungible-tokens/generic_transfer.cdc"),
+        authorizers: [from.address],
+        signers: [from],
+        arguments: [tokenIdentifier, amount, to.address]
+    )
+    let res = Test.executeTransaction(transferTx)
+    Test.expect(res, Test.beSucceeded())
+}
+
+/// Sets up the recipient's vault (if not already present) and transfers tokens in one call.
+/// Combines setupGenericVault + transferFungibleTokens for the common case of funding a fresh account.
+access(all)
+fun transferTokensWithSetup(tokenIdentifier: String, from: Test.TestAccount, to: Test.TestAccount, amount: UFix64) {
+    let res = setupGenericVault(to, vaultIdentifier: tokenIdentifier)
+    Test.expect(res, Test.beSucceeded())
+    transferFungibleTokens(tokenIdentifier: tokenIdentifier, from: from, to: to, amount: amount)
+}
+
+/// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
+/// The liquidator must hold sufficient debt tokens upfront.
+access(all) fun batchManualLiquidation(
+    pids: [UInt64],
+    debtVaultIdentifier: String,
+    seizeVaultIdentifiers: [String],
+    seizeAmounts: [UFix64],
+    repayAmounts: [UFix64],
+    signer: Test.TestAccount
+) {
+    let res = _executeTransaction(
+        "../transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
+        [pids, debtVaultIdentifier, seizeVaultIdentifiers, seizeAmounts, repayAmounts],
+        signer
+    )
+    Test.expect(res, Test.beSucceeded())
+}
+
+/// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
+/// chunkSize to stay within the computation limit.
+access(all) fun batchLiquidateViaMockDex(
+    pids: [UInt64],
+    debtVaultIdentifier: String,
+    seizeVaultIdentifiers: [String],
+    seizeAmounts: [UFix64],
+    repayAmounts: [UFix64],
+    chunkSize: Int,
+    signer: Test.TestAccount
+) {
+    let total = pids.length
+    let numChunks = (total + chunkSize - 1) / chunkSize
+    for i in InclusiveRange(0, numChunks - 1) {
+        let startIdx = i * chunkSize
+        var endIdx = startIdx + chunkSize
+        if endIdx > total {
+            endIdx = total
+        }
+        let res = _executeTransaction(
+            "../transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
+            [pids.slice(from: startIdx, upTo: endIdx),
+                debtVaultIdentifier,
+                seizeVaultIdentifiers.slice(from: startIdx, upTo: endIdx),
+                seizeAmounts.slice(from: startIdx, upTo: endIdx),
+                repayAmounts.slice(from: startIdx, upTo: endIdx)],
+            signer
+        )
+        Test.expect(res, Test.beSucceeded())
+    }
+}
 
 access(all)
 fun expectEvents(eventType: Type, expectedCount: Int) {

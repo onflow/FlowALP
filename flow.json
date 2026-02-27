@@ -67,7 +67,8 @@
 		"FlowALPMath": {
 			"source": "./cadence/lib/FlowALPMath.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61"
 			}
 		},
 		"FlowALPRebalancerPaidv1": {
@@ -91,7 +92,8 @@
 		"FlowALPv0": {
 			"source": "./cadence/contracts/FlowALPv0.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"mainnet": "47f544294e3b7656"
 			}
 		},
 		"FungibleTokenConnectors": {
@@ -107,13 +109,15 @@
 		"MOET": {
 			"source": "./cadence/contracts/MOET.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61"
 			}
 		},
 		"MockDexSwapper": {
 			"source": "./cadence/contracts/mocks/MockDexSwapper.cdc",
 			"aliases": {
 				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61",
 				"testnet": "d2580caf2ef07c2f"
 			}
 		},
@@ -121,6 +125,7 @@
 			"source": "./cadence/contracts/mocks/MockOracle.cdc",
 			"aliases": {
 				"testing": "0000000000000007",
+				"mainnet": "b1d63873c3cc9f79",
 				"testnet": "d2580caf2ef07c2f"
 			}
 		},

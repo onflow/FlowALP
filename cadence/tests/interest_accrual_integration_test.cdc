@@ -623,12 +623,7 @@ fun test_flow_debit_accrues_interest() {
     // Step 5b: Explicitly borrow Flow from the position
     // Borrowing 4,000 FLOW from 10,000 FLOW pool = 40% utilization
     let borrowPid: UInt64 = 1
-    let borrowRes = executeTransaction(
-        "./transactions/position-manager/borrow_from_position.cdc",
-        [borrowPid, FLOW_TOKEN_IDENTIFIER, 4_000.0],
-        borrower
-    )
-    Test.expect(borrowRes, Test.beSucceeded())
+    borrowFromPosition(signer: borrower, positionId: borrowPid, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 4_000.0, beFailed: false)
     log("Borrower deposited 10,000 MOET and borrowed 4,000 Flow")
 
     // -------------------------------------------------------------------------
@@ -813,12 +808,8 @@ fun test_flow_credit_accrues_interest_with_insurance() {
 
     // Borrow 4,000 Flow (40% utilization)
     let borrowPid: UInt64 = 1
-    let borrowRes = executeTransaction(
-        "./transactions/position-manager/borrow_from_position.cdc",
-        [borrowPid, FLOW_TOKEN_IDENTIFIER, 4_000.0],
-        borrower
-    )
-    Test.expect(borrowRes, Test.beSucceeded())
+    borrowFromPosition(signer: borrower, positionId: borrowPid, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 4_000.0, beFailed: false)
+
     log("Borrower deposited 10,000 MOET and borrowed 4,000 Flow")
 
     // -------------------------------------------------------------------------
@@ -1242,12 +1233,9 @@ fun test_combined_all_interest_scenarios() {
 
     // Explicitly borrow 2,000 Flow
     // Flow utilization = 2,000 / (5,000 LP2 + 2,000 Borrower1) = 2,000 / 7,000 ≈ 28.6%
-    let b2BorrowRes = executeTransaction(
-        "./transactions/position-manager/borrow_from_position.cdc",
-        [3 as UInt64, FLOW_TOKEN_IDENTIFIER, 2_000.0],
-        borrower2
-    )
-    Test.expect(b2BorrowRes, Test.beSucceeded())
+    let borrowPid: UInt64 = 3
+    borrowFromPosition(signer: borrower2, positionId: borrowPid, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 2_000.0, beFailed: false)
+
     log("Borrower2: Deposited 3,000 MOET, borrowed 2,000 Flow")
 
     // -------------------------------------------------------------------------
