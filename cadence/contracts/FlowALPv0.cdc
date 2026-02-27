@@ -587,19 +587,10 @@ access(all) contract FlowALPv0 {
             let seizeState = self._borrowUpdatedTokenState(type: seizeType)
             let positionBalance = position.getBalance(seizeType)
             if positionBalance == nil {
-                // MOET cannot be seized as collateral (it should never exist as collateral)
-                if seizeType == Type<@MOET.Vault>() {
-                    panic("Cannot seize MOET as collateral. MOET should not exist as collateral in any position.")
-                }
-
                 // Liquidation is seizing collateral - validate single collateral type
                 position.validateCollateralType(seizeType)
 
                 position.setBalance(seizeType, FlowALPModels.InternalBalance(direction: FlowALPModels.BalanceDirection.Credit, scaledBalance: 0.0))
-            }
-            // Additional safety check: MOET should never be seized as collateral
-            if seizeType == Type<@MOET.Vault>() && positionBalance!.direction == FlowALPModels.BalanceDirection.Credit {
-                panic("Cannot seize MOET as collateral. MOET should not exist as collateral in any position.")
             }
 
             position.borrowBalance(seizeType)!.recordWithdrawal(amount: UFix128(seizeAmount), tokenState: seizeState)
@@ -1342,11 +1333,6 @@ access(all) contract FlowALPv0 {
             let positionBalance = position.getBalance(type)
             // If this position doesn't currently have an entry for this token, create one.
             if positionBalance == nil {
-                // MOET cannot be used as collateral (only as debt)
-                if type == Type<@MOET.Vault>() {
-                    panic("MOET cannot be deposited as collateral. MOET can only be borrowed (debt), not used as collateral.")
-                }
-
                 // Validate single collateral type constraint
                 position.validateCollateralType(type)
 
@@ -1367,12 +1353,6 @@ access(all) contract FlowALPv0 {
             // This only records the portion of the deposit that was accepted, not any queued portions,
             // as the queued deposits will be processed later (by this function being called again), and therefore
             // will be recorded at that time.
-
-            // MOET cannot be deposited as collateral (Credit direction)
-            // It can only be deposited to repay debt (Debit direction)
-            if type == Type<@MOET.Vault>() && positionBalance!.direction == FlowALPModels.BalanceDirection.Credit {
-                panic("MOET cannot be deposited as collateral. MOET can only be borrowed (debt), not used as collateral.")
-            }
 
             let acceptedAmount = from.balance
             position.borrowBalance(type)!.recordDeposit(
