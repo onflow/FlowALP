@@ -2142,8 +2142,7 @@ access(all) contract FlowALPv0 {
         }
     }
 
-    /// Creates and returns a new PositionManager resource.
-    /// Kept in FlowALPv0 as a stable entrypoint while the implementation lives in FlowALPPositionResources.
+    /// Creates and returns a new PositionManager resource
     access(all) fun createPositionManager(): @FlowALPPositionResources.PositionManager {
         return <- FlowALPPositionResources.createPositionManager()
     }
