@@ -42,7 +42,7 @@ fun setup() {
     setupMoetVault(hackerAccount, beFailed: false)
 
     // provide liquidity to the pool we can extract
-    createPosition(signer: liquidityAccount, amount: 10000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: liquidityAccount, amount: 10000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
 }
 
 access(all)
