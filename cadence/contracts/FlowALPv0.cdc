@@ -656,10 +656,9 @@ access(all) contract FlowALPv0 {
             withdrawAmount: UFix64
         ): FlowALPModels.BalanceSheet {
             let balance = position.getBalance(withdrawType)
-            var withdrawCreditInterestIndex: UFix128 = 1.0
-            if balance?.direction == FlowALPModels.BalanceDirection.Credit {
-                withdrawCreditInterestIndex = self._borrowUpdatedTokenState(type: withdrawType).getCreditInterestIndex()
-            }
+            let withdrawCreditInterestIndex: UFix128? = balance?.direction == FlowALPModels.BalanceDirection.Credit
+                ? self._borrowUpdatedTokenState(type: withdrawType).getCreditInterestIndex()
+                : nil
 
             return FlowALPHealth.computeAdjustedBalancesAfterWithdrawal(
                 balanceSheet: balanceSheet,
@@ -684,10 +683,9 @@ access(all) contract FlowALPv0 {
             targetHealth: UFix128
         ): UFix64 {
             let depositBalance = position.getBalance(depositType)
-            var depositDebitInterestIndex: UFix128 = 1.0
-            if depositBalance?.direction == FlowALPModels.BalanceDirection.Debit {
-                depositDebitInterestIndex = self._borrowUpdatedTokenState(type: depositType).getDebitInterestIndex()
-            }
+            let depositDebitInterestIndex: UFix128? = depositBalance?.direction == FlowALPModels.BalanceDirection.Debit
+                ? self._borrowUpdatedTokenState(type: depositType).getDebitInterestIndex()
+                : nil
 
             return FlowALPHealth.computeRequiredDepositForHealth(
                 depositBalance: depositBalance,
@@ -765,10 +763,9 @@ access(all) contract FlowALPv0 {
             depositAmount: UFix64
         ): FlowALPModels.BalanceSheet {
             let depositBalance = position.getBalance(depositType)
-            var depositDebitInterestIndex: UFix128 = 1.0
-            if depositBalance?.direction == FlowALPModels.BalanceDirection.Debit {
-                depositDebitInterestIndex = self._borrowUpdatedTokenState(type: depositType).getDebitInterestIndex()
-            }
+            let depositDebitInterestIndex: UFix128? = depositBalance?.direction == FlowALPModels.BalanceDirection.Debit
+                ? self._borrowUpdatedTokenState(type: depositType).getDebitInterestIndex()
+                : nil
 
             return FlowALPHealth.computeAdjustedBalancesAfterDeposit(
                 balanceSheet: balanceSheet,
@@ -792,10 +789,9 @@ access(all) contract FlowALPv0 {
             targetHealth: UFix128
         ): UFix64 {
             let withdrawBalance = position.getBalance(withdrawType)
-            var withdrawCreditInterestIndex: UFix128 = 1.0
-            if withdrawBalance?.direction == FlowALPModels.BalanceDirection.Credit {
-                withdrawCreditInterestIndex = self._borrowUpdatedTokenState(type: withdrawType).getCreditInterestIndex()
-            }
+            let withdrawCreditInterestIndex: UFix128? = withdrawBalance?.direction == FlowALPModels.BalanceDirection.Credit
+                ? self._borrowUpdatedTokenState(type: withdrawType).getCreditInterestIndex()
+                : nil
 
             return FlowALPHealth.computeAvailableWithdrawal(
                 withdrawBalance: withdrawBalance,
