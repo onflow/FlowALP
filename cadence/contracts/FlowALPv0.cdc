@@ -1558,7 +1558,7 @@ access(all) contract FlowALPv0 {
                 panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
             }
 
-            let positionBalance = position.getBalance(type)
+            var positionBalance = position.getBalance(type)
 
             // If this position doesn't currently have an entry for this token, create one.
             if positionBalance == nil {
@@ -1570,6 +1570,9 @@ access(all) contract FlowALPv0 {
                     direction: FlowALPModels.BalanceDirection.Credit,
                     scaledBalance: 0.0
                 ))
+
+                // Re-fetch the balance after creating it
+                positionBalance = position.getBalance(type)
             }
 
             // Reflect the withdrawal in the position's balance
@@ -1581,6 +1584,8 @@ access(all) contract FlowALPv0 {
             )
 
             // If we flipped from Credit to Debit, validate debt type constraint
+            // Re-fetch balance to check if direction changed
+            positionBalance = position.getBalance(type)
             if wasCredit && positionBalance!.direction == FlowALPModels.BalanceDirection.Debit {
                 position.validateDebtType(type)
             }
