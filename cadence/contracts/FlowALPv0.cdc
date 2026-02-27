@@ -1339,7 +1339,7 @@ access(all) contract FlowALPv0 {
             }
 
             // If this position doesn't currently have an entry for this token, create one.
-            if position.balances[type] == nil {
+            if position.getBalance(type) == nil {
                 // MOET cannot be used as collateral (only as debt)
                 if type == Type<@MOET.Vault>() {
                     panic("MOET cannot be deposited as collateral. MOET can only be borrowed (debt), not used as collateral.")
