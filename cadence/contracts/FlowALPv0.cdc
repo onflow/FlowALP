@@ -699,8 +699,8 @@ access(all) contract FlowALPv0 {
                 depositPrice: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
                 depositBorrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType)),
                 depositCollateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
-                effectiveCollateralAfterWithdrawal: effectiveCollateral,
-                effectiveDebtAfterWithdrawal: effectiveDebt,
+                effectiveCollateral: effectiveCollateral,
+                effectiveDebt: effectiveDebt,
                 targetHealth: targetHealth
             )
         }
@@ -774,8 +774,8 @@ access(all) contract FlowALPv0 {
             }
 
             if self.config.isDebugLogging() {
-                log("    [CONTRACT] effectiveCollateralBeforeDeposit: \(balanceSheet.effectiveCollateral)")
-                log("    [CONTRACT] effectiveDebtBeforeDeposit: \(balanceSheet.effectiveDebt)")
+                log("    [CONTRACT] effectiveCollateralAfterDeposit: \(balanceSheet.effectiveCollateral)")
+                log("    [CONTRACT] effectiveDebtAfterDeposit: \(balanceSheet.effectiveDebt)")
             }
 
             return FlowALPHealth.computeAdjustedBalancesAfterDeposit(
