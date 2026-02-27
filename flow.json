@@ -46,6 +46,12 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"DummyToken": {
+			"source": "./cadence/tests/contracts/DummyToken.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"FlowALPMath": {
 			"source": "./cadence/lib/FlowALPMath.cdc",
 			"aliases": {

@@ -579,6 +579,56 @@ access(all) contract FlowALPv0 {
             /// Possibly an attack vector on automated rebalancing, if multiple positions are rebalanced in the same transaction.
             self.topUpSource = source
         }
+
+        /// Returns the current collateral type for this position based on existing Credit balances
+        /// Returns nil if no Credit balance exists yet (allows any collateral type for first deposit)
+        access(all) fun getCollateralType(): Type? {
+            for type in self.balances.keys {
+                if self.balances[type]!.direction == BalanceDirection.Credit {
+                    return type
+                }
+            }
+            return nil
+        }
+
+        /// Returns the current debt type for this position based on existing Debit balances
+        /// Returns nil if no Debit balance exists yet (allows any debt type for first borrow)
+        access(all) fun getDebtType(): Type? {
+            for type in self.balances.keys {
+                if self.balances[type]!.direction == BalanceDirection.Debit {
+                    return type
+                }
+            }
+            return nil
+        }
+
+        /// Validates that the given token type can be used as collateral for this position
+        /// Panics if position already has a different collateral type
+        access(EImplementation) fun validateCollateralType(_ type: Type) {
+            let existingType = self.getCollateralType()
+            if existingType == nil {
+                // No collateral yet, allow any type
+                return
+            }
+
+            if existingType! != type {
+                panic("Position already has collateral type ".concat(existingType!.identifier).concat(". Cannot deposit ").concat(type.identifier).concat(". Only one collateral type allowed per position."))
+            }
+        }
+
+        /// Validates that the given token type can be used as debt for this position
+        /// Panics if position already has a different debt type
+        access(EImplementation) fun validateDebtType(_ type: Type) {
+            let existingType = self.getDebtType()
+            if existingType == nil {
+                // No debt yet, allow any type
+                return
+            }
+
+            if existingType! != type {
+                panic("Position already has debt type ".concat(existingType!.identifier).concat(". Cannot borrow ").concat(type.identifier).concat(". Only one debt type allowed per position."))
+            }
+        }
     }
 
     /// InterestCurve
@@ -2024,6 +2074,9 @@ access(all) contract FlowALPv0 {
             let debtState = self._borrowUpdatedTokenState(type: debtType)
 
             if position.balances[debtType] == nil {
+                // Liquidation is repaying debt - validate single debt type
+                position.validateDebtType(debtType)
+
                 position.balances[debtType] = InternalBalance(direction: BalanceDirection.Debit, scaledBalance: 0.0)
             }
             position.balances[debtType]!.recordDeposit(amount: UFix128(repayAmount), tokenState: debtState)
@@ -2031,8 +2084,22 @@ access(all) contract FlowALPv0 {
             // Withdraw seized collateral from position and send to liquidator
             let seizeState = self._borrowUpdatedTokenState(type: seizeType)
             if position.balances[seizeType] == nil {
+                // MOET cannot be seized as collateral (it should never exist as collateral)
+                if seizeType == Type<@MOET.Vault>() {
+                    panic("Cannot seize MOET as collateral. MOET should not exist as collateral in any position.")
+                }
+
+                // Liquidation is seizing collateral - validate single collateral type
+                position.validateCollateralType(seizeType)
+
                 position.balances[seizeType] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0)
             }
+
+            // Additional safety check: MOET should never be seized as collateral
+            if seizeType == Type<@MOET.Vault>() && position.balances[seizeType]!.direction == BalanceDirection.Credit {
+                panic("Cannot seize MOET as collateral. MOET should not exist as collateral in any position.")
+            }
+
             position.balances[seizeType]!.recordWithdrawal(amount: UFix128(seizeAmount), tokenState: seizeState)
             let seizeReserveRef = (&self.reserves[seizeType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
             let seizedCollateral <- seizeReserveRef.withdraw(amount: seizeAmount)
@@ -2779,6 +2846,14 @@ access(all) contract FlowALPv0 {
 
             // If this position doesn't currently have an entry for this token, create one.
             if position.balances[type] == nil {
+                // MOET cannot be used as collateral (only as debt)
+                if type == Type<@MOET.Vault>() {
+                    panic("MOET cannot be deposited as collateral. MOET can only be borrowed (debt), not used as collateral.")
+                }
+
+                // Validate single collateral type constraint
+                position.validateCollateralType(type)
+
                 position.balances[type] = InternalBalance(
                     direction: BalanceDirection.Credit,
                     scaledBalance: 0.0
@@ -2796,6 +2871,13 @@ access(all) contract FlowALPv0 {
             // This only records the portion of the deposit that was accepted, not any queued portions,
             // as the queued deposits will be processed later (by this function being called again), and therefore
             // will be recorded at that time.
+
+            // MOET cannot be deposited as collateral (Credit direction)
+            // It can only be deposited to repay debt (Debit direction)
+            if type == Type<@MOET.Vault>() && position.balances[type]!.direction == BalanceDirection.Credit {
+                panic("MOET cannot be deposited as collateral. MOET can only be borrowed (debt), not used as collateral.")
+            }
+
             let acceptedAmount = from.balance
             position.balances[type]!.recordDeposit(
                 amount: UFix128(acceptedAmount),
@@ -2982,20 +3064,28 @@ access(all) contract FlowALPv0 {
 
             // If this position doesn't currently have an entry for this token, create one.
             if position.balances[type] == nil {
+                // When withdrawing a token that doesn't exist in position yet,
+                // we'll be creating a debit (debt). Validate single debt type.
+                position.validateDebtType(type)
+
                 position.balances[type] = InternalBalance(
                     direction: BalanceDirection.Credit,
                     scaledBalance: 0.0
                 )
             }
 
-            let reserveVault = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
-
             // Reflect the withdrawal in the position's balance
+            let wasCredit = position.balances[type]!.direction == BalanceDirection.Credit
             let uintAmount = UFix128(amount)
             position.balances[type]!.recordWithdrawal(
                 amount: uintAmount,
                 tokenState: tokenState
             )
+
+            // If we flipped from Credit to Debit, validate debt type constraint
+            if wasCredit && position.balances[type]!.direction == BalanceDirection.Debit {
+                position.validateDebtType(type)
+            }
             // Attempt to pull additional collateral from the top-up source (if configured)
             // to keep the position above minHealth after the withdrawal.
             // Regardless of whether a top-up occurs, the position must be healthy post-withdrawal.
@@ -3020,18 +3110,30 @@ access(all) contract FlowALPv0 {
             // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
 
-            let withdrawn <- reserveVault.withdraw(amount: amount)
+            // Get tokens either by minting (MOET) or from reserves (other tokens)
+            var withdrawn: @{FungibleToken.Vault}? <- nil
+            if type == Type<@MOET.Vault>() {
+                // For MOET, mint new tokens
+                withdrawn <-! FlowALPv0._borrowMOETMinter().mintTokens(amount: amount)
+            } else {
+                // For other tokens, withdraw from reserves
+                assert(self.reserves[type] != nil, message: "Cannot withdraw \(type.identifier) - no reserves available")
+                let reserveVault = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                assert(reserveVault.balance >= amount, message: "Insufficient reserves for \(type.identifier): need \(amount), have \(reserveVault.balance)")
+                withdrawn <-! reserveVault.withdraw(amount: amount)
+            }
+            let unwrappedWithdrawn <- withdrawn!
 
             emit Withdrawn(
                 pid: pid,
                 poolUUID: self.uuid,
                 vaultType: type,
-                amount: withdrawn.balance,
-                withdrawnUUID: withdrawn.uuid
+                amount: unwrappedWithdrawn.balance,
+                withdrawnUUID: unwrappedWithdrawn.uuid
             )
 
             self._unlockPosition(pid)
-            return <- withdrawn
+            return <- unwrappedWithdrawn
         }
 
         ///////////////////////
@@ -3453,40 +3555,56 @@ access(all) contract FlowALPv0 {
                     let sinkCapacity = drawDownSink.minimumCapacity()
                     let sinkAmount = (idealWithdrawal > sinkCapacity) ? sinkCapacity : idealWithdrawal
 
-                    // TODO(jord): we enforce in setDrawDownSink that the type is MOET -> we should panic here if that does not hold (currently silently fail)
-                    if sinkAmount > 0.0 && sinkType == Type<@MOET.Vault>() {
-                        let tokenState = self._borrowUpdatedTokenState(type: Type<@MOET.Vault>())
-                        if position.balances[Type<@MOET.Vault>()] == nil {
-                            position.balances[Type<@MOET.Vault>()] = InternalBalance(
+                    // Support multiple token types: MOET (minted) or other tokens (from reserves)
+                    if sinkAmount > 0.0 {
+                        let tokenState = self._borrowUpdatedTokenState(type: sinkType)
+                        if position.balances[sinkType] == nil {
+                            // Rebalancing is borrowing/withdrawing to push to sink - validate single debt type
+                            position.validateDebtType(sinkType)
+
+                            position.balances[sinkType] = InternalBalance(
                                 direction: BalanceDirection.Credit,
                                 scaledBalance: 0.0
                             )
                         }
-                        // record the withdrawal and mint the tokens
+                        // Record the withdrawal
                         let uintSinkAmount = UFix128(sinkAmount)
-                        position.balances[Type<@MOET.Vault>()]!.recordWithdrawal(
+                        position.balances[sinkType]!.recordWithdrawal(
                             amount: uintSinkAmount,
                             tokenState: tokenState
                         )
-                        let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
+
+                        // Get tokens either by minting (MOET) or from reserves (other tokens)
+                        var sinkVault: @{FungibleToken.Vault}? <- nil
+                        if sinkType == Type<@MOET.Vault>() {
+                            // For MOET, mint new tokens
+                            sinkVault <-! FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
+                        } else {
+                            // For other tokens, withdraw from reserves
+                            assert(self.reserves[sinkType] != nil, message: "Cannot withdraw \(sinkAmount) of \(sinkType.identifier) - token not in reserves")
+                            let reserveVault = (&self.reserves[sinkType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                            assert(reserveVault.balance >= sinkAmount, message: "Insufficient reserves for \(sinkType.identifier): available \(reserveVault.balance), needed \(sinkAmount)")
+                            sinkVault <-! reserveVault.withdraw(amount: sinkAmount)
+                        }
+                        let unwrappedSinkVault <- sinkVault!
 
                         emit Rebalanced(
                             pid: pid,
                             poolUUID: self.uuid,
                             atHealth: balanceSheet.health,
-                            amount: sinkVault.balance,
+                            amount: unwrappedSinkVault.balance,
                             fromUnder: false
                         )
 
                         // Push what we can into the sink, and redeposit the rest
-                        drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-                        if sinkVault.balance > 0.0 {
+                        drawDownSink.depositCapacity(from: &unwrappedSinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
+                        if unwrappedSinkVault.balance > 0.0 {
                             self._depositEffectsOnly(
                                 pid: pid,
-                                from: <-sinkVault,
+                                from: <-unwrappedSinkVault,
                             )
                         } else {
-                            Burner.burn(<-sinkVault)
+                            Burner.burn(<-unwrappedSinkVault)
                         }
                     }
                 }
