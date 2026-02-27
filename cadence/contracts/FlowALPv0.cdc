@@ -6,6 +6,9 @@ import "DeFiActionsUtils"
 import "DeFiActions"
 import "MOET"
 import "FlowALPMath"
+import "FlowALPInterestRates"
+import "FlowALPModels"
+import "FlowALPEvents"
 
 access(all) contract FlowALPv0 {
 
@@ -32,199 +35,7 @@ access(all) contract FlowALPv0 {
     /// The canonical PublicPath where PositionManager can be accessed publicly
     access(all) let PositionPublicPath: PublicPath
 
-    /* --- EVENTS ---- */
-
-    // Prefer Type in events for stronger typing; off-chain can stringify via .identifier
-
-    access(all) event Opened(
-        pid: UInt64,
-        poolUUID: UInt64
-    )
-
-    access(all) event Deposited(
-        pid: UInt64,
-        poolUUID: UInt64,
-        vaultType: Type,
-        amount: UFix64,
-        depositedUUID: UInt64
-    )
-
-    access(all) event Withdrawn(
-        pid: UInt64,
-        poolUUID: UInt64,
-        vaultType: Type,
-        amount: UFix64,
-        withdrawnUUID: UInt64
-    )
-
-    access(all) event Rebalanced(
-        pid: UInt64,
-        poolUUID: UInt64,
-        atHealth: UFix128,
-        amount: UFix64,
-        fromUnder: Bool
-    )
-
-    /// Consolidated liquidation params update event including all updated values
-    access(all) event LiquidationParamsUpdated(
-        poolUUID: UInt64,
-        targetHF: UFix128,
-    )
-
-    access(all) event PauseParamsUpdated(
-        poolUUID: UInt64,
-        warmupSec: UInt64,
-    )
-
-    /// Emitted when the pool is paused, which temporarily prevents liquidations, withdrawals, and deposits.
-    access(all) event PoolPaused(
-        poolUUID: UInt64
-    )
-
-    /// Emitted when the pool is unpaused, which re-enables all functionality when the Pool was previously paused.
-    access(all) event PoolUnpaused(
-        poolUUID: UInt64,
-        warmupEndsAt: UInt64
-    )
-
-    access(all) event LiquidationExecuted(
-        pid: UInt64,
-        poolUUID: UInt64,
-        debtType: String,
-        repayAmount: UFix64,
-        seizeType: String,
-        seizeAmount: UFix64,
-        newHF: UFix128
-    )
-
-    access(all) event LiquidationExecutedViaDex(
-        pid: UInt64,
-        poolUUID: UInt64,
-        seizeType: String,
-        seized: UFix64,
-        debtType: String,
-        repaid: UFix64,
-        slippageBps: UInt16,
-        newHF: UFix128
-    )
-
-    access(all) event PriceOracleUpdated(
-        poolUUID: UInt64,
-        newOracleType: String
-    )
-
-    access(all) event InterestCurveUpdated(
-        poolUUID: UInt64,
-        tokenType: String,
-        curveType: String
-    )
-
-    access(all) event DepositCapacityRegenerated(
-        tokenType: Type,
-        oldCapacityCap: UFix64,
-        newCapacityCap: UFix64
-    )
-
-    access(all) event DepositCapacityConsumed(
-        tokenType: Type,
-        pid: UInt64,
-        amount: UFix64,
-        remainingCapacity: UFix64
-    )
-
-    //// Emitted each time the insurance rate is updated for a specific token in a specific pool.
-    //// The insurance rate is an annual percentage; for example a value of 0.001 indicates 0.1%.
-    access(all) event InsuranceRateUpdated(
-        poolUUID: UInt64,
-        tokenType: String,
-        insuranceRate: UFix64,
-    )
-
-    /// Emitted each time an insurance fee is collected for a specific token in a specific pool.
-    /// The insurance amount is the amount of insurance collected, denominated in MOET.
-    access(all) event InsuranceFeeCollected(
-        poolUUID: UInt64,
-        tokenType: String,
-        insuranceAmount: UFix64,
-        collectionTime: UFix64,
-    )
-
-    //// Emitted each time the stability rate is updated for a specific token in a specific pool.
-    //// The stability rate is an annual percentage; the default value is 0.05 (5%).
-    access(all) event StabilityFeeRateUpdated(
-        poolUUID: UInt64,
-        tokenType: String,
-        stabilityFeeRate: UFix64,
-    )
-
-    /// Emitted each time an stability fee is collected for a specific token in a specific pool.
-    /// The stability amount is the amount of stability collected, denominated in token type.
-    access(all) event StabilityFeeCollected(
-        poolUUID: UInt64,
-        tokenType: String,
-        stabilityAmount: UFix64,
-        collectionTime: UFix64,
-    )
-
-    /// Emitted each time funds are withdrawn from the stability fund for a specific token in a specific pool.
-    /// The amount is the quantity withdrawn, denominated in the token type.
-    access(all) event StabilityFundWithdrawn(
-        poolUUID: UInt64,
-        tokenType: String,
-        amount: UFix64,
-    )
-
     /* --- CONSTRUCTS & INTERNAL METHODS ---- */
-
-    /// EPosition
-    ///
-    /// Entitlement for managing positions within the pool.
-    /// This entitlement grants access to position-specific operations including deposits, withdrawals,
-    /// rebalancing, and health parameter management for any position in the pool.
-    ///
-    /// Note that this entitlement provides access to all positions in the pool,
-    /// not just individual position owners' positions.
-    access(all) entitlement EPosition
-
-    /// ERebalance
-    ///
-    /// Entitlement for rebalancing positions.
-    access(all) entitlement ERebalance
-
-    /// EGovernance
-    ///
-    /// Entitlement for governance operations that control pool-wide parameters and configuration.
-    /// This entitlement grants access to administrative functions that affect the entire pool,
-    /// including liquidation settings, token support, interest rates, and protocol parameters.
-    ///
-    /// This entitlement should be granted only to trusted governance entities that manage
-    /// the protocol's risk parameters and operational settings.
-    access(all) entitlement EGovernance
-
-    /// EImplementation
-    ///
-    /// Entitlement for internal implementation operations that maintain the pool's state
-    /// and process asynchronous updates. This entitlement grants access to low-level state
-    /// management functions used by the protocol's internal mechanisms.
-    ///
-    /// This entitlement is used internally by the protocol to maintain state consistency
-    /// and process queued operations. It should not be granted to external users.
-    access(all) entitlement EImplementation
-
-    /// EParticipant
-    ///
-    /// Entitlement for general participant operations that allow users to interact with the pool
-    /// at a basic level. This entitlement grants access to position creation and basic deposit
-    /// operations without requiring full position ownership.
-    ///
-    /// This entitlement is more permissive than EPosition and allows anyone to create positions
-    /// and make deposits, enabling public participation in the protocol while maintaining
-    /// separation between position creation and position management.
-    access(all) entitlement EParticipant
-
-    /// Grants access to configure drawdown sinks, top-up sources, and other position settings, for the Position resource.
-    /// Withdrawal access is provided using FungibleToken.Withdraw.
-    access(all) entitlement EPositionAdmin
 
     /* --- NUMERIC TYPES POLICY ---
         - External/public APIs (Vault amounts, deposits/withdrawals, events) use UFix64.
@@ -237,1213 +48,20 @@ access(all) contract FlowALPv0 {
         - We convert at boundaries via type casting to UFix128 or FlowALPMath.toUFix64.
     */
 
-    /// InternalBalance
     ///
-    /// A structure used internally to track a position's balance for a particular token
-    access(all) struct InternalBalance {
-
-        /// The current direction of the balance - Credit (owed to borrower) or Debit (owed to protocol)
-        access(all) var direction: BalanceDirection
-
-        /// Internally, position balances are tracked using a "scaled balance".
-        /// The "scaled balance" is the actual balance divided by the current interest index for the associated token.
-        /// This means we don't need to update the balance of a position as time passes, even as interest rates change.
-        /// We only need to update the scaled balance when the user deposits or withdraws funds.
-        /// The interest index is a number relatively close to 1.0,
-        /// so the scaled balance will be roughly of the same order of magnitude as the actual balance.
-        /// We store the scaled balance as UFix128 to align with UFix128 interest indices
-        // and to reduce rounding during true ↔ scaled conversions.
-        access(all) var scaledBalance: UFix128
-
-        // Single initializer that can handle both cases
-        init(
-            direction: BalanceDirection,
-            scaledBalance: UFix128
-        ) {
-            self.direction = direction
-            self.scaledBalance = scaledBalance
-        }
-
-        /// Records a deposit of the defined amount, updating the inner scaledBalance as well as relevant values
-        /// in the provided TokenState.
-        ///
-        /// It's assumed the TokenState and InternalBalance relate to the same token Type,
-        /// but since neither struct have values defining the associated token,
-        /// callers should be sure to make the arguments do in fact relate to the same token Type.
-        ///
-        /// amount is expressed in UFix128 (true token units) to operate in the internal UFix128 domain;
-        /// public deposit APIs accept UFix64 and are converted at the boundary.
-        ///
-        access(contract) fun recordDeposit(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
-            switch self.direction {
-                case BalanceDirection.Credit:
-                    // Depositing into a credit position just increases the balance.
-                    //
-                    // To maximize precision, we could convert the scaled balance to a true balance,
-                    // add the deposit amount, and then convert the result back to a scaled balance.
-                    //
-                    // However, this will only cause problems for very small deposits (fractions of a cent),
-                    // so we save computational cycles by just scaling the deposit amount
-                    // and adding it directly to the scaled balance.
-
-                    let scaledDeposit = FlowALPv0.trueBalanceToScaledBalance(
-                        amount,
-                        interestIndex: tokenState.creditInterestIndex
-                    )
-
-                    self.scaledBalance = self.scaledBalance + scaledDeposit
-
-                    // Increase the total credit balance for the token
-                    tokenState.increaseCreditBalance(by: amount)
-
-                case BalanceDirection.Debit:
-                    // When depositing into a debit position, we first need to compute the true balance
-                    // to see if this deposit will flip the position from debit to credit.
-
-                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
-                        self.scaledBalance,
-                        interestIndex: tokenState.debitInterestIndex
-                    )
-
-                    // Harmonize comparison with withdrawal: treat an exact match as "does not flip to credit"
-                    if trueBalance >= amount {
-                        // The deposit isn't big enough to clear the debt,
-                        // so we just decrement the debt.
-                        let updatedBalance = trueBalance - amount
-
-                        self.scaledBalance = FlowALPv0.trueBalanceToScaledBalance(
-                            updatedBalance,
-                            interestIndex: tokenState.debitInterestIndex
-                        )
-
-                        // Decrease the total debit balance for the token
-                        tokenState.decreaseDebitBalance(by: amount)
-
-                    } else {
-                        // The deposit is enough to clear the debt,
-                        // so we switch to a credit position.
-                        let updatedBalance = amount - trueBalance
-
-                        self.direction = BalanceDirection.Credit
-                        self.scaledBalance = FlowALPv0.trueBalanceToScaledBalance(
-                            updatedBalance,
-                            interestIndex: tokenState.creditInterestIndex
-                        )
-
-                        // Increase the credit balance AND decrease the debit balance
-                        tokenState.increaseCreditBalance(by: updatedBalance)
-                        tokenState.decreaseDebitBalance(by: trueBalance)
-                    }
-            }
-        }
-
-        /// Records a withdrawal of the defined amount, updating the inner scaledBalance
-        /// as well as relevant values in the provided TokenState.
-        ///
-        /// It's assumed the TokenState and InternalBalance relate to the same token Type,
-        /// but since neither struct have values defining the associated token,
-        /// callers should be sure to make the arguments do in fact relate to the same token Type.
-        ///
-        /// amount is expressed in UFix128 for the same rationale as deposits;
-        /// public withdraw APIs are UFix64 and are converted at the boundary.
-        ///
-        access(contract) fun recordWithdrawal(amount: UFix128, tokenState: auth(EImplementation) &TokenState) {
-            switch self.direction {
-                case BalanceDirection.Debit:
-                    // Withdrawing from a debit position just increases the debt amount.
-                    //
-                    // To maximize precision, we could convert the scaled balance to a true balance,
-                    // subtract the withdrawal amount, and then convert the result back to a scaled balance.
-                    //
-                    // However, this will only cause problems for very small withdrawals (fractions of a cent),
-                    // so we save computational cycles by just scaling the withdrawal amount
-                    // and subtracting it directly from the scaled balance.
-
-                    let scaledWithdrawal = FlowALPv0.trueBalanceToScaledBalance(
-                        amount,
-                        interestIndex: tokenState.debitInterestIndex
-                    )
-
-                    self.scaledBalance = self.scaledBalance + scaledWithdrawal
-
-                    // Increase the total debit balance for the token
-                    tokenState.increaseDebitBalance(by: amount)
-
-                case BalanceDirection.Credit:
-                    // When withdrawing from a credit position,
-                    // we first need to compute the true balance
-                    // to see if this withdrawal will flip the position from credit to debit.
-                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
-                        self.scaledBalance,
-                        interestIndex: tokenState.creditInterestIndex
-                    )
-
-                    if trueBalance >= amount {
-                        // The withdrawal isn't big enough to push the position into debt,
-                        // so we just decrement the credit balance.
-                        let updatedBalance = trueBalance - amount
-
-                        self.scaledBalance = FlowALPv0.trueBalanceToScaledBalance(
-                            updatedBalance,
-                            interestIndex: tokenState.creditInterestIndex
-                        )
-
-                        // Decrease the total credit balance for the token
-                        tokenState.decreaseCreditBalance(by: amount)
-                    } else {
-                        // The withdrawal is enough to push the position into debt,
-                        // so we switch to a debit position.
-                        let updatedBalance = amount - trueBalance
-
-                        self.direction = BalanceDirection.Debit
-                        self.scaledBalance = FlowALPv0.trueBalanceToScaledBalance(
-                            updatedBalance,
-                            interestIndex: tokenState.debitInterestIndex
-                        )
-
-                        // Decrease the credit balance AND increase the debit balance
-                        tokenState.decreaseCreditBalance(by: trueBalance)
-                        tokenState.increaseDebitBalance(by: updatedBalance)
-                    }
-            }
-        }
-    }
-
-    /// BalanceSheet
-    ///
-    /// An struct containing a position's overview in terms of its effective collateral and debt
-    /// as well as its current health.
-    access(all) struct BalanceSheet {
-
-        /// Effective collateral is a normalized valuation of collateral deposited into this position, denominated in $.
-        /// In combination with effective debt, this determines how much additional debt can be taken out by this position.
-        access(all) let effectiveCollateral: UFix128
-
-        /// Effective debt is a normalized valuation of debt withdrawn against this position, denominated in $.
-        /// In combination with effective collateral, this determines how much additional debt can be taken out by this position.
-        access(all) let effectiveDebt: UFix128
-
-        /// The health of the related position
-        access(all) let health: UFix128
-
-        init(
-            effectiveCollateral: UFix128,
-            effectiveDebt: UFix128
-        ) {
-            self.effectiveCollateral = effectiveCollateral
-            self.effectiveDebt = effectiveDebt
-            self.health = FlowALPv0.healthComputation(
-                effectiveCollateral: effectiveCollateral,
-                effectiveDebt: effectiveDebt
-            )
-        }
-    }
-
-    access(all) struct PauseParamsView {
-        access(all) let paused: Bool
-        access(all) let warmupSec: UInt64
-        access(all) let lastUnpausedAt: UInt64?
-
-        init(
-            paused: Bool,
-            warmupSec: UInt64,
-            lastUnpausedAt: UInt64?,
-        ) {
-            self.paused = paused
-            self.warmupSec = warmupSec
-            self.lastUnpausedAt = lastUnpausedAt
-        }
-    }
-
-    /// Liquidation parameters view (global)
-    access(all) struct LiquidationParamsView {
-        access(all) let targetHF: UFix128
-        access(all) let triggerHF: UFix128
-
-        init(
-            targetHF: UFix128,
-            triggerHF: UFix128,
-        ) {
-            self.targetHF = targetHF
-            self.triggerHF = triggerHF
-        }
-    }
-
-    /// ImplementationUpdates
-    ///
-    /// Entitlement mapping that enables authorized references on nested resources within InternalPosition.
-    /// This mapping translates EImplementation entitlement into Mutate and FungibleToken.Withdraw
-    /// capabilities, allowing the protocol's internal implementation to modify position state and
-    /// interact with fungible token vaults.
-    ///
-    /// This mapping is used internally to process queued deposits and manage position state
-    /// without requiring direct access to the nested resources.
-    access(all) entitlement mapping ImplementationUpdates {
-        EImplementation -> Mutate
-        EImplementation -> FungibleToken.Withdraw
-    }
-
-    /// InternalPosition
-    ///
-    /// An internal resource used to track deposits, withdrawals, balances, and queued deposits to an open position.
-    access(all) resource InternalPosition {
-
-        /// The position-specific target health, for auto-balancing purposes.
-        /// When the position health moves outside the range [minHealth, maxHealth], the balancing operation
-        /// should result in a position health of targetHealth.
-        access(EImplementation) var targetHealth: UFix128
-
-        /// The position-specific minimum health threshold, below which a position is considered undercollateralized.
-        /// When a position is under-collateralized, it is eligible for rebalancing.
-        /// NOTE: An under-collateralized position is distinct from an unhealthy position, and cannot be liquidated
-        access(EImplementation) var minHealth: UFix128
-
-        /// The position-specific maximum health threshold, above which a position is considered overcollateralized.
-        /// When a position is over-collateralized, it is eligible for rebalancing.
-        access(EImplementation) var maxHealth: UFix128
-
-        /// The balances of deposited and withdrawn token types
-        access(mapping ImplementationUpdates) var balances: {Type: InternalBalance}
-
-        /// Funds that have been deposited but must be asynchronously added to the Pool's reserves and recorded
-        access(mapping ImplementationUpdates) var queuedDeposits: @{Type: {FungibleToken.Vault}}
-
-        /// A DeFiActions Sink that if non-nil will enable the Pool to push overflown value automatically when the
-        /// position exceeds its maximum health based on the value of deposited collateral versus withdrawals
-        access(mapping ImplementationUpdates) var drawDownSink: {DeFiActions.Sink}?
-
-        /// A DeFiActions Source that if non-nil will enable the Pool to pull underflown value automatically when the
-        /// position falls below its minimum health based on the value of deposited collateral versus withdrawals.
-        ///
-        /// If this value is not set, liquidation may occur in the event of undercollateralization.
-        access(mapping ImplementationUpdates) var topUpSource: {DeFiActions.Source}?
-
-        init() {
-            self.balances = {}
-            self.queuedDeposits <- {}
-            self.targetHealth = 1.3
-            self.minHealth = 1.1
-            self.maxHealth = 1.5
-            self.drawDownSink = nil
-            self.topUpSource = nil
-        }
-
-        /// Sets the Position's target health. See InternalPosition.targetHealth for details.
-        access(EImplementation) fun setTargetHealth(_ targetHealth: UFix128) {
-            pre {
-                targetHealth > self.minHealth: "Target health (\(targetHealth)) must be greater than min health (\(self.minHealth))"
-                targetHealth < self.maxHealth: "Target health (\(targetHealth)) must be less than max health (\(self.maxHealth))"
-            }
-            self.targetHealth = targetHealth
-        }
-
-        /// Sets the Position's minimum health. See InternalPosition.minHealth for details.
-        access(EImplementation) fun setMinHealth(_ minHealth: UFix128) {
-            pre {
-                minHealth > 1.0: "Min health (\(minHealth)) must be >1"
-                minHealth < self.targetHealth: "Min health (\(minHealth)) must be greater than target health (\(self.targetHealth))"
-            }
-            self.minHealth = minHealth
-        }
-
-        /// Sets the Position's maximum health. See InternalPosition.maxHealth for details.
-        access(EImplementation) fun setMaxHealth(_ maxHealth: UFix128) {
-            pre {
-                maxHealth > self.targetHealth: "Max health (\(maxHealth)) must be greater than target health (\(self.targetHealth))"
-            }
-            self.maxHealth = maxHealth
-        }
-
-        /// Returns a value-copy of `balances` suitable for constructing a `PositionView`.
-        access(all) fun copyBalances(): {Type: InternalBalance} {
-            return self.balances
-        }
-
-        /// Sets the InternalPosition's drawDownSink. If `nil`, the Pool will not be able to push overflown value when
-        /// the position exceeds its maximum health.
-        ///
-        /// NOTE: If a non-nil value is provided, the Sink MUST accept MOET deposits or the operation will revert.
-        /// TODO(jord): precondition assumes Pool's default token is MOET, however Pool has option to specify default token in constructor.
-        access(EImplementation) fun setDrawDownSink(_ sink: {DeFiActions.Sink}?) {
-            pre {
-                sink == nil || sink!.getSinkType() == Type<@MOET.Vault>():
-                    "Invalid Sink provided - Sink must accept MOET"
-            }
-            self.drawDownSink = sink
-        }
-
-        /// Sets the InternalPosition's topUpSource. If `nil`, the Pool will not be able to pull underflown value when
-        /// the position falls below its minimum health which may result in liquidation.
-        access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source}?) {
-            /// TODO(jord): User can provide top-up source containing unsupported token type. Then later rebalances will revert.
-            /// Possibly an attack vector on automated rebalancing, if multiple positions are rebalanced in the same transaction.
-            self.topUpSource = source
-        }
-
-        /// Returns the current collateral type for this position based on existing Credit balances
-        /// Returns nil if no Credit balance exists yet (allows any collateral type for first deposit)
-        access(all) fun getCollateralType(): Type? {
-            for type in self.balances.keys {
-                if self.balances[type]!.direction == BalanceDirection.Credit {
-                    return type
-                }
-            }
-            return nil
-        }
-
-        /// Returns the current debt type for this position based on existing Debit balances
-        /// Returns nil if no Debit balance exists yet (allows any debt type for first borrow)
-        access(all) fun getDebtType(): Type? {
-            for type in self.balances.keys {
-                if self.balances[type]!.direction == BalanceDirection.Debit {
-                    return type
-                }
-            }
-            return nil
-        }
-
-        /// Validates that the given token type can be used as collateral for this position
-        /// Panics if position already has a different collateral type
-        access(EImplementation) fun validateCollateralType(_ type: Type) {
-            let existingType = self.getCollateralType()
-            if existingType == nil {
-                // No collateral yet, allow any type
-                return
-            }
-
-            if existingType! != type {
-                panic("Position already has collateral type ".concat(existingType!.identifier).concat(". Cannot deposit ").concat(type.identifier).concat(". Only one collateral type allowed per position."))
-            }
-        }
-
-        /// Validates that the given token type can be used as debt for this position
-        /// Panics if position already has a different debt type
-        access(EImplementation) fun validateDebtType(_ type: Type) {
-            let existingType = self.getDebtType()
-            if existingType == nil {
-                // No debt yet, allow any type
-                return
-            }
-
-            if existingType! != type {
-                panic("Position already has debt type ".concat(existingType!.identifier).concat(". Cannot borrow ").concat(type.identifier).concat(". Only one debt type allowed per position."))
-            }
-        }
-    }
-
-    /// InterestCurve
-    ///
-    /// A simple interface to calculate interest rate for a token type.
-    access(all) struct interface InterestCurve {
-        /// Returns the annual interest rate for the given credit and debit balance, for some token T.
-        /// @param creditBalance The credit (deposit) balance of token T
-        /// @param debitBalance The debit (withdrawal) balance of token T
-        access(all) fun interestRate(creditBalance: UFix128, debitBalance: UFix128): UFix128 {
-            post {
-                // Max rate is 400% (4.0) to accommodate high-utilization scenarios
-                // with kink-based curves like Aave v3's interest rate strategy
-                result <= 4.0:
-                    "Interest rate can't exceed 400%"
-            }
-        }
-    }
-
-    /// FixedRateInterestCurve
-    ///
-    /// A fixed-rate interest curve implementation that returns a constant yearly interest rate
-    /// regardless of utilization. This is suitable for stable assets like MOET where predictable
-    /// rates are desired.
-    /// @param yearlyRate The fixed yearly interest rate as a UFix128 (e.g., 0.05 for 5% APY)
-    access(all) struct FixedRateInterestCurve: InterestCurve {
-
-        access(all) let yearlyRate: UFix128
-
-        init(yearlyRate: UFix128) {
-            pre {
-                yearlyRate <= 1.0: "Yearly rate cannot exceed 100%, got \(yearlyRate)"
-            }
-            self.yearlyRate = yearlyRate
-        }
-
-        access(all) fun interestRate(creditBalance: UFix128, debitBalance: UFix128): UFix128 {
-            return self.yearlyRate
-        }
-    }
-
-    /// KinkInterestCurve
-    ///
-    /// A kink-based interest rate curve implementation. The curve has two linear segments:
-    /// - Before the optimal utilization ratio (the "kink"): a gentle slope
-    /// - After the optimal utilization ratio: a steep slope to discourage over-utilization
-    ///
-    /// This creates a "kinked" curve that incentivizes maintaining utilization near the
-    /// optimal point while heavily penalizing over-utilization to protect protocol liquidity.
-    ///
-    /// Formula:
-    /// - utilization = debitBalance / (creditBalance + debitBalance)
-    /// - Before kink (utilization <= optimalUtilization):
-    ///   rate = baseRate + (slope1 × utilization / optimalUtilization)
-    /// - After kink (utilization > optimalUtilization):
-    ///   rate = baseRate + slope1 + (slope2 × excessUtilization)
-    ///   where excessUtilization = (utilization - optimalUtilization) / (1 - optimalUtilization)
-    ///
-    /// @param optimalUtilization The target utilization ratio (e.g., 0.80 for 80%)
-    /// @param baseRate The minimum yearly interest rate (e.g., 0.01 for 1% APY)
-    /// @param slope1 The total rate increase from 0% to optimal utilization (e.g., 0.04 for 4%)
-    /// @param slope2 The total rate increase from optimal to 100% utilization (e.g., 0.60 for 60%)
-    access(all) struct KinkInterestCurve: InterestCurve {
-
-        /// The optimal utilization ratio (the "kink" point), e.g., 0.80 = 80%
-        access(all) let optimalUtilization: UFix128
-
-        /// The base yearly interest rate applied at 0% utilization
-        access(all) let baseRate: UFix128
-
-        /// The slope of the interest curve before the optimal point (gentle slope)
-        access(all) let slope1: UFix128
-
-        /// The slope of the interest curve after the optimal point (steep slope)
-        access(all) let slope2: UFix128
-
-        init(
-            optimalUtilization: UFix128,
-            baseRate: UFix128,
-            slope1: UFix128,
-            slope2: UFix128
-        ) {
-            pre {
-                optimalUtilization >= 0.01:
-                    "Optimal utilization must be at least 1%, got \(optimalUtilization)"
-                optimalUtilization <= 0.99:
-                    "Optimal utilization must be at most 99%, got \(optimalUtilization)"
-                slope2 >= slope1:
-                    "Slope2 (\(slope2)) must be >= slope1 (\(slope1))"
-                baseRate + slope1 + slope2 <= 4.0:
-                    "Maximum rate cannot exceed 400%, got \(baseRate + slope1 + slope2)"
-            }
-            self.optimalUtilization = optimalUtilization
-            self.baseRate = baseRate
-            self.slope1 = slope1
-            self.slope2 = slope2
-        }
-
-        access(all) fun interestRate(creditBalance: UFix128, debitBalance: UFix128): UFix128 {
-            // If no debt, return base rate
-            if debitBalance == 0.0 {
-                return self.baseRate
-            }
-
-            // Calculate utilization ratio: debitBalance / (creditBalance + debitBalance)
-            // Note: totalBalance > 0 is guaranteed since debitBalance > 0 and creditBalance >= 0
-            let totalBalance = creditBalance + debitBalance
-            let utilization = debitBalance / totalBalance
-
-            // If utilization is below or at the optimal point, use slope1
-            if utilization <= self.optimalUtilization {
-                // rate = baseRate + (slope1 × utilization / optimalUtilization)
-                let utilizationFactor = utilization / self.optimalUtilization
-                let slope1Component = self.slope1 * utilizationFactor
-                return self.baseRate + slope1Component
-            } else {
-                // If utilization is above the optimal point, use slope2 for excess
-                // excessUtilization = (utilization - optimalUtilization) / (1 - optimalUtilization)
-                let excessUtilization = utilization - self.optimalUtilization
-                let maxExcess = FlowALPMath.one - self.optimalUtilization
-                let excessFactor = excessUtilization / maxExcess
-
-                // rate = baseRate + slope1 + (slope2 × excessFactor)
-                let slope2Component = self.slope2 * excessFactor
-                return self.baseRate + self.slope1 + slope2Component
-            }
-        }
-    }
-
-    /// TokenState
-    ///
-    /// The TokenState struct tracks values related to a single token Type within the Pool.
-    access(all) struct TokenState {
-
-        access(EImplementation) var tokenType : Type
-
-        /// The timestamp at which the TokenState was last updated
-        access(EImplementation) var lastUpdate: UFix64
-
-        /// The total credit balance for this token, in a specific Pool.
-        /// The total credit balance is the sum of balances of all positions with a credit balance (ie. they have lent this token).
-        /// In other words, it is the the sum of net deposits among positions which are net creditors in this token.
-        access(EImplementation) var totalCreditBalance: UFix128
-
-        /// The total debit balance for this token, in a specific Pool.
-        /// The total debit balance is the sum of balances of all positions with a debit balance (ie. they have borrowed this token).
-        /// In other words, it is the the sum of net withdrawals among positions which are net debtors in this token.
-        access(EImplementation) var totalDebitBalance: UFix128
-
-        /// The index of the credit interest for the related token.
-        ///
-        /// Interest indices are 18-decimal fixed-point values (see FlowALPMath) and are stored as UFix128
-        /// to maintain precision when converting between scaled and true balances and when compounding.
-        access(EImplementation) var creditInterestIndex: UFix128
-
-        /// The index of the debit interest for the related token.
-        ///
-        /// Interest indices are 18-decimal fixed-point values (see FlowALPMath) and are stored as UFix128
-        /// to maintain precision when converting between scaled and true balances and when compounding.
-        access(EImplementation) var debitInterestIndex: UFix128
-
-        /// The per-second interest rate for credit of the associated token.
-        ///
-        /// For example, if the per-second rate is 1%, this value is 0.01.
-        /// Stored as UFix128 to match index precision and avoid cumulative rounding during compounding.
-        access(EImplementation) var currentCreditRate: UFix128
-
-        /// The per-second interest rate for debit of the associated token.
-        ///
-        /// For example, if the per-second rate is 1%, this value is 0.01.
-        /// Stored as UFix128 for consistency with indices/rates math.
-        access(EImplementation) var currentDebitRate: UFix128
-
-        /// The interest curve implementation used to calculate interest rate
-        access(EImplementation) var interestCurve: {InterestCurve}
-
-        /// The annual insurance rate applied to total debit when computing credit interest (default 0.1%)
-        access(EImplementation) var insuranceRate: UFix64
-
-        /// Timestamp of the last insurance collection for this token.
-        access(EImplementation) var lastInsuranceCollectionTime: UFix64
-
-        /// Swapper used to convert this token to MOET for insurance collection.
-        access(EImplementation) var insuranceSwapper: {DeFiActions.Swapper}?
-
-        /// The stability fee rate to calculate stability (default 0.05, 5%).
-        access(EImplementation) var stabilityFeeRate: UFix64
-
-        /// Timestamp of the last stability collection for this token.
-        access(EImplementation) var lastStabilityFeeCollectionTime: UFix64
-
-        /// Per-position limit fraction of capacity (default 0.05 i.e., 5%)
-        access(EImplementation) var depositLimitFraction: UFix64
-
-        /// The rate at which depositCapacity can increase over time. This is a tokens per hour rate,
-        /// and should be applied to the depositCapacityCap once an hour.
-        access(EImplementation) var depositRate: UFix64
-
-        /// The timestamp of the last deposit capacity update
-        access(EImplementation) var lastDepositCapacityUpdate: UFix64
-
-        /// The limit on deposits of the related token
-        access(EImplementation) var depositCapacity: UFix64
-
-        /// The upper bound on total deposits of the related token,
-        /// limiting how much depositCapacity can reach
-        access(EImplementation) var depositCapacityCap: UFix64
-
-        /// Tracks per-user deposit usage for enforcing user deposit limits
-        /// Maps position ID -> usage amount (how much of each user's limit has been consumed for this token type)
-        access(EImplementation) var depositUsage: {UInt64: UFix64}
-
-        /// The minimum balance size for the related token T per position.
-        /// This minimum balance is denominated in units of token T.
-        /// Let this minimum balance be M. Then each position must have either:
-        /// - A balance of 0
-        /// - A credit balance greater than or equal to M
-        /// - A debit balance greater than or equal to M
-        access(EImplementation) var minimumTokenBalancePerPosition: UFix64
-
-        init(
-            tokenType: Type,
-            interestCurve: {InterestCurve},
-            depositRate: UFix64,
-            depositCapacityCap: UFix64
-        ) {
-            self.tokenType = tokenType
-            self.lastUpdate = getCurrentBlock().timestamp
-            self.totalCreditBalance = 0.0
-            self.totalDebitBalance = 0.0
-            self.creditInterestIndex = 1.0
-            self.debitInterestIndex = 1.0
-            self.currentCreditRate = 1.0
-            self.currentDebitRate = 1.0
-            self.interestCurve = interestCurve
-            self.insuranceRate = 0.0
-            self.lastInsuranceCollectionTime = getCurrentBlock().timestamp
-            self.insuranceSwapper = nil
-            self.stabilityFeeRate = 0.05
-            self.lastStabilityFeeCollectionTime = getCurrentBlock().timestamp
-            self.depositLimitFraction = 0.05
-            self.depositRate = depositRate
-            self.depositCapacity = depositCapacityCap
-            self.depositCapacityCap = depositCapacityCap
-            self.depositUsage = {}
-            self.lastDepositCapacityUpdate = getCurrentBlock().timestamp
-            self.minimumTokenBalancePerPosition = 1.0
-        }
-
-        /// Sets the insurance rate for this token state
-        access(EImplementation) fun setInsuranceRate(_ rate: UFix64) {
-            self.insuranceRate = rate
-        }
-
-        /// Sets the last insurance collection timestamp
-        access(EImplementation) fun setLastInsuranceCollectionTime(_ lastInsuranceCollectionTime: UFix64) {
-            self.lastInsuranceCollectionTime = lastInsuranceCollectionTime
-        }
-
-        /// Sets the swapper used for insurance collection (must swap from this token type to MOET)
-        access(EImplementation) fun setInsuranceSwapper(_ swapper: {DeFiActions.Swapper}?) {
-            if let swapper = swapper {
-                assert(swapper.inType() == self.tokenType, message: "Insurance swapper must accept \(self.tokenType.identifier), not \(swapper.inType().identifier)")
-                assert(swapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
-            }
-            self.insuranceSwapper = swapper
-        }
-
-        /// Sets the per-deposit limit fraction for this token state
-        access(EImplementation) fun setDepositLimitFraction(_ frac: UFix64) {
-            self.depositLimitFraction = frac
-        }
-
-        /// Sets the deposit rate for this token state after settling the old rate
-        /// Argument expressed astokens per hour
-        access(EImplementation) fun setDepositRate(_ hourlyRate: UFix64) {
-            // settle using old rate if for some reason too much time has passed without regeneration
-            self.regenerateDepositCapacity() 
-            self.depositRate = hourlyRate
-        }
-
-        /// Sets the deposit capacity cap for this token state
-        access(EImplementation) fun setDepositCapacityCap(_ cap: UFix64) {
-            self.depositCapacityCap = cap
-            // If current capacity exceeds the new cap, clamp it to the cap
-            if self.depositCapacity > cap {
-                self.depositCapacity = cap
-            }
-            // Reset the last update timestamp to prevent regeneration based on old timestamp
-            self.lastDepositCapacityUpdate = getCurrentBlock().timestamp
-        }
-
-        /// Sets the minimum token balance per position for this token state
-        access(EImplementation) fun setMinimumTokenBalancePerPosition(_ minimum: UFix64) {
-            self.minimumTokenBalancePerPosition = minimum
-        }
-
-        /// Sets the stability fee rate for this token state.
-        access(EImplementation) fun setStabilityFeeRate(_ rate: UFix64) {
-            self.stabilityFeeRate = rate
-        }
-        
-        /// Sets the last stability fee collection timestamp for this token state.
-        access(EImplementation) fun setLastStabilityFeeCollectionTime(_ lastStabilityFeeCollectionTime: UFix64) {
-            self.lastStabilityFeeCollectionTime = lastStabilityFeeCollectionTime
-        }
-
-        /// Calculates the per-user deposit limit cap based on depositLimitFraction * depositCapacityCap
-        access(EImplementation) fun getUserDepositLimitCap(): UFix64 {
-            return self.depositLimitFraction * self.depositCapacityCap
-        }
-
-        /// Decreases deposit capacity by the specified amount and tracks per-user deposit usage
-        /// (used when deposits are made)
-        access(EImplementation) fun consumeDepositCapacity(_ amount: UFix64, pid: UInt64) {
-            assert(
-                amount <= self.depositCapacity,
-                message: "cannot consume more than available deposit capacity"
-            )
-            self.depositCapacity = self.depositCapacity - amount
-            
-            // Track per-user deposit usage for the accepted amount
-            let currentUserUsage = self.depositUsage[pid] ?? 0.0
-            self.depositUsage[pid] = currentUserUsage + amount
-
-            emit DepositCapacityConsumed(
-                tokenType: self.tokenType,
-                pid: pid,
-                amount: amount,
-                remainingCapacity: self.depositCapacity
-            )
-        }
-
-        /// Sets deposit capacity (used for time-based regeneration)
-        access(EImplementation) fun setDepositCapacity(_ capacity: UFix64) {
-            self.depositCapacity = capacity
-        }
-
-        /// Sets the interest curve for this token state
-        /// After updating the curve, also update the interest rates to reflect the new curve
-        access(EImplementation) fun setInterestCurve(_ curve: {InterestCurve}) {
-            self.interestCurve = curve
-            // Update rates immediately to reflect the new curve
-            self.updateInterestRates()
-        }
-
-        /// Balance update helpers used by core accounting.
-        /// All balance changes automatically trigger updateForUtilizationChange()
-        /// which recalculates interest rates based on the new utilization ratio.
-        /// This ensures rates always reflect the current state of the pool
-        /// without requiring manual rate update calls.
-        access(EImplementation) fun increaseCreditBalance(by amount: UFix128) {
-            self.totalCreditBalance = self.totalCreditBalance + amount
-            self.updateForUtilizationChange()
-        }
-
-        access(EImplementation) fun decreaseCreditBalance(by amount: UFix128) {
-            if amount >= self.totalCreditBalance {
-                self.totalCreditBalance = 0.0
-            } else {
-                self.totalCreditBalance = self.totalCreditBalance - amount
-            }
-            self.updateForUtilizationChange()
-        }
-
-        access(EImplementation) fun increaseDebitBalance(by amount: UFix128) {
-            self.totalDebitBalance = self.totalDebitBalance + amount
-            self.updateForUtilizationChange()
-        }
-
-        access(EImplementation) fun decreaseDebitBalance(by amount: UFix128) {
-            if amount >= self.totalDebitBalance {
-                self.totalDebitBalance = 0.0
-            } else {
-                self.totalDebitBalance = self.totalDebitBalance - amount
-            }
-            self.updateForUtilizationChange()
-        }
-
-        // Updates the credit and debit interest index for this token, accounting for time since the last update.
-        access(EImplementation) fun updateInterestIndices() {
-            let currentTime = getCurrentBlock().timestamp
-            let dt = currentTime - self.lastUpdate
-
-            // No time elapsed or already at cap → nothing to do
-            if dt <= 0.0 {
-                return
-            }
-
-            // Update interest indices (dt > 0 ensures sensible compounding)
-            self.creditInterestIndex = FlowALPv0.compoundInterestIndex(
-                oldIndex: self.creditInterestIndex,
-                perSecondRate: self.currentCreditRate,
-                elapsedSeconds: dt
-            )
-            self.debitInterestIndex = FlowALPv0.compoundInterestIndex(
-                oldIndex: self.debitInterestIndex,
-                perSecondRate: self.currentDebitRate,
-                elapsedSeconds: dt
-            )
-
-            // Record the moment we accounted for
-            self.lastUpdate = currentTime
-        }
-
-        /// Regenerates deposit capacity over time based on depositRate
-        /// Note: dt should be calculated before updateInterestIndices() updates lastUpdate
-        /// When capacity regenerates, all user deposit usage is reset for this token type
-        access(EImplementation) fun regenerateDepositCapacity() {
-            let currentTime = getCurrentBlock().timestamp
-            let dt = currentTime - self.lastDepositCapacityUpdate
-            let hourInSeconds = 3600.0
-            if dt >= hourInSeconds { // 1 hour
-                let multiplier = dt / hourInSeconds
-                let oldCap = self.depositCapacityCap
-                let newDepositCapacityCap = self.depositRate * multiplier + self.depositCapacityCap
-
-                self.depositCapacityCap = newDepositCapacityCap
-
-                // Set the deposit capacity to the new deposit capacity cap, i.e. regenerate the capacity
-                self.setDepositCapacity(newDepositCapacityCap)
-                
-                // Regenerate user usage for this token type as well
-                self.depositUsage = {}
-
-                self.lastDepositCapacityUpdate = currentTime
-
-                emit DepositCapacityRegenerated(
-                    tokenType: self.tokenType,
-                    oldCapacityCap: oldCap,
-                    newCapacityCap: newDepositCapacityCap
-                )
-            }
-        }
-
-        // Deposit limit function
-        // Rationale: cap per-deposit size to a fraction of the time-based
-        // depositCapacity so a single large deposit cannot monopolize capacity.
-        // Excess is queued and drained in chunks (see asyncUpdatePosition),
-        // enabling fair throughput across many deposits in a block. The 5%
-        // fraction is conservative and can be tuned by protocol parameters.
-        access(EImplementation) fun depositLimit(): UFix64 {
-            return self.depositCapacity * self.depositLimitFraction
-        }
-
-
-        access(EImplementation) fun updateForTimeChange() {
-            self.updateInterestIndices()
-            self.regenerateDepositCapacity()
-        }
-
-        /// Called after any action that changes utilization (deposits, withdrawals, borrows, repays).
-        /// Recalculates interest rates based on the new credit/debit balance ratio.
-        access(EImplementation) fun updateForUtilizationChange() {
-            self.updateInterestRates()
-        }
-
-        access(EImplementation) fun updateInterestRates() {
-            let debitRate = self.interestCurve.interestRate(
-                creditBalance: self.totalCreditBalance,
-                debitBalance: self.totalDebitBalance
-            )
-            let insuranceRate = UFix128(self.insuranceRate)
-            let stabilityFeeRate = UFix128(self.stabilityFeeRate)
-
-            var creditRate: UFix128 = 0.0
-            // Total protocol cut as a percentage of debit interest income
-            let protocolFeeRate = insuranceRate + stabilityFeeRate
-
-            // Two calculation paths based on curve type:
-            // 1. FixedRateInterestCurve: simple spread model (creditRate = debitRate * (1 - protocolFeeRate))
-            //    Used for stable assets like MOET where rates are governance-controlled
-            // 2. KinkInterestCurve (and others): reserve factor model
-            //    Insurance and stability are percentages of interest income, not a fixed spread
-            // TODO(jord): seems like InterestCurve abstraction could be improved if we need to check specific types here.
-            if self.interestCurve.getType() == Type<FlowALPv0.FixedRateInterestCurve>() {
-                // FixedRate path: creditRate = debitRate * (1 - protocolFeeRate))
-                // This provides a fixed, predictable spread between borrower and lender rates
-                creditRate = debitRate * (1.0 - protocolFeeRate) 
-            } else {
-                // KinkCurve path (and any other curves): reserve factor model
-                // protocolFeeAmount = debitIncome * protocolFeeRate (percentage of income)
-                // creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
-                let debitIncome = self.totalDebitBalance * debitRate
-                let protocolFeeAmount = debitIncome * protocolFeeRate
-
-                if self.totalCreditBalance > 0.0 {
-                    creditRate = (debitIncome - protocolFeeAmount) / self.totalCreditBalance
-                }
-            }
-
-            self.currentCreditRate = FlowALPv0.perSecondInterestRate(yearlyRate: creditRate)
-            self.currentDebitRate = FlowALPv0.perSecondInterestRate(yearlyRate: debitRate)
-        }
-
-        /// Collects insurance by withdrawing from reserves and swapping to MOET.
-        /// The insurance amount is calculated based on the insurance rate applied to the total debit balance over the time elapsed.
-        /// This should be called periodically (e.g., when updateInterestRates is called) to accumulate the insurance fund.
-        /// CAUTION: This function will panic if no insuranceSwapper is provided.
-        ///
-        /// @param reserveVault: The reserve vault for this token type to withdraw insurance from
-        /// @param oraclePrice: The current price for this token according to the Oracle, denominated in $
-        /// @param maxDeviationBps: The max deviation between oracle/dex prices (see Pool.dexOracleDeviationBps)
-        /// @return: A MOET vault containing the collected insurance funds, or nil if no collection occurred
-        access(EImplementation) fun collectInsurance(
-            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
-            oraclePrice: UFix64,
-            maxDeviationBps: UInt16
-        ): @MOET.Vault? {
-            let currentTime = getCurrentBlock().timestamp
-
-            // If insuranceRate is 0.0 configured, skip collection but update the last insurance collection time
-            if self.insuranceRate == 0.0 {
-                self.setLastInsuranceCollectionTime(currentTime)
-                return nil
-            }
-
-            // Calculate accrued insurance amount based on time elapsed since last collection
-            let timeElapsed = currentTime - self.lastInsuranceCollectionTime
-            
-            // If no time has elapsed, nothing to collect
-            if timeElapsed <= 0.0 {
-                return nil
-            }
-
-            // Insurance amount is a percentage of debit income
-            // debitIncome = debitBalance * (curentDebitRate ^ time_elapsed - 1.0)
-            let debitIncome = self.totalDebitBalance * (FlowALPMath.powUFix128(self.currentDebitRate, timeElapsed) - 1.0)
-            let insuranceAmount = debitIncome * UFix128(self.insuranceRate)
-            let insuranceAmountUFix64 = FlowALPMath.toUFix64RoundDown(insuranceAmount)
-
-            // If calculated amount is zero, skip collection but update timestamp
-            if insuranceAmountUFix64 == 0.0 {
-                self.setLastInsuranceCollectionTime(currentTime)
-                return nil
-            }
-            
-            // Check if we have enough balance in reserves
-            if reserveVault.balance == 0.0 {
-                self.setLastInsuranceCollectionTime(currentTime)
-                return nil
-            }
-
-            // Withdraw insurance amount from reserves (use available balance if less than calculated)
-            let amountToCollect = insuranceAmountUFix64 > reserveVault.balance ? reserveVault.balance : insuranceAmountUFix64
-            var insuranceVault <- reserveVault.withdraw(amount: amountToCollect)
-
-			let insuranceSwapper = self.insuranceSwapper ?? panic("missing insurance swapper")
-
-            // Validate swapper input and output types (input and output types are already validated when swapper is set)
-            assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
-            assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
-
-            // Get quote and perform swap
-            let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
-            let dexPrice = quote.outAmount / quote.inAmount
-            assert(
-                FlowALPv0.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
-                message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
-            var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
-
-            // Update last collection time
-            self.setLastInsuranceCollectionTime(currentTime)
-
-            // Return the MOET vault for the caller to deposit
-            return <-moetVault
-        }
-
-        /// Collects stability funds by withdrawing from reserves.
-        /// The stability amount is calculated based on the stability rate applied to the total debit balance over the time elapsed.
-        /// This should be called periodically (e.g., when updateInterestRates is called) to accumulate the stability fund.
-        ///
-        /// @param reserveVault: The reserve vault for this token type to withdraw stability amount from
-        /// @return: A token type vault containing the collected stability funds, or nil if no collection occurred
-        access(EImplementation) fun collectStability(
-            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
-        ): @{FungibleToken.Vault}? {
-            let currentTime = getCurrentBlock().timestamp
-
-            // If stabilityFeeRate is 0.0 configured, skip collection but update the last stability collection time
-            if self.stabilityFeeRate == 0.0 {
-                self.setLastStabilityFeeCollectionTime(currentTime)
-                return nil
-            }
-
-            // Calculate accrued stability amount based on time elapsed since last collection
-            let timeElapsed = currentTime - self.lastStabilityFeeCollectionTime
-
-            // If no time has elapsed, nothing to collect
-            if timeElapsed <= 0.0 {
-                return nil
-            }
-
-            let stabilityFeeRate = UFix128(self.stabilityFeeRate)
-
-            // Calculate stability amount: is a percentage of debit income
-            // debitIncome = debitBalance * (curentDebitRate ^ time_elapsed - 1.0)
-            let interestIncome = self.totalDebitBalance * (FlowALPMath.powUFix128(self.currentDebitRate, timeElapsed) - 1.0)
-            let stabilityAmount = interestIncome * stabilityFeeRate
-            let stabilityAmountUFix64 = FlowALPMath.toUFix64RoundDown(stabilityAmount)
-
-            // If calculated amount is zero or negative, skip collection but update timestamp
-            if stabilityAmountUFix64 == 0.0 {
-                self.setLastStabilityFeeCollectionTime(currentTime)
-                return nil
-            }
-
-            // Check if we have enough balance in reserves
-            if reserveVault.balance == 0.0 {
-                self.setLastStabilityFeeCollectionTime(currentTime)
-                return nil
-            }
-
-            let reserveVaultBalance = reserveVault.balance
-            // Withdraw stability amount from reserves (use available balance if less than calculated)
-            let amountToCollect = stabilityAmountUFix64 > reserveVaultBalance ? reserveVaultBalance : stabilityAmountUFix64
-            let stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
-
-            // Update last collection time
-            self.setLastStabilityFeeCollectionTime(currentTime)
-
-            // Return the vault for the caller to deposit
-            return <-stabilityVault
-        }
-    }
-
-    /// Risk parameters for a token used in effective collateral/debt computations.
-    /// The collateral and borrow factors are fractional values which represent a discount to the "true/market" value of the token.
-    /// The size of this discount indicates a subjective assessment of risk for the token.
-    /// The difference between the effective value and "true" value represents the safety buffer available to prevent loss.
-    /// - collateralFactor: the factor used to derive effective collateral
-    /// - borrowFactor: the factor used to derive effective debt
-    access(all) struct RiskParams {
-        /// The factor (Fc) used to determine effective collateral, in the range [0, 1]
-        /// See FlowALPv0.effectiveCollateral for additional detail.
-        access(all) let collateralFactor: UFix128
-        /// The factor (Fd) used to determine effective debt, in the range [0, 1]
-        /// See FlowALPv0.effectiveDebt for additional detail.
-        access(all) let borrowFactor: UFix128
-
-        init(
-            collateralFactor: UFix128,
-            borrowFactor: UFix128,
-        ) {
-            pre {
-                collateralFactor <= 1.0: "collateral factor must be <=1"
-                borrowFactor <= 1.0: "borrow factor must be <=1"
-            }
-            self.collateralFactor = collateralFactor
-            self.borrowFactor = borrowFactor
-        }
-    }
-
-    /// Immutable snapshot of token-level data required for pure math operations
-    access(all) struct TokenSnapshot {
-        access(all) let price: UFix128
-        access(all) let creditIndex: UFix128
-        access(all) let debitIndex: UFix128
-        access(all) let risk: RiskParams
-
-        init(
-            price: UFix128,
-            credit: UFix128,
-            debit: UFix128,
-            risk: RiskParams
-        ) {
-            self.price = price
-            self.creditIndex = credit
-            self.debitIndex = debit
-            self.risk = risk
-        }
-
-        /// Returns the effective debt (denominated in $) for the given debit balance of this snapshot's token.
-        /// See FlowALPv0.effectiveDebt for additional details.
-        access(all) view fun effectiveDebt(debitBalance: UFix128): UFix128 {
-            return FlowALPv0.effectiveDebt(debit: debitBalance, price: self.price, borrowFactor: self.risk.borrowFactor)
-        }
-
-        /// Returns the effective collateral (denominated in $) for the given credit balance of this snapshot's token.
-        /// See FlowALPv0.effectiveCollateral for additional details.
-        access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128 {
-            return FlowALPv0.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.collateralFactor)
-        }
-    }
-
-    /// Copy-only representation of a position used by pure math (no storage refs)
-    access(all) struct PositionView {
-        /// Set of all non-zero balances in the position.
-        /// If the position does not have a balance for a supported token, no entry for that token exists in this map.
-        access(all) let balances: {Type: InternalBalance}
-        /// Set of all token snapshots for which this position has a non-zero balance.
-        /// If the position does not have a balance for a supported token, no entry for that token exists in this map.
-        access(all) let snapshots: {Type: TokenSnapshot}
-        access(all) let defaultToken: Type
-        access(all) let minHealth: UFix128
-        access(all) let maxHealth: UFix128
-
-        init(
-            balances: {Type: InternalBalance},
-            snapshots: {Type: TokenSnapshot},
-            defaultToken: Type,
-            min: UFix128,
-            max: UFix128
-        ) {
-            self.balances = balances
-            self.snapshots = snapshots
-            self.defaultToken = defaultToken
-            self.minHealth = min
-            self.maxHealth = max
-        }
-
-        /// Returns the true balance of the given token in this position, accounting for interest.
-        /// Returns balance 0.0 if the position has no balance stored for the given token.
-        access(all) view fun trueBalance(ofToken: Type): UFix128 {
-            if let balance = self.balances[ofToken] {
-                if let tokenSnapshot = self.snapshots[ofToken] {
-                    switch balance.direction {
-                    case BalanceDirection.Debit:
-                        return FlowALPv0.scaledBalanceToTrueBalance(
-                            balance.scaledBalance, interestIndex: tokenSnapshot.debitIndex)
-                    case BalanceDirection.Credit:
-                        return FlowALPv0.scaledBalanceToTrueBalance(
-                            balance.scaledBalance, interestIndex: tokenSnapshot.creditIndex)
-                    }
-                    panic("unreachable")
-                }
-            } 
-            // If the token doesn't exist in the position, the balance is 0
-            return 0.0
-        }
-    }
-
-    // PURE HELPERS -------------------------------------------------------------
-
-    /// Returns the effective collateral (denominated in $) for the given credit balance of some token T.
-    /// Effective Collateral is defined:
-    ///   Ce = (Nc)(Pc)(Fc)
-    /// Where:
-    /// Ce = Effective Collateral 
-    /// Nc = Number of Collateral Tokens
-    /// Pc = Collateral Token Price
-    /// Fc = Collateral Factor
-    ///
-    /// @param credit           The credit balance of the position for token T.
-    /// @param price            The price of token T ($/T).
-    /// @param collateralFactor The collateral factor for token T (see RiskParams for details).
-    access(all) view fun effectiveCollateral(credit: UFix128, price: UFix128, collateralFactor: UFix128): UFix128 {
-        return (credit * price) * collateralFactor
-    }
-
-    /// Returns the effective debt (denominated in $) for the given debit balance of some token T.
-    /// Effective Debt is defined:
-    ///   De = (Nd)(Pd)(Fd)
-    /// Where:
-    /// De = Effective Debt 
-    /// Nd = Number of Debt Tokens
-    /// Pd = Debt Token Price
-    /// Fd = Borrow Factor
-    ///
-    /// @param debit       The debit balance of the position for token T.
-    /// @param price       The price of token T ($/T).
-    /// @param borowFactor The borrow factor for token T (see RiskParams for details).
-    access(all) view fun effectiveDebt(debit: UFix128, price: UFix128, borrowFactor: UFix128): UFix128 {
-        return (debit * price) / borrowFactor
-    }
-
-    /// Computes health = totalEffectiveCollateral / totalEffectiveDebt (∞ when debt == 0)
-    // TODO: return BalanceSheet, this seems like a dupe of _getUpdatedBalanceSheet
-    access(all) view fun healthFactor(view: PositionView): UFix128 {
-        // TODO: this logic partly duplicates BalanceSheet construction in _getUpdatedBalanceSheet
-        // This function differs in that it does not read any data from a Pool resource. Consider consolidating the two implementations.
-        var effectiveCollateralTotal: UFix128 = 0.0
-        var effectiveDebtTotal: UFix128 = 0.0
-
-        for tokenType in view.balances.keys {
-            let balance = view.balances[tokenType]!
-            let snap = view.snapshots[tokenType]!
-
-            switch balance.direction {
-                case BalanceDirection.Credit:
-                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
-                        balance.scaledBalance,
-                        interestIndex: snap.creditIndex
-                    )
-                    effectiveCollateralTotal = effectiveCollateralTotal
-                        + snap.effectiveCollateral(creditBalance: trueBalance)
-
-                case BalanceDirection.Debit:
-                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
-                        balance.scaledBalance,
-                        interestIndex: snap.debitIndex
-                    )
-                    effectiveDebtTotal = effectiveDebtTotal
-                        + snap.effectiveDebt(debitBalance: trueBalance)
-            }
-        }
-        return FlowALPv0.healthComputation(
-            effectiveCollateral: effectiveCollateralTotal,
-            effectiveDebt: effectiveDebtTotal
-        )
-    }
-
     /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth
     access(all) view fun maxWithdraw(
-        view: PositionView,
-        withdrawSnap: TokenSnapshot,
-        withdrawBal: InternalBalance?,
+        view: FlowALPModels.PositionView,
+        withdrawSnap: FlowALPModels.TokenSnapshot,
+        withdrawBal: FlowALPModels.InternalBalance?,
         targetHealth: UFix128
     ): UFix128 {
-        let preHealth = FlowALPv0.healthFactor(view: view)
+        let preHealth = FlowALPModels.healthFactor(view: view)
         if preHealth <= targetHealth {
             return 0.0
         }
 
-        // TODO: this logic partly duplicates BalanceSheet construction in _getUpdatedBalanceSheet
+        // TODO: this logic partly duplicates FlowALPModels.BalanceSheet construction in _getUpdatedBalanceSheet
         // This function differs in that it does not read any data from a Pool resource. Consider consolidating the two implementations.
         var effectiveCollateralTotal: UFix128 = 0.0
         var effectiveDebtTotal: UFix128 = 0.0
@@ -1453,40 +71,40 @@ access(all) contract FlowALPv0 {
             let snap = view.snapshots[tokenType]!
 
             switch balance.direction {
-                case BalanceDirection.Credit:
-                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
+                case FlowALPModels.BalanceDirection.Credit:
+                    let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                         balance.scaledBalance,
-                        interestIndex: snap.creditIndex
+                        interestIndex: snap.getCreditIndex()
                     )
                     effectiveCollateralTotal = effectiveCollateralTotal
                         + snap.effectiveCollateral(creditBalance: trueBalance)
 
-                case BalanceDirection.Debit:
-                    let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
+                case FlowALPModels.BalanceDirection.Debit:
+                    let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                         balance.scaledBalance,
-                        interestIndex: snap.debitIndex
+                        interestIndex: snap.getDebitIndex()
                     )
                     effectiveDebtTotal = effectiveDebtTotal
                         + snap.effectiveDebt(debitBalance: trueBalance)
             }
         }
 
-        let collateralFactor = withdrawSnap.risk.collateralFactor
-        let borrowFactor = withdrawSnap.risk.borrowFactor
+        let collateralFactor = withdrawSnap.getRisk().getCollateralFactor()
+        let borrowFactor = withdrawSnap.getRisk().getBorrowFactor()
 
-        if withdrawBal == nil || withdrawBal!.direction == BalanceDirection.Debit {
+        if withdrawBal == nil || withdrawBal!.direction == FlowALPModels.BalanceDirection.Debit {
             // withdrawing increases debt
             let numerator = effectiveCollateralTotal
             let denominatorTarget = numerator / targetHealth
             let deltaDebt = denominatorTarget > effectiveDebtTotal
                 ? denominatorTarget - effectiveDebtTotal
                 : 0.0 as UFix128
-            return (deltaDebt * borrowFactor) / withdrawSnap.price
+            return (deltaDebt * borrowFactor) / withdrawSnap.getPrice()
         } else {
             // withdrawing reduces collateral
-            let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
+            let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                 withdrawBal!.scaledBalance,
-                interestIndex: withdrawSnap.creditIndex
+                interestIndex: withdrawSnap.getCreditIndex()
             )
             let maxPossible = trueBalance
             let requiredCollateral = effectiveDebtTotal * targetHealth
@@ -1494,7 +112,7 @@ access(all) contract FlowALPv0 {
                 return 0.0
             }
             let deltaCollateralEffective = effectiveCollateralTotal - requiredCollateral
-            let deltaTokens = (deltaCollateralEffective / collateralFactor) / withdrawSnap.price
+            let deltaTokens = (deltaCollateralEffective / collateralFactor) / withdrawSnap.getPrice()
             return deltaTokens > maxPossible ? maxPossible : deltaTokens
         }
     }
@@ -1505,87 +123,14 @@ access(all) contract FlowALPv0 {
     /// credit and debit balances for each supported token type, and reserves as they are deposited to positions.
     access(all) resource Pool {
 
-        /// Enable or disable verbose contract logging for debugging.
-        access(self) var debugLogging: Bool
+        /// Pool state (extracted fields)
+        access(self) var state: @{FlowALPModels.PoolState}
 
-        /// Global state for tracking each token
-        access(self) var globalLedger: {Type: TokenState}
+        /// Individual user positions (stays on Pool because InternalPosition is FlowALPv0-internal)
+        access(self) var positions: @{UInt64: {FlowALPModels.InternalPosition}}
 
-        /// Individual user positions
-        access(self) var positions: @{UInt64: InternalPosition}
-
-        /// The actual reserves of each token
-        access(self) var reserves: @{Type: {FungibleToken.Vault}}
-
-        /// The insurance fund vault storing MOET tokens collected from insurance rates
-        access(self) var insuranceFund: @MOET.Vault
-
-        /// Auto-incrementing position identifier counter
-        access(self) var nextPositionID: UInt64
-
-        /// The default token type used as the "unit of account" for the pool.
-        access(self) let defaultToken: Type
-
-        /// A price oracle that will return the price of each token in terms of the default token.
-        access(self) var priceOracle: {DeFiActions.PriceOracle}
-
-        /// Together with borrowFactor, collateralFactor determines borrowing limits for each token.
-        ///
-        /// When determining the withdrawable loan amount, the value of the token (provided by the PriceOracle)
-        /// is multiplied by the collateral factor.
-        ///
-        /// The total "effective collateral" for a position is the value of each token deposited to the position
-        /// multiplied by its collateral factor.
-        access(self) var collateralFactor: {Type: UFix64}
-
-        /// Together with collateralFactor, borrowFactor determines borrowing limits for each token.
-        ///
-        /// The borrowFactor determines how much of a position's "effective collateral" can be borrowed against as a
-        /// percentage between 0.0 and 1.0
-        access(self) var borrowFactor: {Type: UFix64}
-
-        /// The count of positions to update per asynchronous update
-        access(self) var positionsProcessedPerCallback: UInt64
-
-        /// The stability fund vaults storing tokens collected from stability fee rates.
-        access(self) var stabilityFunds: @{Type: {FungibleToken.Vault}}
-
-        /// Position update queue to be processed as an asynchronous update
-        access(EImplementation) var positionsNeedingUpdates: [UInt64]
-
-        /// Liquidation target health and controls (global)
-
-        /// The target health factor when liquidating a position, which limits how much collateral can be liquidated.
-        /// After a liquidation, the position's health factor must be less than or equal to this target value.
-        access(self) var liquidationTargetHF: UFix128
-
-        /// Whether the pool is currently paused, which prevents all user actions from occurring.
-        /// The pool can be paused by the governance committee to protect user and protocol safety.
-        access(self) var paused: Bool
-        /// Period (s) following unpause in which liquidations are still not allowed
-        access(self) var warmupSec: UInt64
-        /// Time this pool most recently was unpaused
-        access(self) var lastUnpausedAt: UInt64?
-
-        /// A trusted DEX (or set of DEXes) used by FlowALPv0 as a pricing oracle and trading counterparty for liquidations.
-        /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
-        /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
-        ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
-        ///
-        /// FlowALPv0 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
-        /// It relies directly on the Swapper's returned by the configured SwapperProvider.
-        access(self) var dex: {DeFiActions.SwapperProvider}
-
-        /// Max allowed deviation in basis points between DEX-implied price and oracle price.
-        access(self) var dexOracleDeviationBps: UInt16
-
-        /// Reentrancy guards keyed by position id.
-        /// When a position is locked, it means an operation on the position is in progress.
-        /// While a position is locked, no new operation can begin on the locked position.
-        /// All positions must be unlocked at the end of each transaction.
-        /// A locked position is indicated by the presence of an entry {pid: True} in the map.
-        /// An unlocked position is indicated by the lack of entry for the pid in the map.
-        access(self) var positionLock: {UInt64: Bool}
+        /// Pool Config
+        access(self) var config: {FlowALPModels.PoolConfig}
 
         init(
         	defaultToken: Type,
@@ -1597,60 +142,48 @@ access(all) contract FlowALPv0 {
                     "Price oracle must return prices in terms of the default token"
             }
 
-            self.debugLogging = false
-            self.globalLedger = {
-                defaultToken: TokenState(
-                    tokenType: defaultToken,
-                    interestCurve: FixedRateInterestCurve(yearlyRate: 0.0),
-                    depositRate: 1_000_000.0,        // Default: no rate limiting for default token
-                    depositCapacityCap: 1_000_000.0  // Default: high capacity cap
-                )
-            }
+            self.state <- FlowALPModels.createPoolState(
+                globalLedger: {
+                    defaultToken: FlowALPModels.TokenStateImplv1(
+                        tokenType: defaultToken,
+                        interestCurve: FlowALPInterestRates.FixedCurve(yearlyRate: 0.0),
+                        depositRate: 1_000_000.0,        // Default: no rate limiting for default token
+                        depositCapacityCap: 1_000_000.0  // Default: high capacity cap
+                    )
+                },
+                reserves: <-{},
+                insuranceFund: <-MOET.createEmptyVault(vaultType: Type<@MOET.Vault>()),
+                nextPositionID: 0,
+                defaultToken: defaultToken,
+                stabilityFunds: <-{},
+                positionsNeedingUpdates: [],
+                positionLock: {}
+            )
             self.positions <- {}
-            self.reserves <- {}
-            self.insuranceFund <- MOET.createEmptyVault(vaultType: Type<@MOET.Vault>())
-            self.stabilityFunds <- {}
-            self.defaultToken = defaultToken
-            self.priceOracle = priceOracle
-            self.collateralFactor = {defaultToken: 1.0}
-            self.borrowFactor = {defaultToken: 1.0}
-            self.nextPositionID = 0
-            self.positionsNeedingUpdates = []
-            self.positionsProcessedPerCallback = 100
-            self.liquidationTargetHF = 1.05
-            self.paused = false
-            self.warmupSec = 300
-            self.lastUnpausedAt = nil
-            self.dex = dex
-            self.dexOracleDeviationBps = 300 // 3% default
-            self.positionLock = {}
-
-            // The pool starts with an empty reserves map.
-            // Vaults will be created when tokens are first deposited.
-        }
-
-        /// Marks the position as locked. Panics if the position is already locked.
-        access(self) fun _lockPosition(_ pid: UInt64) {
-            // If key absent => unlocked
-            let locked = self.positionLock[pid] ?? false
-            assert(!locked, message: "Reentrancy: position \(pid) is locked")
-            self.positionLock[pid] = true
-        }
-
-        /// Marks the position as unlocked. No-op if the position is already unlocked.
-        access(self) fun _unlockPosition(_ pid: UInt64) {
-            // Always unlock (even if missing)
-            self.positionLock.remove(key: pid)
+            self.config = FlowALPModels.PoolConfigImpl(
+                priceOracle: priceOracle,
+                collateralFactor: {defaultToken: 1.0},
+                borrowFactor: {defaultToken: 1.0},
+                positionsProcessedPerCallback: 100,
+                liquidationTargetHF: 1.05,
+                warmupSec: 300,
+                lastUnpausedAt: nil,
+                dex: dex,
+                dexOracleDeviationBps: 300,
+                paused: false,
+                debugLogging: false
+            )
         }
 
         /// Locks a position. Used by Position resources to acquire the position lock.
-        access(EPosition) fun lockPosition(_ pid: UInt64) {
-            self._lockPosition(pid)
+        access(FlowALPModels.EPosition) fun lockPosition(_ pid: UInt64) {
+            assert(!self.state.isPositionLocked(pid), message: "Reentrancy: position \(pid) is locked")
+            self.state.setPositionLock(pid, true)
         }
 
         /// Unlocks a position. Used by Position resources to release the position lock.
-        access(EPosition) fun unlockPosition(_ pid: UInt64) {
-            self._unlockPosition(pid)
+        access(FlowALPModels.EPosition) fun unlockPosition(_ pid: UInt64) {
+            self.state.setPositionLock(pid, false)
         }
 
         ///////////////
@@ -1660,7 +193,7 @@ access(all) contract FlowALPv0 {
         /// Returns whether sensitive pool actions are paused by governance,
         /// including withdrawals, deposits, and liquidations
         access(all) view fun isPaused(): Bool {
-            return self.paused
+            return self.config.isPaused()
         }
 
         /// Returns whether withdrawals and liquidations are paused.
@@ -1668,41 +201,40 @@ access(all) contract FlowALPv0 {
         /// The warmup period provides an opportunity for users to deposit to unhealthy positions before liquidations start,
         /// and also disallows withdrawing while liquidations are disabled, because liquidations can be needed to satisfy withdrawal requests.
         access(all) view fun isPausedOrWarmup(): Bool {
-            if self.paused {
+            if self.isPaused() {
                 return true
             }
-            if let lastUnpausedAt = self.lastUnpausedAt {
+            if let lastUnpausedAt = self.config.getLastUnpausedAt() {
                 let now = UInt64(getCurrentBlock().timestamp)
-                return now < lastUnpausedAt + self.warmupSec
+                return now < lastUnpausedAt + self.config.getWarmupSec()
             }
             return false
         }
 
         /// Returns an array of the supported token Types
         access(all) view fun getSupportedTokens(): [Type] {
-            return self.globalLedger.keys
+            return self.config.getSupportedTokens()
         }
 
         /// Returns whether a given token Type is supported or not
         access(all) view fun isTokenSupported(tokenType: Type): Bool {
-            return self.globalLedger[tokenType] != nil
-        } 
+            return self.config.isTokenSupported(tokenType: tokenType)
+        }
 
         /// Returns the current balance of the stability fund for a given token type.
         /// Returns nil if the token type is not supported.
         access(all) view fun getStabilityFundBalance(tokenType: Type): UFix64? {
-            if let fundRef = &self.stabilityFunds[tokenType] as &{FungibleToken.Vault}? {
-                return fundRef.balance
+            if self.state.hasStabilityFund(tokenType) {
+                return self.state.getStabilityFundBalance(tokenType)
             }
-            
             return nil
         }
 
         /// Returns the stability fee rate for a given token type.
         /// Returns nil if the token type is not supported.
         access(all) view fun getStabilityFeeRate(tokenType: Type): UFix64? {
-            if let tokenState = self.globalLedger[tokenType] {
-                return tokenState.stabilityFeeRate
+            if let tokenState = self.state.getTokenState(tokenType) {
+                return tokenState.getStabilityFeeRate()
             }
 
             return nil
@@ -1711,8 +243,8 @@ access(all) contract FlowALPv0 {
         /// Returns the timestamp of the last stability collection for a given token type.
         /// Returns nil if the token type is not supported.
         access(all) view fun getLastStabilityCollectionTime(tokenType: Type): UFix64? {
-            if let tokenState = self.globalLedger[tokenType] {
-                return tokenState.lastStabilityFeeCollectionTime
+            if let tokenState = self.state.getTokenState(tokenType) {
+                return tokenState.getLastStabilityFeeCollectionTime()
             }
 
             return nil
@@ -1720,8 +252,8 @@ access(all) contract FlowALPv0 {
 
         /// Returns whether an insurance swapper is configured for a given token type
         access(all) view fun isInsuranceSwapperConfigured(tokenType: Type): Bool {
-            if let tokenState = self.globalLedger[tokenType] {
-                return tokenState.insuranceSwapper != nil
+            if let tokenState = self.state.getTokenState(tokenType) {
+                return tokenState.getInsuranceSwapper() != nil
             }
             return false
         }
@@ -1729,25 +261,25 @@ access(all) contract FlowALPv0 {
         /// Returns the timestamp of the last insurance collection for a given token type
         /// Returns nil if the token type is not supported
         access(all) view fun getLastInsuranceCollectionTime(tokenType: Type): UFix64? {
-            if let tokenState = self.globalLedger[tokenType] {
-                return tokenState.lastInsuranceCollectionTime
+            if let tokenState = self.state.getTokenState(tokenType) {
+                return tokenState.getLastInsuranceCollectionTime()
             }
             return nil
         }
 
         /// Returns current pause parameters
-        access(all) fun getPauseParams(): FlowALPv0.PauseParamsView {
-            return FlowALPv0.PauseParamsView(
-                paused: self.paused,
-                warmupSec: self.warmupSec,
-                lastUnpausedAt: self.lastUnpausedAt,
+        access(all) fun getPauseParams(): FlowALPModels.PauseParamsView {
+            return FlowALPModels.PauseParamsView(
+                paused: self.config.isPaused(),
+                warmupSec: self.config.getWarmupSec(),
+                lastUnpausedAt: self.config.getLastUnpausedAt(),
             )
         }
 
         /// Returns current liquidation parameters
-        access(all) fun getLiquidationParams(): FlowALPv0.LiquidationParamsView {
-            return FlowALPv0.LiquidationParamsView(
-                targetHF: self.liquidationTargetHF,
+        access(all) fun getLiquidationParams(): FlowALPModels.LiquidationParamsView {
+            return FlowALPModels.LiquidationParamsView(
+                targetHF: self.config.getLiquidationTargetHF(),
                 triggerHF: 1.0,
             )
         }
@@ -1755,7 +287,7 @@ access(all) contract FlowALPv0 {
         /// Returns Oracle-DEX guards and allowlists for frontends/keepers
         access(all) fun getDexLiquidationConfig(): {String: AnyStruct} {
             return {
-                "dexOracleDeviationBps": self.dexOracleDeviationBps
+                "dexOracleDeviationBps": self.config.getDexOracleDeviationBps()
             }
         }
 
@@ -1767,58 +299,44 @@ access(all) contract FlowALPv0 {
 
         /// Returns the current reserve balance for the specified token type.
         access(all) view fun reserveBalance(type: Type): UFix64 {
-            let vaultRef = &self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
-            return vaultRef?.balance ?? 0.0
+            return self.state.getReserveBalance(type)
         }
 
         /// Returns the balance of the MOET insurance fund
         access(all) view fun insuranceFundBalance(): UFix64 {
-            return self.insuranceFund.balance
+            return self.state.getInsuranceFundBalance()
         }
 
         /// Returns the insurance rate for a given token type
         access(all) view fun getInsuranceRate(tokenType: Type): UFix64? {
-            if let tokenState = self.globalLedger[tokenType] {
-                return tokenState.insuranceRate
+            if let tokenState = self.state.getTokenState(tokenType) {
+                return tokenState.getInsuranceRate()
             }
             
             return nil
-        }
-
-        /// Returns a reference to the reserve vault for the given type, if the token type is supported.
-        /// If no reserve vault exists yet, and the token type is supported, the reserve vault is created.
-        access(self) fun _borrowOrCreateReserveVault(type: Type): &{FungibleToken.Vault} {
-            pre {
-                self.isTokenSupported(tokenType: type): "Cannot borrow reserve for unsupported token \(type.identifier)"
-            }
-            if self.reserves[type] == nil {
-                self.reserves[type] <-! DeFiActionsUtils.getEmptyVault(type)
-            }
-            let vaultRef = &self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?
-            return vaultRef!
         }
 
         /// Returns a position's balance available for withdrawal of a given Vault type.
         /// Phase 0 refactor: compute via pure helpers using a PositionView and TokenSnapshot for the base path.
         /// When `pullFromTopUpSource` is true and a topUpSource exists, preserve deposit-assisted semantics.
         access(all) fun availableBalance(pid: UInt64, type: Type, pullFromTopUpSource: Bool): UFix64 {
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] availableBalance(pid: \(pid), type: \(type.contractName!), pullFromTopUpSource: \(pullFromTopUpSource))")
             }
             let position = self._borrowPosition(pid: pid)
 
             if pullFromTopUpSource {
-                if let topUpSource = position.topUpSource {
+                if let topUpSource = position.borrowTopUpSource() {
                     let sourceType = topUpSource.getSourceType()
                     let sourceAmount = topUpSource.minimumAvailable()
-                    if self.debugLogging {
-                        log("    [CONTRACT] Calling to fundsAvailableAboveTargetHealthAfterDepositing with sourceAmount \(sourceAmount) and targetHealth \(position.minHealth)")
+                    if self.config.isDebugLogging() {
+                        log("    [CONTRACT] Calling to fundsAvailableAboveTargetHealthAfterDepositing with sourceAmount \(sourceAmount) and targetHealth \(position.getMinHealth())")
                     }
 
                     return self.fundsAvailableAboveTargetHealthAfterDepositing(
                         pid: pid,
                         withdrawType: type,
-                        targetHealth: position.minHealth,
+                        targetHealth: position.getMinHealth(),
                         depositType: sourceType,
                         depositAmount: sourceAmount
                     )
@@ -1829,13 +347,13 @@ access(all) contract FlowALPv0 {
 
             // Build a TokenSnapshot for the requested withdraw type (may not exist in view.snapshots)
             let tokenState = self._borrowUpdatedTokenState(type: type)
-            let snap = FlowALPv0.TokenSnapshot(
-                price: UFix128(self.priceOracle.price(ofToken: type)!),
-                credit: tokenState.creditInterestIndex,
-                debit: tokenState.debitInterestIndex,
-                risk: FlowALPv0.RiskParams(
-                    collateralFactor: UFix128(self.collateralFactor[type]!),
-                    borrowFactor: UFix128(self.borrowFactor[type]!),
+            let snap = FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: type)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: type)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: type)),
                 )
             )
 
@@ -1861,28 +379,28 @@ access(all) contract FlowALPv0 {
             var effectiveCollateral: UFix128 = 0.0
             var effectiveDebt: UFix128 = 0.0
 
-            for type in position.balances.keys {
-                let balance = position.balances[type]!
+            for type in position.getBalanceKeys() {
+                let balance = position.getBalance(type)!
                 let tokenState = self._borrowUpdatedTokenState(type: type)
 
-                let collateralFactor = UFix128(self.collateralFactor[type]!)
-                let borrowFactor = UFix128(self.borrowFactor[type]!)
-                let price = UFix128(self.priceOracle.price(ofToken: type)!)
+                let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
+                let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
+                let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
                 switch balance.direction {
-                    case BalanceDirection.Credit:
-                        let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
+                    case FlowALPModels.BalanceDirection.Credit:
+                        let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                             balance.scaledBalance,
-                            interestIndex: tokenState.creditInterestIndex
+                            interestIndex: tokenState.getCreditInterestIndex()
                         )
 
                         let value = price * trueBalance
                         let effectiveCollateralValue = value * collateralFactor
                         effectiveCollateral = effectiveCollateral + effectiveCollateralValue
 
-                    case BalanceDirection.Debit:
-                        let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
+                    case FlowALPModels.BalanceDirection.Debit:
+                        let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                             balance.scaledBalance,
-                            interestIndex: tokenState.debitInterestIndex
+                            interestIndex: tokenState.getDebitInterestIndex()
                         )
 
                         let value = price * trueBalance
@@ -1892,7 +410,7 @@ access(all) contract FlowALPv0 {
             }
 
             // Calculate the health as the ratio of collateral to debt.
-            return FlowALPv0.healthComputation(
+            return FlowALPMath.healthComputation(
                 effectiveCollateral: effectiveCollateral,
                 effectiveDebt: effectiveDebt
             )
@@ -1907,30 +425,30 @@ access(all) contract FlowALPv0 {
                 pid: pid,
                 depositType: type,
                 targetHealth: targetHealth,
-                withdrawType: self.defaultToken,
+                withdrawType: self.state.getDefaultToken(),
                 withdrawAmount: 0.0
             )
         }
 
-        /// Returns the details of a given position as a PositionDetails external struct
-        access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
-            if self.debugLogging {
+        /// Returns the details of a given position as a FlowALPModels.PositionDetails external struct
+        access(all) fun getPositionDetails(pid: UInt64): FlowALPModels.PositionDetails {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] getPositionDetails(pid: \(pid))")
             }
             let position = self._borrowPosition(pid: pid)
-            let balances: [PositionBalance] = []
+            let balances: [FlowALPModels.PositionBalance] = []
 
-            for type in position.balances.keys {
-                let balance = position.balances[type]!
+            for type in position.getBalanceKeys() {
+                let balance = position.getBalance(type)!
                 let tokenState = self._borrowUpdatedTokenState(type: type)
-                let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
+                let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                     balance.scaledBalance,
-                    interestIndex: balance.direction == BalanceDirection.Credit
-                        ? tokenState.creditInterestIndex
-                        : tokenState.debitInterestIndex
+                    interestIndex: balance.direction == FlowALPModels.BalanceDirection.Credit
+                        ? tokenState.getCreditInterestIndex()
+                        : tokenState.getDebitInterestIndex()
                 )
 
-                balances.append(PositionBalance(
+                balances.append(FlowALPModels.PositionBalance(
                     vaultType: type,
                     direction: balance.direction,
                     balance: FlowALPMath.toUFix64Round(trueBalance)
@@ -1940,13 +458,13 @@ access(all) contract FlowALPv0 {
             let health = self.positionHealth(pid: pid)
             let defaultTokenAvailable = self.availableBalance(
                 pid: pid,
-                type: self.defaultToken,
+                type: self.state.getDefaultToken(),
                 pullFromTopUpSource: false
             )
 
-            return PositionDetails(
+            return FlowALPModels.PositionDetails(
                 balances: balances,
-                poolDefaultToken: self.defaultToken,
+                poolDefaultToken: self.state.getDefaultToken(),
                 defaultTokenAvailableBalance: defaultTokenAvailable,
                 health: health
             )
@@ -1981,10 +499,10 @@ access(all) contract FlowALPv0 {
                 // TODO(jord): liquidation paused / post-pause warm
             }
             post {
-                self.positionLock[pid] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
             
-            self._lockPosition(pid)
+            self.lockPosition(pid)
 
             let positionView = self.buildPositionView(pid: pid)
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
@@ -1999,8 +517,8 @@ access(all) contract FlowALPv0 {
             assert(UFix128(repayAmount) <= Nd, message: "Cannot repay more debt than is in position: debt balance (\(Nd)) is less than repay amount (\(repayAmount))")
 
             // Oracle prices
-            let Pd_oracle = self.priceOracle.price(ofToken: debtType)!  // debt price given by oracle ($/D)
-            let Pc_oracle = self.priceOracle.price(ofToken: seizeType)! // collateral price given by oracle ($/C)
+            let Pd_oracle = self.config.getPriceOracle().price(ofToken: debtType)!  // debt price given by oracle ($/D)
+            let Pc_oracle = self.config.getPriceOracle().price(ofToken: seizeType)! // collateral price given by oracle ($/C)
             // Price of collateral, denominated in debt token, implied by oracle (D/C)
             // Oracle says: "1 unit of collateral is worth `Pcd_oracle` units of debt"
             let Pcd_oracle = Pc_oracle / Pd_oracle 
@@ -2008,20 +526,20 @@ access(all) contract FlowALPv0 {
             // Compute the health factor which would result if we were to accept this liquidation
             let Ce_pre = balanceSheet.effectiveCollateral // effective collateral pre-liquidation
             let De_pre = balanceSheet.effectiveDebt       // effective debt pre-liquidation
-            let Fc = positionView.snapshots[seizeType]!.risk.collateralFactor
-            let Fd = positionView.snapshots[debtType]!.risk.borrowFactor
+            let Fc = positionView.snapshots[seizeType]!.getRisk().getCollateralFactor()
+            let Fd = positionView.snapshots[debtType]!.getRisk().getBorrowFactor()
 
             // Ce_seize = effective value of seized collateral ($)
-            let Ce_seize = FlowALPv0.effectiveCollateral(credit: UFix128(seizeAmount), price: UFix128(Pc_oracle), collateralFactor: Fc)
+            let Ce_seize = FlowALPMath.effectiveCollateral(credit: UFix128(seizeAmount), price: UFix128(Pc_oracle), collateralFactor: Fc)
             // De_seize = effective value of repaid debt ($)
-            let De_seize = FlowALPv0.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd) 
+            let De_seize = FlowALPMath.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd) 
             let Ce_post = Ce_pre - Ce_seize // position's total effective collateral after liquidation ($)
             let De_post = De_pre - De_seize // position's total effective debt after liquidation ($)
-            let postHealth = FlowALPv0.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
-            assert(postHealth <= self.liquidationTargetHF, message: "Liquidation must not exceed target health: post-liquidation health (\(postHealth)) is greater than target health (\(self.liquidationTargetHF))")
+            let postHealth = FlowALPMath.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
+            assert(postHealth <= self.config.getLiquidationTargetHF(), message: "Liquidation must not exceed target health: post-liquidation health (\(postHealth)) is greater than target health (\(self.config.getLiquidationTargetHF()))")
 
             // Compare the liquidation offer to liquidation via DEX. If the DEX would provide a better price, reject the offer.
-            let swapper = self._getSwapperForLiquidation(seizeType: seizeType, debtType: debtType)
+            let swapper = self.config.getSwapperForLiquidation(seizeType: seizeType, debtType: debtType)
             // Get a quote: "how much collateral do I need to give you to get `repayAmount` debt tokens"
             let quote = swapper.quoteIn(forDesired: repayAmount, reverse: false)
             assert(seizeAmount < quote.inAmount, message: "Liquidation offer must be better than that offered by DEX")
@@ -2029,30 +547,14 @@ access(all) contract FlowALPv0 {
             // Compare the DEX price to the oracle price and revert if they diverge beyond configured threshold.
             let Pcd_dex = quote.outAmount / quote.inAmount // price of collateral, denominated in debt token, implied by dex quote (D/C)
             assert(
-                FlowALPv0.dexOraclePriceDeviationInRange(dexPrice: Pcd_dex, oraclePrice: Pcd_oracle, maxDeviationBps: self.dexOracleDeviationBps),
+                FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: Pcd_dex, oraclePrice: Pcd_oracle, maxDeviationBps: self.config.getDexOracleDeviationBps()),
                 message: "DEX/oracle price deviation too large. Dex price: \(Pcd_dex), Oracle price: \(Pcd_oracle)")
             // Execute the liquidation
             let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
             
-            self._unlockPosition(pid)
+            self.unlockPosition(pid)
             
             return <- seizedCollateral
-        }
-
-        /// Gets a swapper from the DEX for the given token pair.
-        ///
-        /// This function is used during liquidations to compare the liquidator's offer against the DEX price.
-        /// It expects that a swapper has been configured for every supported collateral-to-debt token pair.
-        ///
-        /// Panics if:
-        /// - No swapper is configured for the given token pair (seizeType -> debtType)
-        ///
-        /// @param seizeType: The collateral token type to swap from
-        /// @param debtType: The debt token type to swap to
-        /// @return The swapper for the given token pair
-        access(self) fun _getSwapperForLiquidation(seizeType: Type, debtType: Type): {DeFiActions.Swapper} {
-            return self.dex.getSwapper(inType: seizeType, outType: debtType)
-                ?? panic("No DEX swapper configured for liquidation pair: \(seizeType.identifier) -> \(debtType.identifier)")
         }
 
         /// Internal liquidation function which performs a liquidation.
@@ -2066,24 +568,24 @@ access(all) contract FlowALPv0 {
 
             let repayAmount = repayment.balance
             assert(repayment.getType() == debtType, message: "Vault type mismatch for repay. Repayment type is \(repayment.getType().identifier) but debt type is \(debtType.identifier)")
-            let debtReserveRef = self._borrowOrCreateReserveVault(type: debtType)
+            let debtReserveRef = self.state.borrowOrCreateReserve(debtType)
             debtReserveRef.deposit(from: <-repayment)
 
             // Reduce borrower's debt position by repayAmount
             let position = self._borrowPosition(pid: pid)
             let debtState = self._borrowUpdatedTokenState(type: debtType)
 
-            if position.balances[debtType] == nil {
+            if position.getBalance(debtType) == nil {
                 // Liquidation is repaying debt - validate single debt type
                 position.validateDebtType(debtType)
 
-                position.balances[debtType] = InternalBalance(direction: BalanceDirection.Debit, scaledBalance: 0.0)
+                position.setBalance(debtType, FlowALPModels.InternalBalance(direction: FlowALPModels.BalanceDirection.Debit, scaledBalance: 0.0))
             }
-            position.balances[debtType]!.recordDeposit(amount: UFix128(repayAmount), tokenState: debtState)
+            position.borrowBalance(debtType)!.recordDeposit(amount: UFix128(repayAmount), tokenState: debtState)
 
             // Withdraw seized collateral from position and send to liquidator
             let seizeState = self._borrowUpdatedTokenState(type: seizeType)
-            if position.balances[seizeType] == nil {
+            if position.getBalance(seizeType) == nil {
                 // MOET cannot be seized as collateral (it should never exist as collateral)
                 if seizeType == Type<@MOET.Vault>() {
                     panic("Cannot seize MOET as collateral. MOET should not exist as collateral in any position.")
@@ -2092,22 +594,21 @@ access(all) contract FlowALPv0 {
                 // Liquidation is seizing collateral - validate single collateral type
                 position.validateCollateralType(seizeType)
 
-                position.balances[seizeType] = InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0)
+                position.setBalance(seizeType, FlowALPModels.InternalBalance(direction: FlowALPModels.BalanceDirection.Credit, scaledBalance: 0.0))
             }
-
             // Additional safety check: MOET should never be seized as collateral
             if seizeType == Type<@MOET.Vault>() && position.balances[seizeType]!.direction == BalanceDirection.Credit {
                 panic("Cannot seize MOET as collateral. MOET should not exist as collateral in any position.")
             }
 
-            position.balances[seizeType]!.recordWithdrawal(amount: UFix128(seizeAmount), tokenState: seizeState)
-            let seizeReserveRef = (&self.reserves[seizeType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            position.borrowBalance(seizeType)!.recordWithdrawal(amount: UFix128(seizeAmount), tokenState: seizeState)
+            let seizeReserveRef = self.state.borrowReserve(seizeType)!
             let seizedCollateral <- seizeReserveRef.withdraw(amount: seizeAmount)
 
             let newHealth = self.positionHealth(pid: pid)
             // TODO: sanity check health here? for auto-liquidating, we may need to perform a bounded search which could result in unbounded error in the final health
 
-            emit LiquidationExecuted(
+            FlowALPEvents.emitLiquidationExecuted(
             	pid: pid,
             	poolUUID: self.uuid,
             	debtType: debtType.identifier,
@@ -2137,7 +638,7 @@ access(all) contract FlowALPv0 {
                 targetHealth >= 1.0: "Target health (\(targetHealth)) must be >=1 after any withdrawal"
             }
 
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] fundsRequiredForTargetHealthAfterWithdrawing(pid: \(pid), depositType: \(depositType.contractName!), targetHealth: \(targetHealth), withdrawType: \(withdrawType.contractName!), withdrawAmount: \(withdrawAmount))")
             }
 
@@ -2163,46 +664,46 @@ access(all) contract FlowALPv0 {
 
         // TODO: documentation
         access(self) fun computeAdjustedBalancesAfterWithdrawal(
-            balanceSheet: BalanceSheet,
-            position: &InternalPosition,
+            balanceSheet: FlowALPModels.BalanceSheet,
+            position: &{FlowALPModels.InternalPosition},
             withdrawType: Type,
             withdrawAmount: UFix64
-        ): BalanceSheet {
+        ): FlowALPModels.BalanceSheet {
             var effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral
             var effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt
 
             if withdrawAmount == 0.0 {
-                return BalanceSheet(effectiveCollateral: effectiveCollateralAfterWithdrawal, effectiveDebt: effectiveDebtAfterWithdrawal)
+                return FlowALPModels.BalanceSheet(effectiveCollateral: effectiveCollateralAfterWithdrawal, effectiveDebt: effectiveDebtAfterWithdrawal)
             }
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
                 log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
             }
 
             let withdrawAmountU = UFix128(withdrawAmount)
-            let withdrawPrice2 = UFix128(self.priceOracle.price(ofToken: withdrawType)!)
-            let withdrawBorrowFactor2 = UFix128(self.borrowFactor[withdrawType]!)
-            let balance = position.balances[withdrawType]
-            let direction = balance?.direction ?? BalanceDirection.Debit
+            let withdrawPrice2 = UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!)
+            let withdrawBorrowFactor2 = UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
+            let balance = position.getBalance(withdrawType)
+            let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Debit
             let scaledBalance = balance?.scaledBalance ?? 0.0
 
             switch direction {
-                case BalanceDirection.Debit:
+                case FlowALPModels.BalanceDirection.Debit:
                     // If the position doesn't have any collateral for the withdrawn token,
                     // we can just compute how much additional effective debt the withdrawal will create.
                     effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt +
                         (withdrawAmountU * withdrawPrice2) / withdrawBorrowFactor2
 
-                case BalanceDirection.Credit:
+                case FlowALPModels.BalanceDirection.Credit:
                     let withdrawTokenState = self._borrowUpdatedTokenState(type: withdrawType)
 
                     // The user has a collateral position in the given token, we need to figure out if this withdrawal
                     // will flip over into debt, or just draw down the collateral.
-                    let trueCollateral = FlowALPv0.scaledBalanceToTrueBalance(
+                    let trueCollateral = FlowALPMath.scaledBalanceToTrueBalance(
                         scaledBalance,
-                        interestIndex: withdrawTokenState.creditInterestIndex
+                        interestIndex: withdrawTokenState.getCreditInterestIndex()
                     )
-                    let collateralFactor = UFix128(self.collateralFactor[withdrawType]!)
+                    let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: withdrawType))
                     if trueCollateral >= withdrawAmountU {
                         // This withdrawal will draw down collateral, but won't create debt, we just need to account
                         // for the collateral decrease.
@@ -2217,7 +718,7 @@ access(all) contract FlowALPv0 {
                     }
             }
 
-            return BalanceSheet(
+            return FlowALPModels.BalanceSheet(
                 effectiveCollateral: effectiveCollateralAfterWithdrawal,
                 effectiveDebt: effectiveDebtAfterWithdrawal
             )
@@ -2226,7 +727,7 @@ access(all) contract FlowALPv0 {
         // TODO(jord): ~100-line function - consider refactoring
         // TODO: documentation
          access(self) fun computeRequiredDepositForHealth(
-            position: &InternalPosition,
+            position: &{FlowALPModels.InternalPosition},
             depositType: Type,
             withdrawType: Type,
             effectiveCollateral: UFix128,
@@ -2236,7 +737,7 @@ access(all) contract FlowALPv0 {
             let effectiveCollateralAfterWithdrawal = effectiveCollateral
             var effectiveDebtAfterWithdrawal = effectiveDebt
 
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
                 log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
             }
@@ -2244,11 +745,11 @@ access(all) contract FlowALPv0 {
             // We now have new effective collateral and debt values that reflect the proposed withdrawal (if any!)
             // Now we can figure out how many of the given token would need to be deposited to bring the position
             // to the target health value.
-            var healthAfterWithdrawal = FlowALPv0.healthComputation(
+            var healthAfterWithdrawal = FlowALPMath.healthComputation(
                 effectiveCollateral: effectiveCollateralAfterWithdrawal,
                 effectiveDebt: effectiveDebtAfterWithdrawal
             )
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] healthAfterWithdrawal: \(healthAfterWithdrawal)")
             }
 
@@ -2260,18 +761,18 @@ access(all) contract FlowALPv0 {
             // For situations where the required deposit will BOTH pay off debt and accumulate collateral, we keep
             // track of the number of tokens that went towards paying off debt.
             var debtTokenCount: UFix128 = 0.0
-            let depositPrice = UFix128(self.priceOracle.price(ofToken: depositType)!)
-            let depositBorrowFactor = UFix128(self.borrowFactor[depositType]!)
-            let withdrawBorrowFactor = UFix128(self.borrowFactor[withdrawType]!)
-            let maybeBalance = position.balances[depositType]
-            if maybeBalance?.direction == BalanceDirection.Debit {
+            let depositPrice = UFix128(self.config.getPriceOracle().price(ofToken: depositType)!)
+            let depositBorrowFactor = UFix128(self.config.getBorrowFactor(tokenType: depositType))
+            let withdrawBorrowFactor = UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
+            let maybeBalance = position.getBalance(depositType)
+            if maybeBalance?.direction == FlowALPModels.BalanceDirection.Debit {
                 // The user has a debt position in the given token, we start by looking at the health impact of paying off
                 // the entire debt.
                 let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
                 let debtBalance = maybeBalance!.scaledBalance
-                let trueDebtTokenCount = FlowALPv0.scaledBalanceToTrueBalance(
+                let trueDebtTokenCount = FlowALPMath.scaledBalanceToTrueBalance(
                     debtBalance,
-                    interestIndex: depositTokenState.debitInterestIndex
+                    interestIndex: depositTokenState.getDebitInterestIndex()
                 )
                 let debtEffectiveValue = (depositPrice * trueDebtTokenCount) / depositBorrowFactor
 
@@ -2283,7 +784,7 @@ access(all) contract FlowALPv0 {
                 }
 
                 // Check what the new health would be if we paid off all of this debt
-                let potentialHealth = FlowALPv0.healthComputation(
+                let potentialHealth = FlowALPMath.healthComputation(
                     effectiveCollateral: effectiveCollateralAfterWithdrawal,
                     effectiveDebt: effectiveDebtAfterPayment
                 )
@@ -2299,7 +800,7 @@ access(all) contract FlowALPv0 {
                     // The amount of the token to pay back, in units of the token.
                     let paybackAmount = (requiredEffectiveDebt * depositBorrowFactor) / depositPrice
 
-                    if self.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] paybackAmount: \(paybackAmount)")
                     }
 
@@ -2330,12 +831,12 @@ access(all) contract FlowALPv0 {
             // multiply the required health change by the effective debt, and turn that into a token amount.
             let healthChangeU = targetHealth - healthAfterWithdrawal
             // TODO: apply the same logic as below to the early return blocks above
-            let depositCollateralFactor = UFix128(self.collateralFactor[depositType]!)
+            let depositCollateralFactor = UFix128(self.config.getCollateralFactor(tokenType: depositType))
             let requiredEffectiveCollateral = (healthChangeU * effectiveDebtAfterWithdrawal) / depositCollateralFactor
 
             // The amount of the token to deposit, in units of the token.
             let collateralTokenCount = requiredEffectiveCollateral / depositPrice
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] requiredEffectiveCollateral: \(requiredEffectiveCollateral)")
                 log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
                 log("    [CONTRACT] debtTokenCount: \(debtTokenCount)")
@@ -2353,7 +854,7 @@ access(all) contract FlowALPv0 {
                 pid: pid,
                 withdrawType: type,
                 targetHealth: targetHealth,
-                depositType: self.defaultToken,
+                depositType: self.state.getDefaultToken(),
                 depositAmount: 0.0
             )
         }
@@ -2368,7 +869,7 @@ access(all) contract FlowALPv0 {
             depositType: Type,
             depositAmount: UFix64
         ): UFix64 {
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] fundsAvailableAboveTargetHealthAfterDepositing(pid: \(pid), withdrawType: \(withdrawType.contractName!), targetHealth: \(targetHealth), depositType: \(depositType.contractName!), depositAmount: \(depositAmount))")
             }
             if depositType == withdrawType && depositAmount > 0.0 {
@@ -2403,50 +904,50 @@ access(all) contract FlowALPv0 {
 
         // Helper function to compute balances after deposit
         access(self) fun computeAdjustedBalancesAfterDeposit(
-            balanceSheet: BalanceSheet,
-            position: &InternalPosition,
+            balanceSheet: FlowALPModels.BalanceSheet,
+            position: &{FlowALPModels.InternalPosition},
             depositType: Type,
             depositAmount: UFix64
-        ): BalanceSheet {
+        ): FlowALPModels.BalanceSheet {
             var effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral
             var effectiveDebtAfterDeposit = balanceSheet.effectiveDebt
 
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
                 log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
             }
             if depositAmount == 0.0 {
-                return BalanceSheet(
+                return FlowALPModels.BalanceSheet(
                     effectiveCollateral: effectiveCollateralAfterDeposit,
                     effectiveDebt: effectiveDebtAfterDeposit
                 )
             }
 
             let depositAmountCasted = UFix128(depositAmount)
-            let depositPriceCasted = UFix128(self.priceOracle.price(ofToken: depositType)!)
-            let depositBorrowFactorCasted = UFix128(self.borrowFactor[depositType]!)
-            let depositCollateralFactorCasted = UFix128(self.collateralFactor[depositType]!)
-            let balance = position.balances[depositType]
-            let direction = balance?.direction ?? BalanceDirection.Credit
+            let depositPriceCasted = UFix128(self.config.getPriceOracle().price(ofToken: depositType)!)
+            let depositBorrowFactorCasted = UFix128(self.config.getBorrowFactor(tokenType: depositType))
+            let depositCollateralFactorCasted = UFix128(self.config.getCollateralFactor(tokenType: depositType))
+            let balance = position.getBalance(depositType)
+            let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Credit
             let scaledBalance = balance?.scaledBalance ?? 0.0
 
             switch direction {
-                case BalanceDirection.Credit:
+                case FlowALPModels.BalanceDirection.Credit:
                     // If there's no debt for the deposit token,
                     // we can just compute how much additional effective collateral the deposit will create.
                     effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
                         (depositAmountCasted * depositPriceCasted) * depositCollateralFactorCasted
 
-                case BalanceDirection.Debit:
+                case FlowALPModels.BalanceDirection.Debit:
                     let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
 
                     // The user has a debt position in the given token, we need to figure out if this deposit
                     // will result in net collateral, or just bring down the debt.
-                    let trueDebt = FlowALPv0.scaledBalanceToTrueBalance(
+                    let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
                         scaledBalance,
-                        interestIndex: depositTokenState.debitInterestIndex
+                        interestIndex: depositTokenState.getDebitInterestIndex()
                     )
-                    if self.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] trueDebt: \(trueDebt)")
                     }
 
@@ -2466,7 +967,7 @@ access(all) contract FlowALPv0 {
                     }
             }
 
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
                 log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
             }
@@ -2474,7 +975,7 @@ access(all) contract FlowALPv0 {
             // We now have new effective collateral and debt values that reflect the proposed deposit (if any!).
             // Now we can figure out how many of the withdrawal token are available while keeping the position
             // at or above the target health value.
-            return BalanceSheet(
+            return FlowALPModels.BalanceSheet(
                 effectiveCollateral: effectiveCollateralAfterDeposit,
                 effectiveDebt: effectiveDebtAfterDeposit
             )
@@ -2483,7 +984,7 @@ access(all) contract FlowALPv0 {
         // Helper function to compute available withdrawal
         // TODO(jord): ~100-line function - consider refactoring
         access(self) fun computeAvailableWithdrawal(
-            position: &InternalPosition,
+            position: &{FlowALPModels.InternalPosition},
             withdrawType: Type,
             effectiveCollateral: UFix128,
             effectiveDebt: UFix128,
@@ -2492,11 +993,11 @@ access(all) contract FlowALPv0 {
             var effectiveCollateralAfterDeposit = effectiveCollateral
             let effectiveDebtAfterDeposit = effectiveDebt
 
-            let healthAfterDeposit = FlowALPv0.healthComputation(
+            let healthAfterDeposit = FlowALPMath.healthComputation(
                 effectiveCollateral: effectiveCollateralAfterDeposit,
                 effectiveDebt: effectiveDebtAfterDeposit
             )
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] healthAfterDeposit: \(healthAfterDeposit)")
             }
 
@@ -2509,24 +1010,24 @@ access(all) contract FlowALPv0 {
             // track of the number of tokens that are available from collateral
             var collateralTokenCount: UFix128 = 0.0
 
-            let withdrawPrice = UFix128(self.priceOracle.price(ofToken: withdrawType)!)
-            let withdrawCollateralFactor = UFix128(self.collateralFactor[withdrawType]!)
-            let withdrawBorrowFactor = UFix128(self.borrowFactor[withdrawType]!)
+            let withdrawPrice = UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!)
+            let withdrawCollateralFactor = UFix128(self.config.getCollateralFactor(tokenType: withdrawType))
+            let withdrawBorrowFactor = UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
 
-            let maybeBalance = position.balances[withdrawType]
-            if maybeBalance?.direction == BalanceDirection.Credit {
+            let maybeBalance = position.getBalance(withdrawType)
+            if maybeBalance?.direction == FlowALPModels.BalanceDirection.Credit {
                 // The user has a credit position in the withdraw token, we start by looking at the health impact of pulling out all
                 // of that collateral
                 let withdrawTokenState = self._borrowUpdatedTokenState(type: withdrawType)
                 let creditBalance = maybeBalance!.scaledBalance
-                let trueCredit = FlowALPv0.scaledBalanceToTrueBalance(
+                let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
                     creditBalance,
-                    interestIndex: withdrawTokenState.creditInterestIndex
+                    interestIndex: withdrawTokenState.getCreditInterestIndex()
                 )
                 let collateralEffectiveValue = (withdrawPrice * trueCredit) * withdrawCollateralFactor
 
                 // Check what the new health would be if we took out all of this collateral
-                let potentialHealth = FlowALPv0.healthComputation(
+                let potentialHealth = FlowALPMath.healthComputation(
                     effectiveCollateral: effectiveCollateralAfterDeposit - collateralEffectiveValue, // ??? - why subtract?
                     effectiveDebt: effectiveDebtAfterDeposit
                 )
@@ -2538,13 +1039,13 @@ access(all) contract FlowALPv0 {
                     // We will hit the health target before using up all available withdraw credit.
 
                     let availableEffectiveValue = effectiveCollateralAfterDeposit - (targetHealth * effectiveDebtAfterDeposit)
-                    if self.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] availableEffectiveValue: \(availableEffectiveValue)")
                     }
 
                     // The amount of the token we can take using that amount of health
                     let availableTokenCount = (availableEffectiveValue / withdrawCollateralFactor) / withdrawPrice
-                    if self.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] availableTokenCount: \(availableTokenCount)")
                     }
 
@@ -2555,7 +1056,7 @@ access(all) contract FlowALPv0 {
                     // with an added handling for the case where the health after deposit is an edgecase
                     collateralTokenCount = trueCredit
                     effectiveCollateralAfterDeposit = effectiveCollateralAfterDeposit - collateralEffectiveValue
-                    if self.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
                         log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
                     }
@@ -2563,7 +1064,7 @@ access(all) contract FlowALPv0 {
                     // We can calculate the available debt increase that would bring us to the target health
                     let availableDebtIncrease = (effectiveCollateralAfterDeposit / targetHealth) - effectiveDebtAfterDeposit
                     let availableTokens = (availableDebtIncrease * withdrawBorrowFactor) / withdrawPrice
-                    if self.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
                         log("    [CONTRACT] availableTokens: \(availableTokens)")
                         log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
@@ -2578,7 +1079,7 @@ access(all) contract FlowALPv0 {
             // We can calculate the available debt increase that would bring us to the target health
             let availableDebtIncrease = (effectiveCollateralAfterDeposit / targetHealth) - effectiveDebtAfterDeposit
             let availableTokens = (availableDebtIncrease * withdrawBorrowFactor) / withdrawPrice
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
                 log("    [CONTRACT] availableTokens: \(availableTokens)")
                 log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
@@ -2596,25 +1097,25 @@ access(all) contract FlowALPv0 {
             var effectiveDebtDecrease: UFix128 = 0.0
 
             let amountU = UFix128(amount)
-            let price = UFix128(self.priceOracle.price(ofToken: type)!)
-            let collateralFactor = UFix128(self.collateralFactor[type]!)
-            let borrowFactor = UFix128(self.borrowFactor[type]!)
-            let balance = position.balances[type]
-            let direction = balance?.direction ?? BalanceDirection.Credit
+            let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
+            let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
+            let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
+            let balance = position.getBalance(type)
+            let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Credit
             let scaledBalance = balance?.scaledBalance ?? 0.0
             switch direction {
-                case BalanceDirection.Credit:
+                case FlowALPModels.BalanceDirection.Credit:
                     // Since the user has no debt in the given token,
                     // we can just compute how much additional collateral this deposit will create.
                     effectiveCollateralIncrease = (amountU * price) * collateralFactor
 
-                case BalanceDirection.Debit:
+                case FlowALPModels.BalanceDirection.Debit:
                     // The user has a debit position in the given token,
                     // we need to figure out if this deposit will only pay off some of the debt,
                     // or if it will also create new collateral.
-                    let trueDebt = FlowALPv0.scaledBalanceToTrueBalance(
+                    let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
                         scaledBalance,
-                        interestIndex: tokenState.debitInterestIndex
+                        interestIndex: tokenState.getDebitInterestIndex()
                     )
 
                     if trueDebt >= amountU {
@@ -2628,7 +1129,7 @@ access(all) contract FlowALPv0 {
                     }
             }
 
-            return FlowALPv0.healthComputation(
+            return FlowALPMath.healthComputation(
                 effectiveCollateral: balanceSheet.effectiveCollateral + effectiveCollateralIncrease,
                 effectiveDebt: balanceSheet.effectiveDebt - effectiveDebtDecrease
             )
@@ -2647,26 +1148,26 @@ access(all) contract FlowALPv0 {
             var effectiveDebtIncrease: UFix128 = 0.0
 
             let amountU = UFix128(amount)
-            let price = UFix128(self.priceOracle.price(ofToken: type)!)
-            let collateralFactor = UFix128(self.collateralFactor[type]!)
-            let borrowFactor = UFix128(self.borrowFactor[type]!)
-            let balance = position.balances[type]
-            let direction = balance?.direction ?? BalanceDirection.Debit
+            let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
+            let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
+            let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
+            let balance = position.getBalance(type)
+            let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Debit
             let scaledBalance = balance?.scaledBalance ?? 0.0
 
             switch direction {
-                case BalanceDirection.Debit:
+                case FlowALPModels.BalanceDirection.Debit:
                     // The user has no credit position in the given token,
                     // we can just compute how much additional effective debt this withdrawal will create.
                     effectiveDebtIncrease = (amountU * price) / borrowFactor
 
-                case BalanceDirection.Credit:
+                case FlowALPModels.BalanceDirection.Credit:
                     // The user has a credit position in the given token,
                     // we need to figure out if this withdrawal will only draw down some of the collateral,
                     // or if it will also create new debt.
-                    let trueCredit = FlowALPv0.scaledBalanceToTrueBalance(
+                    let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
                         scaledBalance,
-                        interestIndex: tokenState.creditInterestIndex
+                        interestIndex: tokenState.getCreditInterestIndex()
                     )
 
                     if trueCredit >= amountU {
@@ -2680,7 +1181,7 @@ access(all) contract FlowALPv0 {
                     }
             }
 
-            return FlowALPv0.healthComputation(
+            return FlowALPMath.healthComputation(
                 effectiveCollateral: balanceSheet.effectiveCollateral - effectiveCollateralDecrease,
                 effectiveDebt: balanceSheet.effectiveDebt + effectiveDebtIncrease
             )
@@ -2698,7 +1199,7 @@ access(all) contract FlowALPv0 {
         /// Returns a Position resource that provides fine-grained access control through entitlements.
         /// The caller must store the Position resource in their account and manage access to it.
         /// Clients are recommended to use the PositionManager collection type to manage their Positions.
-        access(EParticipant) fun createPosition(
+        access(FlowALPModels.EParticipant) fun createPosition(
             funds: @{FungibleToken.Vault},
             issuanceSink: {DeFiActions.Sink},
             repaymentSource: {DeFiActions.Source}?,
@@ -2706,23 +1207,23 @@ access(all) contract FlowALPv0 {
         ): @Position {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
-                self.globalLedger[funds.getType()] != nil:
+                self.state.getTokenState(funds.getType()) != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
                 self.positionSatisfiesMinimumBalance(type: funds.getType(), balance: UFix128(funds.balance)):
-                    "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.globalLedger[funds.getType()]!.minimumTokenBalancePerPosition)"
+                    "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.state.getTokenState(funds.getType())!.getMinimumTokenBalancePerPosition())"
                 // TODO(jord): Sink/source should be valid
             }
             post {
-                self.positionLock[result.id] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(result.id): "Position is not unlocked"
             }
             // construct a new InternalPosition, assigning it the current position ID
-            let id = self.nextPositionID
-            self.nextPositionID = self.nextPositionID + 1
-            self.positions[id] <-! create InternalPosition()
+            let id = self.state.getNextPositionID()
+            self.state.incrementNextPositionID()
+            self.positions[id] <-! FlowALPModels.createInternalPosition()
 
-            self._lockPosition(id)
+            self.lockPosition(id)
 
-            emit Opened(
+            FlowALPEvents.emitOpened(
                 pid: id,
                 poolUUID: self.uuid
             )
@@ -2745,7 +1246,7 @@ access(all) contract FlowALPv0 {
 
             // Create a capability to the Pool for the Position resource
             // The Pool is stored in the FlowALPv0 contract account
-            let poolCap = FlowALPv0.account.capabilities.storage.issue<auth(EPosition) &Pool>(
+            let poolCap = FlowALPv0.account.capabilities.storage.issue<auth(FlowALPModels.EPosition) &Pool>(
                 FlowALPv0.PoolStoragePath
             )
 
@@ -2753,7 +1254,7 @@ access(all) contract FlowALPv0 {
 
             let position <- create Position(id: id, pool: poolCap)
 
-            self._unlockPosition(id)
+            self.unlockPosition(id)
             return <-position
         }
 
@@ -2767,12 +1268,12 @@ access(all) contract FlowALPv0 {
         /// @param balance: The balance amount to validate
         /// @return true if the balance meets or exceeds the minimum requirement, false otherwise
         access(self) view fun positionSatisfiesMinimumBalance(type: Type, balance: UFix128): Bool {
-            return balance >= UFix128(self.globalLedger[type]!.minimumTokenBalancePerPosition)
+            return balance >= UFix128(self.state.getTokenState(type)!.getMinimumTokenBalancePerPosition())
         }
 
         /// Allows anyone to deposit funds into any position.
         /// If the provided Vault is not supported by the Pool, the operation reverts.
-        access(EParticipant) fun depositToPosition(pid: UInt64, from: @{FungibleToken.Vault}) {
+        access(FlowALPModels.EParticipant) fun depositToPosition(pid: UInt64, from: @{FungibleToken.Vault}) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
@@ -2782,6 +1283,7 @@ access(all) contract FlowALPv0 {
                 pushToDrawDownSink: false
             )
         }
+
         /// Applies the state transitions for depositing `from` into `pid`, without doing any of the
         /// surrounding orchestration (locking, health checks, rebalancing, or caller authorization).
         ///
@@ -2820,28 +1322,20 @@ access(all) contract FlowALPv0 {
                 // The deposit is too big, so we need to queue the excess
                 let queuedDeposit <- from.withdraw(amount: depositAmount - depositLimit)
 
-                if position.queuedDeposits[type] == nil {
-                    position.queuedDeposits[type] <-! queuedDeposit
-                } else {
-                    position.queuedDeposits[type]!.deposit(from: <-queuedDeposit)
-                }
+                position.depositToQueue(type, vault: <-queuedDeposit)
             }
 
             // Per-user deposit limit: check if user has exceeded their per-user limit
             let userDepositLimitCap = tokenState.getUserDepositLimitCap()
-            let currentUsage = tokenState.depositUsage[pid] ?? 0.0
+            let currentUsage = tokenState.getDepositUsageForPosition(pid)
             let remainingUserLimit = userDepositLimitCap - currentUsage
-            
+
             // If the deposit would exceed the user's limit, queue or reject the excess
             if from.balance > remainingUserLimit {
                 let excessAmount = from.balance - remainingUserLimit
                 let queuedForUserLimit <- from.withdraw(amount: excessAmount)
-                
-                if position.queuedDeposits[type] == nil {
-                    position.queuedDeposits[type] <-! queuedForUserLimit
-                } else {
-                    position.queuedDeposits[type]!.deposit(from: <-queuedForUserLimit)
-                }
+
+                position.depositToQueue(type, vault: <-queuedForUserLimit)
             }
 
             // If this position doesn't currently have an entry for this token, create one.
@@ -2854,17 +1348,17 @@ access(all) contract FlowALPv0 {
                 // Validate single collateral type constraint
                 position.validateCollateralType(type)
 
-                position.balances[type] = InternalBalance(
-                    direction: BalanceDirection.Credit,
+                position.setBalance(type, FlowALPModels.InternalBalance(
+                    direction: FlowALPModels.BalanceDirection.Credit,
                     scaledBalance: 0.0
-                )
+                ))
             }
 
             // Create vault if it doesn't exist yet
-            if self.reserves[type] == nil {
-                self.reserves[type] <-! from.createEmptyVault()
+            if !self.state.hasReserve(type) {
+                self.state.initReserve(type, <-from.createEmptyVault())
             }
-            let reserveVault = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let reserveVault = self.state.borrowReserve(type)!
 
             // Reflect the deposit in the position's balance.
             //
@@ -2879,7 +1373,7 @@ access(all) contract FlowALPv0 {
             }
 
             let acceptedAmount = from.balance
-            position.balances[type]!.recordDeposit(
+            position.borrowBalance(type)!.recordDeposit(
                 amount: UFix128(acceptedAmount),
                 tokenState: tokenState
             )
@@ -2893,7 +1387,7 @@ access(all) contract FlowALPv0 {
 
             self._queuePositionForUpdateIfNecessary(pid: pid)
 
-            emit Deposited(
+            FlowALPEvents.emitDeposited(
                 pid: pid,
                 poolUUID: self.uuid,
                 vaultType: type,
@@ -2906,7 +1400,7 @@ access(all) contract FlowALPv0 {
         /// Deposits the provided funds to the specified position with the configurable `pushToDrawDownSink` option.
         /// If `pushToDrawDownSink` is true, excess value putting the position above its max health
         /// is pushed to the position's configured `drawDownSink`.
-        access(EPosition) fun depositAndPush(
+        access(FlowALPModels.EPosition) fun depositAndPush(
             pid: UInt64,
             from: @{FungibleToken.Vault},
             pushToDrawDownSink: Bool
@@ -2915,17 +1409,17 @@ access(all) contract FlowALPv0 {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.positions[pid] != nil:
                     "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
-                self.globalLedger[from.getType()] != nil:
+                self.state.getTokenState(from.getType()) != nil:
                     "Invalid token type \(from.getType().identifier) - not supported by this Pool"
             }
             post {
-                self.positionLock[pid] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] depositAndPush(pid: \(pid), pushToDrawDownSink: \(pushToDrawDownSink))")
             }
 
-            self._lockPosition(pid)
+            self.lockPosition(pid)
 
             self._depositEffectsOnly(pid: pid, from: <-from)
 
@@ -2934,7 +1428,7 @@ access(all) contract FlowALPv0 {
                 self._rebalancePositionNoLock(pid: pid, force: true)
             }
 
-            self._unlockPosition(pid)
+            self.unlockPosition(pid)
         }
 
         /// Withdraws the requested funds from the specified position.
@@ -2942,7 +1436,7 @@ access(all) contract FlowALPv0 {
         /// Callers should be careful that the withdrawal does not put their position under its target health,
         /// especially if the position doesn't have a configured `topUpSource` from which to repay borrowed funds
         /// in the event of undercollaterlization.
-        access(EPosition) fun withdraw(pid: UInt64, amount: UFix64, type: Type): @{FungibleToken.Vault} {
+        access(FlowALPModels.EPosition) fun withdraw(pid: UInt64, amount: UFix64, type: Type): @{FungibleToken.Vault} {
             pre {
                 !self.isPausedOrWarmup(): "Withdrawals are paused by governance"
             }
@@ -2961,7 +1455,7 @@ access(all) contract FlowALPv0 {
         /// If `pullFromTopUpSource` is true, deficient value putting the position below its min health
         /// is pulled from the position's configured `topUpSource`.
         /// TODO(jord): ~150-line function - consider refactoring.
-        access(EPosition) fun withdrawAndPull(
+        access(FlowALPModels.EPosition) fun withdrawAndPull(
             pid: UInt64,
             type: Type,
             amount: UFix64,
@@ -2971,18 +1465,18 @@ access(all) contract FlowALPv0 {
                 !self.isPausedOrWarmup(): "Withdrawals are paused by governance"
                 self.positions[pid] != nil:
                     "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
-                self.globalLedger[type] != nil:
+                self.state.getTokenState(type) != nil:
                     "Invalid token type \(type.identifier) - not supported by this Pool"
             }
             post {
-                self.positionLock[pid] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
-            self._lockPosition(pid)
-            if self.debugLogging {
+            self.lockPosition(pid)
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] withdrawAndPull(pid: \(pid), type: \(type.identifier), amount: \(amount), pullFromTopUpSource: \(pullFromTopUpSource))")
             }
             if amount == 0.0 {
-                self._unlockPosition(pid)
+                self.unlockPosition(pid)
                 return <- DeFiActionsUtils.getEmptyVault(type)
             }
 
@@ -2993,13 +1487,13 @@ access(all) contract FlowALPv0 {
             // Global interest indices are updated via tokenState() helper
 
             // Preflight to see if the funds are available
-            let topUpSource = position.topUpSource as auth(FungibleToken.Withdraw) &{DeFiActions.Source}?
-            let topUpType = topUpSource?.getSourceType() ?? self.defaultToken
+            let topUpSource = position.borrowTopUpSource()
+            let topUpType = topUpSource?.getSourceType() ?? self.state.getDefaultToken()
 
             let requiredDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
                 pid: pid,
                 depositType: topUpType,
-                targetHealth: position.minHealth,
+                targetHealth: position.getMinHealth(),
                 withdrawType: type,
                 withdrawAmount: amount
             )
@@ -3016,7 +1510,7 @@ access(all) contract FlowALPv0 {
                     let idealDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
                         pid: pid,
                         depositType: topUpType,
-                        targetHealth: position.targetHealth,
+                        targetHealth: position.getTargetHealth(),
                         withdrawType: type,
                         withdrawAmount: amount
                     )
@@ -3048,7 +1542,7 @@ access(all) contract FlowALPv0 {
 
             if !canWithdraw {
                 // Log detailed information about the failed withdrawal (only if debugging enabled)
-                if self.debugLogging {
+                if self.config.isDebugLogging() {
                     let availableBalance = self.availableBalance(pid: pid, type: type, pullFromTopUpSource: false)
                     log("    [CONTRACT] WITHDRAWAL FAILED:")
                     log("    [CONTRACT] Position ID: \(pid)")
@@ -3063,21 +1557,21 @@ access(all) contract FlowALPv0 {
             }
 
             // If this position doesn't currently have an entry for this token, create one.
-            if position.balances[type] == nil {
+            if position.getBalance(type) == nil {
                 // When withdrawing a token that doesn't exist in position yet,
                 // we'll be creating a debit (debt). Validate single debt type.
                 position.validateDebtType(type)
 
-                position.balances[type] = InternalBalance(
-                    direction: BalanceDirection.Credit,
+                position.setBalance(type, FlowALPModels.InternalBalance(
+                    direction: FlowALPModels.BalanceDirection.Credit,
                     scaledBalance: 0.0
-                )
+                ))
             }
 
             // Reflect the withdrawal in the position's balance
             let wasCredit = position.balances[type]!.direction == BalanceDirection.Credit
             let uintAmount = UFix128(amount)
-            position.balances[type]!.recordWithdrawal(
+            position.borrowBalance(type)!.recordWithdrawal(
                 amount: uintAmount,
                 tokenState: tokenState
             )
@@ -3104,7 +1598,7 @@ access(all) contract FlowALPv0 {
             // This is applied to both credit and debit balances, with the main goal being to avoid dust positions.
             assert(
                 remainingBalance == 0.0 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
-                message: "Withdrawal would leave position below minimum balance requirement of \(self.globalLedger[type]!.minimumTokenBalancePerPosition). Remaining balance would be \(remainingBalance)."
+                message: "Withdrawal would leave position below minimum balance requirement of \(self.state.getTokenState(type)!.getMinimumTokenBalancePerPosition()). Remaining balance would be \(remainingBalance)."
             )
 
             // Queue for update if necessary
@@ -3118,13 +1612,13 @@ access(all) contract FlowALPv0 {
             } else {
                 // For other tokens, withdraw from reserves
                 assert(self.reserves[type] != nil, message: "Cannot withdraw \(type.identifier) - no reserves available")
-                let reserveVault = (&self.reserves[type] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                let reserveVault = self.state.borrowReserve(type)!
                 assert(reserveVault.balance >= amount, message: "Insufficient reserves for \(type.identifier): need \(amount), have \(reserveVault.balance)")
                 withdrawn <-! reserveVault.withdraw(amount: amount)
             }
             let unwrappedWithdrawn <- withdrawn!
 
-            emit Withdrawn(
+            FlowALPEvents.emitWithdrawn(
                 pid: pid,
                 poolUUID: self.uuid,
                 vaultType: type,
@@ -3132,7 +1626,7 @@ access(all) contract FlowALPv0 {
                 withdrawnUUID: unwrappedWithdrawn.uuid
             )
 
-            self._unlockPosition(pid)
+            self.unlockPosition(pid)
             return <- unwrappedWithdrawn
         }
 
@@ -3140,87 +1634,47 @@ access(all) contract FlowALPv0 {
         // POOL MANAGEMENT
         ///////////////////////
 
-        /// Updates liquidation-related parameters
-        access(EGovernance) fun setLiquidationParams(
-            targetHF: UFix128,
-        ) {
-            assert(
-                targetHF > 1.0,
-                message: "targetHF must be > 1.0"
-            )
-            self.liquidationTargetHF = targetHF
-            emit LiquidationParamsUpdated(
-                poolUUID: self.uuid,
-                targetHF: targetHF,
-            )
-        }
-
-        /// Updates pause-related parameters
-        access(EGovernance) fun setPauseParams(
-            warmupSec: UInt64,
-        ) {
-            self.warmupSec = warmupSec
-            emit PauseParamsUpdated(
-                poolUUID: self.uuid,
-                warmupSec: warmupSec,
-            )
-        }
-
-        /// Updates the maximum allowed price deviation (in basis points) between the oracle and configured DEX.
-        access(EGovernance) fun setDexOracleDeviationBps(dexOracleDeviationBps: UInt16) {
-            pre {
-                // TODO(jord): sanity check here?
-            }
-            self.dexOracleDeviationBps = dexOracleDeviationBps
-        }
-
-        /// Updates the DEX (AMM) interface used for liquidations and insurance collection.
-        ///
-        /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
-        /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
-        ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
-        ///
-        /// FlowALPv0 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
-        /// It relies directly on the Swapper's returned by the configured SwapperProvider.
-        access(EGovernance) fun setDEX(dex: {DeFiActions.SwapperProvider}) {
-            self.dex = dex
+        /// Returns a mutable reference to the pool's configuration.
+        /// Use this to update config fields that don't require events or side effects.
+        access(FlowALPModels.EGovernance) fun borrowConfig(): auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolConfig} {
+            return &self.config as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolConfig}
         }
 
         /// Pauses the pool, temporarily preventing further withdrawals, deposits, and liquidations
-        access(EGovernance) fun pausePool() {
-            if self.paused {
+        access(FlowALPModels.EGovernance) fun pausePool() {
+            if self.config.isPaused() {
                 return
             }
-            self.paused = true
-            emit PoolPaused(poolUUID: self.uuid)
+            self.config.setPaused(true)
+            FlowALPEvents.emitPoolPaused(poolUUID: self.uuid)
         }
 
         /// Unpauses the pool, and starts the warm-up window
-        access(EGovernance) fun unpausePool() {
-            if !self.paused {
+        access(FlowALPModels.EGovernance) fun unpausePool() {
+            if !self.config.isPaused() {
                 return
             }
-            self.paused = false
+            self.config.setPaused(false)
             let now = UInt64(getCurrentBlock().timestamp)
-            self.lastUnpausedAt = now
-            emit PoolUnpaused(
+            self.config.setLastUnpausedAt(now)
+            FlowALPEvents.emitPoolUnpaused(
                 poolUUID: self.uuid,
-                warmupEndsAt: now + self.warmupSec
+                warmupEndsAt: now + self.config.getWarmupSec()
             )
         }
 
         /// Adds a new token type to the pool with the given parameters defining borrowing limits on collateral,
         /// interest accumulation, deposit rate limiting, and deposit size capacity
-        access(EGovernance) fun addSupportedToken(
+        access(FlowALPModels.EGovernance) fun addSupportedToken(
             tokenType: Type,
             collateralFactor: UFix64,
             borrowFactor: UFix64,
-            interestCurve: {InterestCurve},
+            interestCurve: {FlowALPInterestRates.InterestCurve},
             depositRate: UFix64,
             depositCapacityCap: UFix64
         ) {
             pre {
-                self.globalLedger[tokenType] == nil:
+                self.state.getTokenState(tokenType) == nil:
                     "Token type already supported"
                 tokenType.isSubtype(of: Type<@{FungibleToken.Vault}>()):
                     "Invalid token type \(tokenType.identifier) - tokenType must be a FungibleToken Vault implementation"
@@ -3237,22 +1691,22 @@ access(all) contract FlowALPv0 {
             }
 
             // Add token to global ledger with its interest curve and deposit parameters
-            self.globalLedger[tokenType] = TokenState(
+            self.state.setTokenState(tokenType, FlowALPModels.TokenStateImplv1(
                 tokenType: tokenType,
                 interestCurve: interestCurve,
                 depositRate: depositRate,
                 depositCapacityCap: depositCapacityCap
-            )
+            ))
 
             // Set collateral factor (what percentage of value can be used as collateral)
-            self.collateralFactor[tokenType] = collateralFactor
+            self.config.setCollateralFactor(tokenType: tokenType, factor: collateralFactor)
 
             // Set borrow factor (risk adjustment for borrowed amounts)
-            self.borrowFactor[tokenType] = borrowFactor
+            self.config.setBorrowFactor(tokenType: tokenType, factor: borrowFactor)
         }
 
         /// Updates the insurance rate for a given token (fraction in [0,1])
-        access(EGovernance) fun setInsuranceRate(tokenType: Type, insuranceRate: UFix64) {
+        access(FlowALPModels.EGovernance) fun setInsuranceRate(tokenType: Type, insuranceRate: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
@@ -3261,31 +1715,31 @@ access(all) contract FlowALPv0 {
                 insuranceRate + (self.getStabilityFeeRate(tokenType: tokenType) ?? 0.0) < 1.0:
                     "insuranceRate + stabilityFeeRate must be in range [0, 1) to avoid underflow in credit rate calculation"
             }
-            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
 
             // Validate constraint: non-zero rate requires swapper
             if insuranceRate > 0.0 {
                 assert(
-                    tsRef.insuranceSwapper != nil, 
+                    tsRef.getInsuranceSwapper() != nil, 
                     message:"Cannot set non-zero insurance rate without an insurance swapper configured for \(tokenType.identifier)",
                 )
             }
             tsRef.setInsuranceRate(insuranceRate)
 
-            emit InsuranceRateUpdated(
+            FlowALPEvents.emitInsuranceRateUpdated(
                 poolUUID: self.uuid,
                 tokenType: tokenType.identifier,
-                insuranceRate: insuranceRate,
+                insuranceRate: insuranceRate
             )
         }
 
         /// Sets the insurance swapper for a given token type (must swap from tokenType to MOET)
-        access(EGovernance) fun setInsuranceSwapper(tokenType: Type, swapper: {DeFiActions.Swapper}?) {
+        access(FlowALPModels.EGovernance) fun setInsuranceSwapper(tokenType: Type, swapper: {DeFiActions.Swapper}?) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
-            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")   
 
             if let swapper = swapper {
@@ -3296,7 +1750,7 @@ access(all) contract FlowALPv0 {
             } else {
                 // cannot remove swapper if insurance rate > 0
                 assert(
-                    tsRef.insuranceRate == 0.0,
+                    tsRef.getInsuranceRate() == 0.0,
                     message: "Cannot remove insurance swapper while insurance rate is non-zero for \(tokenType.identifier)"
                 )
             }
@@ -3307,7 +1761,7 @@ access(all) contract FlowALPv0 {
         /// Manually triggers insurance collection for a given token type.
         /// This is useful for governance to collect accrued insurance on-demand.
         /// Insurance is calculated based on time elapsed since last collection.
-        access(EGovernance) fun collectInsurance(tokenType: Type) {
+        access(FlowALPModels.EGovernance) fun collectInsurance(tokenType: Type) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
@@ -3315,44 +1769,44 @@ access(all) contract FlowALPv0 {
         }
 
         /// Updates the per-deposit limit fraction for a given token (fraction in [0,1])
-        access(EGovernance) fun setDepositLimitFraction(tokenType: Type, fraction: UFix64) {
+        access(FlowALPModels.EGovernance) fun setDepositLimitFraction(tokenType: Type, fraction: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
                 fraction > 0.0 && fraction <= 1.0:
                     "fraction must be in (0,1]"
             }
-            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositLimitFraction(fraction)
         }
 
         /// Updates the deposit rate for a given token (tokens per hour)
-        access(EGovernance) fun setDepositRate(tokenType: Type, hourlyRate: UFix64) {
+        access(FlowALPModels.EGovernance) fun setDepositRate(tokenType: Type, hourlyRate: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
-            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositRate(hourlyRate)
         }
 
         /// Updates the deposit capacity cap for a given token
-        access(EGovernance) fun setDepositCapacityCap(tokenType: Type, cap: UFix64) {
+        access(FlowALPModels.EGovernance) fun setDepositCapacityCap(tokenType: Type, cap: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
-            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
             tsRef.setDepositCapacityCap(cap)
         }
 
         /// Updates the minimum token balance per position for a given token
-        access(EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minimum: UFix64) {
+        access(FlowALPModels.EGovernance) fun setMinimumTokenBalancePerPosition(tokenType: Type, minimum: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
-            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
             tsRef.setMinimumTokenBalancePerPosition(minimum)
         }
@@ -3364,7 +1818,7 @@ access(all) contract FlowALPv0 {
         ///
         ///
         /// Emits: StabilityFeeRateUpdated
-        access(EGovernance) fun setStabilityFeeRate(tokenType: Type, stabilityFeeRate: UFix64) {
+        access(FlowALPModels.EGovernance) fun setStabilityFeeRate(tokenType: Type, stabilityFeeRate: UFix64) {
             pre {
                 self.isTokenSupported(tokenType: tokenType):
                     "Unsupported token type \(tokenType.identifier)"
@@ -3373,26 +1827,26 @@ access(all) contract FlowALPv0 {
                 stabilityFeeRate + (self.getInsuranceRate(tokenType: tokenType) ?? 0.0) < 1.0:
                     "stabilityFeeRate + insuranceRate must be in range [0, 1) to avoid underflow in credit rate calculation"
             }
-            let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+            let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
             tsRef.setStabilityFeeRate(stabilityFeeRate)
             
-            emit StabilityFeeRateUpdated(
+            FlowALPEvents.emitStabilityFeeRateUpdated(
                 poolUUID: self.uuid,
                 tokenType: tokenType.identifier,
-                stabilityFeeRate: stabilityFeeRate,
+                stabilityFeeRate: stabilityFeeRate
             )
         }
 
         /// Withdraws stability funds collected from the stability fee for a given token
         ///
         /// Emits: StabilityFundWithdrawn
-        access(EGovernance) fun withdrawStabilityFund(tokenType: Type, amount: UFix64, recipient: &{FungibleToken.Receiver}) {
+        access(FlowALPModels.EGovernance) fun withdrawStabilityFund(tokenType: Type, amount: UFix64, recipient: &{FungibleToken.Receiver}) {
             pre {
-                self.stabilityFunds[tokenType] != nil: "No stability fund exists for token type \(tokenType.identifier)"
+                self.state.hasStabilityFund(tokenType): "No stability fund exists for token type \(tokenType.identifier)"
                 amount > 0.0: "Withdrawal amount must be positive"
             }
-            let fundRef = (&self.stabilityFunds[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let fundRef = self.state.borrowStabilityFund(tokenType)!
             assert(
                 fundRef.balance >= amount,
                 message: "Insufficient stability fund balance. Available: \(fundRef.balance), requested: \(amount)"
@@ -3401,17 +1855,17 @@ access(all) contract FlowALPv0 {
             let withdrawn <- fundRef.withdraw(amount: amount)
             recipient.deposit(from: <-withdrawn)
 
-            emit StabilityFundWithdrawn(
+            FlowALPEvents.emitStabilityFundWithdrawn(
                 poolUUID: self.uuid,
                 tokenType: tokenType.identifier,
-                amount: amount,
+                amount: amount
             )
         }
 
         /// Manually triggers fee collection for a given token type.
         /// This is useful for governance to collect accrued stability on-demand.
         /// Fee is calculated based on time elapsed since last collection.
-        access(EGovernance) fun collectStability(tokenType: Type) {
+        access(FlowALPModels.EGovernance) fun collectStability(tokenType: Type) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
@@ -3422,9 +1876,9 @@ access(all) contract FlowALPv0 {
         /// Each token type's capacity regenerates independently based on its own depositRate,
         /// approximately once per hour, up to its respective depositCapacityCap
         /// When capacity regenerates, user deposit usage is reset for that token type
-        access(EImplementation) fun regenerateAllDepositCapacities() {
-            for tokenType in self.globalLedger.keys {
-                let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
+        access(FlowALPModels.EImplementation) fun regenerateAllDepositCapacities() {
+            for tokenType in self.state.getGlobalLedgerKeys() {
+                let tsRef = self.state.borrowTokenState(tokenType)
                     ?? panic("Invariant: token state missing")
                 tsRef.regenerateDepositCapacity()
             }
@@ -3438,7 +1892,7 @@ access(all) contract FlowALPv0 {
         /// Important: Before changing the curve, we must first compound any accrued interest at the
         /// OLD rate. Otherwise, interest that accrued since lastUpdate would be calculated using the
         /// new rate, which would be incorrect.
-        access(EGovernance) fun setInterestCurve(tokenType: Type, interestCurve: {InterestCurve}) {
+        access(FlowALPModels.EGovernance) fun setInterestCurve(tokenType: Type, interestCurve: {FlowALPInterestRates.InterestCurve}) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
@@ -3447,16 +1901,11 @@ access(all) contract FlowALPv0 {
             let tsRef = self._borrowUpdatedTokenState(type: tokenType)
             // Now safe to set the new curve - subsequent interest will accrue at the new rate
             tsRef.setInterestCurve(interestCurve)
-            emit InterestCurveUpdated(
+            FlowALPEvents.emitInterestCurveUpdated(
                 poolUUID: self.uuid,
                 tokenType: tokenType.identifier,
                 curveType: interestCurve.getType().identifier
             )
-        }
-
-        /// Enables or disables verbose logging inside the Pool for testing and diagnostics
-        access(EGovernance) fun setDebugLogging(_ enabled: Bool) {
-            self.debugLogging = enabled
         }
 
         /// Rebalances the position to the target health value, if the position is under- or over-collateralized,
@@ -3467,16 +1916,16 @@ access(all) contract FlowALPv0 {
         /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
-        access(EPosition | ERebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
+        access(FlowALPModels.EPosition | FlowALPModels.ERebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
             post {
-                self.positionLock[pid] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
-            self._lockPosition(pid)
+            self.lockPosition(pid)
             self._rebalancePositionNoLock(pid: pid, force: force)
-            self._unlockPosition(pid)
+            self.unlockPosition(pid)
         }
 
         /// Attempts to rebalance a position toward its configured `targetHealth` without acquiring
@@ -3490,28 +1939,27 @@ access(all) contract FlowALPv0 {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
             }
             let position = self._borrowPosition(pid: pid)
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
 
-            if !force && (position.minHealth <= balanceSheet.health && balanceSheet.health <= position.maxHealth) {
+            if !force && (position.getMinHealth() <= balanceSheet.health && balanceSheet.health <= position.getMaxHealth()) {
                 // We aren't forcing the update, and the position is already between its desired min and max. Nothing to do!
                 return
             }
 
-            if balanceSheet.health < position.targetHealth {
+            if balanceSheet.health < position.getTargetHealth() {
                 // The position is undercollateralized,
                 // see if the source can get more collateral to bring it up to the target health.
-                if let topUpSource = position.topUpSource {
-                    let topUpSource = topUpSource as auth(FungibleToken.Withdraw) &{DeFiActions.Source}
+                if let topUpSource = position.borrowTopUpSource() {
                     let idealDeposit = self.fundsRequiredForTargetHealth(
                         pid: pid,
                         type: topUpSource.getSourceType(),
-                        targetHealth: position.targetHealth
+                        targetHealth: position.getTargetHealth()
                     )
-                    if self.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] idealDeposit: \(idealDeposit)")
                     }
 
@@ -3519,7 +1967,7 @@ access(all) contract FlowALPv0 {
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
                     assert(pulledVault.getType() == topUpType, message: "topUpSource returned unexpected token type")
 
-                    emit Rebalanced(
+                    FlowALPEvents.emitRebalanced(
                         pid: pid,
                         poolUUID: self.uuid,
                         atHealth: balanceSheet.health,
@@ -3532,22 +1980,21 @@ access(all) contract FlowALPv0 {
                         from: <-pulledVault,
                     )
                 }
-            } else if balanceSheet.health > position.targetHealth {
+            } else if balanceSheet.health > position.getTargetHealth() {
                 // The position is overcollateralized,
                 // we'll withdraw funds to match the target health and offer it to the sink.
                 if self.isPausedOrWarmup() {
                     // Withdrawals (including pushing to the drawDownSink) are disabled during the warmup period
                     return
                 }
-                if let drawDownSink = position.drawDownSink {
-                    let drawDownSink = drawDownSink as auth(FungibleToken.Withdraw) &{DeFiActions.Sink}
+                if let drawDownSink = position.borrowDrawDownSink() {
                     let sinkType = drawDownSink.getSinkType()
                     let idealWithdrawal = self.fundsAvailableAboveTargetHealth(
                         pid: pid,
                         type: sinkType,
-                        targetHealth: position.targetHealth
+                        targetHealth: position.getTargetHealth()
                     )
-                    if self.debugLogging {
+                    if self.config.isDebugLogging() {
                         log("    [CONTRACT] idealWithdrawal: \(idealWithdrawal)")
                     }
 
@@ -3558,18 +2005,18 @@ access(all) contract FlowALPv0 {
                     // Support multiple token types: MOET (minted) or other tokens (from reserves)
                     if sinkAmount > 0.0 {
                         let tokenState = self._borrowUpdatedTokenState(type: sinkType)
-                        if position.balances[sinkType] == nil {
+                        if position.getBalance(sinkType) == nil {
                             // Rebalancing is borrowing/withdrawing to push to sink - validate single debt type
                             position.validateDebtType(sinkType)
 
-                            position.balances[sinkType] = InternalBalance(
-                                direction: BalanceDirection.Credit,
+                            position.setBalance(sinkType, FlowALPModels.InternalBalance(
+                                direction: FlowALPModels.BalanceDirection.Credit,
                                 scaledBalance: 0.0
-                            )
+                            ))
                         }
                         // Record the withdrawal
                         let uintSinkAmount = UFix128(sinkAmount)
-                        position.balances[sinkType]!.recordWithdrawal(
+                        position.borrowBalance(sinkType)!.recordWithdrawal(
                             amount: uintSinkAmount,
                             tokenState: tokenState
                         )
@@ -3588,7 +2035,7 @@ access(all) contract FlowALPv0 {
                         }
                         let unwrappedSinkVault <- sinkVault!
 
-                        emit Rebalanced(
+                        FlowALPEvents.emitRebalanced(
                             pid: pid,
                             poolUUID: self.uuid,
                             atHealth: balanceSheet.health,
@@ -3614,7 +2061,7 @@ access(all) contract FlowALPv0 {
 
         /// Executes asynchronous updates on positions that have been queued up to the lesser of the queue length or
         /// the configured positionsProcessedPerCallback value
-        access(EImplementation) fun asyncUpdate() {
+        access(FlowALPModels.EImplementation) fun asyncUpdate() {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
@@ -3622,8 +2069,8 @@ access(all) contract FlowALPv0 {
             // it should schedule each update to run in its own callback, so a revert() call from one update (for example, if a source or
             // sink aborts) won't prevent other positions from being updated.
             var processed: UInt64 = 0
-            while self.positionsNeedingUpdates.length > 0 && processed < self.positionsProcessedPerCallback {
-                let pid = self.positionsNeedingUpdates.removeFirst()
+            while self.state.getPositionsNeedingUpdatesLength() > 0 && processed < self.config.getPositionsProcessedPerCallback() {
+                let pid = self.state.removeFirstPositionNeedingUpdate()
                 self.asyncUpdatePosition(pid: pid)
                 self._queuePositionForUpdateIfNecessary(pid: pid)
                 processed = processed + 1
@@ -3631,21 +2078,21 @@ access(all) contract FlowALPv0 {
         }
 
         /// Executes an asynchronous update on the specified position
-        access(EImplementation) fun asyncUpdatePosition(pid: UInt64) {
+        access(FlowALPModels.EImplementation) fun asyncUpdatePosition(pid: UInt64) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
             post {
-                self.positionLock[pid] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
-            self._lockPosition(pid)
+            self.lockPosition(pid)
             let position = self._borrowPosition(pid: pid)
 
             // store types to avoid iterating while mutating
-            let depositTypes = position.queuedDeposits.keys
+            let depositTypes = position.getQueuedDepositKeys()
             // First check queued deposits, their addition could affect the rebalance we attempt later
             for depositType in depositTypes {
-                let queuedVault <- position.queuedDeposits.remove(key: depositType)!
+                let queuedVault <- position.removeQueuedDeposit(depositType)!
                 let queuedAmount = queuedVault.balance
                 let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
                 let maxDeposit = depositTokenState.depositLimit()
@@ -3661,19 +2108,14 @@ access(all) contract FlowALPv0 {
                     self._depositEffectsOnly(pid: pid, from: <-depositVault)
 
                     // We need to update the queued vault to reflect the amount we used up
-                    if let existing <- position.queuedDeposits.remove(key: depositType) {
-                        existing.deposit(from: <-queuedVault)
-                        position.queuedDeposits[depositType] <-! existing
-                    } else {
-                        position.queuedDeposits[depositType] <-! queuedVault
-                    }
+                    position.depositToQueue(depositType, vault: <-queuedVault)
                 }
             }
 
             // Now that we've deposited a non-zero amount of any queued deposits, we can rebalance
             // the position if necessary.
             self._rebalancePositionNoLock(pid: pid, force: false)
-            self._unlockPosition(pid)
+            self.unlockPosition(pid)
         }
 
         /// Updates interest rates for a token and collects stability fee.
@@ -3685,31 +2127,123 @@ access(all) contract FlowALPv0 {
             tokenState.updateInterestRates()
 
             // Ensure reserves exist for this token type
-            if self.reserves[tokenType] == nil {
+            if !self.state.hasReserve(tokenType) {
                 return
             }
 
             // Get reference to reserves
-            let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let reserveRef = self.state.borrowReserve(tokenType)!
 
             // Collect stability and get token vault
-            if let collectedVault <- tokenState.collectStability(reserveVault: reserveRef) {  
-                let collectedBalance = collectedVault.balance     
+            if let collectedVault <- self._collectStability(tokenState: tokenState, reserveVault: reserveRef) {
+                let collectedBalance = collectedVault.balance
                 // Deposit collected token into stability fund
-                if self.stabilityFunds[tokenType] == nil {
-                    self.stabilityFunds[tokenType] <-! collectedVault
+                if !self.state.hasStabilityFund(tokenType) {
+                    self.state.initStabilityFund(tokenType, <-collectedVault)
                 } else {
-                    let fundRef = (&self.stabilityFunds[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                    let fundRef = self.state.borrowStabilityFund(tokenType)!
                     fundRef.deposit(from: <-collectedVault)
                 }
-                
-                emit StabilityFeeCollected(
+
+                FlowALPEvents.emitStabilityFeeCollected(
                     poolUUID: self.uuid,
                     tokenType: tokenType.identifier,
                     stabilityAmount: collectedBalance,
-                    collectionTime: tokenState.lastStabilityFeeCollectionTime
+                    collectionTime: tokenState.getLastStabilityFeeCollectionTime()
                 )
             }
+        }
+
+        /// Collects insurance by withdrawing from reserves and swapping to MOET.
+        access(self) fun _collectInsurance(
+            tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
+            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
+            oraclePrice: UFix64,
+            maxDeviationBps: UInt16
+        ): @MOET.Vault? {
+            let currentTime = getCurrentBlock().timestamp
+
+            if tokenState.getInsuranceRate() == 0.0 {
+                tokenState.setLastInsuranceCollectionTime(currentTime)
+                return nil
+            }
+
+            let timeElapsed = currentTime - tokenState.getLastInsuranceCollectionTime()
+            if timeElapsed <= 0.0 {
+                return nil
+            }
+
+            let debitIncome = tokenState.getTotalDebitBalance() * (FlowALPMath.powUFix128(tokenState.getCurrentDebitRate(), timeElapsed) - 1.0)
+            let insuranceAmount = debitIncome * UFix128(tokenState.getInsuranceRate())
+            let insuranceAmountUFix64 = FlowALPMath.toUFix64RoundDown(insuranceAmount)
+
+            if insuranceAmountUFix64 == 0.0 {
+                tokenState.setLastInsuranceCollectionTime(currentTime)
+                return nil
+            }
+
+            if reserveVault.balance == 0.0 {
+                tokenState.setLastInsuranceCollectionTime(currentTime)
+                return nil
+            }
+
+            let amountToCollect = insuranceAmountUFix64 > reserveVault.balance ? reserveVault.balance : insuranceAmountUFix64
+            var insuranceVault <- reserveVault.withdraw(amount: amountToCollect)
+
+            let insuranceSwapper = tokenState.getInsuranceSwapper() ?? panic("missing insurance swapper")
+
+            assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
+            assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
+
+            let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
+            let dexPrice = quote.outAmount / quote.inAmount
+            assert(
+                FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
+                message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
+            var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
+
+            tokenState.setLastInsuranceCollectionTime(currentTime)
+            return <-moetVault
+        }
+
+        /// Collects stability funds by withdrawing from reserves.
+        access(self) fun _collectStability(
+            tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
+            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+        ): @{FungibleToken.Vault}? {
+            let currentTime = getCurrentBlock().timestamp
+
+            if tokenState.getStabilityFeeRate() == 0.0 {
+                tokenState.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            let timeElapsed = currentTime - tokenState.getLastStabilityFeeCollectionTime()
+            if timeElapsed <= 0.0 {
+                return nil
+            }
+
+            let stabilityFeeRate = UFix128(tokenState.getStabilityFeeRate())
+            let interestIncome = tokenState.getTotalDebitBalance() * (FlowALPMath.powUFix128(tokenState.getCurrentDebitRate(), timeElapsed) - 1.0)
+            let stabilityAmount = interestIncome * stabilityFeeRate
+            let stabilityAmountUFix64 = FlowALPMath.toUFix64RoundDown(stabilityAmount)
+
+            if stabilityAmountUFix64 == 0.0 {
+                tokenState.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            if reserveVault.balance == 0.0 {
+                tokenState.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            let reserveVaultBalance = reserveVault.balance
+            let amountToCollect = stabilityAmountUFix64 > reserveVaultBalance ? reserveVaultBalance : stabilityAmountUFix64
+            let stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
+
+            tokenState.setLastStabilityFeeCollectionTime(currentTime)
+            return <-stabilityVault
         }
 
         ////////////////
@@ -3718,7 +2252,7 @@ access(all) contract FlowALPv0 {
 
         /// Queues a position for asynchronous updates if the position has been marked as requiring an update
         access(self) fun _queuePositionForUpdateIfNecessary(pid: UInt64) {
-            if self.positionsNeedingUpdates.contains(pid) {
+            if self.state.positionsNeedingUpdatesContains(pid) {
                 // If this position is already queued for an update, no need to check anything else
                 return
             }
@@ -3726,63 +2260,63 @@ access(all) contract FlowALPv0 {
             // If this position is not already queued for an update, we need to check if it needs one
             let position = self._borrowPosition(pid: pid)
 
-            if position.queuedDeposits.length > 0 {
+            if position.getQueuedDepositsLength() > 0 {
                 // This position has deposits that need to be processed, so we need to queue it for an update
-                self.positionsNeedingUpdates.append(pid)
+                self.state.appendPositionNeedingUpdate(pid)
                 return
             }
 
             let positionHealth = self.positionHealth(pid: pid)
 
-            if positionHealth < position.minHealth || positionHealth > position.maxHealth {
+            if positionHealth < position.getMinHealth() || positionHealth > position.getMaxHealth() {
                 // This position is outside the configured health bounds, we queue it for an update
-                self.positionsNeedingUpdates.append(pid)
+                self.state.appendPositionNeedingUpdate(pid)
                 return
             }
         }
 
-        /// Returns a position's BalanceSheet containing its effective collateral and debt as well as its current health
+        /// Returns a position's FlowALPModels.BalanceSheet containing its effective collateral and debt as well as its current health
         /// TODO(jord): in all cases callers already are calling _borrowPosition, more efficient to pass in PositionView?
-        access(self) fun _getUpdatedBalanceSheet(pid: UInt64): BalanceSheet {
+        access(self) fun _getUpdatedBalanceSheet(pid: UInt64): FlowALPModels.BalanceSheet {
             let position = self._borrowPosition(pid: pid)
 
             // Get the position's collateral and debt values in terms of the default token.
             var effectiveCollateral: UFix128 = 0.0
             var effectiveDebt: UFix128 = 0.0
 
-            for type in position.balances.keys {
-                let balance = position.balances[type]!
+            for type in position.getBalanceKeys() {
+                let balance = position.getBalance(type)!
                 let tokenState = self._borrowUpdatedTokenState(type: type)
 
                 switch balance.direction {
-                    case BalanceDirection.Credit:
-                        let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
+                    case FlowALPModels.BalanceDirection.Credit:
+                        let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                             balance.scaledBalance,
-                            interestIndex: tokenState.creditInterestIndex
+                            interestIndex: tokenState.getCreditInterestIndex()
                         )
 
-                        let convertedPrice = UFix128(self.priceOracle.price(ofToken: type)!)
+                        let convertedPrice = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
                         let value = convertedPrice * trueBalance
 
-                        let convertedCollateralFactor = UFix128(self.collateralFactor[type]!)
+                        let convertedCollateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
                         effectiveCollateral = effectiveCollateral + (value * convertedCollateralFactor)
 
-                    case BalanceDirection.Debit:
-                        let trueBalance = FlowALPv0.scaledBalanceToTrueBalance(
+                    case FlowALPModels.BalanceDirection.Debit:
+                        let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                             balance.scaledBalance,
-                            interestIndex: tokenState.debitInterestIndex
+                            interestIndex: tokenState.getDebitInterestIndex()
                         )
 
-                        let convertedPrice = UFix128(self.priceOracle.price(ofToken: type)!)
+                        let convertedPrice = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
                         let value = convertedPrice * trueBalance
 
-                        let convertedBorrowFactor = UFix128(self.borrowFactor[type]!)
+                        let convertedBorrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
                         effectiveDebt = effectiveDebt + (value / convertedBorrowFactor)
 
                 }
             }
 
-            return BalanceSheet(
+            return FlowALPModels.BalanceSheet(
                 effectiveCollateral: effectiveCollateral,
                 effectiveDebt: effectiveDebt
             )
@@ -3791,8 +2325,8 @@ access(all) contract FlowALPv0 {
         /// A convenience function that returns a reference to a particular token state, making sure it's up-to-date for
         /// the passage of time. This should always be used when accessing a token state to avoid missing interest
         /// updates (duplicate calls to updateForTimeChange() are a nop within a single block).
-        access(self) fun _borrowUpdatedTokenState(type: Type): auth(EImplementation) &TokenState {
-            let state = &self.globalLedger[type]! as auth(EImplementation) &TokenState
+        access(self) fun _borrowUpdatedTokenState(type: Type): auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState} {
+            let state = self.state.borrowTokenState(type)!
             state.updateForTimeChange()
             return state
         }
@@ -3807,98 +2341,95 @@ access(all) contract FlowALPv0 {
             
             // Collect insurance if swapper is configured
             // Ensure reserves exist for this token type
-            if self.reserves[tokenType] == nil {
+            if !self.state.hasReserve(tokenType) {
                 return
             }
 
             // Get reference to reserves
-            if let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?) {
+            if let reserveRef = self.state.borrowReserve(tokenType) {
                 // Collect insurance and get MOET vault
-                let oraclePrice = self.priceOracle.price(ofToken: tokenType)!
-                if let collectedMOET <- tokenState.collectInsurance(
+                let oraclePrice = self.config.getPriceOracle().price(ofToken: tokenType)!
+                if let collectedMOET <- self._collectInsurance(
+                    tokenState: tokenState,
                     reserveVault: reserveRef,
                     oraclePrice: oraclePrice,
-                    maxDeviationBps: self.dexOracleDeviationBps
+                    maxDeviationBps: self.config.getDexOracleDeviationBps()
                 ) {
                     let collectedMOETBalance = collectedMOET.balance
                     // Deposit collected MOET into insurance fund
-                    self.insuranceFund.deposit(from: <-collectedMOET)
+                    self.state.depositToInsuranceFund(from: <-collectedMOET)
 
-                    emit InsuranceFeeCollected(
+                    FlowALPEvents.emitInsuranceFeeCollected(
                         poolUUID: self.uuid,
                         tokenType: tokenType.identifier,
                         insuranceAmount: collectedMOETBalance,
-                        collectionTime: tokenState.lastInsuranceCollectionTime
+                        collectionTime: tokenState.getLastInsuranceCollectionTime()
                     )
                 }
             }
         }
 
         /// Returns an authorized reference to the requested InternalPosition or `nil` if the position does not exist
-        access(self) view fun _borrowPosition(pid: UInt64): auth(EImplementation) &InternalPosition {
-            return &self.positions[pid] as auth(EImplementation) &InternalPosition?
+        access(self) view fun _borrowPosition(pid: UInt64): auth(FlowALPModels.EImplementation) &{FlowALPModels.InternalPosition} {
+            return &self.positions[pid] as auth(FlowALPModels.EImplementation) &{FlowALPModels.InternalPosition}?
                 ?? panic("Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool")
         }
 
-        /// Returns an authorized reference to the InternalPosition for the given position ID.
+        /// Returns a reference to the InternalPosition for the given position ID.
         /// Used by Position resources to directly access their InternalPosition.
-        access(EPosition) view fun borrowPosition(pid: UInt64): auth(EImplementation) &InternalPosition {
+        access(FlowALPModels.EPosition) view fun borrowPosition(pid: UInt64): auth(FlowALPModels.EImplementation) &{FlowALPModels.InternalPosition} {
             return self._borrowPosition(pid: pid)
         }
 
         /// Build a PositionView for the given position ID.
-        access(all) fun buildPositionView(pid: UInt64): FlowALPv0.PositionView {
+        access(all) fun buildPositionView(pid: UInt64): FlowALPModels.PositionView {
             let position = self._borrowPosition(pid: pid)
-            let snaps: {Type: FlowALPv0.TokenSnapshot} = {}
+            let snaps: {Type: FlowALPModels.TokenSnapshot} = {}
             let balancesCopy = position.copyBalances()
-            for t in position.balances.keys {
+            for t in position.getBalanceKeys() {
                 let tokenState = self._borrowUpdatedTokenState(type: t)
-                snaps[t] = FlowALPv0.TokenSnapshot(
-                    price: UFix128(self.priceOracle.price(ofToken: t)!),
-                    credit: tokenState.creditInterestIndex,
-                    debit: tokenState.debitInterestIndex,
-                    risk: FlowALPv0.RiskParams(
-                        collateralFactor: UFix128(self.collateralFactor[t]!),
-                        borrowFactor: UFix128(self.borrowFactor[t]!),
+                snaps[t] = FlowALPModels.TokenSnapshot(
+                    price: UFix128(self.config.getPriceOracle().price(ofToken: t)!),
+                    credit: tokenState.getCreditInterestIndex(),
+                    debit: tokenState.getDebitInterestIndex(),
+                    risk: FlowALPModels.RiskParamsImplv1(
+                        collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: t)),
+                        borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: t)),
                     )
                 )
             }
-            return FlowALPv0.PositionView(
+            return FlowALPModels.PositionView(
                 balances: balancesCopy,
                 snapshots: snaps,
-                defaultToken: self.defaultToken,
-                min: position.minHealth,
-                max: position.maxHealth
+                defaultToken: self.state.getDefaultToken(),
+                min: position.getMinHealth(),
+                max: position.getMaxHealth()
             )
         }
 
-        access(EGovernance) fun setPriceOracle(_ newOracle: {DeFiActions.PriceOracle}) {
-            pre {
-                newOracle.unitOfAccount() == self.defaultToken:
-                    "Price oracle must return prices in terms of the pool's default token"
-            }
-            self.priceOracle = newOracle
-            self.positionsNeedingUpdates = self.positions.keys
+        access(FlowALPModels.EGovernance) fun setPriceOracle(_ newOracle: {DeFiActions.PriceOracle}) {
+            self.config.setPriceOracle(newOracle, defaultToken: self.state.getDefaultToken())
+            self.state.setPositionsNeedingUpdates(self.positions.keys)
 
-            emit PriceOracleUpdated(
+            FlowALPEvents.emitPriceOracleUpdated(
                 poolUUID: self.uuid,
                 newOracleType: newOracle.getType().identifier
             )
         }
 
         access(all) fun getDefaultToken(): Type {
-            return self.defaultToken
+            return self.state.getDefaultToken()
         }
         
         /// Returns the deposit capacity and deposit capacity cap for a given token type
         access(all) fun getDepositCapacityInfo(type: Type): {String: UFix64} {
             let tokenState = self._borrowUpdatedTokenState(type: type)
             return {
-                "depositCapacity": tokenState.depositCapacity,
-                "depositCapacityCap": tokenState.depositCapacityCap,
-                "depositRate": tokenState.depositRate,
-                "depositLimitFraction": tokenState.depositLimitFraction,
-                "lastDepositCapacityUpdate": tokenState.lastDepositCapacityUpdate
+                "depositCapacity": tokenState.getDepositCapacity(),
+                "depositCapacityCap": tokenState.getDepositCapacityCap(),
+                "depositRate": tokenState.getDepositRate(),
+                "depositLimitFraction": tokenState.getDepositLimitFraction(),
+                "lastDepositCapacityUpdate": tokenState.getLastDepositCapacityUpdate()
             }
         }
     }
@@ -3939,7 +2470,7 @@ access(all) contract FlowALPv0 {
     /// From a Position, a user can deposit and withdraw funds as well as construct DeFiActions components enabling
     /// value flows in and out of the Position from within the context of DeFiActions stacks.
     /// Unauthorized Position references allow depositing only, and are considered safe to publish.
-    /// The EPositionAdmin entitlement protects sensitive withdrawal and configuration methods.
+    /// The FlowALPModels.EPositionAdmin entitlement protects sensitive withdrawal and configuration methods.
     ///
     /// Position resources are held in user accounts and provide access to one position (by pid).
     /// Clients are recommended to use PositionManager to manage access to Positions.
@@ -3950,11 +2481,11 @@ access(all) contract FlowALPv0 {
         access(all) let id: UInt64
 
         /// An authorized Capability to the Pool for which this Position was opened.
-        access(self) let pool: Capability<auth(EPosition) &Pool>
+        access(self) let pool: Capability<auth(FlowALPModels.EPosition) &Pool>
 
         init(
             id: UInt64,
-            pool: Capability<auth(EPosition) &Pool>
+            pool: Capability<auth(FlowALPModels.EPosition) &Pool>
         ) {
             pre {
                 pool.check():
@@ -3965,7 +2496,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Returns the balances (both positive and negative) for all tokens in this position.
-        access(all) fun getBalances(): [PositionBalance] {
+        access(all) fun getBalances(): [FlowALPModels.PositionBalance] {
             let pool = self.pool.borrow()!
             return pool.getPositionDetails(pid: self.id).balances
         }
@@ -3989,11 +2520,11 @@ access(all) contract FlowALPv0 {
         access(all) fun getTargetHealth(): UFix64 {
             let pool = self.pool.borrow()!
             let pos = pool.borrowPosition(pid: self.id)
-            return FlowALPMath.toUFix64Round(pos.targetHealth)
+            return FlowALPMath.toUFix64Round(pos.getTargetHealth())
         }
 
         /// Sets the target health of the Position
-        access(EPositionAdmin) fun setTargetHealth(targetHealth: UFix64) {
+        access(FlowALPModels.EPositionAdmin) fun setTargetHealth(targetHealth: UFix64) {
             let pool = self.pool.borrow()!
             let pos = pool.borrowPosition(pid: self.id)
             pos.setTargetHealth(UFix128(targetHealth))
@@ -4003,11 +2534,11 @@ access(all) contract FlowALPv0 {
         access(all) fun getMinHealth(): UFix64 {
             let pool = self.pool.borrow()!
             let pos = pool.borrowPosition(pid: self.id)
-            return FlowALPMath.toUFix64Round(pos.minHealth)
+            return FlowALPMath.toUFix64Round(pos.getMinHealth())
         }
 
         /// Sets the minimum health of the Position
-        access(EPositionAdmin) fun setMinHealth(minHealth: UFix64) {
+        access(FlowALPModels.EPositionAdmin) fun setMinHealth(minHealth: UFix64) {
             let pool = self.pool.borrow()!
             let pos = pool.borrowPosition(pid: self.id)
             pos.setMinHealth(UFix128(minHealth))
@@ -4017,11 +2548,11 @@ access(all) contract FlowALPv0 {
         access(all) fun getMaxHealth(): UFix64 {
             let pool = self.pool.borrow()!
             let pos = pool.borrowPosition(pid: self.id)
-            return FlowALPMath.toUFix64Round(pos.maxHealth)
+            return FlowALPMath.toUFix64Round(pos.getMaxHealth())
         }
 
         /// Sets the maximum health of the position
-        access(EPositionAdmin) fun setMaxHealth(maxHealth: UFix64) {
+        access(FlowALPModels.EPositionAdmin) fun setMaxHealth(maxHealth: UFix64) {
             let pool = self.pool.borrow()!
             let pos = pool.borrowPosition(pid: self.id)
             pos.setMaxHealth(UFix128(maxHealth))
@@ -4155,7 +2686,7 @@ access(all) contract FlowALPv0 {
         /// configured for the pool. Providing a new sink will replace the existing sink.
         ///
         /// Pass nil to configure the position to not push tokens when the Position exceeds its maximum health.
-        access(EPositionAdmin) fun provideSink(sink: {DeFiActions.Sink}?) {
+        access(FlowALPModels.EPositionAdmin) fun provideSink(sink: {DeFiActions.Sink}?) {
             let pool = self.pool.borrow()!
             pool.lockPosition(self.id)
             let pos = pool.borrowPosition(pid: self.id)
@@ -4171,7 +2702,7 @@ access(all) contract FlowALPv0 {
         /// configured for the pool. Providing a new source will replace the existing source.
         ///
         /// Pass nil to configure the position to not pull tokens.
-        access(EPositionAdmin) fun provideSource(source: {DeFiActions.Source}?) {
+        access(FlowALPModels.EPositionAdmin) fun provideSource(source: {DeFiActions.Source}?) {
             let pool = self.pool.borrow()!
             pool.lockPosition(self.id)
             let pos = pool.borrowPosition(pid: self.id)
@@ -4187,7 +2718,7 @@ access(all) contract FlowALPv0 {
         /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
-        access(EPosition | ERebalance) fun rebalance(force: Bool) {
+        access(FlowALPModels.EPosition | FlowALPModels.ERebalance) fun rebalance(force: Bool) {
             let pool = self.pool.borrow()!
             pool.rebalancePosition(pid: self.id, force: force)
         }
@@ -4208,7 +2739,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Adds a new position to the manager.
-        access(EPositionAdmin) fun addPosition(position: @Position) {
+        access(FlowALPModels.EPositionAdmin) fun addPosition(position: @Position) {
             let pid = position.id
             let old <- self.positions[pid] <- position
             if old != nil {
@@ -4218,7 +2749,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Removes and returns a position from the manager.
-        access(EPositionAdmin) fun removePosition(pid: UInt64): @Position {
+        access(FlowALPModels.EPositionAdmin) fun removePosition(pid: UInt64): @Position {
             if let position <- self.positions.remove(key: pid) {
                 return <-position
             }
@@ -4227,8 +2758,8 @@ access(all) contract FlowALPv0 {
 
         /// Internal method that returns a reference to a position authorized with all entitlements.
         /// Callers who wish to provide a partially authorized reference can downcast the result as needed.
-        access(EPositionAdmin) fun borrowAuthorizedPosition(pid: UInt64): auth(FungibleToken.Withdraw, EPositionAdmin) &Position {
-            return (&self.positions[pid] as auth(FungibleToken.Withdraw, EPositionAdmin) &Position?)
+        access(FlowALPModels.EPositionAdmin) fun borrowAuthorizedPosition(pid: UInt64): auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &Position {
+            return (&self.positions[pid] as auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &Position?)
                 ?? panic("Position with pid=\(pid) not found in PositionManager")
         }
 
@@ -4260,7 +2791,7 @@ access(all) contract FlowALPv0 {
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
 
         /// An authorized Capability on the Pool for which the related Position is in
-        access(self) let pool: Capability<auth(EPosition) &Pool>
+        access(self) let pool: Capability<auth(FlowALPModels.EPosition) &Pool>
 
         /// The ID of the position in the Pool
         access(self) let positionID: UInt64
@@ -4274,7 +2805,7 @@ access(all) contract FlowALPv0 {
 
         init(
             id: UInt64,
-            pool: Capability<auth(EPosition) &Pool>,
+            pool: Capability<auth(FlowALPModels.EPosition) &Pool>,
             type: Type,
             pushToDrawDownSink: Bool
         ) {
@@ -4334,7 +2865,7 @@ access(all) contract FlowALPv0 {
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
 
         /// An authorized Capability on the Pool for which the related Position is in
-        access(self) let pool: Capability<auth(EPosition) &Pool>
+        access(self) let pool: Capability<auth(FlowALPModels.EPosition) &Pool>
 
         /// The ID of the position in the Pool
         access(self) let positionID: UInt64
@@ -4348,7 +2879,7 @@ access(all) contract FlowALPv0 {
 
         init(
             id: UInt64,
-            pool: Capability<auth(EPosition) &Pool>,
+            pool: Capability<auth(FlowALPModels.EPosition) &Pool>,
             type: Type,
             pullFromTopUpSource: Bool
         ) {
@@ -4419,151 +2950,6 @@ access(all) contract FlowALPv0 {
         access(contract) fun setID(_ id: DeFiActions.UniqueIdentifier?) {
             self.uniqueID = id
         }
-    }
-
-    /// BalanceDirection
-    ///
-    /// The direction of a given balance
-    access(all) enum BalanceDirection: UInt8 {
-
-        /// Denotes that a balance that is withdrawable from the protocol
-        access(all) case Credit
-
-        /// Denotes that a balance that is due to the protocol
-        access(all) case Debit
-    }
-
-    /// PositionBalance
-    ///
-    /// A structure returned externally to report a position's balance for a particular token.
-    /// This structure is NOT used internally.
-    access(all) struct PositionBalance {
-
-        /// The token type for which the balance details relate to
-        access(all) let vaultType: Type
-
-        /// Whether the balance is a Credit or Debit
-        access(all) let direction: BalanceDirection
-
-        /// The balance of the token for the related Position
-        access(all) let balance: UFix64
-
-        init(
-            vaultType: Type,
-            direction: BalanceDirection,
-            balance: UFix64
-        ) {
-            self.vaultType = vaultType
-            self.direction = direction
-            self.balance = balance
-        }
-    }
-
-    /// PositionDetails
-    ///
-    /// A structure returned externally to report all of the details associated with a position.
-    /// This structure is NOT used internally.
-    access(all) struct PositionDetails {
-
-        /// Balance details about each Vault Type deposited to the related Position
-        access(all) let balances: [PositionBalance]
-
-        /// The default token Type of the Pool in which the related position is held
-        access(all) let poolDefaultToken: Type
-
-        /// The available balance of the Pool's default token Type
-        access(all) let defaultTokenAvailableBalance: UFix64
-
-        /// The current health of the related position
-        access(all) let health: UFix128
-
-        init(
-            balances: [PositionBalance],
-            poolDefaultToken: Type,
-            defaultTokenAvailableBalance: UFix64,
-            health: UFix128
-        ) {
-            self.balances = balances
-            self.poolDefaultToken = poolDefaultToken
-            self.defaultTokenAvailableBalance = defaultTokenAvailableBalance
-            self.health = health
-        }
-    }
-
-    /* --- PUBLIC METHODS ---- */
-
-    /// Checks that the DEX price does not deviate from the oracle price by more than the given threshold.
-    /// The deviation is computed as the absolute difference divided by the smaller price, expressed in basis points.
-    access(all) view fun dexOraclePriceDeviationInRange(dexPrice: UFix64, oraclePrice: UFix64, maxDeviationBps: UInt16): Bool {
-        let diff: UFix64 = dexPrice < oraclePrice ? oraclePrice - dexPrice : dexPrice - oraclePrice
-        let diffPct: UFix64 = dexPrice < oraclePrice ? diff / dexPrice : diff / oraclePrice
-        let diffBps = UInt16(diffPct * 10_000.0)
-        return diffBps <= maxDeviationBps
-    }
-
-    /// Returns a health value computed from the provided effective collateral and debt values
-    /// where health is a ratio of effective collateral over effective debt
-    access(all) view fun healthComputation(effectiveCollateral: UFix128, effectiveDebt: UFix128): UFix128 {
-        if effectiveDebt == 0.0 {
-            // Handles X/0 (infinite) including 0/0 (safe empty position)
-            return UFix128.max
-        }
-
-        if effectiveCollateral == 0.0 {
-            // 0/Y where Y > 0 is 0 health (unsafe)
-            return 0.0
-        }
-
-        if (effectiveDebt / effectiveCollateral) == 0.0 {
-            // Negligible debt relative to collateral: treat as infinite
-            return UFix128.max
-        }
-
-        return effectiveCollateral / effectiveDebt
-    }
-
-    // Converts a yearly interest rate to a per-second multiplication factor (stored in a UFix128 as a fixed point
-    // number with 18 decimal places). The input to this function will be just the relative annual interest rate
-    // (e.g. 0.05 for 5% interest), and the result will be the per-second multiplier (e.g. 1.000000000001).
-    access(all) view fun perSecondInterestRate(yearlyRate: UFix128): UFix128 {
-        let perSecondScaledValue = yearlyRate / 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
-        assert(
-            perSecondScaledValue < UFix128.max,
-            message: "Per-second interest rate \(perSecondScaledValue) is too high"
-        )
-        return perSecondScaledValue + 1.0
-    }
-
-    /// Returns the compounded interest index reflecting the passage of time
-    /// The result is: newIndex = oldIndex * perSecondRate ^ seconds
-    access(all) view fun compoundInterestIndex(
-        oldIndex: UFix128,
-        perSecondRate: UFix128,
-        elapsedSeconds: UFix64
-    ): UFix128 {
-        // Exponentiation by squaring on UFix128 for performance and precision
-        let pow = FlowALPMath.powUFix128(perSecondRate, elapsedSeconds)
-        return oldIndex * pow
-    }
-
-    /// Transforms the provided `scaledBalance` to a true balance (or actual balance)
-    /// where the true balance is the scaledBalance + accrued interest
-    /// and the scaled balance is the amount a borrower has actually interacted with (via deposits or withdrawals)
-    access(all) view fun scaledBalanceToTrueBalance(
-        _ scaled: UFix128,
-        interestIndex: UFix128
-    ): UFix128 {
-        return scaled * interestIndex
-    }
-
-    /// Transforms the provided `trueBalance` to a scaled balance
-    /// where the scaled balance is the amount a borrower has actually interacted with (via deposits or withdrawals)
-    /// and the true balance is the amount with respect to accrued interest
-    access(all) view fun trueBalanceToScaledBalance(
-        _ trueBalance: UFix128,
-        interestIndex: UFix128
-    ): UFix128 {
-        return trueBalance / interestIndex
     }
 
     /* --- INTERNAL METHODS --- */

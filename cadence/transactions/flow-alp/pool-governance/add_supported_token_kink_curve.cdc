@@ -1,7 +1,9 @@
 import "FlowALPv0"
+import "FlowALPModels"
+import "FlowALPInterestRates"
 
 /// Adds a token type as supported to the stored pool with a kink interest curve.
-/// This uses KinkInterestCurve for utilization-based variable interest rates,
+/// This uses KinkCurve for utilization-based variable interest rates,
 /// modeled after Aave v3's DefaultReserveInterestRateStrategyV2.
 ///
 transaction(
@@ -16,12 +18,12 @@ transaction(
     depositCapacityCap: UFix64
 ) {
     let tokenType: Type
-    let pool: auth(FlowALPv0.EGovernance) &FlowALPv0.Pool
+    let pool: auth(FlowALPModels.EGovernance) &FlowALPv0.Pool
 
     prepare(signer: auth(BorrowValue) &Account) {
         self.tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier \(tokenTypeIdentifier)")
-        self.pool = signer.storage.borrow<auth(FlowALPv0.EGovernance) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
+        self.pool = signer.storage.borrow<auth(FlowALPModels.EGovernance) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
             ?? panic("Could not borrow reference to Pool from \(FlowALPv0.PoolStoragePath) - ensure a Pool has been configured")
     }
 
@@ -30,7 +32,7 @@ transaction(
             tokenType: self.tokenType,
             collateralFactor: collateralFactor,
             borrowFactor: borrowFactor,
-            interestCurve: FlowALPv0.KinkInterestCurve(
+            interestCurve: FlowALPInterestRates.KinkCurve(
                 optimalUtilization: optimalUtilization,
                 baseRate: baseRate,
                 slope1: slope1,
