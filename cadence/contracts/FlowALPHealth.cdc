@@ -11,7 +11,8 @@ access(all) contract FlowALPHealth {
         withdrawPrice: UFix128,
         withdrawBorrowFactor: UFix128,
         withdrawCollateralFactor: UFix128,
-        withdrawCreditInterestIndex: UFix128
+        withdrawCreditInterestIndex: UFix128,
+        isDebugLogging: Bool
     ): FlowALPModels.BalanceSheet {
         var effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral
         var effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt
@@ -21,6 +22,10 @@ access(all) contract FlowALPHealth {
                 effectiveCollateral: effectiveCollateralAfterWithdrawal,
                 effectiveDebt: effectiveDebtAfterWithdrawal
             )
+        }
+        if isDebugLogging {
+            log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
+            log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
         }
 
         let withdrawAmountU = UFix128(withdrawAmount)
@@ -75,10 +80,15 @@ access(all) contract FlowALPHealth {
         depositCollateralFactor: UFix128,
         effectiveCollateral: UFix128,
         effectiveDebt: UFix128,
-        targetHealth: UFix128
+        targetHealth: UFix128,
+        isDebugLogging: Bool
     ): UFix64 {
         let effectiveCollateralAfterWithdrawal = effectiveCollateral
         var effectiveDebtAfterWithdrawal = effectiveDebt
+        if isDebugLogging {
+            log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
+            log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
+        }
 
         // We now have new effective collateral and debt values that reflect the proposed withdrawal (if any!)
         // Now we can figure out how many of the given token would need to be deposited to bring the position
@@ -87,6 +97,9 @@ access(all) contract FlowALPHealth {
             effectiveCollateral: effectiveCollateralAfterWithdrawal,
             effectiveDebt: effectiveDebtAfterWithdrawal
         )
+        if isDebugLogging {
+            log("    [CONTRACT] healthAfterWithdrawal: \(healthAfterWithdrawal)")
+        }
 
         if healthAfterWithdrawal >= targetHealth {
             // The position is already at or above the target health, so we don't need to deposit anything.
@@ -130,6 +143,9 @@ access(all) contract FlowALPHealth {
 
                 // The amount of the token to pay back, in units of the token.
                 let paybackAmount = (requiredEffectiveDebt * depositBorrowFactor) / depositPrice
+                if isDebugLogging {
+                    log("    [CONTRACT] paybackAmount: \(paybackAmount)")
+                }
 
                 return FlowALPMath.toUFix64RoundUp(paybackAmount)
             } else {
@@ -162,6 +178,12 @@ access(all) contract FlowALPHealth {
 
         // The amount of the token to deposit, in units of the token.
         let collateralTokenCount = requiredEffectiveCollateral / depositPrice
+        if isDebugLogging {
+            log("    [CONTRACT] requiredEffectiveCollateral: \(requiredEffectiveCollateral)")
+            log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
+            log("    [CONTRACT] debtTokenCount: \(debtTokenCount)")
+            log("    [CONTRACT] collateralTokenCount + debtTokenCount: \(collateralTokenCount) + \(debtTokenCount) = \(collateralTokenCount + debtTokenCount)")
+        }
 
         // debtTokenCount is the number of tokens that went towards debt, zero if there was no debt.
         return FlowALPMath.toUFix64Round(collateralTokenCount + debtTokenCount)
@@ -175,10 +197,15 @@ access(all) contract FlowALPHealth {
         depositPrice: UFix128,
         depositBorrowFactor: UFix128,
         depositCollateralFactor: UFix128,
-        depositDebitInterestIndex: UFix128
+        depositDebitInterestIndex: UFix128,
+        isDebugLogging: Bool
     ): FlowALPModels.BalanceSheet {
         var effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral
         var effectiveDebtAfterDeposit = balanceSheet.effectiveDebt
+        if isDebugLogging {
+            log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
+            log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
+        }
 
         if depositAmount == 0.0 {
             return FlowALPModels.BalanceSheet(
@@ -209,6 +236,9 @@ access(all) contract FlowALPHealth {
                     scaledBalance,
                     interestIndex: depositDebitInterestIndex
                 )
+                if isDebugLogging {
+                    log("    [CONTRACT] trueDebt: \(trueDebt)")
+                }
 
                 if trueDebt >= depositAmountCasted {
                     // This deposit will pay down some debt, but won't result in net collateral, we
@@ -224,6 +254,10 @@ access(all) contract FlowALPHealth {
                     effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral +
                         (depositAmountCasted - trueDebt) * depositPriceCasted * depositCollateralFactorCasted
                 }
+        }
+        if isDebugLogging {
+            log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
+            log("    [CONTRACT] effectiveDebtAfterDeposit: \(effectiveDebtAfterDeposit)")
         }
 
         // We now have new effective collateral and debt values that reflect the proposed deposit (if any!).
@@ -245,7 +279,8 @@ access(all) contract FlowALPHealth {
         withdrawBorrowFactor: UFix128,
         effectiveCollateral: UFix128,
         effectiveDebt: UFix128,
-        targetHealth: UFix128
+        targetHealth: UFix128,
+        isDebugLogging: Bool
     ): UFix64 {
         var effectiveCollateralAfterDeposit = effectiveCollateral
         let effectiveDebtAfterDeposit = effectiveDebt
@@ -254,6 +289,9 @@ access(all) contract FlowALPHealth {
             effectiveCollateral: effectiveCollateralAfterDeposit,
             effectiveDebt: effectiveDebtAfterDeposit
         )
+        if isDebugLogging {
+            log("    [CONTRACT] healthAfterDeposit: \(healthAfterDeposit)")
+        }
 
         if healthAfterDeposit <= targetHealth {
             // The position is already at or below the provided target health, so we can't withdraw anything.
@@ -288,9 +326,15 @@ access(all) contract FlowALPHealth {
                 // We will hit the health target before using up all available withdraw credit.
 
                 let availableEffectiveValue = effectiveCollateralAfterDeposit - (targetHealth * effectiveDebtAfterDeposit)
+                if isDebugLogging {
+                    log("    [CONTRACT] availableEffectiveValue: \(availableEffectiveValue)")
+                }
 
                 // The amount of the token we can take using that amount of health
                 let availableTokenCount = (availableEffectiveValue / withdrawCollateralFactor) / withdrawPrice
+                if isDebugLogging {
+                    log("    [CONTRACT] availableTokenCount: \(availableTokenCount)")
+                }
 
                 return FlowALPMath.toUFix64RoundDown(availableTokenCount)
             } else {
@@ -299,10 +343,19 @@ access(all) contract FlowALPHealth {
                 // with an added handling for the case where the health after deposit is an edgecase
                 collateralTokenCount = trueCredit
                 effectiveCollateralAfterDeposit = effectiveCollateralAfterDeposit - collateralEffectiveValue
+                if isDebugLogging {
+                    log("    [CONTRACT] collateralTokenCount: \(collateralTokenCount)")
+                    log("    [CONTRACT] effectiveCollateralAfterDeposit: \(effectiveCollateralAfterDeposit)")
+                }
 
                 // We can calculate the available debt increase that would bring us to the target health
                 let availableDebtIncrease = (effectiveCollateralAfterDeposit / targetHealth) - effectiveDebtAfterDeposit
                 let availableTokens = (availableDebtIncrease * withdrawBorrowFactor) / withdrawPrice
+                if isDebugLogging {
+                    log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
+                    log("    [CONTRACT] availableTokens: \(availableTokens)")
+                    log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
+                }
 
                 return FlowALPMath.toUFix64RoundDown(availableTokens + collateralTokenCount)
             }
@@ -314,6 +367,11 @@ access(all) contract FlowALPHealth {
         // We can calculate the available debt increase that would bring us to the target health
         let availableDebtIncrease = (effectiveCollateralAfterDeposit / targetHealth) - effectiveDebtAfterDeposit
         let availableTokens = (availableDebtIncrease * withdrawBorrowFactor) / withdrawPrice
+        if isDebugLogging {
+            log("    [CONTRACT] availableDebtIncrease: \(availableDebtIncrease)")
+            log("    [CONTRACT] availableTokens: \(availableTokens)")
+            log("    [CONTRACT] availableTokens + collateralTokenCount: \(availableTokens + collateralTokenCount)")
+        }
 
         return FlowALPMath.toUFix64RoundDown(availableTokens + collateralTokenCount)
     }
