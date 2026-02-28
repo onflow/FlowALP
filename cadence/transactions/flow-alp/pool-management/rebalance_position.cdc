@@ -1,5 +1,4 @@
 import "FlowALPv0"
-import "FlowALPModels"
 
 /// Rebalances a FlowALPv0 position by it's Position ID with the provided `force` value
 ///
@@ -8,10 +7,10 @@ import "FlowALPModels"
 ///     the position is beyond its min/max health. If `true`, the rebalance executes regardless of its relative health.
 ///
 transaction(pid: UInt64, force: Bool) {
-    let pool: auth(FlowALPModels.EPosition) &FlowALPv0.Pool
+    let pool: auth(FlowALPv0.EPosition) &FlowALPv0.Pool
 
     prepare(signer: auth(BorrowValue) &Account) {
-        self.pool = signer.storage.borrow<auth(FlowALPModels.EPosition) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
+        self.pool = signer.storage.borrow<auth(FlowALPv0.EPosition) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
             ?? panic("Could not borrow reference to Pool from \(FlowALPv0.PoolStoragePath) - ensure a Pool has been configured")
     }
     

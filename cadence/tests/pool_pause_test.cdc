@@ -3,7 +3,6 @@ import BlockchainHelpers
 
 import "MOET"
 import "FlowALPv0"
-import "FlowALPEvents"
 import "test_helpers.cdc"
 
 access(all) var snapshot: UInt64 = 0
@@ -57,7 +56,7 @@ fun test_pool_pause_deposit_withdrawal() {
     // Pause the pool
     let pauseRes = setPoolPauseState(signer: PROTOCOL_ACCOUNT, pause: true)
     Test.expect(pauseRes, Test.beSucceeded())
-    let pauseEvents = Test.eventsOfType(Type<FlowALPEvents.PoolPaused>())
+    let pauseEvents = Test.eventsOfType(Type<FlowALPv0.PoolPaused>())
     Test.expect(pauseEvents.length, Test.equal(1))
     // ---------------------------------------------------------
 
@@ -89,7 +88,7 @@ fun test_pool_pause_deposit_withdrawal() {
     // Unpause the pool
     let unpauseRes = setPoolPauseState(signer: PROTOCOL_ACCOUNT, pause: false)
     Test.expect(unpauseRes, Test.beSucceeded())
-    let unpauseEvents = Test.eventsOfType(Type<FlowALPEvents.PoolUnpaused>())
+    let unpauseEvents = Test.eventsOfType(Type<FlowALPv0.PoolUnpaused>())
     Test.expect(unpauseEvents.length, Test.equal(1))
     // ---------------------------------------------------------
 
