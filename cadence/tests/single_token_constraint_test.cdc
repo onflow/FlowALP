@@ -83,11 +83,18 @@ fun testCannotAddSecondCollateralType() {
     log("=== Test Passed: Cannot Add Second Collateral Type ===\n")
 }
 
-/// Test that a position with MOET debt cannot borrow FLOW
+/// Test that with MOET collateral and FLOW debt, borrowing MOET draws from Credit (not Debit).
+///
+/// In the two-token case (FLOW + MOET), the single-debt-type constraint cannot be directly
+/// triggered via a healthy position because health checks always prevent the Credit-to-Debit
+/// flip scenario. When a user has MOET collateral (Credit) and FLOW debt (Debit), "borrowing"
+/// MOET simply reduces the existing MOET Credit — it does NOT create a second Debit entry.
+/// The 3-token test (debt_type_constraint_three_token_test.cdc) covers the full constraint
+/// using a neutral DummyToken collateral.
 access(all)
 fun testCannotAddSecondDebtType() {
     Test.reset(to: snapshot)
-    log("=== Test: Cannot Add Second Debt Type ===")
+    log("=== Test: Borrowing Collateral Token Reduces Credit, Not Creates Second Debit ===")
 
     // Create user1 with FLOW to provide reserves
     let user1 = Test.createAccount()
@@ -131,24 +138,35 @@ fun testCannotAddSecondDebtType() {
     )
     log("✓ User2 borrowed 300 FLOW (first debt type, from reserves)")
 
-    // Verify position has FLOW debt
-    let details = getPositionDetails(pid: pid, beFailed: false)
+    // Capture MOET Credit before the next operation
+    var details = getPositionDetails(pid: pid, beFailed: false)
     let flowDebt = getDebitBalanceForType(details: details, vaultType: CompositeType(FLOW_TOKEN_IDENTIFIER)!)
+    let moetCreditBefore = getCreditBalanceForType(details: details, vaultType: CompositeType(MOET_TOKEN_IDENTIFIER)!)
     Test.assert(flowDebt > 0.0, message: "Position should have FLOW debt")
     log("✓ Position has FLOW debt: ".concat(flowDebt.toString()))
+    log("✓ MOET Credit before: ".concat(moetCreditBefore.toString()))
 
-    // Try to borrow MOET (second debt type) - should FAIL
-    // This creates MOET debt via minting, different from FLOW debt
+    // Borrowing MOET when user already has MOET collateral (Credit) draws from that Credit —
+    // it does NOT create MOET Debit and therefore does NOT violate the single-debt-type rule.
     borrowFromPosition(
         signer: user2,
         positionId: pid,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         amount: 200.0,
-        beFailed: true  // Expect failure
+        beFailed: false  // SUCCEEDS: draws from existing MOET Credit, no new Debit created
     )
-    log("✓ Borrowing MOET after FLOW correctly failed")
+    log("✓ Borrowing MOET drew from MOET Credit (no second Debit created)")
 
-    log("=== Test Passed: Cannot Add Second Debt Type ===\n")
+    // Verify: MOET Credit decreased, and no MOET Debit was created
+    details = getPositionDetails(pid: pid, beFailed: false)
+    let moetCreditAfter = getCreditBalanceForType(details: details, vaultType: CompositeType(MOET_TOKEN_IDENTIFIER)!)
+    let moetDebt = getDebitBalanceForType(details: details, vaultType: CompositeType(MOET_TOKEN_IDENTIFIER)!)
+    Test.assert(moetCreditAfter < moetCreditBefore, message: "MOET Credit should have decreased")
+    Test.assert(moetDebt == 0.0, message: "No MOET Debit should have been created")
+    log("✓ MOET Credit after: ".concat(moetCreditAfter.toString()).concat(" (decreased by 200)"))
+    log("✓ MOET Debit: ".concat(moetDebt.toString()).concat(" (no second debt type created)"))
+
+    log("=== Test Passed: Borrowing Collateral Token Reduces Credit, Not Creates Second Debit ===\n")
 }
 
 /// Test that a position with MOET collateral cannot add FLOW collateral
@@ -327,20 +345,17 @@ fun testCannotWithdrawCollateralBeyondBalanceWithDifferentDebt() {
     log("✓ Position has MOET collateral: ".concat(moetCredit.toString()))
     log("✓ Position has FLOW debt: ".concat(flowDebt.toString()))
 
-    // Now try to withdraw 200 MOET (more than the 100 collateral)
-    // This would flip MOET from Credit to Debit, creating MOET debt
-    // Should FAIL because we already have FLOW debt
-    withdrawFromPosition(
-        signer: user2,
-        positionId: pid,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
-        amount: 200.0,
-        pullFromTopUpSource: false
+    // Now try to withdraw 200 MOET (more than the 100 collateral).
+    // The contract prevents withdrawals beyond the Credit balance with
+    // "Insufficient funds for withdrawal" — you simply cannot over-withdraw.
+    let overWithdrawRes = executeTransaction(
+        "./transactions/position-manager/withdraw_from_position.cdc",
+        [pid, MOET_TOKEN_IDENTIFIER, 200.0, false],
+        user2
     )
-    // Note: This might succeed or fail depending on health constraints
-    // The actual constraint validation happens when Credit flips to Debit
+    Test.expect(overWithdrawRes, Test.beFailed())
+    log("✓ Over-withdrawal correctly failed (Insufficient funds — cannot withdraw beyond Credit balance)")
 
-    log("✓ Withdrawal attempt completed")
     log("=== Test Passed: Cannot Create Second Debt Type by Over-Withdrawing Collateral ===\n")
 }
 
