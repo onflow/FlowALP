@@ -3060,10 +3060,11 @@ access(all) contract FlowALPv0 {
         /// This is the ONLY close method - users must prepare repayment funds externally.
         /// This design eliminates circular dependencies and gives users full control over fund sourcing.
         ///
-        /// Overpayment Handling:
-        /// - If a repayment vault contains MORE than the debt amount, the excess is treated as a credit
-        /// - This overpayment credit is automatically withdrawn and returned to the user
-        /// - No epsilon tolerance: ALL debt must be exactly repaid (overpayment is okay, underpayment fails)
+        /// Overpayment Handling (Strict):
+        /// - Overpayment becomes a credit balance via _depositEffectsOnly
+        /// - Close withdraws ONLY the exact overpayment amount (not any pre-existing credits of debt token types)
+        /// - This prevents accidentally withdrawing unintended credits in debt token types
+        /// - No epsilon tolerance: ALL debt must be exactly repaid (overpayment okay, underpayment fails)
         ///
         /// Steps:
         /// 1. Analyzes position to find all debt and collateral types (read-only, no lock)
@@ -3114,9 +3115,8 @@ access(all) contract FlowALPv0 {
             self._lockPosition(pid)
 
             // Step 3: Process repayment vaults and compute overpayment directly
-            var totalRepaymentValue: UFix64 = 0.0
             let repaymentsByType: {Type: UFix64} = {}
-            let overpaymentsByType: {Type: UFix64} = {}  // Track overpayment per token (repaid - owed)
+            let overpaymentsByType: {Type: UFix64} = {}  // Track EXACT overpayment per token (repaid - owed)
 
             //  Consume all vaults from the array one by one
             while true {
@@ -3139,14 +3139,13 @@ access(all) contract FlowALPv0 {
                     let totalRepaid = currentAmount + balance
                     repaymentsByType[vaultType] = totalRepaid
 
-                    // Compute overpayment for this type
+                    // Compute EXACT overpayment for this type
                     let debtOwed = debtsByType[vaultType]!
                     if totalRepaid > debtOwed {
                         overpaymentsByType[vaultType] = totalRepaid - debtOwed
                     }
 
                     self._depositEffectsOnly(pid: pid, from: <-vault)
-                    totalRepaymentValue = totalRepaymentValue + balance
                 } else {
                     destroy vault
                 }
@@ -3169,32 +3168,45 @@ access(all) contract FlowALPv0 {
                 }
             }
 
-            // Step 5: Withdraw all collateral types + overpayment dust and track amounts by type
+            // Step 5: Withdraw all collateral + capped overpayment dust (deterministic order)
             let positionView = self.buildPositionView(pid: pid)
             let collateralVaults: @[{FungibleToken.Vault}] <- []
             let withdrawalsByType: {Type: UFix64} = {}  // Track all withdrawals (collateral + overpayment)
 
-            // Build deduplicated withdrawal types list (collateral + overpayment)
-            let withdrawalTypes: {Type: Bool} = {}  // Use as set for deduplication
+            // Build ORDERED, deduplicated withdrawal list:
+            // 1. Collateral types first (from position analysis)
+            // 2. Overpayment types second (if not already in collateral list)
+            let orderedWithdrawalTypes: [Type] = []
+            let seen: {Type: Bool} = {}
+
             for collateralType in collateralTypes {
-                withdrawalTypes[collateralType] = true
+                if seen[collateralType] == nil {
+                    orderedWithdrawalTypes.append(collateralType)
+                    seen[collateralType] = true
+                }
             }
             for overpaymentType in overpaymentsByType.keys {
-                withdrawalTypes[overpaymentType] = true
+                if seen[overpaymentType] == nil {
+                    orderedWithdrawalTypes.append(overpaymentType)
+                    seen[overpaymentType] = true
+                }
             }
 
-            for withdrawalType in withdrawalTypes.keys {
+            // Withdraw each type in deterministic order
+            for withdrawalType in orderedWithdrawalTypes {
                 let tokenBalance = positionView.trueBalance(ofToken: withdrawalType)
 
-                if tokenBalance == 0.0 {
-                    // No balance for this type - return empty vault
-                    collateralVaults.append(<- DeFiActionsUtils.getEmptyVault(withdrawalType))
-                    withdrawalsByType[withdrawalType] = 0.0
-                    continue
+                // Determine withdrawal amount:
+                // - For overpayment types: withdraw ONLY the overpayment amount (capped)
+                // - For collateral types: withdraw full balance
+                var withdrawAmount: UFix64 = 0.0
+                if overpaymentsByType.containsKey(withdrawalType) {
+                    // CAP to overpayment amount (don't withdraw pre-existing credits)
+                    withdrawAmount = overpaymentsByType[withdrawalType]!
+                } else if tokenBalance > 0.0 {
+                    // Full collateral withdrawal
+                    withdrawAmount = FlowALPMath.toUFix64RoundDown(tokenBalance)
                 }
-
-                // Determine withdrawal amount - withdraw all balance for this type
-                let withdrawAmount = FlowALPMath.toUFix64RoundDown(tokenBalance)
 
                 // Perform direct withdrawal while holding lock
                 if withdrawAmount > 0.0 {
