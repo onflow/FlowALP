@@ -3053,119 +3053,114 @@ access(all) contract FlowALPv0 {
             return <- withdrawn
         }
 
+        /// Helper function to process and consume repayment vaults array
+        /// Returns the total value deposited
+        access(self) fun _processRepaymentVaults(pid: UInt64, vaults: @[{FungibleToken.Vault}]): UFix64 {
+            var totalValue: UFix64 = 0.0
+            let count = vaults.length
+
+            var i = 0
+            while i < count {
+                let vault <- vaults.remove(at: 0)
+                let balance = vault.balance
+
+                if balance > 0.0 {
+                    self._depositEffectsOnly(pid: pid, from: <-vault)
+                    totalValue = totalValue + balance
+                } else {
+                    destroy vault
+                }
+                i = i + 1
+            }
+
+            destroy vaults
+            return totalValue
+        }
+
         /// Closes a position using the position's configured topUpSource for debt repayment.
         /// This is a convenience method that accesses the topUpSource directly.
-        /// Closes a position by repaying all debt with a pre-prepared vault and returning all collateral.
+        /// Closes a position by repaying all debts with pre-prepared vaults and returning all collateral.
         ///
         /// This is the ONLY close method - users must prepare repayment funds externally.
         /// This design eliminates circular dependencies and gives users full control over fund sourcing.
         ///
         /// Steps:
-        /// 1. Calculates total debt (read-only, no lock)
+        /// 1. Analyzes position to find all debt and collateral types (read-only, no lock)
         /// 2. Locks the position
-        /// 3. Deposits repayment vault to eliminate debt
+        /// 3. Deposits repayment vaults to eliminate debts
         /// 4. Verifies debt is fully repaid (near-zero)
-        /// 5. Withdraws ALL remaining collateral (including dust)
-        /// 6. Returns collateral vault
+        /// 5. Automatically withdraws ALL collateral types (including dust)
+        /// 6. Returns array of collateral vaults (one per collateral type found in position)
         ///
         /// @param pid: Position ID to close
-        /// @param repaymentVault: Vault containing funds to repay all debt (pass empty vault if no debt)
-        /// @param collateralType: Type of collateral to extract and return (e.g., FlowToken)
-        /// @return Vault containing all collateral including dust
+        /// @param repaymentVaults: Array of vaults containing funds to repay all debts (pass empty array if no debt)
+        /// @return Array of vaults containing all collateral (one vault per collateral type in the position)
         ///
         access(EPosition) fun closePosition(
             pid: UInt64,
-            repaymentVault: @{FungibleToken.Vault},
-            collateralType: Type
-        ): @{FungibleToken.Vault} {
-            pre {
-                !self.isPausedOrWarmup(): "Operations are paused by governance"
-                self.positions[pid] != nil: "Invalid position ID"
-            }
+            repaymentVaults: @[{FungibleToken.Vault}]
+        ): @[{FungibleToken.Vault}] {
             post {
                 self.positionLock[pid] == nil: "Position is not unlocked"
             }
 
+            // Manual validation (replacing pre conditions to avoid resource handling issues)
+            assert(!self.isPausedOrWarmup(), message: "Operations are paused by governance")
+            assert(self.positions[pid] != nil, message: "Invalid position ID")
+
             if self.debugLogging {
-                log("    [CONTRACT] closePosition(pid: \(pid), collateralType: \(collateralType.identifier))")
+                log("    [CONTRACT] closePosition(pid: \(pid), repaymentVaults: \(repaymentVaults.length))")
             }
 
-            // Step 1: Calculate total debt that needs to be repaid (NO LOCK NEEDED - read-only)
-            // Note: Debt is always MOET in this protocol
-            // Use standard position details which applies conservative rounding (UP for debits)
-            // to ensure protocol safety - we always require full repayment of debt
+            // Step 1: Analyze position to find all debt and collateral types
             let positionDetails = self.getPositionDetails(pid: pid)
-            var totalDebtAmount: UFix64 = 0.0
-            let debtType = Type<@MOET.Vault>()
+            let debtsByType: {Type: UFix64} = {}
+            let collateralTypes: [Type] = []
 
             for balance in positionDetails.balances {
                 if balance.direction == BalanceDirection.Debit {
-                    // Accumulate debt (balance is already UFix64 with conservative rounding applied)
-                    totalDebtAmount = totalDebtAmount + balance.balance
+                    let debtType = balance.vaultType
+                    let currentDebt = debtsByType[debtType] ?? 0.0
+                    debtsByType[debtType] = currentDebt + balance.balance
+                } else if balance.direction == BalanceDirection.Credit {
+                    // Track collateral types (only if they have a balance)
+                    if balance.balance > 0.0 {
+                        collateralTypes.append(balance.vaultType)
+                    }
                 }
             }
-
-            let actualRepayment = repaymentVault.balance
-            let repaymentType = repaymentVault.getType()
 
             // Step 2: Lock the position for all state modifications
             self._lockPosition(pid)
 
-            // Handle no-debt case
-            if totalDebtAmount == 0.0 {
-                // No debt - assert repayment vault is empty before destroying
-                assert(
-                    repaymentVault.balance == 0.0,
-                    message: "Position has no debt but repayment vault contains \(repaymentVault.balance) \(repaymentType.identifier). ".concat(
-                        "Either withdraw these funds or deposit them to the position separately.")
-                )
-                destroy repaymentVault
+            // Step 3: Process repayment vaults inline
+            var totalRepaymentValue: UFix64 = 0.0
+            let repaymentVaultsLength = repaymentVaults.length
 
-                let collateralBalance = self.buildPositionView(pid: pid).trueBalance(ofToken: collateralType)
-                let withdrawn <- self.withdrawAndPull(
-                    pid: pid,
-                    type: collateralType,
-                    amount: UFix64(collateralBalance),
-                    pullFromTopUpSource: false
-                )
-
-                emit PositionClosed(
-                    pid: pid,
-                    poolUUID: self.uuid,
-                    repaymentAmount: 0.0,
-                    repaymentType: collateralType,
-                    collateralAmount: withdrawn.balance,
-                    collateralType: collateralType,
-                    finalDebt: 0.0
-                )
-
-                self._unlockPosition(pid)
-                return <-withdrawn
+            //  Consume all vaults from the array one by one
+            while true {
+                if repaymentVaults.length == 0 {
+                    break
+                }
+                let vault <- repaymentVaults.removeLast()
+                let balance = vault.balance
+                if balance > 0.0 {
+                    self._depositEffectsOnly(pid: pid, from: <-vault)
+                    totalRepaymentValue = totalRepaymentValue + balance
+                } else {
+                    destroy vault
+                }
             }
 
-            // Step 3: Validate repayment vault and handle precision shortfalls
-            // Assert repayment vault is correct token type (MOET)
-            assert(
-                repaymentType == debtType,
-                message: "Repayment vault type mismatch. Expected: \(debtType.identifier), Got: \(repaymentType.identifier)"
-            )
+            // Array is now empty
+            destroy repaymentVaults
 
-            assert(
-                repaymentVault.balance >= totalDebtAmount,
-                message: "Repayment should cover full debt amount provided: \(repaymentVault.balance.toString()), required: \(totalDebtAmount.toString())"
-            )
-
-            // Step 4: Deposit repayment funds to eliminate debt (under lock)
-            // Note: _depositEffectsOnly consumes the entire vault
-            self._depositEffectsOnly(pid: pid, from: <-repaymentVault)
-
-            // Step 5: Verify debt is acceptably low (allow tolerance for overshoot scenarios)
+            // Step 4: Verify debt is acceptably low (allow tolerance for overshoot scenarios)
             let updatedDetails = self.getPositionDetails(pid: pid)
             var totalEffectiveDebt: UFix128 = 0.0
 
             for balance in updatedDetails.balances {
                 if balance.direction == BalanceDirection.Debit {
-                    // Calculate effective debt: (debit * price) / borrowFactor
                     let price = self.priceOracle.price(ofToken: balance.vaultType)
                         ?? panic("Price not available for token \(balance.vaultType.identifier)")
                     let borrowFactor = self.borrowFactor[balance.vaultType]
@@ -3180,140 +3175,81 @@ access(all) contract FlowALPv0 {
                 }
             }
 
-            // Step 6: Calculate how much collateral to return
-            // If there's remaining debt (e.g., from circular dependency), leave enough collateral to cover it
+            // Step 5: Withdraw all collateral types
             let positionView = self.buildPositionView(pid: pid)
-            let collateralBalance = positionView.trueBalance(ofToken: collateralType)
+            let collateralVaults: @[{FungibleToken.Vault}] <- []
+            var totalCollateralValue: UFix64 = 0.0
 
-            // Calculate collateral value needed to cover remaining debt
-            let collateralPrice = self.priceOracle.price(ofToken: collateralType)
-                ?? panic("Price not available for collateral \(collateralType.identifier)")
-            let collateralFactor = self.collateralFactor[collateralType]
-                ?? panic("Collateral factor not found for \(collateralType.identifier)")
+            for collateralType in collateralTypes {
+                let collateralBalance = positionView.trueBalance(ofToken: collateralType)
 
-            // Remaining debt in USD / (collateral price * collateral factor) = collateral needed
-            // Round UP to ensure protocol keeps enough collateral to cover debt
-            let collateralNeededRaw = totalEffectiveDebt / (UFix128(collateralPrice) * UFix128(collateralFactor))
-            let collateralNeededForDebt = FlowALPMath.toUFix64RoundUp(collateralNeededRaw)
-
-            // Total available collateral in position
-            let totalCollateralAvailable = UFix64(collateralBalance)
-
-            // If remaining debt requires more collateral than available, that's an error
-            assert(
-                collateralNeededForDebt <= totalCollateralAvailable,
-                message: "Insufficient collateral to cover remaining debt. Debt requires \(collateralNeededForDebt) collateral but only \(totalCollateralAvailable) available. ".concat(
-                    "Remaining debt: \(totalEffectiveDebt) USD. Please provide additional repayment funds.")
-            )
-
-            // Collateral to return = total collateral - collateral covering remaining debt
-            let collateralToReturn = totalCollateralAvailable - collateralNeededForDebt
-
-            // If there's no remaining debt, return all collateral
-            // If there is remaining debt, return reduced collateral (leaving debt coverage in position)
-            let withdrawableCollateral = totalEffectiveDebt > 0.0
-                ? collateralToReturn
-                : totalCollateralAvailable
-
-            assert(
-                withdrawableCollateral > 0.0,
-                message: "No collateral available to return. All collateral needed to cover remaining debt: \(totalEffectiveDebt) USD"
-            )
-
-            // Step 7: Withdraw collateral while maintaining position health
-            // IMPORTANT: Keep position locked throughout withdrawal to prevent race conditions
-            // Do NOT unlock before withdrawal - we do direct withdrawal while holding the lock
-
-            // Determine withdrawal amount based on remaining debt
-            var withdrawAmount: UFix64 = 0.0
-
-            if totalEffectiveDebt == 0.0 {
-                // No remaining debt - withdraw all collateral
-                // Round DOWN to ensure we never try to withdraw more than what's in the vault
-                // (UFix128→UFix64 conversion can introduce precision errors)
-                withdrawAmount = FlowALPMath.toUFix64RoundDown(positionView.trueBalance(ofToken: collateralType))
-            } else {
-                // Remaining debt exists - calculate safe withdrawal maintaining target health
-                let position = self._borrowPosition(pid: pid)
-                let targetHealth = position.targetHealth
-
-                // Calculate collateral needed to maintain target health:
-                // (collateralValue * collateralFactor) / (debtValue / borrowFactor) >= targetHealth
-                // collateralValue >= (targetHealth * debtValue) / (collateralFactor * borrowFactor)
-                // Debt is always MOET, so use MOET's borrow factor
-                let borrowFactor = self.borrowFactor[debtType] ?? 1.0
-
-                let minCollateralValue = UFix64(targetHealth) * UFix64(totalEffectiveDebt) / (collateralFactor * borrowFactor)
-                // Round UP to ensure protocol keeps enough collateral
-                let minCollateralAmountRaw = UFix128(minCollateralValue) / UFix128(collateralPrice)
-                let minCollateralAmount = FlowALPMath.toUFix64RoundUp(minCollateralAmountRaw)
-
-                // Get total collateral
-                let totalCollateral = UFix64(positionView.trueBalance(ofToken: collateralType))
-
-                // Withdraw total minus minimum
-                if totalCollateral > minCollateralAmount {
-                    withdrawAmount = totalCollateral - minCollateralAmount
-                } else {
-                    withdrawAmount = 0.0
+                if collateralBalance == 0.0 {
+                    // No balance for this collateral type - return empty vault
+                    collateralVaults.append(<- DeFiActionsUtils.getEmptyVault(collateralType))
+                    continue
                 }
-            }
 
-            // Perform direct withdrawal while holding lock (no health check needed for close)
-            var collateral: @{FungibleToken.Vault}? <- nil
+                // Calculate collateral price and factor
+                let collateralPrice = self.priceOracle.price(ofToken: collateralType)
+                    ?? panic("Price not available for collateral \(collateralType.identifier)")
 
-            if withdrawAmount > 0.0 {
-                let position = self._borrowPosition(pid: pid)
-                let tokenState = self._borrowUpdatedTokenState(type: collateralType)
-                let reserveVault = (&self.reserves[collateralType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                // Determine withdrawal amount - withdraw all collateral for this type
+                let withdrawAmount = FlowALPMath.toUFix64RoundDown(collateralBalance)
 
-                // Record withdrawal in position balance
-                if position.balances[collateralType] == nil {
-                    position.balances[collateralType] = InternalBalance(
-                        direction: BalanceDirection.Credit,
-                        scaledBalance: 0.0
+                // Perform direct withdrawal while holding lock
+                if withdrawAmount > 0.0 {
+                    let position = self._borrowPosition(pid: pid)
+                    let tokenState = self._borrowUpdatedTokenState(type: collateralType)
+                    let reserveVault = (&self.reserves[collateralType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+
+                    // Record withdrawal in position balance
+                    if position.balances[collateralType] == nil {
+                        position.balances[collateralType] = InternalBalance(
+                            direction: BalanceDirection.Credit,
+                            scaledBalance: 0.0
+                        )
+                    }
+                    position.balances[collateralType]!.recordWithdrawal(
+                        amount: UFix128(withdrawAmount),
+                        tokenState: tokenState
                     )
+
+                    // Queue for update if necessary
+                    self._queuePositionForUpdateIfNecessary(pid: pid)
+
+                    // Withdraw from reserves
+                    let withdrawn <- reserveVault.withdraw(amount: withdrawAmount)
+                    totalCollateralValue = totalCollateralValue + (withdrawAmount * collateralPrice)
+
+                    emit Withdrawn(
+                        pid: pid,
+                        poolUUID: self.uuid,
+                        vaultType: collateralType,
+                        amount: withdrawAmount,
+                        withdrawnUUID: withdrawn.uuid
+                    )
+
+                    collateralVaults.append(<- withdrawn)
+                } else {
+                    collateralVaults.append(<- DeFiActionsUtils.getEmptyVault(collateralType))
                 }
-                position.balances[collateralType]!.recordWithdrawal(
-                    amount: UFix128(withdrawAmount),
-                    tokenState: tokenState
-                )
-
-                // Queue for update if necessary
-                self._queuePositionForUpdateIfNecessary(pid: pid)
-
-                // Withdraw from reserves
-                collateral <-! reserveVault.withdraw(amount: withdrawAmount)
-            } else {
-                collateral <-! DeFiActionsUtils.getEmptyVault(collateralType)
             }
-
-            let finalCollateral <- collateral!
-            let finalCollateralAmount = finalCollateral.balance
 
             // Emit event for position closure
             emit PositionClosed(
                 pid: pid,
                 poolUUID: self.uuid,
-                repaymentAmount: actualRepayment,
-                repaymentType: repaymentType,
-                collateralAmount: finalCollateralAmount,
-                collateralType: collateralType,
+                repaymentAmount: totalRepaymentValue,
+                repaymentType: repaymentVaultsLength > 0 ? Type<@{FungibleToken.Vault}>() : Type<@{FungibleToken.Vault}>(),
+                collateralAmount: totalCollateralValue,
+                collateralType: collateralTypes.length > 0 ? collateralTypes[0] : Type<@{FungibleToken.Vault}>(),
                 finalDebt: totalEffectiveDebt
-            )
-
-            emit Withdrawn(
-                pid: pid,
-                poolUUID: self.uuid,
-                vaultType: collateralType,
-                amount: finalCollateralAmount,
-                withdrawnUUID: finalCollateral.uuid
             )
 
             // Unlock position now that all operations are complete
             self._unlockPosition(pid)
 
-            return <-finalCollateral
+            return <-collateralVaults
         }
 
         ///////////////////////
@@ -4134,32 +4070,42 @@ access(all) contract FlowALPv0 {
             return pool.getPositionDetails(pid: self.id).balances
         }
 
-        /// Returns the total debt amount and debt token type for this position.
+        /// Returns the total debt information for this position, grouped by token type.
         /// This is a convenience method for strategies to avoid recalculating debt from balances.
         ///
-        /// Note: Debt is always in MOET in this protocol.
-        /// Returns exact debt amount - no buffer needed since measurement and repayment happen
+        /// This method now supports multiple debt token types. It returns an array of DebtInfo,
+        /// one for each token type that has outstanding debt.
+        ///
+        /// Returns exact debt amounts - no buffer needed since measurement and repayment happen
         /// in the same transaction (no interest accrual between reads).
         ///
-        /// @return DebtInfo struct with exact debt amount and tokenType (always MOET).
-        access(all) fun getTotalDebt(): DebtInfo {
+        /// @return Array of DebtInfo structs, one per debt token type. Empty array if no debt.
+        access(all) fun getTotalDebt(): [DebtInfo] {
             let pool = self.pool.borrow()!
             let balances = pool.getPositionDetails(pid: self.id).balances
-            var totalDebtAmount: UFix64 = 0.0
+            let debtsByType: {Type: UFix64} = {}
 
+            // Group debts by token type
             for balance in balances {
                 if balance.direction == BalanceDirection.Debit {
-                    // Accumulate debt amount
-                    totalDebtAmount = totalDebtAmount + balance.balance
+                    let tokenType = balance.vaultType
+                    let currentDebt = debtsByType[tokenType] ?? 0.0
+                    debtsByType[tokenType] = currentDebt + balance.balance
                 }
             }
 
-            // Debt is always MOET in this protocol
+            // Convert to array of DebtInfo
+            let debts: [DebtInfo] = []
+            for tokenType in debtsByType.keys {
+                let amount = debtsByType[tokenType]!
+                debts.append(DebtInfo(amount: amount, tokenType: tokenType))
+            }
+
             // NOTE: Strategies using this must ensure their swap sources have sufficient
             // liquidity. SwapSource.minimumAvailable() may return slightly less than
             // actual debt due to source liquidity constraints or precision loss in
             // swap calculations. Strategies should handle this appropriately.
-            return DebtInfo(amount: totalDebtAmount, tokenType: Type<@MOET.Vault>())
+            return debts
         }
 
         /// Returns the balance available for withdrawal of a given Vault type. If pullFromTopUpSource is true, the
@@ -4282,19 +4228,18 @@ access(all) contract FlowALPv0 {
         ///
         /// See Pool.closePosition() for detailed implementation documentation.
         ///
-        /// @param repaymentVault: Vault containing funds to repay all debt (pass empty vault if no debt)
-        /// @param collateralType: Type of collateral to extract and return (e.g., FlowToken)
-        /// @return Vault containing all collateral including dust
+        /// Automatically detects and withdraws all collateral types in the position.
+        ///
+        /// @param repaymentVaults: Array of vaults containing funds to repay all debts (pass empty array if no debt)
+        /// @return Array of vaults containing all collateral (one vault per collateral type in the position)
         ///
         access(FungibleToken.Withdraw) fun closePosition(
-            repaymentVault: @{FungibleToken.Vault},
-            collateralType: Type
-        ): @{FungibleToken.Vault} {
+            repaymentVaults: @[{FungibleToken.Vault}]
+        ): @[{FungibleToken.Vault}] {
             let pool = self.pool.borrow()!
             return <- pool.closePosition(
                 pid: self.id,
-                repaymentVault: <-repaymentVault,
-                collateralType: collateralType
+                repaymentVaults: <-repaymentVaults
             )
         }
 
@@ -4654,9 +4599,10 @@ access(all) contract FlowALPv0 {
     /// This structure is NOT used internally.
     /// DebtInfo
     ///
-    /// A structure returned by getTotalDebt() to report the total debt and debt token type.
+    /// A structure returned by getTotalDebt() to report debt information for a specific token type.
+    /// getTotalDebt() returns an array of these, one per debt token type.
     access(all) struct DebtInfo {
-        /// The total amount of debt
+        /// The total amount of debt for this token type
         access(all) let amount: UFix64
 
         /// The type of the debt token (nil if no debt)
