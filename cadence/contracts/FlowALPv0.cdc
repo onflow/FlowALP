@@ -3063,17 +3063,22 @@ access(all) contract FlowALPv0 {
         /// This is the ONLY close method - users must prepare repayment funds externally.
         /// This design eliminates circular dependencies and gives users full control over fund sourcing.
         ///
+        /// Overpayment Handling:
+        /// - If a repayment vault contains MORE than the debt amount, the excess is treated as a credit
+        /// - This overpayment credit is automatically withdrawn and returned to the user
+        /// - No epsilon tolerance: ALL debt must be exactly repaid (overpayment is okay, underpayment fails)
+        ///
         /// Steps:
         /// 1. Analyzes position to find all debt and collateral types (read-only, no lock)
         /// 2. Locks the position
-        /// 3. Deposits repayment vaults to eliminate debts
-        /// 4. Verifies debt is fully repaid (near-zero)
-        /// 5. Automatically withdraws ALL collateral types (including dust)
-        /// 6. Returns array of collateral vaults (one per collateral type found in position)
+        /// 3. Deposits repayment vaults to eliminate debts (overpayment flips debt to credit)
+        /// 4. Verifies NO debt remains (zero tolerance for unpaid debt)
+        /// 5. Automatically withdraws ALL collateral types + any overpayment dust
+        /// 6. Returns array of vaults (collateral + overpayment dust)
         ///
         /// @param pid: Position ID to close
-        /// @param repaymentVaults: Array of vaults containing funds to repay all debts (pass empty array if no debt)
-        /// @return Array of vaults containing all collateral (one vault per collateral type in the position)
+        /// @param repaymentVaults: Array of vaults containing funds to repay all debts (overpayment okay, underpayment fails)
+        /// @return Array of vaults containing all collateral + overpayment dust
         ///
         access(EPosition) fun closePosition(
             pid: UInt64,
@@ -3102,10 +3107,9 @@ access(all) contract FlowALPv0 {
                     let currentDebt = debtsByType[debtType] ?? 0.0
                     debtsByType[debtType] = currentDebt + balance.balance
                 } else if balance.direction == BalanceDirection.Credit {
-                    // Track collateral types (only if they have a balance)
-                    if balance.balance > 0.0 {
-                        collateralTypes.append(balance.vaultType)
-                    }
+                    // Track ALL collateral types present in position (including dust)
+                    // Note: balance.balance may round to 0 but position might still have dust
+                    collateralTypes.append(balance.vaultType)
                 }
             }
 
@@ -3126,6 +3130,12 @@ access(all) contract FlowALPv0 {
                 let vaultType = vault.getType()
 
                 if balance > 0.0 {
+                    // CRITICAL: Validate repayment token is actually a debt token in this position
+                    assert(
+                        debtsByType.containsKey(vaultType),
+                        message: "Repayment vault type \(vaultType.identifier) is not a debt token for this position"
+                    )
+
                     // Track repayment amount for this type
                     let currentAmount = repaymentsByType[vaultType] ?? 0.0
                     repaymentsByType[vaultType] = currentAmount + balance
@@ -3140,31 +3150,42 @@ access(all) contract FlowALPv0 {
             // Array is now empty
             destroy repaymentVaults
 
-            // Step 4: Verify debt is acceptably low (allow tolerance for overshoot scenarios)
+            // Step 4: Verify ALL debt is EXACTLY repaid (no epsilon tolerance)
+            // If overpaid, debt flips to credit and we'll return it as dust
             let updatedDetails = self.getPositionDetails(pid: pid)
             var totalEffectiveDebt: UFix128 = 0.0
+            let overpaymentTypes: [Type] = []  // Track tokens that were overpaid (flipped to credit)
 
+            // CRITICAL: No debt tokens should remain in debit
             for balance in updatedDetails.balances {
                 if balance.direction == BalanceDirection.Debit {
-                    let price = self.priceOracle.price(ofToken: balance.vaultType)
-                        ?? panic("Price not available for token \(balance.vaultType.identifier)")
-                    let borrowFactor = self.borrowFactor[balance.vaultType]
-                        ?? panic("Borrow factor not found for token \(balance.vaultType.identifier)")
-
-                    let effectiveDebt = FlowALPv0.effectiveDebt(
-                        debit: UFix128(balance.balance),
-                        price: UFix128(price),
-                        borrowFactor: UFix128(borrowFactor)
+                    // ZERO tolerance - all debt must be fully repaid
+                    assert(
+                        false,
+                        message: "Debt not fully repaid for \(balance.vaultType.identifier): \(balance.balance) remaining. Position cannot be closed with outstanding debt."
                     )
-                    totalEffectiveDebt = totalEffectiveDebt + effectiveDebt
+                }
+
+                // Check if this was a debt token that got overpaid (now showing as credit)
+                if debtsByType.containsKey(balance.vaultType) && balance.direction == BalanceDirection.Credit {
+                    // This token was originally debt but is now credit due to overpayment
+                    // We'll return this dust to the user
+                    overpaymentTypes.append(balance.vaultType)
                 }
             }
 
-            // Step 5: Withdraw all collateral types and track amounts by type
+            // Step 5: Withdraw all collateral types + overpayment dust and track amounts by type
             let positionView = self.buildPositionView(pid: pid)
             let collateralVaults: @[{FungibleToken.Vault}] <- []
             let collateralsByType: {Type: UFix64} = {}
             var totalCollateralValue: UFix64 = 0.0
+
+            // Add overpayment types to withdrawal list (debt tokens that flipped to credit)
+            for overpaymentType in overpaymentTypes {
+                if !collateralTypes.contains(overpaymentType) {
+                    collateralTypes.append(overpaymentType)
+                }
+            }
 
             for collateralType in collateralTypes {
                 let collateralBalance = positionView.trueBalance(ofToken: collateralType)
@@ -3227,6 +3248,10 @@ access(all) contract FlowALPv0 {
             }
 
             // Emit event for position closure with detailed breakdown
+            // Build arrays from dictionaries
+            // Note: For true determinism, we use collateralTypes/debt detection order
+            // (insertion order is preserved in our earlier loops)
+
             let repaymentAmounts: [UFix64] = []
             let repaymentTypeIds: [String] = []
             for repaymentType in repaymentsByType.keys {
@@ -4234,9 +4259,10 @@ access(all) contract FlowALPv0 {
         /// See Pool.closePosition() for detailed implementation documentation.
         ///
         /// Automatically detects and withdraws all collateral types in the position.
+        /// If repayment vaults contain overpayment, the excess is returned as dust.
         ///
-        /// @param repaymentVaults: Array of vaults containing funds to repay all debts (pass empty array if no debt)
-        /// @return Array of vaults containing all collateral (one vault per collateral type in the position)
+        /// @param repaymentVaults: Array of vaults containing funds to repay all debts (overpayment okay, underpayment fails)
+        /// @return Array of vaults containing all collateral + any overpayment dust
         ///
         access(FungibleToken.Withdraw) fun closePosition(
             repaymentVaults: @[{FungibleToken.Vault}]
