@@ -576,15 +576,23 @@ access(all) contract FlowALPv0 {
             let debtState = self._borrowUpdatedTokenState(type: debtType)
 
             if position.getBalance(debtType) == nil {
+                // Liquidation is repaying debt - validate single debt type
+                position.validateDebtType(debtType)
+
                 position.setBalance(debtType, FlowALPModels.InternalBalance(direction: FlowALPModels.BalanceDirection.Debit, scaledBalance: 0.0))
             }
             position.borrowBalance(debtType)!.recordDeposit(amount: UFix128(repayAmount), tokenState: debtState)
 
             // Withdraw seized collateral from position and send to liquidator
             let seizeState = self._borrowUpdatedTokenState(type: seizeType)
-            if position.getBalance(seizeType) == nil {
+            let positionBalance = position.getBalance(seizeType)
+            if positionBalance == nil {
+                // Liquidation is seizing collateral - validate single collateral type
+                position.validateCollateralType(seizeType)
+
                 position.setBalance(seizeType, FlowALPModels.InternalBalance(direction: FlowALPModels.BalanceDirection.Credit, scaledBalance: 0.0))
             }
+
             position.borrowBalance(seizeType)!.recordWithdrawal(amount: UFix128(seizeAmount), tokenState: seizeState)
             let seizeReserveRef = self.state.borrowReserve(seizeType)!
             let seizedCollateral <- seizeReserveRef.withdraw(amount: seizeAmount)
@@ -1322,8 +1330,12 @@ access(all) contract FlowALPv0 {
                 position.depositToQueue(type, vault: <-queuedForUserLimit)
             }
 
+            let positionBalance = position.getBalance(type)
             // If this position doesn't currently have an entry for this token, create one.
-            if position.getBalance(type) == nil {
+            if positionBalance == nil {
+                // Validate single collateral type constraint
+                position.validateCollateralType(type)
+
                 position.setBalance(type, FlowALPModels.InternalBalance(
                     direction: FlowALPModels.BalanceDirection.Credit,
                     scaledBalance: 0.0
@@ -1341,6 +1353,7 @@ access(all) contract FlowALPv0 {
             // This only records the portion of the deposit that was accepted, not any queued portions,
             // as the queued deposits will be processed later (by this function being called again), and therefore
             // will be recorded at that time.
+
             let acceptedAmount = from.balance
             position.borrowBalance(type)!.recordDeposit(
                 amount: UFix128(acceptedAmount),
@@ -1525,22 +1538,37 @@ access(all) contract FlowALPv0 {
                 panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
             }
 
+            var positionBalance = position.getBalance(type)
+
             // If this position doesn't currently have an entry for this token, create one.
-            if position.getBalance(type) == nil {
+            if positionBalance == nil {
+                // When withdrawing a token that doesn't exist in position yet,
+                // we'll be creating a debit (debt). Validate single debt type.
+                position.validateDebtType(type)
+
                 position.setBalance(type, FlowALPModels.InternalBalance(
                     direction: FlowALPModels.BalanceDirection.Credit,
                     scaledBalance: 0.0
                 ))
+
+                // Re-fetch the balance after creating it
+                positionBalance = position.getBalance(type)
             }
 
-            let reserveVault = self.state.borrowReserve(type)!
-
             // Reflect the withdrawal in the position's balance
+            let wasCredit = positionBalance!.direction == FlowALPModels.BalanceDirection.Credit
             let uintAmount = UFix128(amount)
             position.borrowBalance(type)!.recordWithdrawal(
                 amount: uintAmount,
                 tokenState: tokenState
             )
+
+            // If we flipped from Credit to Debit, validate debt type constraint
+            // Re-fetch balance to check if direction changed
+            positionBalance = position.getBalance(type)
+            if wasCredit && positionBalance!.direction == FlowALPModels.BalanceDirection.Debit {
+                position.validateDebtType(type)
+            }
             // Attempt to pull additional collateral from the top-up source (if configured)
             // to keep the position above minHealth after the withdrawal.
             // Regardless of whether a top-up occurs, the position must be healthy post-withdrawal.
@@ -1565,18 +1593,30 @@ access(all) contract FlowALPv0 {
             // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
 
-            let withdrawn <- reserveVault.withdraw(amount: amount)
+            // Get tokens either by minting (MOET) or from reserves (other tokens)
+            var withdrawn: @{FungibleToken.Vault}? <- nil
+            if type == Type<@MOET.Vault>() {
+                // For MOET, mint new tokens
+                withdrawn <-! FlowALPv0._borrowMOETMinter().mintTokens(amount: amount)
+            } else {
+                // For other tokens, withdraw from reserves
+                assert(self.state.borrowReserve(type) != nil, message: "Cannot withdraw \(type.identifier) - no reserves available")
+                let reserveVault = self.state.borrowReserve(type)!
+                assert(reserveVault.balance >= amount, message: "Insufficient reserves for \(type.identifier): need \(amount), have \(reserveVault.balance)")
+                withdrawn <-! reserveVault.withdraw(amount: amount)
+            }
+            let unwrappedWithdrawn <- withdrawn!
 
             FlowALPEvents.emitWithdrawn(
                 pid: pid,
                 poolUUID: self.uuid,
                 vaultType: type,
-                amount: withdrawn.balance,
-                withdrawnUUID: withdrawn.uuid
+                amount: unwrappedWithdrawn.balance,
+                withdrawnUUID: unwrappedWithdrawn.uuid
             )
 
             self.unlockPosition(pid)
-            return <- withdrawn
+            return <- unwrappedWithdrawn
         }
 
         ///////////////////////
@@ -1951,40 +1991,56 @@ access(all) contract FlowALPv0 {
                     let sinkCapacity = drawDownSink.minimumCapacity()
                     let sinkAmount = (idealWithdrawal > sinkCapacity) ? sinkCapacity : idealWithdrawal
 
-                    // TODO(jord): we enforce in setDrawDownSink that the type is MOET -> we should panic here if that does not hold (currently silently fail)
-                    if sinkAmount > 0.0 && sinkType == Type<@MOET.Vault>() {
-                        let tokenState = self._borrowUpdatedTokenState(type: Type<@MOET.Vault>())
-                        if position.getBalance(Type<@MOET.Vault>()) == nil {
-                            position.setBalance(Type<@MOET.Vault>(), FlowALPModels.InternalBalance(
+                    // Support multiple token types: MOET (minted) or other tokens (from reserves)
+                    if sinkAmount > 0.0 {
+                        let tokenState = self._borrowUpdatedTokenState(type: sinkType)
+                        if position.getBalance(sinkType) == nil {
+                            // Rebalancing is borrowing/withdrawing to push to sink - validate single debt type
+                            position.validateDebtType(sinkType)
+
+                            position.setBalance(sinkType, FlowALPModels.InternalBalance(
                                 direction: FlowALPModels.BalanceDirection.Credit,
                                 scaledBalance: 0.0
                             ))
                         }
-                        // record the withdrawal and mint the tokens
+                        // Record the withdrawal
                         let uintSinkAmount = UFix128(sinkAmount)
-                        position.borrowBalance(Type<@MOET.Vault>())!.recordWithdrawal(
+                        position.borrowBalance(sinkType)!.recordWithdrawal(
                             amount: uintSinkAmount,
                             tokenState: tokenState
                         )
-                        let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
+
+                        // Get tokens either by minting (MOET) or from reserves (other tokens)
+                        var sinkVault: @{FungibleToken.Vault}? <- nil
+                        if sinkType == Type<@MOET.Vault>() {
+                            // For MOET, mint new tokens
+                            sinkVault <-! FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
+                        } else {
+                            // For other tokens, withdraw from reserves
+                            assert(self.state.borrowReserve(sinkType) != nil, message: "Cannot withdraw \(sinkAmount) of \(sinkType.identifier) - token not in reserves")
+                            let reserveVault = self.state.borrowReserve(sinkType)!
+                            assert(reserveVault.balance >= sinkAmount, message: "Insufficient reserves for \(sinkType.identifier): available \(reserveVault.balance), needed \(sinkAmount)")
+                            sinkVault <-! reserveVault.withdraw(amount: sinkAmount)
+                        }
+                        let unwrappedSinkVault <- sinkVault!
 
                         FlowALPEvents.emitRebalanced(
                             pid: pid,
                             poolUUID: self.uuid,
                             atHealth: balanceSheet.health,
-                            amount: sinkVault.balance,
+                            amount: unwrappedSinkVault.balance,
                             fromUnder: false
                         )
 
                         // Push what we can into the sink, and redeposit the rest
-                        drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-                        if sinkVault.balance > 0.0 {
+                        drawDownSink.depositCapacity(from: &unwrappedSinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
+                        if unwrappedSinkVault.balance > 0.0 {
                             self._depositEffectsOnly(
                                 pid: pid,
-                                from: <-sinkVault,
+                                from: <-unwrappedSinkVault,
                             )
                         } else {
-                            Burner.burn(<-sinkVault)
+                            Burner.burn(<-unwrappedSinkVault)
                         }
                     }
                 }

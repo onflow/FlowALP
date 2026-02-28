@@ -1903,6 +1903,22 @@ access(all) contract FlowALPModels {
         /// Sets the top-up source. See borrowTopUpSource for additional details.
         /// If nil, the Pool will not pull underflown value, and liquidation may occur.
         access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source}?)
+
+        /// Returns the current collateral type for this position based on existing Credit balances
+        /// Returns nil if no Credit balance exists yet (allows any collateral type for first deposit)
+        access(all) fun getCollateralType(): Type?
+
+        /// Returns the current debt type for this position based on existing Debit balances
+        /// Returns nil if no Debit balance exists yet (allows any debt type for first borrow)
+        access(all) fun getDebtType(): Type?
+
+        /// Validates that the given token type can be used as collateral for this position
+        /// Panics if position already has a different collateral type
+        access(EImplementation) fun validateCollateralType(_ type: Type)
+
+        /// Validates that the given token type can be used as debt for this position
+        /// Panics if position already has a different debt type
+        access(EImplementation) fun validateDebtType(_ type: Type)
     }
 
     /// InternalPositionImplv1 is the concrete implementation of InternalPosition.
@@ -2070,6 +2086,56 @@ access(all) contract FlowALPModels {
         /// Possibly an attack vector on automated rebalancing, if multiple positions are rebalanced in the same transaction.
         access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source}?) {
             self.topUpSource = source
+        }
+
+        /// Returns the current collateral type for this position based on existing Credit balances
+        /// Returns nil if no Credit balance exists yet (allows any collateral type for first deposit)
+        access(all) fun getCollateralType(): Type? {
+            for type in self.balances.keys {
+                if self.balances[type]!.direction == BalanceDirection.Credit {
+                    return type
+                }
+            }
+            return nil
+        }
+
+        /// Returns the current debt type for this position based on existing Debit balances
+        /// Returns nil if no Debit balance exists yet (allows any debt type for first borrow)
+        access(all) fun getDebtType(): Type? {
+            for type in self.balances.keys {
+                if self.balances[type]!.direction == BalanceDirection.Debit {
+                    return type
+                }
+            }
+            return nil
+        }
+
+        /// Validates that the given token type can be used as collateral for this position
+        /// Panics if position already has a different collateral type
+        access(EImplementation) fun validateCollateralType(_ type: Type) {
+            let existingType = self.getCollateralType()
+            if existingType == nil {
+                // No collateral yet, allow any type
+                return
+            }
+
+            if existingType! != type {
+                panic("Position already has collateral type ".concat(existingType!.identifier).concat(". Cannot deposit ").concat(type.identifier).concat(". Only one collateral type allowed per position."))
+            }
+        }
+
+        /// Validates that the given token type can be used as debt for this position
+        /// Panics if position already has a different debt type
+        access(EImplementation) fun validateDebtType(_ type: Type) {
+            let existingType = self.getDebtType()
+            if existingType == nil {
+                // No debt yet, allow any type
+                return
+            }
+
+            if existingType! != type {
+                panic("Position already has debt type ".concat(existingType!.identifier).concat(". Cannot borrow ").concat(type.identifier).concat(". Only one debt type allowed per position."))
+            }
         }
     }
 

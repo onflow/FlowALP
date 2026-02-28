@@ -46,6 +46,12 @@
 				"testing": "0000000000000007"
 			}
 		},
+		"DummyToken": {
+			"source": "./cadence/tests/contracts/DummyToken.cdc",
+			"aliases": {
+				"testing": "0000000000000007"
+			}
+		},
 		"FlowALPEvents": {
 			"source": "./cadence/contracts/FlowALPEvents.cdc",
 			"aliases": {
@@ -58,14 +64,14 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowALPModels": {
-			"source": "./cadence/contracts/FlowALPModels.cdc",
+		"FlowALPMath": {
+			"source": "./cadence/lib/FlowALPMath.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowALPMath": {
-			"source": "./cadence/lib/FlowALPMath.cdc",
+		"FlowALPModels": {
+			"source": "./cadence/contracts/FlowALPModels.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}

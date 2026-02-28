@@ -98,6 +98,14 @@ fun deployContracts() {
     )
     Test.expect(err, Test.beNil())
 
+    // Deploy DummyToken for multi-token testing
+    err = Test.deployContract(
+        name: "DummyToken",
+        path: "./contracts/DummyToken.cdc",
+        arguments: [initialSupply]
+    )
+    Test.expect(err, Test.beNil())
+
     err = Test.deployContract(
         name: "FlowALPInterestRates",
         path: "../contracts/FlowALPInterestRates.cdc",
