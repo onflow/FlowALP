@@ -60,16 +60,13 @@ access(all) contract FlowALPv0 {
     /// Emitted when a position is closed via the closePosition() method.
     /// This indicates a full position closure with debt repayment and collateral extraction.
     ///
-    /// Note: repaymentTypes and collateralTypes are parallel arrays with their respective amounts.
-    /// For example: repaymentTypes[0] corresponds to repaymentAmounts[0].
+    /// Uses dictionaries instead of parallel arrays for deterministic, unambiguous data.
+    /// Keys are token type identifiers (e.g., "A.xxx.FlowToken.Vault").
     access(all) event PositionClosed(
         pid: UInt64,
         poolUUID: UInt64,
-        repaymentAmounts: [UFix64],      // Amounts repaid for each debt token
-        repaymentTypes: [String],         // Type identifiers of repaid debt tokens
-        collateralAmounts: [UFix64],      // Amounts withdrawn for each collateral token
-        collateralTypes: [String],        // Type identifiers of withdrawn collateral tokens
-        finalDebt: UFix128                // Total effective debt remaining (should be ~0)
+        repaymentsByType: {String: UFix64},    // Map of debt token type → amount repaid
+        withdrawalsByType: {String: UFix64}    // Map of token type → amount withdrawn (collateral + overpayment dust)
     )
 
     access(all) event Rebalanced(
@@ -3116,9 +3113,10 @@ access(all) contract FlowALPv0 {
             // Step 2: Lock the position for all state modifications
             self._lockPosition(pid)
 
-            // Step 3: Process repayment vaults inline and track amounts by type
+            // Step 3: Process repayment vaults and compute overpayment directly
             var totalRepaymentValue: UFix64 = 0.0
             let repaymentsByType: {Type: UFix64} = {}
+            let overpaymentsByType: {Type: UFix64} = {}  // Track overpayment per token (repaid - owed)
 
             //  Consume all vaults from the array one by one
             while true {
@@ -3138,7 +3136,14 @@ access(all) contract FlowALPv0 {
 
                     // Track repayment amount for this type
                     let currentAmount = repaymentsByType[vaultType] ?? 0.0
-                    repaymentsByType[vaultType] = currentAmount + balance
+                    let totalRepaid = currentAmount + balance
+                    repaymentsByType[vaultType] = totalRepaid
+
+                    // Compute overpayment for this type
+                    let debtOwed = debtsByType[vaultType]!
+                    if totalRepaid > debtOwed {
+                        overpaymentsByType[vaultType] = totalRepaid - debtOwed
+                    }
 
                     self._depositEffectsOnly(pid: pid, from: <-vault)
                     totalRepaymentValue = totalRepaymentValue + balance
@@ -3151,10 +3156,7 @@ access(all) contract FlowALPv0 {
             destroy repaymentVaults
 
             // Step 4: Verify ALL debt is EXACTLY repaid (no epsilon tolerance)
-            // If overpaid, debt flips to credit and we'll return it as dust
             let updatedDetails = self.getPositionDetails(pid: pid)
-            var totalEffectiveDebt: UFix128 = 0.0
-            let overpaymentTypes: [Type] = []  // Track tokens that were overpaid (flipped to credit)
 
             // CRITICAL: No debt tokens should remain in debit
             for balance in updatedDetails.balances {
@@ -3165,58 +3167,49 @@ access(all) contract FlowALPv0 {
                         message: "Debt not fully repaid for \(balance.vaultType.identifier): \(balance.balance) remaining. Position cannot be closed with outstanding debt."
                     )
                 }
-
-                // Check if this was a debt token that got overpaid (now showing as credit)
-                if debtsByType.containsKey(balance.vaultType) && balance.direction == BalanceDirection.Credit {
-                    // This token was originally debt but is now credit due to overpayment
-                    // We'll return this dust to the user
-                    overpaymentTypes.append(balance.vaultType)
-                }
             }
 
             // Step 5: Withdraw all collateral types + overpayment dust and track amounts by type
             let positionView = self.buildPositionView(pid: pid)
             let collateralVaults: @[{FungibleToken.Vault}] <- []
-            let collateralsByType: {Type: UFix64} = {}
-            var totalCollateralValue: UFix64 = 0.0
+            let withdrawalsByType: {Type: UFix64} = {}  // Track all withdrawals (collateral + overpayment)
 
-            // Add overpayment types to withdrawal list (debt tokens that flipped to credit)
-            for overpaymentType in overpaymentTypes {
-                if !collateralTypes.contains(overpaymentType) {
-                    collateralTypes.append(overpaymentType)
-                }
+            // Build deduplicated withdrawal types list (collateral + overpayment)
+            let withdrawalTypes: {Type: Bool} = {}  // Use as set for deduplication
+            for collateralType in collateralTypes {
+                withdrawalTypes[collateralType] = true
+            }
+            for overpaymentType in overpaymentsByType.keys {
+                withdrawalTypes[overpaymentType] = true
             }
 
-            for collateralType in collateralTypes {
-                let collateralBalance = positionView.trueBalance(ofToken: collateralType)
+            for withdrawalType in withdrawalTypes.keys {
+                let tokenBalance = positionView.trueBalance(ofToken: withdrawalType)
 
-                if collateralBalance == 0.0 {
-                    // No balance for this collateral type - return empty vault
-                    collateralVaults.append(<- DeFiActionsUtils.getEmptyVault(collateralType))
+                if tokenBalance == 0.0 {
+                    // No balance for this type - return empty vault
+                    collateralVaults.append(<- DeFiActionsUtils.getEmptyVault(withdrawalType))
+                    withdrawalsByType[withdrawalType] = 0.0
                     continue
                 }
 
-                // Calculate collateral price and factor
-                let collateralPrice = self.priceOracle.price(ofToken: collateralType)
-                    ?? panic("Price not available for collateral \(collateralType.identifier)")
-
-                // Determine withdrawal amount - withdraw all collateral for this type
-                let withdrawAmount = FlowALPMath.toUFix64RoundDown(collateralBalance)
+                // Determine withdrawal amount - withdraw all balance for this type
+                let withdrawAmount = FlowALPMath.toUFix64RoundDown(tokenBalance)
 
                 // Perform direct withdrawal while holding lock
                 if withdrawAmount > 0.0 {
                     let position = self._borrowPosition(pid: pid)
-                    let tokenState = self._borrowUpdatedTokenState(type: collateralType)
-                    let reserveVault = (&self.reserves[collateralType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                    let tokenState = self._borrowUpdatedTokenState(type: withdrawalType)
+                    let reserveVault = (&self.reserves[withdrawalType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
 
                     // Record withdrawal in position balance
-                    if position.balances[collateralType] == nil {
-                        position.balances[collateralType] = InternalBalance(
+                    if position.balances[withdrawalType] == nil {
+                        position.balances[withdrawalType] = InternalBalance(
                             direction: BalanceDirection.Credit,
                             scaledBalance: 0.0
                         )
                     }
-                    position.balances[collateralType]!.recordWithdrawal(
+                    position.balances[withdrawalType]!.recordWithdrawal(
                         amount: UFix128(withdrawAmount),
                         tokenState: tokenState
                     )
@@ -3226,15 +3219,14 @@ access(all) contract FlowALPv0 {
 
                     // Withdraw from reserves
                     let withdrawn <- reserveVault.withdraw(amount: withdrawAmount)
-                    totalCollateralValue = totalCollateralValue + (withdrawAmount * collateralPrice)
 
-                    // Track collateral amount for this type
-                    collateralsByType[collateralType] = withdrawAmount
+                    // Track withdrawal amount for this type
+                    withdrawalsByType[withdrawalType] = withdrawAmount
 
                     emit Withdrawn(
                         pid: pid,
                         poolUUID: self.uuid,
-                        vaultType: collateralType,
+                        vaultType: withdrawalType,
                         amount: withdrawAmount,
                         withdrawnUUID: withdrawn.uuid
                     )
@@ -3242,38 +3234,28 @@ access(all) contract FlowALPv0 {
                     collateralVaults.append(<- withdrawn)
                 } else {
                     // Track zero withdrawal for this type
-                    collateralsByType[collateralType] = 0.0
-                    collateralVaults.append(<- DeFiActionsUtils.getEmptyVault(collateralType))
+                    withdrawalsByType[withdrawalType] = 0.0
+                    collateralVaults.append(<- DeFiActionsUtils.getEmptyVault(withdrawalType))
                 }
             }
 
             // Emit event for position closure with detailed breakdown
-            // Build arrays from dictionaries
-            // Note: For true determinism, we use collateralTypes/debt detection order
-            // (insertion order is preserved in our earlier loops)
-
-            let repaymentAmounts: [UFix64] = []
-            let repaymentTypeIds: [String] = []
+            // Convert Type keys to String identifiers for event (dictionaries are deterministic)
+            let repaymentsEvent: {String: UFix64} = {}
             for repaymentType in repaymentsByType.keys {
-                repaymentAmounts.append(repaymentsByType[repaymentType]!)
-                repaymentTypeIds.append(repaymentType.identifier)
+                repaymentsEvent[repaymentType.identifier] = repaymentsByType[repaymentType]!
             }
 
-            let collateralAmounts: [UFix64] = []
-            let collateralTypeIds: [String] = []
-            for collateralType in collateralsByType.keys {
-                collateralAmounts.append(collateralsByType[collateralType]!)
-                collateralTypeIds.append(collateralType.identifier)
+            let withdrawalsEvent: {String: UFix64} = {}
+            for withdrawalType in withdrawalsByType.keys {
+                withdrawalsEvent[withdrawalType.identifier] = withdrawalsByType[withdrawalType]!
             }
 
             emit PositionClosed(
                 pid: pid,
                 poolUUID: self.uuid,
-                repaymentAmounts: repaymentAmounts,
-                repaymentTypes: repaymentTypeIds,
-                collateralAmounts: collateralAmounts,
-                collateralTypes: collateralTypeIds,
-                finalDebt: totalEffectiveDebt
+                repaymentsByType: repaymentsEvent,
+                withdrawalsByType: withdrawalsEvent
             )
 
             // Unlock position now that all operations are complete
