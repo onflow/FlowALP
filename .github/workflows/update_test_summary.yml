@@ -1,0 +1,71 @@
+name: Update Test Summary
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "cadence/tests/*_test.cdc"
+      - "cadence/tests/test_helpers.cdc"
+
+jobs:
+  update-test-summary:
+    name: Analyze Tests & Update Summary
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+          submodules: "true"
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            ## Task: Analyze the Cadence test suite and update TODO_AND_MISSING_TESTS_SUMMARY.md
+
+            You are analyzing a Flow blockchain / Cadence smart contract project called FlowCreditMarket.
+            A push to main just landed that modified test files. Your job is to:
+
+            1. **Inventory all test files** in `cadence/tests/*_test.cdc` and note the shared helper `cadence/tests/test_helpers.cdc`
+            2. **Read each test file** and catalog:
+               - The test file name
+               - Each test function (functions matching `fun test*`)
+               - What aspect of the contract each test covers
+               - Any TODO comments or skipped/commented-out test logic
+            3. **Read the contract files** for context:
+               - `cadence/contracts/FlowCreditMarket.cdc` - main contract
+               - `cadence/contracts/MOET.cdc` - token contract
+               - Files in `cadence/contracts/mocks/` - mock contracts used in testing
+            4. **Read `FutureFeatures.md`** for the roadmap of planned features needing tests
+            5. **Read the current `TODO_AND_MISSING_TESTS_SUMMARY.md`** to understand the existing format
+            6. **Scan all `.cdc` files** (contracts, transactions, scripts, tests) for TODO and FIXME comments
+            7. **Update `TODO_AND_MISSING_TESTS_SUMMARY.md`** with a comprehensive, current summary:
+               - **TODOs in Existing Code** (grouped by test files, transaction files, contract files)
+               - **Current Test Inventory** (table: file name | test count | area covered | status)
+               - **Missing Tests** (based on FutureFeatures.md roadmap)
+               - **Missing Features Requiring Tests** (grouped by milestone phase)
+               - **Priority Implementation Order** (High / Medium / Future)
+               - **Test Coverage Gaps** (what is covered vs what is not)
+               - **HIGH PRIORITY items** (any critical missing functionality found)
+            8. **Create a PR** with the updated file:
+               - Create branch: `claude/update-test-summary-${{ github.sha }}`
+               - Commit the updated `TODO_AND_MISSING_TESTS_SUMMARY.md`
+               - Create a PR targeting `main` with a title like "docs: update test summary after test changes"
+               - In the PR body, summarize what changed in the test inventory
+
+            **Guidelines:**
+            - Preserve the general structure of the existing summary but update all content to reflect current state
+            - Be precise: list exact function names, exact line numbers for TODOs
+            - Do NOT fabricate test names or TODOs - only report what actually exists in the code
+            - Use markdown formatting consistent with the existing file
+            - Check `git diff HEAD~1 --name-only` to see which test files triggered this update and mention them in the PR body
+          claude_args: |
+            --max-turns 30
+            --allowedTools "Read,Write,Edit,Bash(git:*),Bash(gh:*),Bash(ls:*),Bash(wc:*)"
