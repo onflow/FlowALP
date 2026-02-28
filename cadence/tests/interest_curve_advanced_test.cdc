@@ -59,7 +59,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // -------------------------------------------------------------------------
     // STEP 2: Configure FLOW as a Collateral Asset
     // -------------------------------------------------------------------------
-    // Add FlowToken as a supported collateral with a KinkCurve.
+    // Add FlowToken as a supported collateral with a KinkInterestCurve.
     // Parameters explained:
     // - collateralFactor: 0.8 = 80% of FLOW value can be borrowed against
     // - borrowFactor: 1.0 = no additional penalty on borrow value
@@ -107,7 +107,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // -------------------------------------------------------------------------
     // Configure MOET with a fixed 5% APY interest rate.
     // This is the baseline rate we'll compare other phases against.
-    // Using FixedCurve means rate doesn't depend on utilization.
+    // Using FixedRateInterestCurve means rate doesn't depend on utilization.
     let rate1: UFix128 = 0.05
     setInterestCurveFixed(
         signer: PROTOCOL_ACCOUNT,
