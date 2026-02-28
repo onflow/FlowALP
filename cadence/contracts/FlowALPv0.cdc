@@ -3053,30 +3053,6 @@ access(all) contract FlowALPv0 {
             return <- withdrawn
         }
 
-        /// Helper function to process and consume repayment vaults array
-        /// Returns the total value deposited
-        access(self) fun _processRepaymentVaults(pid: UInt64, vaults: @[{FungibleToken.Vault}]): UFix64 {
-            var totalValue: UFix64 = 0.0
-            let count = vaults.length
-
-            var i = 0
-            while i < count {
-                let vault <- vaults.remove(at: 0)
-                let balance = vault.balance
-
-                if balance > 0.0 {
-                    self._depositEffectsOnly(pid: pid, from: <-vault)
-                    totalValue = totalValue + balance
-                } else {
-                    destroy vault
-                }
-                i = i + 1
-            }
-
-            destroy vaults
-            return totalValue
-        }
-
         /// Closes a position using the position's configured topUpSource for debt repayment.
         /// This is a convenience method that accesses the topUpSource directly.
         /// Closes a position by repaying all debts with pre-prepared vaults and returning all collateral.
