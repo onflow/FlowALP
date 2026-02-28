@@ -16,19 +16,17 @@ fun setup() {
 /// Tests reserve-based borrowing with distinct token types
 /// Scenario:
 /// 1. User1: deposits FLOW collateral → borrows MOET
-/// 2. User2: deposits DummyToken collateral → borrows FLOW (from User1's reserves)
-/// 3. User2: repays FLOW debt → withdraws DummyToken
+/// 2. User2: deposits MOET collateral → borrows FLOW (from User1's reserves)
+/// 3. User2: repays FLOW debt → withdraws MOET
 /// 4. User1: repays MOET debt → withdraws FLOW
 access(all)
 fun testMultiTokenReserveBorrowing() {
     log("=== Starting Multi-Token Reserve Borrowing Test ===")
 
     // Setup oracle prices
-    let dummyTokenIdentifier = "A.0000000000000007.DummyToken.Vault"
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: MOET_TOKEN_IDENTIFIER, price: 1.0)
-    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: dummyTokenIdentifier, price: 10.0)
-    log("✓ Oracle prices set: FLOW=$1, MOET=$1, DUMMY=$10")
+    log("✓ Oracle prices set: FLOW=$1, MOET=$1")
 
     // Create pool with MOET as default token (borrowable via minting)
     createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
@@ -45,16 +43,8 @@ fun testMultiTokenReserveBorrowing() {
     )
     log("✓ FLOW added as supported token (CF=0.8, BF=0.77)")
 
-    // Add DummyToken as supported collateral
-    addSupportedTokenZeroRateCurve(
-        signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: dummyTokenIdentifier,
-        collateralFactor: 0.8,
-        borrowFactor: 0.77,
-        depositRate: 1_000_000.0,
-        depositCapacityCap: 1_000_000.0
-    )
-    log("✓ DummyToken added as supported collateral (CF=0.8, BF=0.77)")
+    // Note: MOET is already added as the default/mintable token when pool was created
+    // It can be used as both collateral and debt
 
     // ===== USER 1: Deposit FLOW collateral, borrow MOET =====
     log("")
@@ -108,35 +98,34 @@ fun testMultiTokenReserveBorrowing() {
     // Now User1's FLOW collateral is in the pool and can be borrowed by others!
     log("✓ User1's 1000 FLOW is now in the pool as reserves")
 
-    // ===== USER 2: Deposit DummyToken collateral, borrow FLOW =====
+    // ===== USER 2: Deposit MOET collateral, borrow FLOW =====
     log("")
-    log("--- User 2: Deposit DummyToken, Borrow FLOW (from reserves) ---")
+    log("--- User 2: Deposit MOET, Borrow FLOW (from reserves) ---")
 
     let user2 = Test.createAccount()
     setupMoetVault(user2, beFailed: false)
-    setupDummyTokenVault(user2)
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user2)
 
-    // Mint 100 DUMMY tokens to user2 (worth $1000 at $10 each)
-    mintDummyToken(to: user2, amount: 100.0)
+    // Mint 1000 MOET to user2 (worth $1000 at $1 each)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: user2.address, amount: 1000.0, beFailed: false)
 
     let user2InitialFlow = getBalance(address: user2.address, vaultPublicPath: /public/flowTokenReceiver)!
-    let user2InitialDummy = getBalance(address: user2.address, vaultPublicPath: DummyToken.VaultPublicPath)!
-    log("User2 initial - FLOW: ".concat(user2InitialFlow.toString()).concat(", DUMMY: ").concat(user2InitialDummy.toString()))
+    let user2InitialMoet = getBalance(address: user2.address, vaultPublicPath: MOET.VaultPublicPath)!
+    log("User2 initial - FLOW: ".concat(user2InitialFlow.toString()).concat(", MOET: ").concat(user2InitialMoet.toString()))
 
-    // User2 deposits 100 DUMMY as collateral
+    // User2 deposits 1000 MOET as collateral
     let createPos2Res = executeTransaction(
         "../transactions/flow-alp/position/create_position.cdc",
-        [100.0, DummyToken.VaultStoragePath, false],
+        [1000.0, MOET.VaultStoragePath, false],
         user2
     )
     Test.expect(createPos2Res, Test.beSucceeded())
-    log("✓ User2 deposited 100 DUMMY tokens as collateral")
+    log("✓ User2 deposited 1000 MOET as collateral")
 
     let pid2: UInt64 = 1
 
     // User2 borrows FLOW (via reserves - from User1's collateral!)
-    // Effective collateral = 100 DUMMY * $10 * 0.8 = $800
+    // Effective collateral = 1000 MOET * $1 * 0.8 = $800
     // Can borrow up to $800 * 0.77 = $616
     let user2FlowBorrowAmount = 300.0
     borrowFromPosition(
@@ -157,22 +146,20 @@ fun testMultiTokenReserveBorrowing() {
     // Check User2 position health
     var health2 = getPositionHealth(pid: pid2, beFailed: false)
     log("User2 position health: ".concat(health2.toString()))
-    // Expected: 800 / (300 / 0.77) = 800 / 389.61 = 2.053
-    // Effective debt accounts for borrow factor: debt / BF
-    Test.assert(health2 >= UFix128(2.05) && health2 <= UFix128(2.06),
-                message: "Expected User2 health ~2.053 (debt scaled by BF=0.77)")
+    // Health = 1000 MOET CF / (300 FLOW / BF) ≈ 2.567
+    Test.assert(health2 >= UFix128(2.5) && health2 <= UFix128(2.6),
+                message: "Expected User2 health ~2.567")
 
-    // Verify both positions exist
     log("")
     log("✓ Both positions active:")
     log("  - User1 (pid=0): 1000 FLOW collateral, 400 MOET debt")
-    log("  - User2 (pid=1): 100 DUMMY collateral, 300 FLOW debt")
+    log("  - User2 (pid=1): 1000 MOET collateral, 300 FLOW debt")
 
-    // ===== USER 2: Repay FLOW debt, withdraw DummyToken =====
+    // ===== USER 2: Repay FLOW debt, withdraw MOET =====
     log("")
-    log("--- User 2: Repay FLOW, Withdraw DummyToken ---")
+    log("--- User 2: Repay FLOW, Withdraw MOET ---")
 
-    // User2 repays FLOW debt
+    // User2 repays FLOW debt (borrowed from reserves)
     depositToPosition(
         signer: user2,
         positionID: pid2,
@@ -187,22 +174,21 @@ fun testMultiTokenReserveBorrowing() {
     log("User2 health after repayment: ".concat(health2.toString()))
     Test.assert(health2 > UFix128(100.0), message: "Expected very high health after repayment")
 
-    // User2 withdraws DummyToken collateral
-    // Note: FLOW debt is repaid (nets to 0), so can withdraw collateral safely
+    // User2 withdraws MOET collateral
     withdrawFromPosition(
         signer: user2,
         positionId: pid2,
-        tokenTypeIdentifier: dummyTokenIdentifier,
-        amount: user2InitialDummy,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        amount: user2InitialMoet,
         pullFromTopUpSource: false
     )
-    log("✓ User2 withdrew ".concat(user2InitialDummy.toString()).concat(" DUMMY collateral"))
+    log("✓ User2 withdrew ".concat(user2InitialMoet.toString()).concat(" MOET collateral"))
 
-    // Verify User2 got their DUMMY tokens back
-    let user2FinalDummy = getBalance(address: user2.address, vaultPublicPath: DummyToken.VaultPublicPath)!
-    Test.assert(user2FinalDummy >= user2InitialDummy - 0.01,
-                message: "User2 should get back ~".concat(user2InitialDummy.toString()).concat(" DUMMY"))
-    log("✓ User2 received back ".concat(user2FinalDummy.toString()).concat(" DUMMY tokens"))
+    // Verify User2 got their MOET back
+    let user2FinalMoet = getBalance(address: user2.address, vaultPublicPath: MOET.VaultPublicPath)!
+    Test.assert(user2FinalMoet >= user2InitialMoet - 0.01,
+                message: "User2 should get back ~".concat(user2InitialMoet.toString()).concat(" MOET"))
+    log("✓ User2 received back ".concat(user2FinalMoet.toString()).concat(" MOET tokens"))
 
     // ===== USER 1: Repay MOET debt, withdraw FLOW =====
     log("")
@@ -245,8 +231,8 @@ fun testMultiTokenReserveBorrowing() {
     log("")
     log("Summary:")
     log("  ✓ User1 deposited FLOW, borrowed MOET (via minting)")
-    log("  ✓ User2 deposited DummyToken, borrowed FLOW (via reserves from User1)")
-    log("  ✓ User2 repaid FLOW, withdrew DummyToken")
+    log("  ✓ User2 deposited MOET, borrowed FLOW (via reserves from User1)")
+    log("  ✓ User2 repaid FLOW, withdrew MOET")
     log("  ✓ User1 repaid MOET, withdrew FLOW")
     log("  ✓ Reserve-based borrowing works across distinct token types!")
 }
