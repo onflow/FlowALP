@@ -3062,8 +3062,9 @@ access(all) contract FlowALPv0 {
         ///
         /// Overpayment Handling (Strict):
         /// - Overpayment becomes a credit balance via _depositEffectsOnly
-        /// - Close withdraws ONLY the exact overpayment amount (not any pre-existing credits of debt token types)
-        /// - This prevents accidentally withdrawing unintended credits in debt token types
+        /// - Close withdraws UP TO the computed overpayment amount (capped by actual withdrawable credit)
+        /// - Capping handles rounding differences between external balance view and internal scaled balances
+        /// - This prevents accidentally withdrawing unintended pre-existing credits in debt token types
         /// - No epsilon tolerance: ALL debt must be exactly repaid (overpayment okay, underpayment fails)
         ///
         /// Steps:
@@ -3157,7 +3158,7 @@ access(all) contract FlowALPv0 {
             // Step 4: Verify ALL debt is EXACTLY repaid (no epsilon tolerance)
             let updatedDetails = self.getPositionDetails(pid: pid)
 
-            // CRITICAL: No debt tokens should remain in debit
+            // CRITICAL: No debt tokens should remain in debit (zero tolerance)
             for balance in updatedDetails.balances {
                 if balance.direction == BalanceDirection.Debit {
                     // ZERO tolerance - all debt must be fully repaid
@@ -3166,21 +3167,6 @@ access(all) contract FlowALPv0 {
                         message: "Debt not fully repaid for \(balance.vaultType.identifier): \(balance.balance) remaining. Position cannot be closed with outstanding debt."
                     )
                 }
-            }
-
-            // CRITICAL: Verify all original debt types were covered (paranoid check)
-            // This ensures no debt type "disappeared" from balance view without being repaid
-            for debtType in debtsByType.keys {
-                var foundAsNonDebit = false
-                for balance in updatedDetails.balances {
-                    if balance.vaultType == debtType && balance.direction != BalanceDirection.Debit {
-                        foundAsNonDebit = true
-                        break
-                    }
-                }
-                // If debt type is not in balances at all, that's also fine (fully repaid to zero)
-                // But if it's still there as Debit, we'd have caught it above
-                // This check is mostly for auditor confidence
             }
 
             // Step 5: Withdraw all collateral + capped overpayment dust (deterministic order)
@@ -3213,12 +3199,12 @@ access(all) contract FlowALPv0 {
                 let withdrawable = FlowALPMath.toUFix64RoundDown(tokenBalance)
 
                 // Determine withdrawal amount:
-                // - For overpayment types: withdraw ONLY the overpayment amount (capped to actual balance)
+                // - For overpayment types: withdraw UP TO overpayment amount (capped to actual balance)
                 // - For collateral types: withdraw full balance
                 var withdrawAmount: UFix64 = 0.0
                 if overpaymentsByType.containsKey(withdrawalType) {
-                    // CAP to min(overpayment, actual withdrawable balance)
-                    // This handles rounding differences between external balance view and internal scaled balances
+                    // Withdraw min(computed overpayment, actual withdrawable balance)
+                    // Handles rounding differences between external balance view and internal scaled balances
                     let overpaymentAmount = overpaymentsByType[withdrawalType]!
                     withdrawAmount = overpaymentAmount < withdrawable ? overpaymentAmount : withdrawable
                 } else if withdrawable > 0.0 {
