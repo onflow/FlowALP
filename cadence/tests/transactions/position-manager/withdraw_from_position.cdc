@@ -1,6 +1,7 @@
 import "FungibleToken"
 import "FlowToken"
 import "MOET"
+import "DummyToken"
 import "FlowALPv0"
 import "FlowALPModels"
 
@@ -47,6 +48,9 @@ transaction(
         } else if tokenTypeIdentifier == "A.0000000000000007.MOET.Vault" {
             // For MOET, use the MOET vault path
             receiverRef = signer.storage.borrow<&{FungibleToken.Receiver}>(from: MOET.VaultStoragePath)
+        } else if tokenTypeIdentifier == "A.0000000000000007.DummyToken.Vault" {
+            // For DummyToken, use the DummyToken vault path
+            receiverRef = signer.storage.borrow<&{FungibleToken.Receiver}>(from: DummyToken.VaultStoragePath)
         }
 
         self.receiverVault = receiverRef ?? panic("Could not borrow vault receiver for token type: \(tokenTypeIdentifier). Ensure vault is set up.")
