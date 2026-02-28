@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - main
+      - nialexsan/pre-refactor
 
 jobs:
   tests:
