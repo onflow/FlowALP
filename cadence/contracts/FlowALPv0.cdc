@@ -323,10 +323,16 @@ access(all) contract FlowALPv0 {
                         // so we just decrement the debt.
                         let updatedBalance = trueBalance - amount
 
-                        self.scaledBalance = FlowALPv0.trueBalanceToScaledBalance(
-                            updatedBalance,
-                            interestIndex: tokenState.debitInterestIndex
-                        )
+                        // If debt is fully repaid (updatedBalance == 0), flip to credit
+                        if updatedBalance == 0.0 {
+                            self.direction = BalanceDirection.Credit
+                            self.scaledBalance = 0.0
+                        } else {
+                            self.scaledBalance = FlowALPv0.trueBalanceToScaledBalance(
+                                updatedBalance,
+                                interestIndex: tokenState.debitInterestIndex
+                            )
+                        }
 
                         // Decrease the total debit balance for the token
                         tokenState.decreaseDebitBalance(by: amount)
@@ -3083,19 +3089,22 @@ access(all) contract FlowALPv0 {
             pid: UInt64,
             repaymentVaults: @[{FungibleToken.Vault}]
         ): @[{FungibleToken.Vault}] {
+            pre {
+                !self.isPausedOrWarmup(): "Operations are paused by governance"
+                self.positions[pid] != nil: "Invalid position ID"
+            }
             post {
                 self.positionLock[pid] == nil: "Position is not unlocked"
             }
-
-            // Manual validation (replacing pre conditions to avoid resource handling issues)
-            assert(!self.isPausedOrWarmup(), message: "Operations are paused by governance")
-            assert(self.positions[pid] != nil, message: "Invalid position ID")
 
             if self.debugLogging {
                 log("    [CONTRACT] closePosition(pid: \(pid), repaymentVaults: \(repaymentVaults.length))")
             }
 
-            // Step 1: Analyze position to find all debt and collateral types
+            // Step 1: Lock the position for all state modifications
+            self._lockPosition(pid)
+
+            // Step 2: Analyze position to find all debt and collateral types
             let positionDetails = self.getPositionDetails(pid: pid)
             let debtsByType: {Type: UFix64} = {}
             let collateralTypes: [Type] = []
@@ -3111,9 +3120,6 @@ access(all) contract FlowALPv0 {
                     collateralTypes.append(balance.vaultType)
                 }
             }
-
-            // Step 2: Lock the position for all state modifications
-            self._lockPosition(pid)
 
             // Step 3: Process repayment vaults and compute overpayment directly
             let repaymentsByType: {Type: UFix64} = {}
@@ -3162,6 +3168,7 @@ access(all) contract FlowALPv0 {
             for balance in updatedDetails.balances {
                 if balance.direction == BalanceDirection.Debit {
                     // ZERO tolerance - all debt must be fully repaid
+                    // Since getTotalDebt rounds UP, this should never fail with proper repayment
                     assert(
                         false,
                         message: "Debt not fully repaid for \(balance.vaultType.identifier): \(balance.balance) remaining. Position cannot be closed with outstanding debt."
