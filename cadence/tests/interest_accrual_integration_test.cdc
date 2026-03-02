@@ -28,8 +28,8 @@ import "test_helpers.cdc"
 // - Focuses on protocol solvency and insurance mechanics
 //
 // Interest Rate Configuration:
-// - MOET: FixedRateInterestCurve at 4% APY (rate independent of utilization)
-// - Flow: KinkInterestCurve with Aave v3 Volatile One parameters
+// - MOET: FixedCurve at 4% APY (rate independent of utilization)
+// - Flow: KinkCurve with Aave v3 Volatile One parameters
 //         (45% optimal utilization, 0% base, 4% slope1, 300% slope2)
 // =============================================================================
 
@@ -40,7 +40,7 @@ access(all) var snapshot: UInt64 = 0
 // Interest Rate Parameters
 // =============================================================================
 
-// MOET: FixedRateInterestCurve (Spread Model)
+// MOET: FixedCurve (Spread Model)
 // -----------------------------------------------------------------------------
 // In the spread model, the curve defines the DEBIT rate (what borrowers pay).
 // The CREDIT rate is derived as: creditRate = debitRate - insuranceRate
@@ -53,7 +53,7 @@ access(all) var snapshot: UInt64 = 0
 // - Insurance:     0.1% APY (collected by protocol)
 access(all) let moetFixedRate: UFix128 = 0.04  // 4% APY debit rate
 
-// FlowToken: KinkInterestCurve (Aave v3 Volatile One Parameters)
+// FlowToken: KinkCurve (Aave v3 Volatile One Parameters)
 // -----------------------------------------------------------------------------
 // The kink curve adjusts rates based on pool utilization to incentivize
 // balanced supply/demand. Below optimal utilization, rates rise slowly.
@@ -160,7 +160,7 @@ fun test_moet_debit_accrues_interest() {
     // -------------------------------------------------------------------------
     // STEP 4: Configure MOET Interest Rate
     // -------------------------------------------------------------------------
-    // Set MOET to use a FixedRateInterestCurve at 4% APY.
+    // Set MOET to use a FixedCurve at 4% APY.
     // This rate is independent of utilization - borrowers always pay 4%.
     // Note: Interest curve must be set AFTER LP deposit to ensure credit exists.
     setInterestCurveFixed(
@@ -337,7 +337,7 @@ fun test_moet_debit_accrues_interest() {
 // - Time advances 30 days
 // - Verify: LP credit increased, growth rate is in expected range
 //
-// Key Insight (FixedRateInterestCurve Spread Model):
+// Key Insight (FixedCurve Spread Model):
 // - debitRate = 4.0% (what borrowers pay, defined by curve)
 // - insuranceRate = 0.1% (protocol reserve)
 // - creditRate = debitRate - insuranceRate = 3.9% (what lenders earn)
@@ -420,7 +420,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     // -------------------------------------------------------------------------
     // For the LP to earn interest, there must be borrowers paying interest.
     // The borrower creates "utilization" - the ratio of borrowed to deposited.
-    // Note: For FixedRateInterestCurve (MOET), the credit rate is independent
+    // Note: For FixedCurve (MOET), the credit rate is independent
     // of utilization. For KinkCurve, higher utilization means higher rates.
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
@@ -510,8 +510,8 @@ fun test_moet_credit_accrues_interest_with_insurance() {
 // Test 3: Flow Debit - Borrower Pays Flow Interest at KinkCurve Rate
 // =============================================================================
 // This test verifies that borrowing a NON-DEFAULT token (Flow) also accrues
-// interest correctly. Unlike MOET which uses FixedRateInterestCurve, Flow uses
-// a KinkInterestCurve where the rate depends on pool utilization.
+// interest correctly. Unlike MOET which uses FixedCurve, Flow uses
+// a KinkCurve where the rate depends on pool utilization.
 //
 // Scenario:
 // - LP deposits 10,000 FLOW (provides Flow liquidity)
@@ -520,7 +520,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
 // - Time advances 30 days
 // - Verify: Flow debt increased, health decreased
 //
-// Key Insight (KinkInterestCurve):
+// Key Insight (KinkCurve):
 // At 40% utilization (below 45% optimal kink):
 // - Rate = baseRate + (utilization/optimal) × slope1
 // - Rate = 0% + (40%/45%) × 4% ≈ 3.56% APY
@@ -575,7 +575,7 @@ fun test_flow_debit_accrues_interest() {
     // -------------------------------------------------------------------------
     // STEP 4: Configure Flow Interest Curve
     // -------------------------------------------------------------------------
-    // Set the KinkInterestCurve for Flow. The rate will vary based on
+    // Set the KinkCurve for Flow. The rate will vary based on
     // utilization, with a "kink" at 45% where the slope increases dramatically.
     // Note: Must be set AFTER LP deposit (totalCreditBalance > 0 required).
     setInterestCurveKink(
@@ -904,7 +904,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
 // - Time advances 1 YEAR
 // - Verify: Insurance spread ≈ 1% (debit rate - credit rate)
 //
-// Key Insight (FixedRateInterestCurve Spread Model):
+// Key Insight (FixedCurve Spread Model):
 // - debitRate = 10% (what borrowers pay)
 // - insuranceRate = 1% (protocol reserve)
 // - creditRate = debitRate - insuranceRate = 9% (what LPs earn)
@@ -1058,7 +1058,7 @@ fun test_insurance_deduction_verification() {
     // =========================================================================
     // ASSERTION: Verify Insurance Spread
     // =========================================================================
-    // For FixedRateInterestCurve (spread model):
+    // For FixedCurve (spread model):
     // - debitRate = creditRate + insuranceRate
     // - insuranceSpread = debitRate - creditRate ≈ insuranceRate
     //
@@ -1167,8 +1167,8 @@ fun test_combined_all_interest_scenarios() {
     // -------------------------------------------------------------------------
     // STEP 5: Configure Interest Curves for Both Tokens
     // -------------------------------------------------------------------------
-    // MOET: FixedRateInterestCurve at 4% APY (spread model)
-    // Flow: KinkInterestCurve with Aave v3 Volatile One parameters
+    // MOET: FixedCurve at 4% APY (spread model)
+    // Flow: KinkCurve with Aave v3 Volatile One parameters
     setInterestCurveFixed(
         signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
@@ -1358,7 +1358,7 @@ fun test_combined_all_interest_scenarios() {
     log("MOET credit growth rate: \(moetCreditGrowthRate.toString())")
     log("MOET debt growth rate: \(moetDebtGrowthRate.toString())")
 
-    // For FixedRateInterestCurve: creditRate < debitRate (insurance spread)
+    // For FixedCurve: creditRate < debitRate (insurance spread)
     Test.assert(
         moetCreditGrowthRate < moetDebtGrowthRate,
         message: "MOET credit rate should be less than debit rate (insurance spread)"
@@ -1371,7 +1371,7 @@ fun test_combined_all_interest_scenarios() {
     log("Flow credit growth (absolute): \(flowCreditGrowth.toString())")
     log("Flow debt growth (absolute): \(flowDebtGrowth.toString())")
 
-    // For KinkInterestCurve: total credit income < total debit income (reserve factor)
+    // For KinkCurve: total credit income < total debit income (reserve factor)
     // This ensures protocol solvency - can't pay out more than collected.
     Test.assert(
         flowCreditGrowth < flowDebtGrowth,
