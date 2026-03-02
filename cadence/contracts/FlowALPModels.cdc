@@ -1904,13 +1904,13 @@ access(all) contract FlowALPModels {
         /// If nil, the Pool will not pull underflown value, and liquidation may occur.
         access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source}?)
 
-        /// Returns the current collateral type for this position based on existing Credit balances
-        /// Returns nil if no Credit balance exists yet (allows any collateral type for first deposit)
-        access(all) fun getCollateralType(): Type?
+        /// Returns the current collateral types for this position based on existing Credit balances
+        /// Returns empty array if no Credit balance exists yet (allows any collateral type for first deposit)
+        access(all) fun getCollateralTypes(): [Type]
 
-        /// Returns the current debt type for this position based on existing Debit balances
-        /// Returns nil if no Debit balance exists yet (allows any debt type for first borrow)
-        access(all) fun getDebtType(): Type?
+        /// Returns the current debt types for this position based on existing Debit balances
+        /// Returns empty array if no Debit balance exists yet (allows any debt type for first borrow)
+        access(all) fun getDebtTypes(): [Type]
 
         /// Validates that the given token type can be used as collateral for this position
         /// Panics if position already has a different collateral type
@@ -2088,54 +2088,76 @@ access(all) contract FlowALPModels {
             self.topUpSource = source
         }
 
-        /// Returns the current collateral type for this position based on existing Credit balances
-        /// Returns nil if no Credit balance exists yet (allows any collateral type for first deposit)
-        access(all) fun getCollateralType(): Type? {
+        /// Returns the current collateral types for this position based on existing Credit balances
+        /// Returns empty array if no Credit balance exists yet (allows any collateral type for first deposit)
+        access(all) fun getCollateralTypes(): [Type] {
+            let types: [Type] = []
             for type in self.balances.keys {
                 if self.balances[type]!.direction == BalanceDirection.Credit {
-                    return type
+                    types.append(type)
                 }
             }
-            return nil
+            return types
         }
 
-        /// Returns the current debt type for this position based on existing Debit balances
-        /// Returns nil if no Debit balance exists yet (allows any debt type for first borrow)
-        access(all) fun getDebtType(): Type? {
+        /// Returns the current debt types for this position based on existing Debit balances
+        /// Returns empty array if no Debit balance exists yet (allows any debt type for first borrow)
+        access(all) fun getDebtTypes(): [Type] {
+            let types: [Type] = []
             for type in self.balances.keys {
                 if self.balances[type]!.direction == BalanceDirection.Debit {
-                    return type
+                    types.append(type)
                 }
             }
-            return nil
+            return types
         }
 
         /// Validates that the given token type can be used as collateral for this position
         /// Panics if position already has a different collateral type
         access(EImplementation) fun validateCollateralType(_ type: Type) {
-            let existingType = self.getCollateralType()
-            if existingType == nil {
+            let existingTypes = self.getCollateralTypes()
+
+            // Constraint: For now, only one collateral type is allowed per position
+            // This assertion ensures the invariant is maintained
+            assert(existingTypes.length <= 1, message: "Internal error: Position has multiple collateral types")
+
+            if existingTypes.length == 0 {
                 // No collateral yet, allow any type
                 return
             }
 
-            if existingType! != type {
-                panic("Position already has collateral type ".concat(existingType!.identifier).concat(". Cannot deposit ").concat(type.identifier).concat(". Only one collateral type allowed per position."))
+            // Check if type already exists (idempotent)
+            if existingTypes.contains(type) {
+                return
             }
+
+            // For now, only one collateral type is allowed per position
+            // This restriction can be removed in the future to support multiple collateral types
+            panic("Position already has collateral type ".concat(existingTypes[0].identifier).concat(". Cannot deposit ").concat(type.identifier).concat(". Only one collateral type allowed per position."))
         }
 
         /// Validates that the given token type can be used as debt for this position
         /// Panics if position already has a different debt type
         access(EImplementation) fun validateDebtType(_ type: Type) {
-            let existingType = self.getDebtType()
-            if existingType == nil {
+            let existingTypes = self.getDebtTypes()
+
+            // Constraint: For now, only one debt type is allowed per position
+            // This assertion ensures the invariant is maintained
+            assert(existingTypes.length <= 1, message: "Internal error: Position has multiple debt types")
+
+            if existingTypes.length == 0 {
                 // No debt yet, allow any type
                 return
             }
 
-            if existingType! != type {
-                panic("Position already has debt type ".concat(existingType!.identifier).concat(". Cannot borrow ").concat(type.identifier).concat(". Only one debt type allowed per position."))
+            // Check if type already exists (idempotent)
+            if existingTypes.contains(type) {
+                return
             }
+
+            // For now, only one debt type is allowed per position
+            // This restriction can be removed in the future to support multiple debt types
+            panic("Position already has debt type ".concat(existingTypes[0].identifier).concat(". Cannot borrow ").concat(type.identifier).concat(". Only one debt type allowed per position."))
         }
     }
 
