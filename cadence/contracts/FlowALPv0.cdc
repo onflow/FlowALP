@@ -3170,7 +3170,9 @@ access(all) contract FlowALPv0 {
         access(self) fun _verifyNoDebtRemains(pid: UInt64) {
             let updatedDetails = self.getPositionDetails(pid: pid)
 
-            // CRITICAL: No debt tokens should remain in debit (zero tolerance)
+            // CRITICAL: No debt tokens should remain in debit. (zero tolerance)
+            // If a position has a zero balance in some token, that is represented as BalanceDirection.Credit,
+            // so we don't need to check balance amount here (any debit balance must be non-zero).
             for balance in updatedDetails.balances {
                 if balance.direction == BalanceDirection.Debit {
                     panic("Debt not fully repaid for \(balance.vaultType.identifier): \(balance.balance) remaining. Position cannot be closed with outstanding debt.")
@@ -3192,8 +3194,7 @@ access(all) contract FlowALPv0 {
             // Withdraw all credit balances in deterministic order
             for withdrawalType in collateralTypes {
                 let tokenBalance = positionView.trueBalance(ofToken: withdrawalType)
-                let withdrawable = FlowALPMath.toUFix64RoundDown(tokenBalance)
-                let withdrawAmount = withdrawable
+                let withdrawAmount = FlowALPMath.toUFix64RoundDown(tokenBalance)
 
                 // Perform direct withdrawal while holding lock
                 if withdrawAmount == 0.0 {
@@ -3332,10 +3333,8 @@ access(all) contract FlowALPv0 {
 
             // Step 7: Build withdrawals map for event (vaults are in same order as collateralTypes)
             let withdrawalsByType: {Type: UFix64} = {}
-            var i = 0
-            while i < collateralTypes.length {
-                withdrawalsByType[collateralTypes[i]] = collateralVaults[i].balance
-                i = i + 1
+            for i in InclusiveRange(0, collateralTypes.length-1) {
+                withdrawalsByType[collateralTypes[i]] = vaults[i].balance
             }
 
             // Step 8: Emit position closed event
@@ -4325,7 +4324,7 @@ access(all) contract FlowALPv0 {
         /// Automatically detects and withdraws all collateral types in the position.
         /// If repayment vaults contain overpayment, the excess is returned as dust.
         ///
-        /// @param repaymentVaults: Array of vaults containing funds to repay all debts (overpayment okay, underpayment fails)
+        /// @param repaymentSources: Array of sources (one per debt type) from which debt repayments can be withdrawn
         /// @return Array of vaults containing all collateral + any overpayment dust
         ///
         access(FungibleToken.Withdraw) fun closePosition(
