@@ -1,15 +1,16 @@
 import "FlowALPv0"
+import "FlowALPModels"
 import "BandOracleConnectors"
 import "DeFiActions"
 import "FungibleTokenConnectors"
 import "FungibleToken"
 
 transaction() {
-    let pool: auth(FlowALPv0.EGovernance) &FlowALPv0.Pool
+    let pool: auth(FlowALPModels.EGovernance) &FlowALPv0.Pool
     let oracle: {DeFiActions.PriceOracle}
 
     prepare(signer: auth(BorrowValue, IssueStorageCapabilityController) &Account) {
-        self.pool = signer.storage.borrow<auth(FlowALPv0.EGovernance) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
+        self.pool = signer.storage.borrow<auth(FlowALPModels.EGovernance) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
             ?? panic("Could not borrow reference to Pool from \(FlowALPv0.PoolStoragePath) - ensure a Pool has been configured")
         let defaultToken = self.pool.getDefaultToken()
 
