@@ -3186,20 +3186,9 @@ access(all) contract FlowALPv0 {
             let collateralVaults: @[{FungibleToken.Vault}] <- []
             let withdrawalsByType: {Type: UFix64} = {}  // Track withdrawals for event
 
-            // Build ordered list of token types to withdraw
-            // (collateral types identified in Step 2)
-            let orderedWithdrawalTypes: [Type] = []
-            let seen: {Type: Bool} = {}
-
-            for collateralType in collateralTypes {
-                if seen[collateralType] == nil {
-                    orderedWithdrawalTypes.append(collateralType)
-                    seen[collateralType] = true
-                }
-            }
-
             // Withdraw all credit balances in deterministic order
-            for withdrawalType in orderedWithdrawalTypes {
+            // (collateralTypes already deduplicated by Step 2 sanity check)
+            for withdrawalType in collateralTypes {
                 let tokenBalance = positionView.trueBalance(ofToken: withdrawalType)
                 let withdrawable = FlowALPMath.toUFix64RoundDown(tokenBalance)
 
