@@ -874,7 +874,7 @@ access(all) contract FlowALPv0 {
         /// Argument expressed astokens per hour
         access(EImplementation) fun setDepositRate(_ hourlyRate: UFix64) {
             // settle using old rate if for some reason too much time has passed without regeneration
-            self.regenerateDepositCapacity() 
+            self.regenerateDepositCapacity()
             self.depositRate = hourlyRate
         }
 
@@ -898,7 +898,7 @@ access(all) contract FlowALPv0 {
         access(EImplementation) fun setStabilityFeeRate(_ rate: UFix64) {
             self.stabilityFeeRate = rate
         }
-        
+
         /// Sets the last stability fee collection timestamp for this token state.
         access(EImplementation) fun setLastStabilityFeeCollectionTime(_ lastStabilityFeeCollectionTime: UFix64) {
             self.lastStabilityFeeCollectionTime = lastStabilityFeeCollectionTime
@@ -917,7 +917,7 @@ access(all) contract FlowALPv0 {
                 message: "cannot consume more than available deposit capacity"
             )
             self.depositCapacity = self.depositCapacity - amount
-            
+
             // Track per-user deposit usage for the accepted amount
             let currentUserUsage = self.depositUsage[pid] ?? 0.0
             self.depositUsage[pid] = currentUserUsage + amount
@@ -1018,7 +1018,7 @@ access(all) contract FlowALPv0 {
 
                 // Set the deposit capacity to the new deposit capacity cap, i.e. regenerate the capacity
                 self.setDepositCapacity(newDepositCapacityCap)
-                
+
                 // Regenerate user usage for this token type as well
                 self.depositUsage = {}
 
@@ -1075,7 +1075,7 @@ access(all) contract FlowALPv0 {
             if self.interestCurve.getType() == Type<FlowALPv0.FixedRateInterestCurve>() {
                 // FixedRate path: creditRate = debitRate * (1 - protocolFeeRate))
                 // This provides a fixed, predictable spread between borrower and lender rates
-                creditRate = debitRate * (1.0 - protocolFeeRate) 
+                creditRate = debitRate * (1.0 - protocolFeeRate)
             } else {
                 // KinkCurve path (and any other curves): reserve factor model
                 // protocolFeeAmount = debitIncome * protocolFeeRate (percentage of income)
@@ -1116,7 +1116,7 @@ access(all) contract FlowALPv0 {
 
             // Calculate accrued insurance amount based on time elapsed since last collection
             let timeElapsed = currentTime - self.lastInsuranceCollectionTime
-            
+
             // If no time has elapsed, nothing to collect
             if timeElapsed <= 0.0 {
                 return nil
@@ -1133,7 +1133,7 @@ access(all) contract FlowALPv0 {
                 self.setLastInsuranceCollectionTime(currentTime)
                 return nil
             }
-            
+
             // Check if we have enough balance in reserves
             if reserveVault.balance == 0.0 {
                 self.setLastInsuranceCollectionTime(currentTime)
@@ -1323,7 +1323,7 @@ access(all) contract FlowALPv0 {
                     }
                     panic("unreachable")
                 }
-            } 
+            }
             // If the token doesn't exist in the position, the balance is 0
             return 0.0
         }
@@ -1335,7 +1335,7 @@ access(all) contract FlowALPv0 {
     /// Effective Collateral is defined:
     ///   Ce = (Nc)(Pc)(Fc)
     /// Where:
-    /// Ce = Effective Collateral 
+    /// Ce = Effective Collateral
     /// Nc = Number of Collateral Tokens
     /// Pc = Collateral Token Price
     /// Fc = Collateral Factor
@@ -1351,7 +1351,7 @@ access(all) contract FlowALPv0 {
     /// Effective Debt is defined:
     ///   De = (Nd)(Pd)(Fd)
     /// Where:
-    /// De = Effective Debt 
+    /// De = Effective Debt
     /// Nd = Number of Debt Tokens
     /// Pd = Debt Token Price
     /// Fd = Borrow Factor
@@ -1537,7 +1537,7 @@ access(all) contract FlowALPv0 {
 
         /// A trusted DEX (or set of DEXes) used by FlowALPv0 as a pricing oracle and trading counterparty for liquidations.
         /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
-        /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
+        /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs:
         ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
         ///
         /// FlowALPv0 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
@@ -1654,7 +1654,7 @@ access(all) contract FlowALPv0 {
         /// Returns whether a given token Type is supported or not
         access(all) view fun isTokenSupported(tokenType: Type): Bool {
             return self.globalLedger[tokenType] != nil
-        } 
+        }
 
         /// Returns the current balance of the stability fund for a given token type.
         /// Returns nil if the token type is not supported.
@@ -1662,7 +1662,7 @@ access(all) contract FlowALPv0 {
             if let fundRef = &self.stabilityFunds[tokenType] as &{FungibleToken.Vault}? {
                 return fundRef.balance
             }
-            
+
             return nil
         }
 
@@ -1749,7 +1749,7 @@ access(all) contract FlowALPv0 {
             if let tokenState = self.globalLedger[tokenType] {
                 return tokenState.insuranceRate
             }
-            
+
             return nil
         }
 
@@ -1958,7 +1958,7 @@ access(all) contract FlowALPv0 {
             post {
                 self.positionLock[pid] == nil: "Position is not unlocked"
             }
-            
+
             self._lockPosition(pid)
 
             let positionView = self.buildPositionView(pid: pid)
@@ -1978,7 +1978,7 @@ access(all) contract FlowALPv0 {
             let Pc_oracle = self.priceOracle.price(ofToken: seizeType)! // collateral price given by oracle ($/C)
             // Price of collateral, denominated in debt token, implied by oracle (D/C)
             // Oracle says: "1 unit of collateral is worth `Pcd_oracle` units of debt"
-            let Pcd_oracle = Pc_oracle / Pd_oracle 
+            let Pcd_oracle = Pc_oracle / Pd_oracle
 
             // Compute the health factor which would result if we were to accept this liquidation
             let Ce_pre = balanceSheet.effectiveCollateral // effective collateral pre-liquidation
@@ -1989,7 +1989,7 @@ access(all) contract FlowALPv0 {
             // Ce_seize = effective value of seized collateral ($)
             let Ce_seize = FlowALPv0.effectiveCollateral(credit: UFix128(seizeAmount), price: UFix128(Pc_oracle), collateralFactor: Fc)
             // De_seize = effective value of repaid debt ($)
-            let De_seize = FlowALPv0.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd) 
+            let De_seize = FlowALPv0.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd)
             let Ce_post = Ce_pre - Ce_seize // position's total effective collateral after liquidation ($)
             let De_post = De_pre - De_seize // position's total effective debt after liquidation ($)
             let postHealth = FlowALPv0.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
@@ -2008,9 +2008,9 @@ access(all) contract FlowALPv0 {
                 message: "DEX/oracle price deviation too large. Dex price: \(Pcd_dex), Oracle price: \(Pcd_oracle)")
             // Execute the liquidation
             let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
-            
+
             self._unlockPosition(pid)
-            
+
             return <- seizedCollateral
         }
 
@@ -2036,7 +2036,7 @@ access(all) contract FlowALPv0 {
         access(self) fun _doLiquidation(pid: UInt64, repayment: @{FungibleToken.Vault}, debtType: Type, seizeType: Type, seizeAmount: UFix64): @{FungibleToken.Vault} {
             pre {
                 !self.isPausedOrWarmup(): "Liquidations are paused by governance"
-                // position must have debt and collateral balance 
+                // position must have debt and collateral balance
             }
 
             let repayAmount = repayment.balance
@@ -2789,12 +2789,12 @@ access(all) contract FlowALPv0 {
             let userDepositLimitCap = tokenState.getUserDepositLimitCap()
             let currentUsage = tokenState.depositUsage[pid] ?? 0.0
             let remainingUserLimit = userDepositLimitCap - currentUsage
-            
+
             // If the deposit would exceed the user's limit, queue or reject the excess
             if from.balance > remainingUserLimit {
                 let excessAmount = from.balance - remainingUserLimit
                 let queuedForUserLimit <- from.withdraw(amount: excessAmount)
-                
+
                 if position.queuedDeposits[type] == nil {
                     position.queuedDeposits[type] <-! queuedForUserLimit
                 } else {
@@ -3102,163 +3102,44 @@ access(all) contract FlowALPv0 {
                 log("    [CONTRACT] closePosition(pid: \(pid), repaymentSources: \(repaymentSources.length))")
             }
 
-            // Step 1: Lock the position for all state modifications
             self._lockPosition(pid)
 
-            // Step 2: Analyze position to find all debt and collateral types
-            let positionDetails = self.getPositionDetails(pid: pid)
-            let debtsByType: {Type: UFix64} = {}
-            let collateralTypes: [Type] = []
-
-            for balance in positionDetails.balances {
-                if balance.direction == BalanceDirection.Debit {
-                    let debtType = balance.vaultType
-                    // Sanity check: each position should have at most one balance entry per token type
-                    assert(
-                        debtsByType[debtType] == nil,
-                        message: "Sanity check failed: found multiple balances for \(debtType.identifier) while closing position"
-                    )
-                    debtsByType[debtType] = balance.balance
-                } else if balance.direction == BalanceDirection.Credit {
-                    // Track ALL collateral types present in position (including dust)
-                    // Note: balance.balance may round to 0 but position might still have dust
-                    // Sanity check: each position should have at most one balance entry per token type
-                    assert(
-                        !collateralTypes.contains(balance.vaultType),
-                        message: "Sanity check failed: found multiple balances for \(balance.vaultType.identifier) while closing position"
-                    )
-                    collateralTypes.append(balance.vaultType)
-                }
-            }
-
-            // Step 3: Pull repayment from sources
-            // Note: Any overpayment naturally becomes a credit balance and is withdrawn in Step 5
-
-            // For each debt type, try to pull from sources
-            for debtType in debtsByType.keys {
-                let debtAmount = debtsByType[debtType]!
-                var remainingDebt = debtAmount
-
-                // Try each source until debt is fully paid
+            fun repayDebitBalance(balanceType: Type, balance: UFix64): @{FungibleToken.Vault} {
                 for source in repaymentSources {
-                    if remainingDebt == 0.0 {
-                        break
+                    if source.getSourceType() != balanceType {
+                        continue
                     }
-
-                    // Only pull from sources that provide the debt type we need
-                    if source.getSourceType() == debtType {
-                        // Pull up to remaining debt amount
-                        let pulled <- source.withdrawAvailable(maxAmount: remainingDebt)
-                        let pulledAmount = pulled.balance
-
-                        if pulledAmount > 0.0 {
-                            remainingDebt = remainingDebt - pulledAmount
-
-                            // Deposit to position (any overpayment flips to credit)
-                            self._depositEffectsOnly(pid: pid, from: <-pulled)
-                        } else {
-                            destroy pulled
-                        }
-                    }
+                    let pulled <- source.withdrawAvailable(maxAmount: balance)
+                    assert(pulled.getType() == balanceType, message: "source returned unexpected token type")
+                    assert(pulled.balance >= balance, message: "Pulled amount is less than balance amount")
+                    return <- pulled
                 }
-
-                // Verify we got enough for this debt type
-                assert(
-                    remainingDebt == 0.0,
-                    message: "Insufficient funds from sources for \(debtType.identifier) debt: needed \(debtAmount), got \(debtAmount - remainingDebt)"
-                )
+                panic("No source found for balance type \(balanceType.identifier)")
             }
 
-            // Step 4: Verify ALL debt is EXACTLY repaid (no epsilon tolerance)
-            let updatedDetails = self.getPositionDetails(pid: pid)
-
-            // CRITICAL: No debt tokens should remain in debit (zero tolerance)
-            for balance in updatedDetails.balances {
-                if balance.direction == BalanceDirection.Debit {
-                    // ZERO tolerance - all debt must be fully repaid
-                    // Since getTotalDebt rounds UP, this should never fail with proper repayment
-                    panic("Debt not fully repaid for \(balance.vaultType.identifier): \(balance.balance) remaining. Position cannot be closed with outstanding debt.")
-                }
-            }
-
-            // Step 5: Withdraw all credit balances (collateral + any overpayment from sources)
-            let positionView = self.buildPositionView(pid: pid)
-            let collateralVaults: @[{FungibleToken.Vault}] <- []
-            let withdrawalsByType: {Type: UFix64} = {}  // Track withdrawals for event
-
-            // Build ordered list of token types to withdraw
-            // (collateral types identified in Step 2)
-            let orderedWithdrawalTypes: [Type] = []
-            let seen: {Type: Bool} = {}
-
-            for collateralType in collateralTypes {
-                if seen[collateralType] == nil {
-                    orderedWithdrawalTypes.append(collateralType)
-                    seen[collateralType] = true
-                }
-            }
-
-            // Withdraw all credit balances in deterministic order
-            for withdrawalType in orderedWithdrawalTypes {
-                let tokenBalance = positionView.trueBalance(ofToken: withdrawalType)
-                let withdrawable = FlowALPMath.toUFix64RoundDown(tokenBalance)
-
-                // Withdraw full balance (any overpayment naturally became credit in Step 3)
-                var withdrawAmount: UFix64 = withdrawable
-
-                // Perform direct withdrawal while holding lock
-                if withdrawAmount == 0.0 {
-                    // Track zero withdrawal for this type
-                    withdrawalsByType[withdrawalType] = 0.0
-                    collateralVaults.append(<- DeFiActionsUtils.getEmptyVault(withdrawalType))
-                    continue
-                }
-                let position = self._borrowPosition(pid: pid)
-                let tokenState = self._borrowUpdatedTokenState(type: withdrawalType)
-                let reserveVault = (&self.reserves[withdrawalType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
-
-                // Record withdrawal in position balance
-                if position.balances[withdrawalType] == nil {
-                    position.balances[withdrawalType] = InternalBalance(
-                        direction: BalanceDirection.Credit,
-                        scaledBalance: 0.0
-                    )
-                }
-                position.balances[withdrawalType]!.recordWithdrawal(
-                    amount: UFix128(withdrawAmount),
-                    tokenState: tokenState
-                )
-
-                // Queue for update if necessary
-                self._queuePositionForUpdateIfNecessary(pid: pid)
-
-                // Withdraw from reserves
-                let withdrawn <- reserveVault.withdraw(amount: withdrawAmount)
-
-                // Track withdrawal amount for this type
-                withdrawalsByType[withdrawalType] = withdrawAmount
-
-                emit Withdrawn(
-                    pid: pid,
-                    poolUUID: self.uuid,
-                    vaultType: withdrawalType,
-                    amount: withdrawAmount,
-                    withdrawnUUID: withdrawn.uuid
-                )
-
-                collateralVaults.append(<- withdrawn)
-            }
-
-            // Emit event for position closure
-            // Note: repayments = debts owed (sources may have provided more, but that became credit)
             let repaymentsEvent: {String: UFix64} = {}
-            for debtType in debtsByType.keys {
-                repaymentsEvent[debtType.identifier] = debtsByType[debtType]!
-            }
-
             let withdrawalsEvent: {String: UFix64} = {}
-            for withdrawalType in withdrawalsByType.keys {
-                withdrawalsEvent[withdrawalType.identifier] = withdrawalsByType[withdrawalType]!
+            let collateralVaults: @[{FungibleToken.Vault}] <- []
+            let positionView = self.buildPositionView(pid: pid)
+
+            let positionDetails = self.getPositionDetails(pid: pid)
+            for balanceDetail in positionDetails.balances {
+                switch balanceDetail.direction {
+                    case BalanceDirection.Debit:
+                        let pulled <- repayDebitBalance(balanceType: balanceDetail.vaultType, balance: balanceDetail.balance)
+                        repaymentsEvent[balanceDetail.vaultType.identifier] = pulled.balance
+                        self._depositEffectsOnly(pid: pid, from: <-pulled)
+                    case BalanceDirection.Credit:
+                        let trueBalance = positionView.trueBalance(ofToken: balanceDetail.vaultType)
+                        let withdrawable = FlowALPMath.toUFix64RoundDown(trueBalance)
+                        // its safe to unlock and lock since withdraw will lock Position
+                        self._unlockPosition(pid)
+                        let withdrawn <- self.withdraw(pid: pid, amount: withdrawable, type: balanceDetail.vaultType)
+                        self._lockPosition(pid)
+                        withdrawalsEvent[balanceDetail.vaultType.identifier] = withdrawn.balance
+                        collateralVaults.append(<- withdrawn)
+                        self._unlockPosition(pid)
+                }
             }
 
             emit PositionClosed(
@@ -3268,7 +3149,6 @@ access(all) contract FlowALPv0 {
                 withdrawalsByType: withdrawalsEvent
             )
 
-            // Unlock position now that all operations are complete
             self._unlockPosition(pid)
 
             return <-collateralVaults
@@ -3315,7 +3195,7 @@ access(all) contract FlowALPv0 {
         /// Updates the DEX (AMM) interface used for liquidations and insurance collection.
         ///
         /// The SwapperProvider implementation MUST return a Swapper for all possible (ordered) pairs of supported tokens.
-        /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs: 
+        /// If [X1, X2, ..., Xn] is the set of supported tokens, then the SwapperProvider must return a Swapper for all pairs:
         ///   (Xi, Xj) where i∈[1,n], j∈[1,n], i≠j
         ///
         /// FlowALPv0 does not attempt to construct multi-part paths (using multiple Swappers) or compare prices across Swappers.
@@ -3405,7 +3285,7 @@ access(all) contract FlowALPv0 {
             // Validate constraint: non-zero rate requires swapper
             if insuranceRate > 0.0 {
                 assert(
-                    tsRef.insuranceSwapper != nil, 
+                    tsRef.insuranceSwapper != nil,
                     message:"Cannot set non-zero insurance rate without an insurance swapper configured for \(tokenType.identifier)",
                 )
             }
@@ -3424,13 +3304,13 @@ access(all) contract FlowALPv0 {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
-                ?? panic("Invariant: token state missing")   
+                ?? panic("Invariant: token state missing")
 
             if let swapper = swapper {
                 // Validate swapper types match
                 assert(swapper.inType() == tokenType, message: "Swapper input type must match token type")
                 assert(swapper.outType() == Type<@MOET.Vault>(), message: "Swapper output type must be MOET")
-            
+
             } else {
                 // cannot remove swapper if insurance rate > 0
                 assert(
@@ -3514,7 +3394,7 @@ access(all) contract FlowALPv0 {
             let tsRef = &self.globalLedger[tokenType] as auth(EImplementation) &TokenState?
                 ?? panic("Invariant: token state missing")
             tsRef.setStabilityFeeRate(stabilityFeeRate)
-            
+
             emit StabilityFeeRateUpdated(
                 poolUUID: self.uuid,
                 tokenType: tokenType.identifier,
@@ -3535,7 +3415,7 @@ access(all) contract FlowALPv0 {
                 fundRef.balance >= amount,
                 message: "Insufficient stability fund balance. Available: \(fundRef.balance), requested: \(amount)"
             )
-            
+
             let withdrawn <- fundRef.withdraw(amount: amount)
             recipient.deposit(from: <-withdrawn)
 
@@ -3815,8 +3695,8 @@ access(all) contract FlowALPv0 {
             let reserveRef = (&self.reserves[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
 
             // Collect stability and get token vault
-            if let collectedVault <- tokenState.collectStability(reserveVault: reserveRef) {  
-                let collectedBalance = collectedVault.balance     
+            if let collectedVault <- tokenState.collectStability(reserveVault: reserveRef) {
+                let collectedBalance = collectedVault.balance
                 // Deposit collected token into stability fund
                 if self.stabilityFunds[tokenType] == nil {
                     self.stabilityFunds[tokenType] <-! collectedVault
@@ -3824,7 +3704,7 @@ access(all) contract FlowALPv0 {
                     let fundRef = (&self.stabilityFunds[tokenType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
                     fundRef.deposit(from: <-collectedVault)
                 }
-                
+
                 emit StabilityFeeCollected(
                     poolUUID: self.uuid,
                     tokenType: tokenType.identifier,
@@ -3926,7 +3806,7 @@ access(all) contract FlowALPv0 {
         access(self) fun updateInterestRatesAndCollectInsurance(tokenType: Type) {
             let tokenState = self._borrowUpdatedTokenState(type: tokenType)
             tokenState.updateInterestRates()
-            
+
             // Collect insurance if swapper is configured
             // Ensure reserves exist for this token type
             if self.reserves[tokenType] == nil {
@@ -4011,7 +3891,7 @@ access(all) contract FlowALPv0 {
         access(all) fun getDefaultToken(): Type {
             return self.defaultToken
         }
-        
+
         /// Returns the deposit capacity and deposit capacity cap for a given token type
         access(all) fun getDepositCapacityInfo(type: Type): {String: UFix64} {
             let tokenState = self._borrowUpdatedTokenState(type: type)
