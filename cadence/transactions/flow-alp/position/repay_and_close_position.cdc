@@ -1,17 +1,20 @@
-// Repay MOET debt and close position, withdrawing all collateral
+// Repay debt and close position using Sources (supports swapping, multi-vault, etc.)
 //
-// This transaction uses the closePosition method to:
-// 1. Repay all debt with provided MOET vault
-// 2. Withdraw and return all collateral to the user
+// This transaction uses the closePosition method with Source abstraction:
+// 1. Creates a VaultSource from the user's MOET vault capability
+// 2. closePosition pulls exactly what it needs from the source
+// 3. Returns all collateral + any overpayment
 //
-// After running this transaction:
-// - MOET debt will be repaid (balance goes to 0)
-// - All collateral will be returned to the user's vault
-// - The position will be closed
+// Benefits:
+// - No debt precalculation needed in transaction
+// - No buffer required
+// - Supports swapping (can use SwapSource instead of VaultSource)
+// - Contract handles all precision internally
 
 import "FungibleToken"
 import "FlowToken"
 import "DeFiActions"
+import "FungibleTokenConnectors"
 import "FlowALPv0"
 import "MOET"
 
@@ -20,9 +23,9 @@ transaction(positionId: UInt64) {
     let position: auth(FungibleToken.Withdraw) &FlowALPv0.Position
     let flowReceiverRef: &{FungibleToken.Receiver}
     let moetReceiverRef: &{FungibleToken.Receiver}
-    let moetWithdrawRef: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+    let moetVaultCap: Capability<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>
 
-    prepare(borrower: auth(BorrowValue) &Account) {
+    prepare(borrower: auth(BorrowValue, Capabilities) &Account) {
         // Borrow the PositionManager from constant storage path with both required entitlements
         let manager = borrower.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(
             from: FlowALPv0.PositionStoragePath
@@ -40,32 +43,25 @@ transaction(positionId: UInt64) {
             MOET.VaultPublicPath
         ) ?? panic("Could not borrow MOET receiver reference")
 
-        // Borrow withdraw reference to borrower's MOET vault to repay debt
-        self.moetWithdrawRef = borrower.storage.borrow<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(from: MOET.VaultStoragePath)
-            ?? panic("No MOET vault in storage")
+        // Get or create capability for MOET vault
+        self.moetVaultCap = borrower.capabilities.storage.issue<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(
+            MOET.VaultStoragePath
+        )
+        assert(self.moetVaultCap.check(), message: "Invalid MOET vault capability")
     }
 
     execute {
-        // Calculate exact MOET debt from position
-        let debts = self.position.getTotalDebt()
-        var moetDebt: UFix64 = 0.0
-        for debt in debts {
-            if debt.tokenType == Type<@MOET.Vault>() {
-                moetDebt = debt.amount
-                break
-            }
-        }
+        // Create a VaultSource from the MOET vault capability
+        // closePosition will pull exactly what it needs
+        let moetSource = FungibleTokenConnectors.VaultSource(
+            min: nil,  // No minimum balance requirement
+            withdrawVault: self.moetVaultCap,
+            uniqueID: nil
+        )
 
-        // Withdraw exact MOET debt amount (rounded up by getTotalDebt)
-        // No buffer needed - contract now properly flips to credit when debt == 0
-        let repaymentVaults: @[{FungibleToken.Vault}] <- []
-        if moetDebt > 0.0 {
-            repaymentVaults.append(<- self.moetWithdrawRef.withdraw(amount: moetDebt))
-        }
-
-        // Close position: repay debt and withdraw all collateral in one call
-        // Any overpayment will be returned along with collateral
-        let returnedVaults <- self.position.closePosition(repaymentVaults: <-repaymentVaults)
+        // Close position with sources
+        // Contract calculates debt internally and pulls exact amount needed
+        let returnedVaults <- self.position.closePosition(repaymentSources: [moetSource])
 
         // Deposit all returned collateral and overpayment to appropriate vaults
         while returnedVaults.length > 0 {
@@ -83,4 +79,4 @@ transaction(positionId: UInt64) {
         }
         destroy returnedVaults
     }
-} 
+}
