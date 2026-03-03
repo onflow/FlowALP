@@ -1,6 +1,8 @@
 import Test
 import "FlowALPv0"
 import "FlowALPModels"
+import "FlowALPEvents"
+import "MOET"
 
 /* --- Global test constants --- */
 
@@ -34,28 +36,21 @@ access(all) let ONE_YEAR: Fix64 = 31_557_600.0     // 365.25 * 86400
 
 // Mainnet constants
 // EVM Bridged Token Identifiers
+access(all) let MAINNET_WETH_TOKEN_ID = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590.Vault"
+access(all) let MAINNET_USDF_TOKEN_ID = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabed.Vault"
+access(all) let MAINNET_WBTC_TOKEN_ID = "A.1e4aa0b87d10b141.EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579.Vault"
+access(all) let MAINNET_USDC_TOKEN_ID = "A.f1ab99c82dee3526.USDCFlow.Vault"
 access(all) let MAINNET_MOET_TOKEN_ID = "A.6b00ff876c299c61.MOET.Vault"
 access(all) let MAINNET_FLOW_TOKEN_ID = "A.1654653399040a61.FlowToken.Vault"
 
-// Real mainnet token identifiers
-access(all) let MAINNET_FLOW_TOKEN_IDENTIFIER = "A.1654653399040a61.FlowToken.Vault"
-access(all) let MAINNET_USDC_TOKEN_IDENTIFIER = "A.f1ab99c82dee3526.USDCFlow.Vault"
-access(all) let MAINNET_USDF_TOKEN_IDENTIFIER = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabed.Vault"
-access(all) let MAINNET_WETH_TOKEN_IDENTIFIER = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590.Vault"
-access(all) let MAINNET_WBTC_TOKEN_IDENTIFIER = "A.1e4aa0b87d10b141.EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579.Vault"
-access(all) let MAINNET_MOET_TOKEN_IDENTIFIER = "A.6b00ff876c299c61.MOET.Vault"
-
-// Storage paths for different token types
+// Storage paths
 access(all) let MAINNET_USDC_STORAGE_PATH = /storage/usdcFlowVault
 access(all) let MAINNET_USDF_STORAGE_PATH = /storage/EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabedVault
 access(all) let MAINNET_WETH_STORAGE_PATH = /storage/EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590Vault
 access(all) let MAINNET_WBTC_STORAGE_PATH = /storage/EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579Vault
+access(all) let MAINNET_MOET_STORAGE_PATH = /storage/moetTokenVault_0x6b00ff876c299c61
 
-// Mainnet account addresses (used in fork tests)
-// Note: MAINNET_PROTOCOL_ACCOUNT shares its address with MAINNET_WBTC_HOLDER (0x47f544294e3b7656).
-// In fork mode, Test.deployContract() deploys FlowALPv0 to its mainnet alias, so PoolFactory
-// and all pool admin resources are stored at MAINNET_PROTOCOL_ACCOUNT_ADDRESS.
-access(all) let MAINNET_PROTOCOL_ACCOUNT_ADDRESS: Address = 0x47f544294e3b7656
+access(all) let MAINNET_PROTOCOL_ACCOUNT_ADDRESS: Address = 0x6b00ff876c299c61
 access(all) let MAINNET_USDF_HOLDER_ADDRESS: Address = 0xf18b50870aed46ad
 access(all) let MAINNET_WETH_HOLDER_ADDRESS: Address = 0xf62e3381a164f993
 access(all) let MAINNET_WBTC_HOLDER_ADDRESS: Address = 0x47f544294e3b7656
@@ -158,7 +153,7 @@ fun deployContracts() {
     err = Test.deployContract(
         name: "MockOracle",
         path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [MOET_TOKEN_IDENTIFIER]
+        arguments: [Type<@MOET.Vault>().identifier]
     )
     Test.expect(err, Test.beNil())
 
@@ -177,14 +172,14 @@ fun deployContracts() {
     )
     Test.expect(err, Test.beNil())
 
-    // Deploy FungibleTokenConnectors
+
     err = Test.deployContract(
         name: "FungibleTokenConnectors",
         path: "../../FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
-    // Deploy MockDexSwapper for DEX liquidation tests
+
     err = Test.deployContract(
         name: "MockDexSwapper",
         path: "../contracts/mocks/MockDexSwapper.cdc",
@@ -198,7 +193,6 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
-
 
     err = Test.deployContract(
         name: "AdversarialTypeSpoofingConnectors",
@@ -397,7 +391,7 @@ fun getLastStabilityCollectionTime(tokenTypeIdentifier: String): UFix64? {
 access(all)
 fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String, beFailed: Bool) {
     let createRes = _executeTransaction(
-        "../transactions/flow-alp/pool-factory/create_and_store_pool.cdc",
+        "transactions/flow-alp/pool-factory/create_and_store_pool.cdc",
         [defaultTokenIdentifier],
         signer
     )
@@ -998,4 +992,10 @@ fun getCreditBalanceForType(details: FlowALPModels.PositionDetails, vaultType: T
         }
     }
     return 0.0
+}
+
+access(all) fun getLastPositionId(): UInt64  {
+    var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+    return pid
 }
