@@ -506,7 +506,7 @@ fun test_governance_tightens_dex_deviation_threshold() {
 
 
 // =============================================================================
-// Extreme price scenarious
+// Extreme price scenarios
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -608,9 +608,10 @@ fun test_flash_crash_triggers_liquidation() {
 // -----------------------------------------------------------------------------
 // Flash Pump: 100% Price Increase in a Single Block
 // FLOW doubles from $1.00 to $2.00.
-// Tests that a position immediately reflects the new higher health,
-// and that the user cannot exploit the pump by borrowing excessively
-// before the price corrects.
+// Tests that a position immediately reflects the new higher health.
+// Typical collateral factors are not sufficient to protect against sudden and dramatic price moves.
+// FlowALP relies on Oracle implementations to smooth out underlying price information or return no price
+// at all when price information sources disagree. 
 // -----------------------------------------------------------------------------
 access(all)
 fun test_flash_pump_increase_doubles_health() {
@@ -692,6 +693,8 @@ fun test_flash_pump_increase_doubles_health() {
     // The user borrowed at inflated prices and is now underwater.
     // The protocol's collateral factors provide some buffer, but cannot
     // fully protect against 100% price swings.
+    // The protocol also relies on Oracle implementations to smooth out price information or report no price
+    // when information sources disagree.
     let healthAfterCorrection = getPositionHealth(pid: pid, beFailed: false)
     Test.assert(healthAfterCorrection < 1.0, message: "Position should be underwater after pump-and-dump scenario")
 }
