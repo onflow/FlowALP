@@ -1,5 +1,6 @@
 import Test
 import "FlowALPv0"
+import "MOET"
 
 /* --- Global test constants --- */
 
@@ -126,7 +127,7 @@ fun deployContracts() {
     err = Test.deployContract(
         name: "MockOracle",
         path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [MOET_TOKEN_IDENTIFIER]
+        arguments: [Type<@MOET.Vault>().identifier]
     )
     Test.expect(err, Test.beNil())
 
@@ -145,14 +146,14 @@ fun deployContracts() {
     )
     Test.expect(err, Test.beNil())
 
-    // Deploy FungibleTokenConnectors
+
     err = Test.deployContract(
         name: "FungibleTokenConnectors",
         path: "../../FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
-    // Deploy MockDexSwapper for DEX liquidation tests
+
     err = Test.deployContract(
         name: "MockDexSwapper",
         path: "../contracts/mocks/MockDexSwapper.cdc",
@@ -166,7 +167,6 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
-
 
     err = Test.deployContract(
         name: "AdversarialTypeSpoofingConnectors",

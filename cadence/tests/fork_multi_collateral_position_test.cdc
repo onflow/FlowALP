@@ -1,4 +1,4 @@
-#test_fork(network: "mainnet", height: 142528994)
+#test_fork(network: "mainnet-fork", height: 142528994)
 
 import Test
 import BlockchainHelpers
@@ -31,55 +31,7 @@ fun safeReset() {
 
 access(all)
 fun setup() {
-    var err = Test.deployContract(
-        name: "DeFiActionsUtils",
-        path: "../../FlowActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-    
-    err = Test.deployContract(
-        name: "FlowALPMath",
-        path: "../lib/FlowALPMath.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-    
-    err = Test.deployContract(
-        name: "DeFiActions",
-        path: "../../FlowActions/cadence/contracts/interfaces/DeFiActions.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    err = Test.deployContract(
-        name: "MockOracle",
-        path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [MAINNET_MOET_TOKEN_ID]
-    )
-    Test.expect(err, Test.beNil())
-
-    // Deploy FungibleTokenConnectors
-    err = Test.deployContract(
-        name: "FungibleTokenConnectors",
-        path: "../../FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    err = Test.deployContract(
-        name: "MockDexSwapper",
-        path: "../contracts/mocks/MockDexSwapper.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-     err = Test.deployContract(
-        name: "FlowALPv0",
-        path: "../contracts/FlowALPv0.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
+    deployContracts()
 
     createAndStorePool(signer: MAINNET_PROTOCOL_ACCOUNT, defaultTokenIdentifier: MAINNET_MOET_TOKEN_ID, beFailed: false)
 
