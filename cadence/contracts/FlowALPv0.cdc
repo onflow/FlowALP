@@ -316,6 +316,52 @@ access(all) contract FlowALPv0 {
             return nil
         }
 
+        /// Returns interest curve parameters and current per-second rates for a given token type.
+        /// Returns nil if the token type is not supported.
+        ///
+        /// Always returned:
+        /// - curveType
+        /// - currentDebitRatePerSecond
+        /// - currentCreditRatePerSecond
+        ///
+        /// FixedCurve fields:
+        /// - yearlyRate
+        ///
+        /// KinkCurve fields:
+        /// - optimalUtilization
+        /// - baseRate
+        /// - slope1
+        /// - slope2
+        access(all) view fun getInterestCurveParams(tokenType: Type): {String: AnyStruct}? {
+            if let tokenState = self.state.getTokenState(tokenType) {
+                let curve = tokenState.getInterestCurve()
+                var params = {
+                    "curveType": curve.getType().identifier,
+                    "currentDebitRatePerSecond": tokenState.getCurrentDebitRate(),
+                    "currentCreditRatePerSecond": tokenState.getCurrentCreditRate()
+                }
+
+                if curve.getType() == Type<FlowALPInterestRates.FixedCurve>() {
+                    let fixedCurve = curve as! FlowALPInterestRates.FixedCurve
+                    params["yearlyRate"] = fixedCurve.yearlyRate
+                    return params
+                }
+
+                if curve.getType() == Type<FlowALPInterestRates.KinkCurve>() {
+                    let kinkCurve = curve as! FlowALPInterestRates.KinkCurve
+                    params["optimalUtilization"] = kinkCurve.optimalUtilization
+                    params["baseRate"] = kinkCurve.baseRate
+                    params["slope1"] = kinkCurve.slope1
+                    params["slope2"] = kinkCurve.slope2
+                    return params
+                }
+
+                return params
+            }
+
+            return nil
+        }
+
         /// Returns a position's balance available for withdrawal of a given Vault type.
         /// Phase 0 refactor: compute via pure helpers using a PositionView and TokenSnapshot for the base path.
         /// When `pullFromTopUpSource` is true and a topUpSource exists, preserve deposit-assisted semantics.
