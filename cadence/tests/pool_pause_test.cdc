@@ -52,7 +52,7 @@ fun test_pool_pause_deposit_withdrawal() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: user2.address, amount: 1000.0, beFailed: false)
 
     // create a position for user1
-    createPosition(signer: user1, amount: initialDepositAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: user1, amount: initialDepositAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     // Pause the pool
     let pauseRes = setPoolPauseState(signer: PROTOCOL_ACCOUNT, pause: true)
