@@ -3059,6 +3059,22 @@ access(all) contract FlowALPv0 {
             return <- withdrawn
         }
 
+        /// Extracts all queued deposits from a position
+        /// Returns an array of vaults containing queued deposits that were never processed
+        access(self) fun _extractQueuedDeposits(pid: UInt64): @[{FungibleToken.Vault}] {
+            let position = self._borrowPosition(pid: pid)
+            let queuedVaults: @[{FungibleToken.Vault}] <- []
+
+            // Extract all queued deposits (funds that were deposited but not yet processed)
+            let queuedTypes = position.queuedDeposits.keys
+            for queuedType in queuedTypes {
+                let queuedVault <- position.queuedDeposits.remove(key: queuedType)!
+                queuedVaults.append(<- queuedVault)
+            }
+
+            return <- queuedVaults
+        }
+
         /// Gets all debts for a position
         /// Returns a dictionary mapping token type to debt amount (rounded up to UFix64)
         access(self) fun _getPositionDebts(pid: UInt64): {Type: UFix64} {
@@ -3247,7 +3263,7 @@ access(all) contract FlowALPv0 {
             )
         }
 
-        /// Closes a position by repaying all debts from sources and returning all collateral.
+        /// Closes a position by repaying all debts from sources and returning all funds.
         ///
         /// Users provide Source(s) that can supply funds to repay debts. The contract pulls exactly
         /// what it needs to repay all debts. Sources support swapping, multi-vault, and other patterns
@@ -3258,20 +3274,27 @@ access(all) contract FlowALPv0 {
         /// - All credit balances (collateral + any overpayment) are withdrawn and returned
         /// - No epsilon tolerance: ALL debt must be exactly repaid (overpayment okay, underpayment fails)
         ///
+        /// Queued Deposits:
+        /// - Any deposits that were queued but not yet processed are extracted and returned
+        /// - These are funds that exceeded limits and were waiting for async processing
+        ///
         /// Steps:
         /// 1. Locks the position
-        /// 2. Analyzes position to find all debt and collateral types
+        /// 2. Gets all debts from position
         /// 3. Pulls from sources to repay debts (overpayment becomes credit balance)
         /// 4. Verifies NO debt remains (zero tolerance for unpaid debt)
-        /// 5. Withdraws ALL collateral + any credit balances
-        /// 6. Builds withdrawals map for event emission
-        /// 7. Emits PositionClosed event
-        /// 8. Unlocks position
+        /// 5. Gets collateral types (after repayment, to include any overpayment credits)
+        /// 6. Withdraws ALL collateral + any credit balances
+        /// 7. Builds withdrawals map for event emission
+        /// 8. Emits PositionClosed event
+        /// 9. Extracts any queued deposits (unprocessed funds to return)
+        /// 10. Unlocks position
+        /// 11. Combines queued deposits and collateral into return array
         ///
         /// @param pid: Position ID to close
         /// @param repaymentSources: Array of Sources that can provide funds to repay debts
         ///                          Sources are pulled from as needed (supports swapping, multi-vault, etc.)
-        /// @return Array of vaults containing all collateral + any overpayment
+        /// @return Array of vaults containing queued deposits + collateral + any overpayment
         ///
         access(EPosition) fun closePosition(
             pid: UInt64,
@@ -3292,7 +3315,7 @@ access(all) contract FlowALPv0 {
             // Step 1: Lock the position for all state modifications
             self._lockPosition(pid)
 
-            // Step 2: Get all debts and collateral types from position
+            // Step 2: Get all debts from position
             let debtsByType = self._getPositionDebts(pid: pid)
 
             // Step 3: Repay all debts by pulling from sources
@@ -3301,25 +3324,36 @@ access(all) contract FlowALPv0 {
             // Step 4: Verify ALL debt is EXACTLY repaid (zero tolerance)
             self._verifyNoDebtRemains(pid: pid)
 
-            // Step 5: Withdraw all credit balances (collateral + any overpayment from sources)
+            // Step 5: Get collateral types (AFTER repayment, in case overpayment created new credits)
             let collateralTypes = self._getPositionCollateralTypes(pid: pid)
-            let vaults <- self._withdrawAllCollateral(pid: pid, collateralTypes: collateralTypes)
 
-            // Step 6: Build withdrawals map for event (vaults are in same order as collateralTypes)
+            // Step 6: Withdraw all credit balances (collateral + any overpayment from sources)
+            let collateralVaults <- self._withdrawAllCollateral(pid: pid, collateralTypes: collateralTypes)
+
+            // Step 7: Build withdrawals map for event (vaults are in same order as collateralTypes)
             let withdrawalsByType: {Type: UFix64} = {}
             var i = 0
             while i < collateralTypes.length {
-                withdrawalsByType[collateralTypes[i]] = vaults[i].balance
+                withdrawalsByType[collateralTypes[i]] = collateralVaults[i].balance
                 i = i + 1
             }
 
-            // Step 7: Emit position closed event
+            // Step 8: Emit position closed event
             self._emitPositionClosedEvent(pid: pid, debtsByType: debtsByType, withdrawalsByType: withdrawalsByType)
 
-            // Step 8: Unlock position now that all operations are complete
+            // Step 9: Extract any queued deposits (unprocessed deposits to return)
+            let queuedVaults <- self._extractQueuedDeposits(pid: pid)
+
+            // Step 10: Unlock position now that all operations are complete
             self._unlockPosition(pid)
 
-            return <- vaults
+            // Step 11: Combine queued deposits and collateral into single return array
+            while queuedVaults.length > 0 {
+                collateralVaults.append(<- queuedVaults.removeFirst())
+            }
+            destroy queuedVaults
+
+            return <- collateralVaults
         }
 
         ///////////////////////
