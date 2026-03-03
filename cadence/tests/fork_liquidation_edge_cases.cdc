@@ -1,4 +1,4 @@
-#test_fork(network: "mainnet", height: 142528994)
+#test_fork(network: "mainnet-fork", height: 142528994)
 
 import Test
 import BlockchainHelpers
@@ -6,17 +6,16 @@ import BlockchainHelpers
 import "FlowToken"
 import "FungibleToken"
 import "MOET"
-import "FlowALPv0"
+import "FlowALPEvents"
+
 import "test_helpers.cdc"
 
-// Protocol account: in fork mode, Test.deployContract() deploys to the contract's mainnet
-// alias address. FlowALPv0's mainnet alias is 0x47f544294e3b7656, so PoolFactory and all
-// pool admin resources are stored there. Note: this is the same address as wbtcHolder.
-access(all) let protocolAccount = Test.getAccount(0x47f544294e3b7656)
-
-// MOET admin account: in fork mode MOET is the existing mainnet contract at 0x6b00ff876c299c61.
-// The MOET Minter is stored at /storage/moetTokenAdmin_0x6b00ff876c299c61 in that account.
-access(all) let moetAdminAccount = Test.getAccount(0x6b00ff876c299c61)
+access(all) let MAINNET_PROTOCOL_ACCOUNT = Test.getAccount(MAINNET_PROTOCOL_ACCOUNT_ADDRESS)
+access(all) let MAINNET_USDF_HOLDER = Test.getAccount(MAINNET_USDF_HOLDER_ADDRESS)
+access(all) let MAINNET_WETH_HOLDER = Test.getAccount(MAINNET_WETH_HOLDER_ADDRESS)
+access(all) let MAINNET_WBTC_HOLDER = Test.getAccount(MAINNET_WBTC_HOLDER_ADDRESS)
+access(all) let MAINNET_FLOW_HOLDER = Test.getAccount(MAINNET_FLOW_HOLDER_ADDRESS)
+access(all) let MAINNET_USDC_HOLDER = Test.getAccount(MAINNET_USDC_HOLDER_ADDRESS)
 
 access(all) var snapshot: UInt64 = 0
 
@@ -29,75 +28,22 @@ fun safeReset() {
 }
 
 access(all) fun setup() {
+    deployContracts()
 
-    // Deploy DeFiActionsUtils
-    var err = Test.deployContract(
-        name: "DeFiActionsUtils",
-        path: "../../FlowActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    // Deploy FlowALPMath
-    err = Test.deployContract(
-        name: "FlowALPMath",
-        path: "../lib/FlowALPMath.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    // Deploy DeFiActions
-    err = Test.deployContract(
-        name: "DeFiActions",
-        path: "../../FlowActions/cadence/contracts/interfaces/DeFiActions.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-    // Deploy MockOracle (references mainnet MOET)
-    err = Test.deployContract(
-        name: "MockOracle",
-        path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [MAINNET_MOET_TOKEN_IDENTIFIER]
-    )
-    Test.expect(err, Test.beNil())
-
-    // Deploy FungibleTokenConnectors
-    err = Test.deployContract(
-        name: "FungibleTokenConnectors",
-        path: "../../FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    err = Test.deployContract(
-        name: "MockDexSwapper",
-        path: "../contracts/mocks/MockDexSwapper.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    // Deploy FlowALPv0
-    err = Test.deployContract(
-        name: "FlowALPv0",
-        path: "../contracts/FlowALPv0.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER, beFailed: false)
+    createAndStorePool(signer: MAINNET_PROTOCOL_ACCOUNT, defaultTokenIdentifier: MAINNET_MOET_TOKEN_ID, beFailed: false)
 
     // Setup pool with real mainnet token prices
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, price: 1.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER, price: 1.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, price: 1.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WETH_TOKEN_IDENTIFIER, price: 3500.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER, price: 50000.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDC_TOKEN_ID, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: 3500.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WBTC_TOKEN_ID, price: 50000.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_MOET_TOKEN_ID, price: 1.0)
 
     // Add multiple token types as supported collateral (FLOW, USDC, USDF, WETH, WBTC)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
         collateralFactor: 0.8,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -105,8 +51,8 @@ access(all) fun setup() {
     )
 
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MAINNET_USDC_TOKEN_ID,
         collateralFactor: 0.85,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -114,8 +60,8 @@ access(all) fun setup() {
     )
 
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID,
         collateralFactor: 0.85,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -123,8 +69,8 @@ access(all) fun setup() {
     )
 
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: MAINNET_WETH_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID,
         collateralFactor: 0.75,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
@@ -132,26 +78,20 @@ access(all) fun setup() {
     )
 
     // Set minimum deposit for WETH to 0.01 (since holder only has 0.07032)
-    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: MAINNET_WETH_TOKEN_IDENTIFIER, minimum: 0.01)
+    setMinimumTokenBalancePerPosition(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID, minimum: 0.01)
 
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
-        tokenTypeIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MAINNET_WBTC_TOKEN_ID,
         collateralFactor: 0.75,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
     )
     // Set minimum deposit for WBTC to 0.00001 (since holder only has 0.0005)
-    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER, minimum: 0.00001)
+    setMinimumTokenBalancePerPosition(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_WBTC_TOKEN_ID, minimum: 0.00001)
 
     snapshot = getCurrentBlockHeight()
-}
-
-access(all) fun getLastPid(): UInt64  {
-    var openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
-    return pid
 }
 
 // =============================================================================
@@ -173,8 +113,8 @@ fun testPartialLiquidationSequences() {
     // --- MOET liquidity provider ---
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: moetAdminAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
-    createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: 50000.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // 5 positions with distinct collateral types:
     //
@@ -189,45 +129,45 @@ fun testPartialLiquidationSequences() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: user, amount: 200.0)
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER, from: MAINNET_USDC_HOLDER, to: user, amount: 50.0)
-    transferTokensWithSetup(tokenIdentifier: MAINNET_WETH_TOKEN_IDENTIFIER, from: MAINNET_WETH_HOLDER, to: user, amount: 0.01)
-    transferTokensWithSetup(tokenIdentifier: MAINNET_WBTC_TOKEN_IDENTIFIER, from: MAINNET_WBTC_HOLDER, to: user, amount: 0.0002)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: user, amount: 200.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDC_TOKEN_ID, from: MAINNET_USDC_HOLDER, to: user, amount: 50.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_WETH_TOKEN_ID, from: MAINNET_WETH_HOLDER, to: user, amount: 0.01)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_WBTC_TOKEN_ID, from: MAINNET_WBTC_HOLDER, to: user, amount: 0.0002)
 
     // Position 1: FLOW collateral — targeted for liquidation
     // 1000 FLOW @ $1.0, collateralFactor = 0.8 → effectiveCollateral = $800 → borrow 720 MOET
     // health = $800 / $720 ≈ 1.1111
-    createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid1 = getLastPid()
-    borrowFromPosition(signer: user, positionId: pid1, tokenTypeIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER, vaultStoragePath: MOET.VaultStoragePath, amount: 720.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid1 = getLastPositionId()
+    borrowFromPosition(signer: user, positionId: pid1, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET.VaultStoragePath, amount: 720.0, beFailed: false)
 
     // Position 2: USDF collateral
     // 200 USDF @ $1.0, collateralFactor = 0.85 → effectiveCollateral = $170 → borrow 154 MOET
     // health = $170 / $154 ≈ 1.1038
-    createPosition(admin: protocolAccount, signer: user, amount: 200.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid2 = getLastPid()
-    borrowFromPosition(signer: user, positionId: pid2, tokenTypeIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER, vaultStoragePath: MOET.VaultStoragePath, amount: 154.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 200.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid2 = getLastPositionId()
+    borrowFromPosition(signer: user, positionId: pid2, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET.VaultStoragePath, amount: 154.0, beFailed: false)
 
     // Position 3: USDC collateral
     // 50 USDC @ $1.0, collateralFactor = 0.85 → effectiveCollateral = $42.5 → borrow 38 MOET
     // health = $42.5 / $38 ≈ 1.1184
-    createPosition(admin: protocolAccount, signer: user, amount: 50.0, vaultStoragePath: MAINNET_USDC_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid3 = getLastPid()
-    borrowFromPosition(signer: user, positionId: pid3, tokenTypeIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER, vaultStoragePath: MOET.VaultStoragePath, amount: 38.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 50.0, vaultStoragePath: MAINNET_USDC_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid3 = getLastPositionId()
+    borrowFromPosition(signer: user, positionId: pid3, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET.VaultStoragePath, amount: 38.0, beFailed: false)
 
     // Position 4: WETH collateral (minimum deposit = 0.01)
     // 0.01 WETH @ $3500, collateralFactor = 0.75 → effectiveCollateral = $26.25 → borrow 23 MOET
     // health = $26.25 / $23 ≈ 1.1413
-    createPosition(admin: protocolAccount, signer: user, amount: 0.01, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid4 = getLastPid()
-    borrowFromPosition(signer: user, positionId: pid4, tokenTypeIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER, vaultStoragePath: MOET.VaultStoragePath, amount: 23.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 0.01, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid4 = getLastPositionId()
+    borrowFromPosition(signer: user, positionId: pid4, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET.VaultStoragePath, amount: 23.0, beFailed: false)
 
     // Position 5: WBTC collateral (minimum deposit = 0.00001)
     // 0.0002 WBTC @ $50000, collateralFactor = 0.75 → effectiveCollateral = $7.5 → borrow 6 MOET
     // health = $7.5 / $6 = 1.25
-    createPosition(admin: protocolAccount, signer: user, amount: 0.0002, vaultStoragePath: MAINNET_WBTC_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid5 = getLastPid()
-    borrowFromPosition(signer: user, positionId: pid5, tokenTypeIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER, vaultStoragePath: MOET.VaultStoragePath, amount: 6.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 0.0002, vaultStoragePath: MAINNET_WBTC_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid5 = getLastPositionId()
+    borrowFromPosition(signer: user, positionId: pid5, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET.VaultStoragePath, amount: 6.0, beFailed: false)
 
     // All 5 positions are initially healthy
     Test.assert(getPositionHealth(pid: pid1, beFailed: false) > 1.0, message: "Position 1 (FLOW) should be healthy initially")
@@ -240,11 +180,11 @@ fun testPartialLiquidationSequences() {
     // Position 1: effectiveCollateral = 1000 * 0.855 * 0.8 = $684
     // health = $684 / $720 = 0.95 (unhealthy)
     // Positions 2-5: collateral unaffected, remain healthy
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, price: 0.855)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.855)
     setMockDexPriceForPair(
-        signer: protocolAccount,
-        inVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
-        outVaultIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
+        outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MOET.VaultStoragePath,
         priceRatio: 0.855
     )
@@ -261,7 +201,7 @@ fun testPartialLiquidationSequences() {
     // DEX check: seize(10) < repay(20) / priceRatio(0.855) = 23.39
     let liquidator1 = Test.createAccount()
     setupMoetVault(liquidator1, beFailed: false)
-    mintMoet(signer: moetAdminAccount, to: liquidator1.address, amount: 500.0, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: liquidator1.address, amount: 500.0, beFailed: false)
 
     // Liquidation call 1:
     // State before: 1000 FLOW, 720 MOET, health = 0.95
@@ -270,8 +210,8 @@ fun testPartialLiquidationSequences() {
     let liq1Res = manualLiquidation(
         signer: liquidator1,
         pid: pid1,
-        debtVaultIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 10.0,
         repayAmount: 20.0,
     )
@@ -286,8 +226,8 @@ fun testPartialLiquidationSequences() {
     let liq2Res = manualLiquidation(
         signer: liquidator1,
         pid: pid1,
-        debtVaultIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 10.0,
         repayAmount: 20.0,
     )
@@ -302,8 +242,8 @@ fun testPartialLiquidationSequences() {
     let liq3Res = manualLiquidation(
         signer: liquidator1,
         pid: pid1,
-        debtVaultIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 10.0,
         repayAmount: 20.0,
     )
@@ -312,7 +252,7 @@ fun testPartialLiquidationSequences() {
     Test.assertEqual(expectedHealthAfterLiq3, getPositionHealth(pid: pid1, beFailed: false))
 
     let detailsAfterLiq3 = getPositionDetails(pid: pid1, beFailed: false)
-    let flowCreditAfterLiq3 = getCreditBalanceForType(details: detailsAfterLiq3, vaultType: CompositeType(MAINNET_FLOW_TOKEN_IDENTIFIER)!)
+    let flowCreditAfterLiq3 = getCreditBalanceForType(details: detailsAfterLiq3, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!)
     Test.assertEqual(970.0, flowCreditAfterLiq3)  // 1000 - 30 seized
     let moetDebitAfterLiq3 = getDebitBalanceForType(details: detailsAfterLiq3, vaultType: Type<@MOET.Vault>())
     Test.assertEqual(660.0, moetDebitAfterLiq3)   // 720 - 60 repaid
@@ -321,8 +261,8 @@ fun testPartialLiquidationSequences() {
     let liq4Res = manualLiquidation(
         signer: liquidator1,
         pid: pid1,
-        debtVaultIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 10.0,
         repayAmount: 20.0,
     )
@@ -331,13 +271,13 @@ fun testPartialLiquidationSequences() {
     // === Step 4: Liquidator 2 — should fail (position is now healthy) ===
     let liquidator2 = Test.createAccount()
     setupMoetVault(liquidator2, beFailed: false)
-    mintMoet(signer: moetAdminAccount, to: liquidator2.address, amount: 500.0, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: liquidator2.address, amount: 500.0, beFailed: false)
 
     let liq5Res = manualLiquidation(
         signer: liquidator2,
         pid: pid1,
-        debtVaultIdentifier: MAINNET_MOET_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 10.0,
         repayAmount: 20.0,
     )
@@ -389,26 +329,26 @@ fun testLiquidateMultiCollateralChooseUSDC() {
 
     // USDF liquidity provider
     let lpUser = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
-    createPosition(admin: protocolAccount, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
 
     // User: FLOW, USDC, WETH
     let user = Test.createAccount()
-    var res = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER)
+    var res = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
 
     // FLOW service account = 0xe467b9dd11fa00df (1921 FLOW)
     // USDC holder          = 0xec6119051f7adc31  (97 USDC)
     // WETH holder          = 0xf62e3381a164f993  (0.07032 WETH)
     transferFlowTokens(to: user, amount: 200.0)
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER, from: MAINNET_USDC_HOLDER, to: user, amount: 50.0)
-    transferTokensWithSetup(tokenIdentifier: MAINNET_WETH_TOKEN_IDENTIFIER, from: MAINNET_WETH_HOLDER, to: user, amount: 0.02)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDC_TOKEN_ID, from: MAINNET_USDC_HOLDER, to: user, amount: 50.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_WETH_TOKEN_ID, from: MAINNET_WETH_HOLDER, to: user, amount: 0.02)
 
     // === Build a single multi-collateral position (3 collateral types, 1 position) ===
 
     // Position collaterals: FLOW + WETH + USDC
-    createPosition(admin: protocolAccount, signer: user, amount: 200.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid = getLastPid()
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 200.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid = getLastPositionId()
     depositToPosition(signer: user, positionID: pid, amount: 50.0, vaultStoragePath: MAINNET_USDC_STORAGE_PATH, pushToDrawDownSink: false)
     depositToPosition(signer: user, positionID: pid, amount: 0.02, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
 
@@ -416,7 +356,7 @@ fun testLiquidateMultiCollateralChooseUSDC() {
     // total effective = 160 + 42.5 + 52.5 = $255  →  health = 255/230 ≈ 1.1087
     borrowFromPosition(
         signer: user, positionId: pid,
-        tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
+        tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
         amount: 230.0, beFailed: false
     )
 
@@ -424,26 +364,26 @@ fun testLiquidateMultiCollateralChooseUSDC() {
     Test.assert(initialHealth > 1.1, message: "Initial health should be approx 1.1087 (all 3 collaterals contributing)")
 
     let detailsBefore = getPositionDetails(pid: pid, beFailed: false)
-    Test.assertEqual(200.0, getCreditBalanceForType(details: detailsBefore, vaultType: CompositeType(MAINNET_FLOW_TOKEN_IDENTIFIER)!))
-    Test.assertEqual(50.0,  getCreditBalanceForType(details: detailsBefore, vaultType: CompositeType(MAINNET_USDC_TOKEN_IDENTIFIER)!))
-    Test.assertEqual(0.02,  getCreditBalanceForType(details: detailsBefore, vaultType: CompositeType(MAINNET_WETH_TOKEN_IDENTIFIER)!))
-    Test.assertEqual(230.0, getDebitBalanceForType(details: detailsBefore, vaultType: CompositeType(MAINNET_USDF_TOKEN_IDENTIFIER)!))
+    Test.assertEqual(200.0, getCreditBalanceForType(details: detailsBefore, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!))
+    Test.assertEqual(50.0,  getCreditBalanceForType(details: detailsBefore, vaultType: CompositeType(MAINNET_USDC_TOKEN_ID)!))
+    Test.assertEqual(0.02,  getCreditBalanceForType(details: detailsBefore, vaultType: CompositeType(MAINNET_WETH_TOKEN_ID)!))
+    Test.assertEqual(230.0, getDebitBalanceForType(details: detailsBefore, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))
 
     // === FLOW price crash: $1.00 → $0.75 ===
     // USDF stays $1.00 so the debt value is unchanged
     // FLOW effective falls: 200 × 0.75 × 0.80 = $120
     // Total effective:      $120 + $42.50 + $52.50 = $215
     // health = 215/230 ≈ 0.9348 (UNHEALTHY)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, price: 0.75)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.75)
 
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: protocolAccount, amount: 100.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 100.0)
 
     // Configure DEX for USDC→USDF (price check used by manualLiquidation):
     // priceRatio = USDC_price / USDF_price = 1.0
     setMockDexPriceForPair(
-        signer: protocolAccount,
-        inVaultIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER,
-        outVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        inVaultIdentifier: MAINNET_USDC_TOKEN_ID,
+        outVaultIdentifier: MAINNET_USDF_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_USDF_STORAGE_PATH,
         priceRatio: 1.0
     )
@@ -453,8 +393,8 @@ fun testLiquidateMultiCollateralChooseUSDC() {
 
     // USDC and WETH collateral are unaffected by the FLOW price crash
     let detailsAfterCrash = getPositionDetails(pid: pid, beFailed: false)
-    Test.assertEqual(50.0, getCreditBalanceForType(details: detailsAfterCrash, vaultType: CompositeType(MAINNET_USDC_TOKEN_IDENTIFIER)!))
-    Test.assertEqual(0.02, getCreditBalanceForType(details: detailsAfterCrash, vaultType: CompositeType(MAINNET_WETH_TOKEN_IDENTIFIER)!))
+    Test.assertEqual(50.0, getCreditBalanceForType(details: detailsAfterCrash, vaultType: CompositeType(MAINNET_USDC_TOKEN_ID)!))
+    Test.assertEqual(0.02, getCreditBalanceForType(details: detailsAfterCrash, vaultType: CompositeType(MAINNET_WETH_TOKEN_ID)!))
 
     // === Liquidator: selects USDC as the optimal seizure target ===
     //
@@ -464,16 +404,16 @@ fun testLiquidateMultiCollateralChooseUSDC() {
     //   post debt:      230 - 55 = 175 USDF
     //   post health:    181/175 ≈ 1.0343 <= 1.05
     let liquidator = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 300.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 300.0)
     // Empty USDC vault to receive the seized collateral
-    res = setupGenericVault(liquidator, vaultIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER)
+    res = setupGenericVault(liquidator, vaultIdentifier: MAINNET_USDC_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
 
     let liqRes = manualLiquidation(
         signer: liquidator,
         pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_USDC_TOKEN_ID,
         seizeAmount: 40.0,
         repayAmount: 55.0,
     )
@@ -486,19 +426,19 @@ fun testLiquidateMultiCollateralChooseUSDC() {
 
     // Selective seizure: only USDC balance changed; FLOW and WETH are untouched
     let detailsAfterLiq = getPositionDetails(pid: pid, beFailed: false)
-    Test.assertEqual(200.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_IDENTIFIER)!))  // untouched
-    Test.assertEqual(0.02,  getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_WETH_TOKEN_IDENTIFIER)!))
+    Test.assertEqual(200.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!))  // untouched
+    Test.assertEqual(0.02,  getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_WETH_TOKEN_ID)!))
     // 50 - 40 = 10
-    Test.assertEqual(10.0,  getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDC_TOKEN_IDENTIFIER)!))
+    Test.assertEqual(10.0,  getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDC_TOKEN_ID)!))
     // 230 - 55 = 175
-    Test.assertEqual(175.0, getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_IDENTIFIER)!))   
+    Test.assertEqual(175.0, getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))   
 
     // A second liquidation attempt fails — position is now healthy
     let liqRes2 = manualLiquidation(
         signer: liquidator,
         pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_USDC_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_USDC_TOKEN_ID,
         seizeAmount: 5.0,
         repayAmount: 10.0,
     )
@@ -530,46 +470,46 @@ fun testDexLiquidityConstraints() {
 
     // USDF liquidity provider
     let lpUser = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
-    createPosition(admin: protocolAccount, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
 
     // Borrower: 200 FLOW @ $1.00 (CF=0.80), borrow 130 USDF
     // health = 200*1.0*0.80 / 130 = 160/130 ≈ 1.2308 (healthy)
     let user = Test.createAccount()
-    var res = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER)
+    var res = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFlowTokens(to: user, amount: 200.0)
-    createPosition(admin: protocolAccount, signer: user, amount: 200.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid = getLastPid()
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 200.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid = getLastPositionId()
     borrowFromPosition(signer: user, positionId: pid,
-        tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
+        tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
         amount: 130.0, beFailed: false)
 
     let initialHealth = getPositionHealth(pid: pid, beFailed: false)
     Test.assert(initialHealth > 1.0, message: "Position should start healthy")
 
     // FLOW crash: $1.00 -> $0.75; health = 120/130 ≈ 0.9231 (unhealthy)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, price: 0.75)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.75)
     let crashedHealth = getPositionHealth(pid: pid, beFailed: false)
     Test.assert(crashedHealth < 1.0, message: "Position must be unhealthy after FLOW crash")
 
     // Configure MockDexSwapper for FLOW -> USDF at price ratio 0.75.
     // DEX vault 23 USDF — 50% of the 46 required for repayment.
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: protocolAccount, amount: 23.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 23.0)
     setMockDexPriceForPair(
-        signer: protocolAccount,
-        inVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
-        outVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
+        outVaultIdentifier: MAINNET_USDF_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_USDF_STORAGE_PATH,
         priceRatio: 0.75
     )
 
     // Scenario 1: DEX has only 23 USDF, needs 46 — liquidation must revert atomically
     let failRes = liquidateViaMockDex(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 55.0,
         repayAmount: 46.0,
     )
@@ -579,17 +519,17 @@ fun testDexLiquidityConstraints() {
     Test.assert(healthAfterFail < 1.0, message: "Position must remain unhealthy after failed DEX liquidation")
 
     let detailsAfterFail = getPositionDetails(pid: pid, beFailed: false)
-    Test.assertEqual(200.0, getCreditBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_FLOW_TOKEN_IDENTIFIER)!))
-    Test.assertEqual(130.0, getDebitBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_USDF_TOKEN_IDENTIFIER)!))
+    Test.assertEqual(200.0, getCreditBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!))
+    Test.assertEqual(130.0, getDebitBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))
 
     // Scenario 2: top up DEX vault (+30 USDF, total 53 >= 46) — liquidation succeeds
-    transferFungibleTokens(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: protocolAccount, amount: 30.0)
+    transferFungibleTokens(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 30.0)
 
     let successRes = liquidateViaMockDex(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 55.0,
         repayAmount: 46.0,
     )
@@ -602,8 +542,8 @@ fun testDexLiquidityConstraints() {
 
     // Verify seizure: 55 FLOW seized, 46 USDF repaid
     let detailsAfterLiq = getPositionDetails(pid: pid, beFailed: false)
-    Test.assertEqual(145.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_IDENTIFIER)!)) // 200 - 55 = 145
-    Test.assertEqual(84.0,  getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_IDENTIFIER)!))  // 130 - 46 = 84
+    Test.assertEqual(145.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!)) // 200 - 55 = 145
+    Test.assertEqual(84.0,  getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))  // 130 - 46 = 84
 }
 
 // =============================================================================
@@ -632,23 +572,23 @@ fun testLiquidationSlippageConstraints() {
 
     // USDF liquidity provider
     let lpUser = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
-    createPosition(admin: protocolAccount, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
 
     // Borrower: 200 FLOW @ $1.00 (CF=0.80), borrow 130 USDF
     // health = 200*1.0*0.80 / 130 = 160/130 ≈ 1.2308 (healthy)
     let user = Test.createAccount()
-    let res = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER)
+    let res = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFlowTokens(to: user, amount: 200.0)
-    createPosition(admin: protocolAccount, signer: user, amount: 200.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid = getLastPid()
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 200.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid = getLastPositionId()
     borrowFromPosition(signer: user, positionId: pid,
-        tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
+        tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
         amount: 130.0, beFailed: false)
 
     // FLOW crash: $1.00 -> $0.75; health = 120/130 ≈ 0.9231 (unhealthy)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, price: 0.75)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.75)
     let crashedHealth = getPositionHealth(pid: pid, beFailed: false)
     Test.assert(crashedHealth < 1.0, message: "Position must be unhealthy after FLOW crash")
 
@@ -656,23 +596,23 @@ fun testLiquidationSlippageConstraints() {
     let setSlippageRes = _executeTransaction(
         "../transactions/flow-alp/pool-governance/set_dex_liquidation_config.cdc",
         [200 as UInt16],
-        protocolAccount
+        MAINNET_PROTOCOL_ACCOUNT
     )
     Test.expect(setSlippageRes, Test.beSucceeded())
 
     // Liquidator brings USDF to repay debt and holds a FLOW vault to receive seized collateral.
     let liquidator = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 300.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 300.0)
 
-    // Fund protocolAccount's USDF vault so setMockDexPriceForPair can issue the vault capability
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: protocolAccount, amount: 100.0)
+    // Fund MAINNET_PROTOCOL_ACCOUNT's USDF vault so setMockDexPriceForPair can issue the vault capability
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 100.0)
 
     // --- Scenario 1: DEX 3% below oracle (309 bps > 200 bps max) — liquidation reverts ---
     // priceRatio = 0.7275; deviation = (0.75-0.7275)/0.7275 ≈ 3.09%
     setMockDexPriceForPair(
-        signer: protocolAccount,
-        inVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
-        outVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
+        outVaultIdentifier: MAINNET_USDF_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_USDF_STORAGE_PATH,
         priceRatio: 0.7275
     )
@@ -680,8 +620,8 @@ fun testLiquidationSlippageConstraints() {
     let failRes = manualLiquidation(
         signer: liquidator,
         pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 55.0,
         repayAmount: 46.0,
     )
@@ -691,15 +631,15 @@ fun testLiquidationSlippageConstraints() {
     Test.assert(healthAfterFail < 1.0, message: "Position must remain unhealthy after slippage-exceeded liquidation")
 
     let detailsAfterFail = getPositionDetails(pid: pid, beFailed: false)
-    Test.assertEqual(200.0, getCreditBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_FLOW_TOKEN_IDENTIFIER)!))
-    Test.assertEqual(130.0, getDebitBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_USDF_TOKEN_IDENTIFIER)!))
+    Test.assertEqual(200.0, getCreditBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!))
+    Test.assertEqual(130.0, getDebitBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))
 
     // --- Scenario 2: DEX 1% below oracle (101 bps < 200 bps max) — liquidation succeeds ---
     // priceRatio = 0.7425; deviation = (0.75-0.7425)/0.7425 ≈ 1.01%
     setMockDexPriceForPair(
-        signer: protocolAccount,
-        inVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
-        outVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
+        outVaultIdentifier: MAINNET_USDF_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_USDF_STORAGE_PATH,
         priceRatio: 0.7425
     )
@@ -707,8 +647,8 @@ fun testLiquidationSlippageConstraints() {
     let successRes = manualLiquidation(
         signer: liquidator,
         pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 55.0,
         repayAmount: 46.0,
     )
@@ -721,9 +661,9 @@ fun testLiquidationSlippageConstraints() {
 
     let detailsAfterLiq = getPositionDetails(pid: pid, beFailed: false)
     // 200 - 55 = 145
-    Test.assertEqual(145.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_IDENTIFIER)!))
+    Test.assertEqual(145.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!))
     // 130 - 46 = 84
-    Test.assertEqual(84.0, getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_IDENTIFIER)!))
+    Test.assertEqual(84.0, getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))
 }
 
 // =============================================================================
@@ -762,26 +702,26 @@ fun testStabilityAndInsuranceFeeAccrual() {
     safeReset()
 
     // Override zero-rate curve: 10% annual fixed interest for USDF
-    setInterestCurveFixed(signer: protocolAccount, tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    setInterestCurveFixed(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, yearlyRate: 0.1)
     // Stability fee rate: 10% of interest income goes to the stability fund
-    Test.expect(setStabilityFeeRate(signer: protocolAccount, tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, stabilityFeeRate: 0.1), Test.beSucceeded())
+    Test.expect(setStabilityFeeRate(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, stabilityFeeRate: 0.1), Test.beSucceeded())
 
-    // Insurance setup: protocolAccount's MOET vault serves as the MockDexSwapper source.
-    setupMoetVault(protocolAccount, beFailed: false)
-    mintMoet(signer: moetAdminAccount, to: protocolAccount.address, amount: 100.0, beFailed: false)
+    // Insurance setup: MAINNET_PROTOCOL_ACCOUNT's MOET vault serves as the MockDexSwapper source.
+    setupMoetVault(MAINNET_PROTOCOL_ACCOUNT, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: MAINNET_PROTOCOL_ACCOUNT.address, amount: 100.0, beFailed: false)
     // Insurance swapper: USDF -> MOET at 1:1
     // Must configure swapper before setting a non-zero insurance rate.
     // Call the transaction directly (bypassing setInsuranceSwapper helper) because that helper
-    // hardcodes MOET_TOKEN_IDENTIFIER = "A.0000000000000007.MOET.Vault" (local test address),
-    // whereas in fork mode MOET lives at 0x6b00ff876c299c61 (MAINNET_MOET_TOKEN_IDENTIFIER).
+    // hardcodes MOET_TOKEN_ID = "A.0000000000000007.MOET.Vault" (local test address),
+    // whereas in fork mode MOET lives at 0x6b00ff876c299c61 (MAINNET_MOET_TOKEN_ID).
     let swapRes = _executeTransaction(
         "./transactions/flow-alp/pool-governance/set_insurance_swapper_mock.cdc",
-        [MAINNET_USDF_TOKEN_IDENTIFIER, 1.0, MAINNET_USDF_TOKEN_IDENTIFIER, MAINNET_MOET_TOKEN_IDENTIFIER],
-        protocolAccount
+        [MAINNET_USDF_TOKEN_ID, 1.0, MAINNET_USDF_TOKEN_ID, MAINNET_MOET_TOKEN_ID],
+        MAINNET_PROTOCOL_ACCOUNT
     )
     Test.expect(swapRes, Test.beSucceeded())
     // Insurance rate: 10% of interest income; stabilityFeeRate 10%
-    let rateRes = setInsuranceRate(signer: protocolAccount, tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, insuranceRate: 0.1)
+    let rateRes = setInsuranceRate(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, insuranceRate: 0.1)
     Test.expect(rateRes, Test.beSucceeded())
 
     let initialInsuranceBalance = getInsuranceFundBalance()
@@ -789,28 +729,28 @@ fun testStabilityAndInsuranceFeeAccrual() {
 
     // USDF liquidity provider
     let lpUser = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
-    createPosition(admin: protocolAccount, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
-    let lpPid = getLastPid()
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    let lpPid = getLastPositionId()
     let lpBalanceBefore = getCreditBalanceForType(
         details: getPositionDetails(pid: lpPid, beFailed: false),
-        vaultType: CompositeType(MAINNET_USDF_TOKEN_IDENTIFIER)!
+        vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!
     )
 
     // Borrower: 200 FLOW @ $1.00 (CF=0.80), borrow 130 USDF
     // health = 200*1.0*0.80 / 130 = 160/130 ≈ 1.2308 (healthy)
     let user = Test.createAccount()
-    let res = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER)
+    let res = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFlowTokens(to: user, amount: 200.0)
-    createPosition(admin: protocolAccount, signer: user, amount: 200.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid = getLastPid()
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 200.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid = getLastPositionId()
     borrowFromPosition(signer: user, positionId: pid,
-        tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
+        tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
         amount: 130.0, beFailed: false)
 
     // Stability fund is nil immediately after setup — no time has passed yet
-    Test.assertEqual(nil, getStabilityFundBalance(tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER))
+    Test.assertEqual(nil, getStabilityFundBalance(tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID))
 
     // Advance 1 year BEFORE liquidation: interest accrues on the full 130 USDF debt
     // effective debt ≈ 130 * e^0.10 ≈ 143.67 USDF, health ≈ 120/143.67 ≈ 0.835
@@ -818,14 +758,14 @@ fun testStabilityAndInsuranceFeeAccrual() {
     Test.commitBlock()
 
     // FLOW crash: $1.00 -> $0.75; health = 120/130 ≈ 0.9231 (unhealthy)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, price: 0.75)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.75)
 
     // DEX at oracle price
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: protocolAccount, amount: 100.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 100.0)
     setMockDexPriceForPair(
-        signer: protocolAccount,
-        inVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
-        outVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
+        outVaultIdentifier: MAINNET_USDF_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_USDF_STORAGE_PATH,
         priceRatio: 0.75
     )
@@ -835,12 +775,12 @@ fun testStabilityAndInsuranceFeeAccrual() {
     //   post-health = (200-60)*0.75*0.80 / (143.67-63) = 84/80.67 ≈ 1.041 (within 1.05 target)
     //   totalDebitBalance after liq = 130 - 63 = 67 USDF (principal)
     let liquidator = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 200.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 200.0)
     let liqRes = manualLiquidation(
         signer: liquidator,
         pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 60.0,
         repayAmount: 63.0,
     )
@@ -849,9 +789,9 @@ fun testStabilityAndInsuranceFeeAccrual() {
     // Collect stability fee
     // debitIncome = totalDebitBalance(67) * (e^0.10 - 1) ≈ 7.046 USDF
     // stabilityFee = 7.046 * 0.10 ≈ 0.705 USDF
-    Test.expect(collectStability(signer: protocolAccount, tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER), Test.beSucceeded())
+    Test.expect(collectStability(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID), Test.beSucceeded())
 
-    let stabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER)
+    let stabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID)
     Test.assert(stabilityBalance != nil, message: "Stability fund must be non-nil after collection")
     let expectedStabilityFee = 0.705
     let stabilityTolerance = 0.001
@@ -861,7 +801,7 @@ fun testStabilityAndInsuranceFeeAccrual() {
 
     // Collect insurance fee: USDF interest income swapped 1:1 to MOET via MockDexSwapper
     // insuranceFee = 7.046 * 0.10 ≈ 0.705 MOET
-    collectInsurance(signer: protocolAccount, tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, beFailed: false)
+    collectInsurance(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, beFailed: false)
 
     let insuranceBalance = getInsuranceFundBalance()
     let expectedInsuranceFee = 0.705
@@ -877,7 +817,7 @@ fun testStabilityAndInsuranceFeeAccrual() {
     //   LP credit income = 5000 * (e^0.08 - 1) ≈ 416.435 USDF
     let lpBalanceAfter = getCreditBalanceForType(
         details: getPositionDetails(pid: lpPid, beFailed: false),
-        vaultType: CompositeType(MAINNET_USDF_TOKEN_IDENTIFIER)!
+        vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!
     )
     let actualLpIncome = lpBalanceAfter - lpBalanceBefore
     let expectedLpIncome = 416.435
@@ -930,31 +870,31 @@ fun testBadDebtHandling() {
 
     // USDF liquidity provider
     let lpUser = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
-    createPosition(admin: protocolAccount, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
 
     // Borrower: 1400 FLOW @ $1.00, CF=0.80 → effective $1120 → borrow 1000 USDF
     // health = 1120/1000 = 1.120 (healthy, minHealth 1.1 allows borrow)
     let user = Test.createAccount()
-    let setupRes = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER)
+    let setupRes = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
     Test.expect(setupRes, Test.beSucceeded())
     transferFlowTokens(to: user, amount: 1400.0)
-    createPosition(admin: protocolAccount, signer: user, amount: 1400.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid = getLastPid()
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1400.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid = getLastPositionId()
     borrowFromPosition(signer: user, positionId: pid,
-        tokenTypeIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
+        tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
         amount: 1000.0, beFailed: false)
 
     Test.assert(getPositionHealth(pid: pid, beFailed: false) > 1.0, message: "Position should be healthy initially")
 
     // Reserve: LP 5000 deposited − 1000 borrowed = 4000
-    Test.assertEqual(4000.0, getReserveBalance(vaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER))
+    Test.assertEqual(4000.0, getReserveBalance(vaultIdentifier: MAINNET_USDF_TOKEN_ID))
 
     // === FLOW crash: $1.00 → $0.65 ===
     // Collateral market value = 1400 × 0.65 = $910 < debt $1000 → bad-debt territory
     // Effective collateral    = 1400 × 0.65 × 0.80 = $728
     // health = 728/1000 = 0.728
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER, price: 0.65)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.65)
 
     let crashedHealth = getPositionHealth(pid: pid, beFailed: false)
     Test.assert(crashedHealth < 1.0, message: "Position must be unhealthy after crash")
@@ -962,13 +902,13 @@ fun testBadDebtHandling() {
     Test.assertEqual(expectedCrashedHealth, crashedHealth)
 
     // Configure DEX price for FLOW→USDF at the crashed oracle price (0.65).
-    // protocolAccount's USDF vault is required to issue the vault capability
+    // MAINNET_PROTOCOL_ACCOUNT's USDF vault is required to issue the vault capability
     // for setMockDexPriceForPair (the price reference used by manualLiquidation's seize check).
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: protocolAccount, amount: 100.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 100.0)
     setMockDexPriceForPair(
-        signer: protocolAccount,
-        inVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
-        outVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
+        outVaultIdentifier: MAINNET_USDF_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_USDF_STORAGE_PATH,
         priceRatio: 0.65
     )
@@ -979,13 +919,13 @@ fun testBadDebtHandling() {
     //   post-health: 0/89 = 0.0 ≤ 1.05
     // Liquidator pays 911 USDF directly; seized 1400 FLOW goes to liquidator.
     let liquidator = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 1000.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 1000.0)
 
     let liqRes = manualLiquidation(
         signer: liquidator,
         pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 1400.0,
         repayAmount: 911.0,
     )
@@ -995,10 +935,10 @@ fun testBadDebtHandling() {
     let detailsAfterLiq = getPositionDetails(pid: pid, beFailed: false)
 
     // All FLOW collateral is gone (transferred to liquidator)
-    Test.assertEqual(0.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_IDENTIFIER)!))
+    Test.assertEqual(0.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!))
 
     // 89 USDF of irrecoverable debt remains (1000 − 911)
-    Test.assertEqual(89.0, getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_IDENTIFIER)!))
+    Test.assertEqual(89.0, getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))
 
     // Health = effectiveCollateral(0) / debt(89) = 0.0
     let expectedBadDebtHealth: UFix128 = 0.0
@@ -1013,8 +953,8 @@ fun testBadDebtHandling() {
     let liqRes2 = manualLiquidation(
         signer: liquidator,
         pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_IDENTIFIER,
+        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         seizeAmount: 0.0,
         repayAmount: 88.99999999,
     )
@@ -1022,6 +962,6 @@ fun testBadDebtHandling() {
 
     // Reserve = 4000 (post-borrow) + 911 (first liq) + 88.99999999 (second liq) = 4999.99999999 USDF.
     // 0.00000001 USDF of irrecoverable bad debt persists as the minimum residual.
-    Test.assertEqual(4999.99999999, getReserveBalance(vaultIdentifier: MAINNET_USDF_TOKEN_IDENTIFIER))
+    Test.assertEqual(4999.99999999, getReserveBalance(vaultIdentifier: MAINNET_USDF_TOKEN_ID))
 }
 
