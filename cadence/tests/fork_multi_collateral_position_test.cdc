@@ -6,7 +6,7 @@ import BlockchainHelpers
 import "FlowToken"
 import "FungibleToken"
 import "MOET"
-import "FlowALPv0"
+import "FlowALPEvents"
 
 import "test_helpers.cdc"
 
@@ -128,8 +128,8 @@ fun test_multi_collateral_position() {
     // STEP 3: Create position with FLOW collateral
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
     // Health should be infinite (no debt)
     var health = getPositionHealth(pid: pid, beFailed: false)
@@ -222,8 +222,8 @@ fun test_cross_asset_flow_to_usdf_borrowing() {
     // STEP 3: Create position with FLOW collateral
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // Collateral (effectiveCollateral = balance * price * collateralFactor):
     //   FLOW: 1000 * $1.00 * CF(0.8) = $800
@@ -296,8 +296,8 @@ fun test_cross_asset_flow_usdf_weth_borrowing() {
     // STEP 3: Create position with FLOW
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // Collateral (effectiveCollateral = balance * price * collateralFactor): 
     //   FLOW: 1000 * $1.00 * 0.8 = $800
@@ -432,8 +432,8 @@ fun test_cross_asset_chain() {
     // STEP 3: Create position and execute complete chain
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // Collateral (effectiveCollateral = balance * price * collateralFactor): 
     //   FLOW: 1000 * $1.00 * 0.8 = $800
@@ -543,8 +543,8 @@ fun test_multi_asset_uncorrelated_price_movements() {
     // STEP 3: Create position with FLOW collateral
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // STEP 4: Add USDF and WETH collateral
     depositToPosition(signer: user, positionID: pid, amount: usdfAmount, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
@@ -626,8 +626,8 @@ fun test_multi_asset_partial_withdrawal() {
     // STEP 3: Create position with FLOW
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // STEP 4: Add MOET collateral
     depositToPosition(signer: user, positionID: pid, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
@@ -723,8 +723,8 @@ fun test_cross_collateral_borrowing_capacity() {
     // STEP 3: Create position with FLOW + MOET collateral
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     depositToPosition(signer: user, positionID: pid, amount: 900.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
@@ -801,8 +801,8 @@ fun test_multi_asset_liquidation_collateral_selection() {
     // STEP 3: Create position with all collateral
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     depositToPosition(signer: user, positionID: pid, amount: usdfAmount, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
     depositToPosition(signer: user, positionID: pid, amount: wethAmount, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
@@ -955,8 +955,8 @@ fun test_multi_asset_complex_workflow() {
     // STEP 3: Create position with FLOW
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // Collateral(effectiveCollateral = balance * price * collateralFactor): 
     //  FLOW: 1000 * $1.00 * 0.8 = $800
@@ -1046,9 +1046,9 @@ fun test_multi_asset_complex_workflow() {
     let expectedPushedAmount: UFix64 = 3.84615385
 
     // Check if rebalance event was emitted
-    let rebalanceEvents = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
+    let rebalanceEvents = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
     Test.assertEqual(1, rebalanceEvents.length) 
-    let lastRebalance = rebalanceEvents[rebalanceEvents.length - 1] as! FlowALPv0.Rebalanced
+    let lastRebalance = rebalanceEvents[rebalanceEvents.length - 1] as! FlowALPEvents.Rebalanced
     Test.assertEqual(pid, lastRebalance.pid)
     Test.assertEqual(expectedPushedAmount, lastRebalance.amount)
     
