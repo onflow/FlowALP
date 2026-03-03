@@ -697,8 +697,9 @@ fun test_multi_asset_partial_withdrawal() {
 // -----------------------------------------------------------------------------
 // Cross-Collateral Borrowing Capacity
 // Tests borrowing capacity when using multiple collateral types
-// Key insight: When borrowing the same token you have as collateral.
-// To test true cross-collateral borrowing, borrow a different token.
+// Key insight: Withdrawing a token which user deposited as collateral (MOET and FLOW) is
+// limited by user credit balance. Borrowing a token not held as collateral
+// (USDF) creates new debt and is limited by health factor.
 // -----------------------------------------------------------------------------
 access(all)
 fun test_cross_collateral_borrowing_capacity() {
@@ -740,9 +741,9 @@ fun test_cross_collateral_borrowing_capacity() {
     // maxBorrow = (effectiveCollateral / minHealth) * borrowFactor / price
     // Using default minHealth = 1.1
     //
-    //  MOET (credit token) -> 900 MOET (credit amount, not calculated from health). This is withdrawal, not true borrowing
-    //  USDF (no balance, different from collateral): maxBorrow = ($1700 / 1.1) * 0.95 / $1.00 = ~1468.18181818 USDF
-    //  FLOW (credit token): -> 1000 FLOW. This is withdrawal, not true borrowing
+    //  MOET (credit token) -> 900 MOET (limited by credit balance: withdrawing deposited collateral, not new debt)
+    //  USDF (no balance, different from collateral, limited by health factor): maxBorrow = ($1700 / 1.1) * 0.95 / $1.00 = ~1468.18181818 USDF
+    //  FLOW (credit token): -> 1000 FLOW (limited by credit balance: withdrawing deposited collateral, not new debt)
     
     // Test MOET borrowing (limited by credit amount)
     let expectedMaxMoet: UFix64 = 900.0
