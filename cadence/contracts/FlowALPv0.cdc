@@ -1467,18 +1467,6 @@ access(all) contract FlowALPv0 {
         }
     }
 
-    /// Helper struct for position closure analysis results
-    /// Note: Type declarations must be public in Cadence, but this is only used internally
-    access(all) struct PositionClosureAnalysis {
-        access(all) let debtsByType: {Type: UFix64}
-        access(all) let collateralTypes: [Type]
-
-        init(debtsByType: {Type: UFix64}, collateralTypes: [Type]) {
-            self.debtsByType = debtsByType
-            self.collateralTypes = collateralTypes
-        }
-    }
-
     /// Pool
     ///
     /// A Pool is the primary logic for protocol operations. It contains the global state of all positions,
@@ -3071,11 +3059,11 @@ access(all) contract FlowALPv0 {
             return <- withdrawn
         }
 
-        /// Analyzes a position to identify debts and collateral for closure
-        access(self) fun _analyzePositionForClosure(pid: UInt64): PositionClosureAnalysis {
+        /// Gets all debts for a position
+        /// Returns a dictionary mapping token type to debt amount (rounded up to UFix64)
+        access(self) fun _getPositionDebts(pid: UInt64): {Type: UFix64} {
             let positionDetails = self.getPositionDetails(pid: pid)
             let debtsByType: {Type: UFix64} = {}
-            let collateralTypes: [Type] = []
 
             for balance in positionDetails.balances {
                 if balance.direction == BalanceDirection.Debit {
@@ -3083,21 +3071,33 @@ access(all) contract FlowALPv0 {
                     // Sanity check: each position should have at most one balance entry per token type
                     assert(
                         debtsByType[debtType] == nil,
-                        message: "Sanity check failed: found multiple balances for \(debtType.identifier) while closing position"
+                        message: "Sanity check failed: found multiple balances for \(debtType.identifier)"
                     )
                     debtsByType[debtType] = balance.balance
-                } else if balance.direction == BalanceDirection.Credit {
-                    // Track ALL collateral types present in position (including dust)
+                }
+            }
+
+            return debtsByType
+        }
+
+        /// Gets all collateral types for a position
+        /// Returns an array of token types that have credit balances (including dust amounts)
+        access(self) fun _getPositionCollateralTypes(pid: UInt64): [Type] {
+            let positionDetails = self.getPositionDetails(pid: pid)
+            let collateralTypes: [Type] = []
+
+            for balance in positionDetails.balances {
+                if balance.direction == BalanceDirection.Credit {
                     // Sanity check: each position should have at most one balance entry per token type
                     assert(
                         !collateralTypes.contains(balance.vaultType),
-                        message: "Sanity check failed: found multiple balances for \(balance.vaultType.identifier) while closing position"
+                        message: "Sanity check failed: found multiple balances for \(balance.vaultType.identifier)"
                     )
                     collateralTypes.append(balance.vaultType)
                 }
             }
 
-            return PositionClosureAnalysis(debtsByType: debtsByType, collateralTypes: collateralTypes)
+            return collateralTypes
         }
 
         /// Repays all debts by pulling from sources
@@ -3283,28 +3283,29 @@ access(all) contract FlowALPv0 {
             // Step 1: Lock the position for all state modifications
             self._lockPosition(pid)
 
-            // Step 2: Analyze position to find all debt and collateral types
-            let analysis = self._analyzePositionForClosure(pid: pid)
+            // Step 2: Get all debts and collateral types from position
+            let debtsByType = self._getPositionDebts(pid: pid)
+            let collateralTypes = self._getPositionCollateralTypes(pid: pid)
 
             // Step 3: Repay all debts by pulling from sources
-            self._repayDebtsFromSources(pid: pid, debtsByType: analysis.debtsByType, sources: repaymentSources)
+            self._repayDebtsFromSources(pid: pid, debtsByType: debtsByType, sources: repaymentSources)
 
             // Step 4: Verify ALL debt is EXACTLY repaid (zero tolerance)
             self._verifyNoDebtRemains(pid: pid)
 
             // Step 5: Withdraw all credit balances (collateral + any overpayment from sources)
-            let vaults <- self._withdrawAllCollateral(pid: pid, collateralTypes: analysis.collateralTypes)
+            let vaults <- self._withdrawAllCollateral(pid: pid, collateralTypes: collateralTypes)
 
             // Step 6: Build withdrawals map for event (vaults are in same order as collateralTypes)
             let withdrawalsByType: {Type: UFix64} = {}
             var i = 0
-            while i < analysis.collateralTypes.length {
-                withdrawalsByType[analysis.collateralTypes[i]] = vaults[i].balance
+            while i < collateralTypes.length {
+                withdrawalsByType[collateralTypes[i]] = vaults[i].balance
                 i = i + 1
             }
 
             // Step 7: Emit position closed event
-            self._emitPositionClosedEvent(pid: pid, debtsByType: analysis.debtsByType, withdrawalsByType: withdrawalsByType)
+            self._emitPositionClosedEvent(pid: pid, debtsByType: debtsByType, withdrawalsByType: withdrawalsByType)
 
             // Step 8: Unlock position now that all operations are complete
             self._unlockPosition(pid)
