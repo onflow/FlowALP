@@ -14,9 +14,9 @@ import "FlowALPMath"
 
 import "test_helpers.cdc"
 
-access(all) let protocolAccount = Test.getAccount(0x6b00ff876c299c61)
-access(all) let MAINNET_USDF_HOLDER = Test.getAccount(0xf18b50870aed46ad)
-access(all) let MAINNET_WETH_HOLDER = Test.getAccount(0xf62e3381a164f993)
+access(all) let MAINNET_PROTOCOL_ACCOUNT = Test.getAccount(MAINNET_PROTOCOL_ACCOUNT_ADDRESS)
+access(all) let MAINNET_USDF_HOLDER = Test.getAccount(MAINNET_USDF_HOLDER_ADDRESS)
+access(all) let MAINNET_WETH_HOLDER = Test.getAccount(MAINNET_WETH_HOLDER_ADDRESS)
 
 access(all) var snapshot: UInt64 = 0
 
@@ -32,17 +32,17 @@ access(all)
 fun setup() {
     deployContracts()
 
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: MAINNET_MOET_TOKEN_ID, beFailed: false)
+    createAndStorePool(signer: MAINNET_PROTOCOL_ACCOUNT, defaultTokenIdentifier: MAINNET_MOET_TOKEN_ID, beFailed: false)
 
     // Set initial oracle prices (baseline)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 1.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: 2000.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_MOET_TOKEN_ID, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: 2000.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_MOET_TOKEN_ID, price: 1.0)
 
     // Add FLOW as supported token (80% CF, 90% BF)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
         collateralFactor: 0.8,
         borrowFactor: 0.9,
@@ -52,7 +52,7 @@ fun setup() {
 
     // Add USDF as supported token (90% CF, 95% BF)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID,
         collateralFactor: 0.9,
         borrowFactor: 0.95,
@@ -62,7 +62,7 @@ fun setup() {
 
     // Add WETH as supported token (75% CF, 85% BF)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID,
         collateralFactor: 0.75,
         borrowFactor: 0.85,
@@ -90,13 +90,13 @@ fun test_oracle_nil_price() {
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
 
-    createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
     // STEP 2: Remove FLOW price from oracle
-    let res = setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: nil)
+    let res = setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: nil)
 
     // STEP 3: Attempting to read position health should revert
     // The pool's positionHealth() calls `self.priceOracle.price(ofToken: type)!` which panics on nil.
@@ -121,7 +121,7 @@ fun test_oracle_zero_price() {
     // STEP 1: Attempt to set FLOW price to 0.0
     // The PriceOracle interface postcondition requires price > 0.0.
     // The MockOracle's price() function should revert on zero.
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.0)
 
     // STEP 2: Setup user with FLOW position
     let user = Test.createAccount()
@@ -129,7 +129,7 @@ fun test_oracle_zero_price() {
     transferFlowTokens(to: user, amount: 1000.0)
 
     // STEP 3: Attempting to create position should fail
-    grantBetaPoolParticipantAccess(protocolAccount, user)
+    grantBetaPoolParticipantAccess(MAINNET_PROTOCOL_ACCOUNT, user)
 
     let openRes = _executeTransaction(
         "../transactions/flow-alp/position/create_position.cdc",
@@ -153,14 +153,14 @@ fun test_oracle_near_zero_price_extreme_health() {
     // STEP 1: Setup MOET LP + user with FLOW collateral + MOET debt
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
-    createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: 50000.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
 
-    createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
@@ -169,7 +169,7 @@ fun test_oracle_near_zero_price_extreme_health() {
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 500.0, beFailed: false)
 
     // STEP 2: Crash FLOW to near-zero ($0.00000001)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.00000001)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.00000001)
 
     // Collateral: 
     //   FLOW: 1000 * $0.00000001 * 0.8 = $0.000008
@@ -205,15 +205,15 @@ fun test_oracle_very_large_price_no_overflow() {
     transferFungibleTokens(tokenIdentifier: MAINNET_WETH_TOKEN_ID, from: MAINNET_WETH_HOLDER, to: user, amount: wethAmount)
 
     let tinyDeposit = 0.00000001
-    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID, minimum: tinyDeposit)
+    setMinimumTokenBalancePerPosition(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID, minimum: tinyDeposit)
 
-    createPosition(admin: protocolAccount, signer: user, amount: wethAmount, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: wethAmount, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
 
     let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
     // STEP 2: Set WETH to extreme price (UFix64.max)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: UFix64.max)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: UFix64.max)
 
     // Collateral: 
     //   WETH: 0.001 * $100,000,000 * 0.75 = $75,000
@@ -277,14 +277,14 @@ fun test_governance_tightens_dex_deviation_threshold() {
     // STEP 1: Setup MOET LP + unhealthy position
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
-    createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: 50000.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
 
-    createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
@@ -292,12 +292,12 @@ fun test_governance_tightens_dex_deviation_threshold() {
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 700.0, beFailed: false)
 
     // Make position unhealthy
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.70)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.70)
 
     // DEX price within default 3% threshold but outside 1%
     // Oracle: $0.70, DEX: $0.685 → deviation = |0.685-0.70|/0.685 = 2.19%
     setMockDexPriceForPair(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MOET.VaultStoragePath,
@@ -305,12 +305,12 @@ fun test_governance_tightens_dex_deviation_threshold() {
     )
 
     // STEP 2: Tighten threshold to 100 bps (1%)
-    setDexLiquidationConfig(signer: protocolAccount, dexOracleDeviationBps: 100)
+    setDexLiquidationConfig(signer: MAINNET_PROTOCOL_ACCOUNT, dexOracleDeviationBps: 100)
 
     // STEP 3: Liquidation should now fail (2.19% > 1% threshold)
     let liquidator = Test.createAccount()
     setupMoetVault(liquidator, beFailed: false)
-    mintMoet(signer: protocolAccount, to: liquidator.address, amount: 500.0, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: liquidator.address, amount: 500.0, beFailed: false)
 
     let liqRes = manualLiquidation(
         signer: liquidator,
@@ -343,15 +343,15 @@ fun test_flash_crash_triggers_liquidation() {
     // STEP 1: Setup MOET liquidity provider
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
-    createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: 50000.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // STEP 2: Setup user with FLOW collateral + moderate MOET debt
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
 
-    createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
@@ -371,9 +371,9 @@ fun test_flash_crash_triggers_liquidation() {
     Test.assert(healthBefore > 1.0, message: "Position should be healthy before crash")
 
     // STEP 3: Flash crash — FLOW drops 50% ($1.00 → $0.50)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.50)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.50)
     setMockDexPriceForPair(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MOET.VaultStoragePath,
@@ -401,7 +401,7 @@ fun test_flash_crash_triggers_liquidation() {
     // STEP 5: Execute liquidation
     let liquidator = Test.createAccount()
     setupMoetVault(liquidator, beFailed: false)
-    mintMoet(signer: protocolAccount, to: liquidator.address, amount: 1000.0, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: liquidator.address, amount: 1000.0, beFailed: false)
 
     // Repay 100 MOET, seize FLOW
     // DEX quote: 100 / 0.50 = 200 FLOW
@@ -440,15 +440,15 @@ fun test_flash_pump_increase_doubles_health() {
     // STEP 1: Setup MOET liquidity provider
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
-    createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: 50000.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // STEP 2: Setup user with FLOW collateral and MOET debt
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
 
-    createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
@@ -470,7 +470,7 @@ fun test_flash_pump_increase_doubles_health() {
     Test.assertEqual(expectedHealthBefore, healthBefore)
 
     // STEP 3: Flash pump — FLOW doubles ($1.00 → $2.00)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 2.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 2.0)
 
     // New position state:
     // Collateral: 
@@ -496,7 +496,7 @@ fun test_flash_pump_increase_doubles_health() {
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 900.0, beFailed: false)
 
     // Price corrects back to $1.00
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
 
     // Position after correction:
     // Collateral: 
