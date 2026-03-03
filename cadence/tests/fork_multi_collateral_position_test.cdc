@@ -1,4 +1,4 @@
-#test_fork(network: "mainnet", height: 142528994)
+#test_fork(network: "mainnet-fork", height: 142528994)
 
 import Test
 import BlockchainHelpers
@@ -6,19 +6,18 @@ import BlockchainHelpers
 import "FlowToken"
 import "FungibleToken"
 import "MOET"
-import "FlowALPv0"
+import "FlowALPEvents"
 
 import "test_helpers.cdc"
+
+access(all) let MAINNET_PROTOCOL_ACCOUNT = Test.getAccount(MAINNET_PROTOCOL_ACCOUNT_ADDRESS)
+access(all) let MAINNET_USDF_HOLDER = Test.getAccount(MAINNET_USDF_HOLDER_ADDRESS)
+access(all) let MAINNET_WETH_HOLDER = Test.getAccount(MAINNET_WETH_HOLDER_ADDRESS)
+access(all) let MAINNET_WBTC_HOLDER = Test.getAccount(MAINNET_WBTC_HOLDER_ADDRESS)
 
 // -----------------------------------------------------------------------------
 // Multi-Collateral Position Tests with EVM Bridged Tokens
 // -----------------------------------------------------------------------------
-
-access(all) let protocolAccount = Test.getAccount(0x6b00ff876c299c61)
-
-access(all) let MAINNET_USDF_HOLDER = Test.getAccount(0xf18b50870aed46ad)
-access(all) let MAINNET_WETH_HOLDER = Test.getAccount(0xf62e3381a164f993)
-access(all) let MAINNET_WBTC_HOLDER = Test.getAccount(0x47f544294e3b7656)
 
 access(all) var snapshot: UInt64 = 0
 
@@ -32,68 +31,20 @@ fun safeReset() {
 
 access(all)
 fun setup() {
-    var err = Test.deployContract(
-        name: "DeFiActionsUtils",
-        path: "../../FlowActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-    
-    err = Test.deployContract(
-        name: "FlowALPMath",
-        path: "../lib/FlowALPMath.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-    
-    err = Test.deployContract(
-        name: "DeFiActions",
-        path: "../../FlowActions/cadence/contracts/interfaces/DeFiActions.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
+    deployContracts()
 
-    err = Test.deployContract(
-        name: "MockOracle",
-        path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [MAINNET_MOET_TOKEN_ID]
-    )
-    Test.expect(err, Test.beNil())
-
-    // Deploy FungibleTokenConnectors
-    err = Test.deployContract(
-        name: "FungibleTokenConnectors",
-        path: "../../FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    err = Test.deployContract(
-        name: "MockDexSwapper",
-        path: "../contracts/mocks/MockDexSwapper.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-     err = Test.deployContract(
-        name: "FlowALPv0",
-        path: "../contracts/FlowALPv0.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: MAINNET_MOET_TOKEN_ID, beFailed: false)
+    createAndStorePool(signer: MAINNET_PROTOCOL_ACCOUNT, defaultTokenIdentifier: MAINNET_MOET_TOKEN_ID, beFailed: false)
 
     // Set oracle prices
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 1.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: 2000.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_MOET_TOKEN_ID, price: 1.0)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WBTC_TOKEN_ID, price: 40000.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: 2000.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_MOET_TOKEN_ID, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WBTC_TOKEN_ID, price: 40000.0)
     
     // Add FLOW as supported token (80% CF, 90% BF)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
         collateralFactor: 0.8,
         borrowFactor: 0.9,
@@ -103,7 +54,7 @@ fun setup() {
     
     // Add USDF as supported token (90% CF, 95% BF)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID,
         collateralFactor: 0.9,
         borrowFactor: 0.95,
@@ -113,7 +64,7 @@ fun setup() {
     
     // Add WETH as supported token (75% CF, 85% BF)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID,
         collateralFactor: 0.75,
         borrowFactor: 0.85,
@@ -123,7 +74,7 @@ fun setup() {
 
     // Add WBTC (70% CF, 80% BF)
     addSupportedTokenZeroRateCurve(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_WBTC_TOKEN_ID,
         collateralFactor: 0.7,
         borrowFactor: 0.8,
@@ -146,8 +97,8 @@ fun test_multi_collateral_position() {
     // STEP 1: Setup MOET liquidity provider for borrowing
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
-    createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: 50000.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     let FLOWAmount = 1000.0
     let USDFAmount = 500.0
@@ -175,10 +126,10 @@ fun test_multi_collateral_position() {
     )
     
     // STEP 3: Create position with FLOW collateral
-    createPosition(admin: protocolAccount, signer: user, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
     // Health should be infinite (no debt)
     var health = getPositionHealth(pid: pid, beFailed: false)
@@ -229,7 +180,7 @@ fun test_multi_collateral_position() {
     //
     // Debt (effectiveDebt = balance * price / borrowFactor):
     //   MOET: 1204 * $1.00 / BF(1.0) = $1204
-    // Total debt: $1000
+    // Total debt: $1204
     //
     // Health = $1325 / $1204 = 1.100498338870431893687707
     
@@ -257,7 +208,7 @@ fun test_cross_asset_flow_to_usdf_borrowing() {
         to: usdfLp,
         amount: 10000.0
     )
-    createPosition(admin: protocolAccount, signer: usdfLp, amount: 10000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: usdfLp, amount: 10000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
     
     // STEP 2: Setup test user with FLOW
     let user = Test.createAccount()
@@ -269,10 +220,10 @@ fun test_cross_asset_flow_to_usdf_borrowing() {
     transferFlowTokens(to: user, amount: flowAmount)
     
     // STEP 3: Create position with FLOW collateral
-    createPosition(admin: protocolAccount, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // Collateral (effectiveCollateral = balance * price * collateralFactor):
     //   FLOW: 1000 * $1.00 * CF(0.8) = $800
@@ -320,7 +271,7 @@ fun test_cross_asset_flow_usdf_weth_borrowing() {
     var res = setupGenericVault(usdfLp, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFungibleTokens(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: usdfLp, amount: 10000.0)
-    createPosition(admin: protocolAccount, signer: usdfLp, amount: 10000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: usdfLp, amount: 10000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
     
     let wethLp = Test.createAccount()
     res = setupGenericVault(wethLp, vaultIdentifier: MAINNET_WETH_TOKEN_ID)
@@ -328,8 +279,8 @@ fun test_cross_asset_flow_usdf_weth_borrowing() {
     transferFungibleTokens(tokenIdentifier: MAINNET_WETH_TOKEN_ID, from: MAINNET_WETH_HOLDER, to: wethLp, amount: 0.05)
     
     let tinyDeposit = 0.00000001
-    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID, minimum: tinyDeposit)
-    createPosition(admin: protocolAccount, signer: wethLp, amount: 0.05, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
+    setMinimumTokenBalancePerPosition(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID, minimum: tinyDeposit)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: wethLp, amount: 0.05, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
 
     // STEP 2: Setup user with FLOW
     let user = Test.createAccount()
@@ -343,34 +294,60 @@ fun test_cross_asset_flow_usdf_weth_borrowing() {
     transferFlowTokens(to: user, amount: flowAmount)
     
     // STEP 3: Create position with FLOW
-    createPosition(admin: protocolAccount, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // Collateral (effectiveCollateral = balance * price * collateralFactor): 
     //   FLOW: 1000 * $1.00 * 0.8 = $800
     // Total collateral: $800
     //
+    // Debt: $0
+    //
+    // Health = $800 / $0 = ∞ (UFix128.max)
+    //
     // Max borrow = (effectiveCollateral / minHealth) * borrowFactor / price
     //   Max USDF: ($800 / 1.1) * 0.95 = 690.90909091 USDF
     
+    var health: UFix128 = getPositionHealth(pid: pid, beFailed: false)
+    Test.assertEqual(CEILING_HEALTH, health)
+    
     let usdfBorrowAmount: UFix64 = 500.0
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, amount: usdfBorrowAmount, beFailed: false)
-    
-    var health = getPositionHealth(pid: pid, beFailed: false)
-   // Test.assertEqual(CEILING_HEALTH, health)
-    
+
+    // Collateral (effectiveCollateral = balance * price * collateralFactor): 
+    //   FLOW: 1000 * $1.00 * 0.8 = $800
+    // Total collateral: $800
+    //
+    // Debt (effectiveDebt = balance * price / borrowFactor): 
+    //   USDF: 500 * $1.00 / 0.95 = $526.315789474
+    //
+    // Health = $800 / $526.315789474 = 1.52
+    var expectedHealth: UFix128 = 1.52
+    health = getPositionHealth(pid: pid, beFailed: false)
+    Test.assertEqual(expectedHealth, health)
+
     // STEP 4: Deposit borrowed USDF as collateral
     depositToPosition(signer: user, positionID: pid, amount: usdfBorrowAmount, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
     
     // New collateral (effectiveCollateral = balance * price * collateralFactor):
     //   FLOW: 1000 * $1.00 * 0.8 = $800
     //   USDF: 500 * $1.00 * 0.9 = $450
-    //   Total collateral: $1250
+    // Total collateral: $1250
     //
     // Debt (effectiveDebt = balance * price / borrowFactor): 
-    //   USDF: 500 * $1.00 / 0.9 = $450
+    //   USDF: 500 * $1.00 / 0.95 = $526.315789474
+    //
+    // After netting USDF (credit 500 - debt 500 = 0):
+    //
+    // Collateral: 
+    //   FLOW: 1000 * $1.00 * 0.8 = $800
+    // Total collateral: $800
+    //
+    // Debt $0
+    //
+    // Health = $800 / $0 = ∞ (UFix128.max)
     
     health = getPositionHealth(pid: pid, beFailed: false)
     Test.assertEqual(CEILING_HEALTH, health)
@@ -387,7 +364,7 @@ fun test_cross_asset_flow_usdf_weth_borrowing() {
     //   USDF: 500 * $1.00 * 0.9 = $450
     //
     // Debt (effectiveDebt = balance * price / borrowFactor):
-    //   USDF: 500 * $1.00 / 0.9 = $450
+    //   USDF: 500 * $1.00 / 0.95 = $526.315789474
     //   WETH: 0.04 * $2000 / 0.85 = $94.12
     //
     // After netting USDF (credit 500 - debt 500 = 0):
@@ -400,7 +377,7 @@ fun test_cross_asset_flow_usdf_weth_borrowing() {
     // Health = $800 / $94.117647059 = 8.5
     
     health = getPositionHealth(pid: pid, beFailed: false)
-    let expectedHealth: UFix128 = 8.5
+    expectedHealth = 8.5
     Test.assertEqual(expectedHealth, health)
 }
 
@@ -418,7 +395,7 @@ fun test_cross_asset_chain() {
     var res = setupGenericVault(usdfLp, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFungibleTokens(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: usdfLp, amount: 1000.0)
-    createPosition(admin: protocolAccount, signer: usdfLp, amount: 1000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: usdfLp, amount: 1000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
     
     // WETH LP (0.05 WETH available)
     let wethLp = Test.createAccount()
@@ -427,17 +404,17 @@ fun test_cross_asset_chain() {
     transferFungibleTokens(tokenIdentifier: MAINNET_WETH_TOKEN_ID, from: MAINNET_WETH_HOLDER, to: wethLp, amount: 0.05)
 
     let tinyDeposit = 0.0000001
-    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID, minimum: tinyDeposit)
-    createPosition(admin: protocolAccount, signer: wethLp, amount: 0.05, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
+    setMinimumTokenBalancePerPosition(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID, minimum: tinyDeposit)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: wethLp, amount: 0.05, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
     
-    // WBTC LP (0.00049 WBTC available)
+    // WBTC LP (0.0004 WBTC available)
     let wbtcLp = Test.createAccount()
     res = setupGenericVault(wbtcLp, vaultIdentifier: MAINNET_WBTC_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFungibleTokens(tokenIdentifier: MAINNET_WBTC_TOKEN_ID, from: MAINNET_WBTC_HOLDER, to: wbtcLp, amount: 0.0004)
 
-    setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: MAINNET_WBTC_TOKEN_ID, minimum: tinyDeposit)
-    createPosition(admin: protocolAccount, signer: wbtcLp, amount: 0.0004, vaultStoragePath: MAINNET_WBTC_STORAGE_PATH, pushToDrawDownSink: false)
+    setMinimumTokenBalancePerPosition(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_WBTC_TOKEN_ID, minimum: tinyDeposit)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: wbtcLp, amount: 0.0004, vaultStoragePath: MAINNET_WBTC_STORAGE_PATH, pushToDrawDownSink: false)
         
     // STEP 2: Setup user with FLOW position
     let user = Test.createAccount()
@@ -453,10 +430,10 @@ fun test_cross_asset_chain() {
     transferFlowTokens(to: user, amount: flowAmount)
     
     // STEP 3: Create position and execute complete chain
-    createPosition(admin: protocolAccount, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // Collateral (effectiveCollateral = balance * price * collateralFactor): 
     //   FLOW: 1000 * $1.00 * 0.8 = $800
@@ -544,8 +521,8 @@ fun test_multi_asset_uncorrelated_price_movements() {
     // STEP 1: Setup liquidity providers for MOET
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
-    createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: 50000.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // STEP 2: Setup test user with FLOW, USDF, and WETH
     let user = Test.createAccount()
@@ -564,10 +541,10 @@ fun test_multi_asset_uncorrelated_price_movements() {
     transferFungibleTokens(tokenIdentifier: MAINNET_WETH_TOKEN_ID, from: MAINNET_WETH_HOLDER, to: user, amount: wethAmount)
     
     // STEP 3: Create position with FLOW collateral
-    createPosition(admin: protocolAccount, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // STEP 4: Add USDF and WETH collateral
     depositToPosition(signer: user, positionID: pid, amount: usdfAmount, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
@@ -601,9 +578,9 @@ fun test_multi_asset_uncorrelated_price_movements() {
     // USDF: $1.00 → $0.95 (-5%)
     // WETH: $2000 → $2400 (+20%)
     // MOET: $1.00 (stable)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.10)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 0.95)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: 2400.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.10)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 0.95)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: 2400.0)
     // MOET remains at $1.00
     
     // New position state with changed prices:
@@ -635,22 +612,22 @@ fun test_multi_asset_partial_withdrawal() {
     // We need someone else to deposit MOET so there's liquidity for borrowing
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 10000.0, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: 10000.0, beFailed: false)
     
     // MOET LP deposits MOET (creates MOET credit balance = provides liquidity)
-    createPosition(admin: protocolAccount, signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // STEP 2: Setup test user
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
-    mintMoet(signer: protocolAccount, to: user.address, amount: 500.0, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: user.address, amount: 500.0, beFailed: false)
     
     // STEP 3: Create position with FLOW
-    createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // STEP 4: Add MOET collateral
     depositToPosition(signer: user, positionID: pid, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
@@ -720,8 +697,9 @@ fun test_multi_asset_partial_withdrawal() {
 // -----------------------------------------------------------------------------
 // Cross-Collateral Borrowing Capacity
 // Tests borrowing capacity when using multiple collateral types
-// Key insight: When borrowing the same token you have as collateral.
-// To test true cross-collateral borrowing, borrow a different token.
+// Key insight: Withdrawing a token which user deposited as collateral (MOET and FLOW) is
+// limited by user credit balance. Borrowing a token not held as collateral
+// (USDF) creates new debt and is limited by health factor.
 // -----------------------------------------------------------------------------
 access(all)
 fun test_cross_collateral_borrowing_capacity() {
@@ -730,9 +708,9 @@ fun test_cross_collateral_borrowing_capacity() {
     // STEP 1: Setup MOET and USDF liquidity providers
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 10000.0, beFailed: false)
-    createPosition(admin: protocolAccount, signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
-    createPosition(admin: protocolAccount, signer: MAINNET_USDF_HOLDER, amount: 10000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: 10000.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: MAINNET_USDF_HOLDER, amount: 10000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
     
     // STEP 2: Setup test user with FLOW + MOET collateral
     let user = Test.createAccount()
@@ -740,13 +718,13 @@ fun test_cross_collateral_borrowing_capacity() {
     var res = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFlowTokens(to: user, amount: 1000.0)
-    mintMoet(signer: protocolAccount, to: user.address, amount: 900.0, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: user.address, amount: 900.0, beFailed: false)
     
     // STEP 3: Create position with FLOW + MOET collateral
-    createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     depositToPosition(signer: user, positionID: pid, amount: 900.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
@@ -763,9 +741,9 @@ fun test_cross_collateral_borrowing_capacity() {
     // maxBorrow = (effectiveCollateral / minHealth) * borrowFactor / price
     // Using default minHealth = 1.1
     //
-    //  MOET (credit token) -> 900 MOET (credit amount, not calculated from health). This is withdrawal, not true borrowing
-    //  USDF (no balance, different from collateral): maxBorrow = ($1700 / 1.1) * 0.95 / $1.00 = ~1468.18181818 USDF
-    //  FLOW (credit token): -> 1000 FLOW. This is withdrawal, not true borrowing
+    //  MOET (credit token) -> 900 MOET (limited by credit balance: withdrawing deposited collateral, not new debt)
+    //  USDF (no balance, different from collateral, limited by health factor): maxBorrow = ($1700 / 1.1) * 0.95 / $1.00 = ~1468.18181818 USDF
+    //  FLOW (credit token): -> 1000 FLOW (limited by credit balance: withdrawing deposited collateral, not new debt)
     
     // Test MOET borrowing (limited by credit amount)
     let expectedMaxMoet: UFix64 = 900.0
@@ -795,14 +773,14 @@ fun test_multi_asset_liquidation_collateral_selection() {
     // STEP 1: Setup liquidity providers
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
-    createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: 50000.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     let usdfLp = Test.createAccount()
     var res = setupGenericVault(usdfLp, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
     Test.expect(res, Test.beSucceeded())
     transferFungibleTokens(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: usdfLp, amount: 10000.0)
-    createPosition(admin: protocolAccount, signer: usdfLp, amount: 10000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: usdfLp, amount: 10000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
     
     // STEP 2: Setup user with 3 collateral types
     let user = Test.createAccount()
@@ -821,10 +799,10 @@ fun test_multi_asset_liquidation_collateral_selection() {
     transferFungibleTokens(tokenIdentifier: MAINNET_WETH_TOKEN_ID, from: MAINNET_WETH_HOLDER, to: user, amount: wethAmount)
     
     // STEP 3: Create position with all collateral
-    createPosition(admin: protocolAccount, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: flowAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     depositToPosition(signer: user, positionID: pid, amount: usdfAmount, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
     depositToPosition(signer: user, positionID: pid, amount: wethAmount, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
@@ -886,10 +864,10 @@ fun test_multi_asset_liquidation_collateral_selection() {
     Test.assert(healthBefore > 1.0, message: "Position should be healthy before price drop")
 
     // STEP 5: Drop FLOW price from $1.00 to $0.70 to make liquidation more attractive
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.70)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.70)
     // Update DEX price to match oracle
     setMockDexPriceForPair(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MOET.VaultStoragePath,
@@ -915,7 +893,7 @@ fun test_multi_asset_liquidation_collateral_selection() {
     // STEP 6: Liquidator chooses to seize FLOW collateral by repaying MOET debt
     let liquidator = Test.createAccount()
     setupMoetVault(liquidator, beFailed: false)
-    mintMoet(signer: protocolAccount, to: liquidator.address, amount: 1000.0, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: liquidator.address, amount: 1000.0, beFailed: false)
     
     // Repay 100 MOET, seize FLOW
     // DEX quote: 100 / 0.70 = 142.86 FLOW
@@ -961,8 +939,8 @@ fun test_multi_asset_complex_workflow() {
     // STEP 1: Setup liquidity providers
     let moetLp = Test.createAccount()
     setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: protocolAccount, to: moetLp.address, amount: 50000.0, beFailed: false)
-    createPosition(admin: protocolAccount, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: 50000.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: 50000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     
     // STEP 2: User deposits FLOW collateral
     let user = Test.createAccount()
@@ -975,10 +953,10 @@ fun test_multi_asset_complex_workflow() {
     transferFlowTokens(to: user, amount: 1000.0)
     
     // STEP 3: Create position with FLOW
-    createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     
     // Collateral(effectiveCollateral = balance * price * collateralFactor): 
     //  FLOW: 1000 * $1.00 * 0.8 = $800
@@ -1006,9 +984,9 @@ fun test_multi_asset_complex_workflow() {
     Test.assert(healthAfterBorrow > 1.0, message: "Position should be healthy after borrowing")
     
     // STEP 6: FLOW price drops 20% ($1.00 → $0.80)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.80)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.80)
     setMockDexPriceForPair(
-        signer: protocolAccount,
+        signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
         outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MOET.VaultStoragePath,
@@ -1068,9 +1046,9 @@ fun test_multi_asset_complex_workflow() {
     let expectedPushedAmount: UFix64 = 3.84615385
 
     // Check if rebalance event was emitted
-    let rebalanceEvents = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
+    let rebalanceEvents = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
     Test.assertEqual(1, rebalanceEvents.length) 
-    let lastRebalance = rebalanceEvents[rebalanceEvents.length - 1] as! FlowALPv0.Rebalanced
+    let lastRebalance = rebalanceEvents[rebalanceEvents.length - 1] as! FlowALPEvents.Rebalanced
     Test.assertEqual(pid, lastRebalance.pid)
     Test.assertEqual(expectedPushedAmount, lastRebalance.amount)
     

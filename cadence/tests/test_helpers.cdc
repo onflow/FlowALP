@@ -1,5 +1,7 @@
 import Test
 import "FlowALPv0"
+import "FlowALPModels"
+import "MOET"
 
 /* --- Global test constants --- */
 
@@ -45,6 +47,11 @@ access(all) let MAINNET_USDF_STORAGE_PATH = /storage/EVMVMBridgedToken_2aabea205
 access(all) let MAINNET_WETH_STORAGE_PATH = /storage/EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590Vault
 access(all) let MAINNET_WBTC_STORAGE_PATH = /storage/EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579Vault
 access(all) let MAINNET_MOET_STORAGE_PATH = /storage/moetTokenVault_0x6b00ff876c299c61
+
+access(all) let MAINNET_PROTOCOL_ACCOUNT_ADDRESS: Address = 0x6b00ff876c299c61
+access(all) let MAINNET_USDF_HOLDER_ADDRESS: Address = 0xf18b50870aed46ad
+access(all) let MAINNET_WETH_HOLDER_ADDRESS: Address = 0xf62e3381a164f993
+access(all) let MAINNET_WBTC_HOLDER_ADDRESS: Address = 0x47f544294e3b7656
 
 /* --- Test execution helpers --- */
 
@@ -112,6 +119,27 @@ fun deployContracts() {
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
+        name: "FlowALPInterestRates",
+        path: "../contracts/FlowALPInterestRates.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowALPEvents",
+        path: "../contracts/FlowALPEvents.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowALPModels",
+        path: "../contracts/FlowALPModels.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
         name: "FlowALPv0",
         path: "../contracts/FlowALPv0.cdc",
         arguments: []
@@ -121,7 +149,7 @@ fun deployContracts() {
     err = Test.deployContract(
         name: "MockOracle",
         path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [MOET_TOKEN_IDENTIFIER]
+        arguments: [Type<@MOET.Vault>().identifier]
     )
     Test.expect(err, Test.beNil())
 
@@ -140,14 +168,14 @@ fun deployContracts() {
     )
     Test.expect(err, Test.beNil())
 
-    // Deploy FungibleTokenConnectors
+
     err = Test.deployContract(
         name: "FungibleTokenConnectors",
         path: "../../FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
-    // Deploy MockDexSwapper for DEX liquidation tests
+
     err = Test.deployContract(
         name: "MockDexSwapper",
         path: "../contracts/mocks/MockDexSwapper.cdc",
@@ -161,7 +189,6 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
-
 
     err = Test.deployContract(
         name: "AdversarialTypeSpoofingConnectors",
@@ -241,16 +268,16 @@ fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix128 {
 }
 
 access(all)
-fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALPv0.PositionDetails {
+fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALPModels.PositionDetails {
     let res = _executeScript("../scripts/flow-alp/position_details.cdc",
             [pid]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-    return res.returnValue as! FlowALPv0.PositionDetails
+    return res.returnValue as! FlowALPModels.PositionDetails
 }
 
 access(all)
-fun getPositionBalance(pid: UInt64, vaultID: String): FlowALPv0.PositionBalance {
+fun getPositionBalance(pid: UInt64, vaultID: String): FlowALPModels.PositionBalance {
     let positionDetails = getPositionDetails(pid: pid, beFailed: false)
     for bal in positionDetails.balances {
         if bal.vaultType == CompositeType(vaultID) {
@@ -888,9 +915,9 @@ fun getBlockTimestamp(): UFix64 {
 }
 
 access(all)
-fun getDebitBalanceForType(details: FlowALPv0.PositionDetails, vaultType: Type): UFix64 {
+fun getDebitBalanceForType(details: FlowALPModels.PositionDetails, vaultType: Type): UFix64 {
     for balance in details.balances {
-        if balance.vaultType == vaultType && balance.direction == FlowALPv0.BalanceDirection.Debit {
+        if balance.vaultType == vaultType && balance.direction == FlowALPModels.BalanceDirection.Debit {
             return balance.balance
         }
     }
@@ -898,9 +925,9 @@ fun getDebitBalanceForType(details: FlowALPv0.PositionDetails, vaultType: Type):
 }
 
 access(all)
-fun getCreditBalanceForType(details: FlowALPv0.PositionDetails, vaultType: Type): UFix64 {
+fun getCreditBalanceForType(details: FlowALPModels.PositionDetails, vaultType: Type): UFix64 {
     for balance in details.balances {
-        if balance.vaultType == vaultType && balance.direction == FlowALPv0.BalanceDirection.Credit {
+        if balance.vaultType == vaultType && balance.direction == FlowALPModels.BalanceDirection.Credit {
             return balance.balance
         }
     }
