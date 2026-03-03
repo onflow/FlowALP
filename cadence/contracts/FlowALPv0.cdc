@@ -3101,35 +3101,44 @@ access(all) contract FlowALPv0 {
         }
 
         /// Repays all debts by pulling from sources
+        /// Optimized to O(n+m) by grouping sources by type first
         access(self) fun _repayDebtsFromSources(
             pid: UInt64,
             debtsByType: {Type: UFix64},
             sources: [{DeFiActions.Source}]
         ) {
-            // For each debt type, try to pull from sources
+            // Step 1: Group sources by type (O(m) where m = number of sources)
+            let sourcesByType: {Type: [{DeFiActions.Source}]} = {}
+            for source in sources {
+                let sourceType = source.getSourceType()
+                if sourcesByType[sourceType] == nil {
+                    sourcesByType[sourceType] = []
+                }
+                sourcesByType[sourceType]!.append(source)
+            }
+
+            // Step 2: For each debt type, pull from matching sources (O(n) where n = number of debt types)
             for debtType in debtsByType.keys {
                 let debtAmount = debtsByType[debtType]!
                 var remainingDebt = debtAmount
 
-                // Try each source until debt is fully paid
-                for source in sources {
+                // Only iterate through sources that match this debt type
+                let matchingSources = sourcesByType[debtType] ?? []
+                for source in matchingSources {
                     if remainingDebt == 0.0 {
                         break
                     }
 
-                    // Only pull from sources that provide the debt type we need
-                    if source.getSourceType() == debtType {
-                        // Pull up to remaining debt amount
-                        let pulled <- source.withdrawAvailable(maxAmount: remainingDebt)
-                        let pulledAmount = pulled.balance
+                    // Pull up to remaining debt amount
+                    let pulled <- source.withdrawAvailable(maxAmount: remainingDebt)
+                    let pulledAmount = pulled.balance
 
-                        if pulledAmount > 0.0 {
-                            remainingDebt = remainingDebt - pulledAmount
-                            // Deposit to position (any overpayment flips to credit)
-                            self._depositEffectsOnly(pid: pid, from: <-pulled)
-                        } else {
-                            destroy pulled
-                        }
+                    if pulledAmount > 0.0 {
+                        remainingDebt = remainingDebt - pulledAmount
+                        // Deposit to position (any overpayment flips to credit)
+                        self._depositEffectsOnly(pid: pid, from: <-pulled)
+                    } else {
+                        destroy pulled
                     }
                 }
 
@@ -3285,7 +3294,6 @@ access(all) contract FlowALPv0 {
 
             // Step 2: Get all debts and collateral types from position
             let debtsByType = self._getPositionDebts(pid: pid)
-            let collateralTypes = self._getPositionCollateralTypes(pid: pid)
 
             // Step 3: Repay all debts by pulling from sources
             self._repayDebtsFromSources(pid: pid, debtsByType: debtsByType, sources: repaymentSources)
@@ -3294,6 +3302,7 @@ access(all) contract FlowALPv0 {
             self._verifyNoDebtRemains(pid: pid)
 
             // Step 5: Withdraw all credit balances (collateral + any overpayment from sources)
+            let collateralTypes = self._getPositionCollateralTypes(pid: pid)
             let vaults <- self._withdrawAllCollateral(pid: pid, collateralTypes: collateralTypes)
 
             // Step 6: Build withdrawals map for event (vaults are in same order as collateralTypes)
