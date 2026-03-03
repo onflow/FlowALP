@@ -1467,6 +1467,18 @@ access(all) contract FlowALPv0 {
         }
     }
 
+    /// Helper struct for position closure analysis results
+    /// Note: Type declarations must be public in Cadence, but this is only used internally
+    access(all) struct PositionClosureAnalysis {
+        access(all) let debtsByType: {Type: UFix64}
+        access(all) let collateralTypes: [Type]
+
+        init(debtsByType: {Type: UFix64}, collateralTypes: [Type]) {
+            self.debtsByType = debtsByType
+            self.collateralTypes = collateralTypes
+        }
+    }
+
     /// Pool
     ///
     /// A Pool is the primary logic for protocol operations. It contains the global state of all positions,
@@ -3059,53 +3071,8 @@ access(all) contract FlowALPv0 {
             return <- withdrawn
         }
 
-        /// Closes a position using the position's configured topUpSource for debt repayment.
-        /// This is a convenience method that accesses the topUpSource directly.
-        /// Closes a position by repaying all debts with pre-prepared vaults and returning all collateral.
-        ///
-        /// This is the ONLY close method - users must prepare repayment funds externally.
-        /// This design eliminates circular dependencies and gives users full control over fund sourcing.
-        ///
-        /// Overpayment Handling (Strict):
-        /// - Overpayment becomes a credit balance via _depositEffectsOnly
-        /// - Close withdraws UP TO the computed overpayment amount (capped by actual withdrawable credit)
-        /// - Capping handles rounding differences between external balance view and internal scaled balances
-        /// - This prevents accidentally withdrawing unintended pre-existing credits in debt token types
-        /// - No epsilon tolerance: ALL debt must be exactly repaid (overpayment okay, underpayment fails)
-        ///
-        /// Steps:
-        /// 1. Locks the position
-        /// 2. Analyzes position to find all debt and collateral types
-        /// 3. Pulls from sources to repay debts (any overpayment becomes credit balance)
-        /// 4. Verifies NO debt remains (zero tolerance for unpaid debt)
-        /// 5. Automatically withdraws ALL collateral + any credit balances
-        /// 6. Returns array of vaults (collateral + any excess funds)
-        ///
-        /// @param pid: Position ID to close
-        /// @param repaymentSources: Array of Sources that can provide funds to repay debts
-        ///                          Sources are pulled from as needed (supports swapping, multi-vault, etc.)
-        /// @return Array of vaults containing all collateral + overpayment dust
-        ///
-        access(EPosition) fun closePosition(
-            pid: UInt64,
-            repaymentSources: [{DeFiActions.Source}]
-        ): @[{FungibleToken.Vault}] {
-            pre {
-                !self.isPausedOrWarmup(): "Operations are paused by governance"
-                self.positions[pid] != nil: "Invalid position ID"
-            }
-            post {
-                self.positionLock[pid] == nil: "Position is not unlocked"
-            }
-
-            if self.debugLogging {
-                log("    [CONTRACT] closePosition(pid: \(pid), repaymentSources: \(repaymentSources.length))")
-            }
-
-            // Step 1: Lock the position for all state modifications
-            self._lockPosition(pid)
-
-            // Step 2: Analyze position to find all debt and collateral types
+        /// Analyzes a position to identify debts and collateral for closure
+        access(self) fun _analyzePositionForClosure(pid: UInt64): PositionClosureAnalysis {
             let positionDetails = self.getPositionDetails(pid: pid)
             let debtsByType: {Type: UFix64} = {}
             let collateralTypes: [Type] = []
@@ -3121,7 +3088,6 @@ access(all) contract FlowALPv0 {
                     debtsByType[debtType] = balance.balance
                 } else if balance.direction == BalanceDirection.Credit {
                     // Track ALL collateral types present in position (including dust)
-                    // Note: balance.balance may round to 0 but position might still have dust
                     // Sanity check: each position should have at most one balance entry per token type
                     assert(
                         !collateralTypes.contains(balance.vaultType),
@@ -3131,16 +3097,22 @@ access(all) contract FlowALPv0 {
                 }
             }
 
-            // Step 3: Pull repayment from sources
-            // Note: Any overpayment naturally becomes a credit balance and is withdrawn in Step 5
+            return PositionClosureAnalysis(debtsByType: debtsByType, collateralTypes: collateralTypes)
+        }
 
+        /// Repays all debts by pulling from sources
+        access(self) fun _repayDebtsFromSources(
+            pid: UInt64,
+            debtsByType: {Type: UFix64},
+            sources: [{DeFiActions.Source}]
+        ) {
             // For each debt type, try to pull from sources
             for debtType in debtsByType.keys {
                 let debtAmount = debtsByType[debtType]!
                 var remainingDebt = debtAmount
 
                 // Try each source until debt is fully paid
-                for source in repaymentSources {
+                for source in sources {
                     if remainingDebt == 0.0 {
                         break
                     }
@@ -3153,7 +3125,6 @@ access(all) contract FlowALPv0 {
 
                         if pulledAmount > 0.0 {
                             remainingDebt = remainingDebt - pulledAmount
-
                             // Deposit to position (any overpayment flips to credit)
                             self._depositEffectsOnly(pid: pid, from: <-pulled)
                         } else {
@@ -3168,40 +3139,43 @@ access(all) contract FlowALPv0 {
                     message: "Insufficient funds from sources for \(debtType.identifier) debt: needed \(debtAmount), got \(debtAmount - remainingDebt)"
                 )
             }
+        }
 
-            // Step 4: Verify ALL debt is EXACTLY repaid (no epsilon tolerance)
+        /// Verifies that no debt remains in the position
+        access(self) fun _verifyNoDebtRemains(pid: UInt64) {
             let updatedDetails = self.getPositionDetails(pid: pid)
 
             // CRITICAL: No debt tokens should remain in debit (zero tolerance)
             for balance in updatedDetails.balances {
                 if balance.direction == BalanceDirection.Debit {
-                    // ZERO tolerance - all debt must be fully repaid
-                    // Since getTotalDebt rounds UP, this should never fail with proper repayment
                     panic("Debt not fully repaid for \(balance.vaultType.identifier): \(balance.balance) remaining. Position cannot be closed with outstanding debt.")
                 }
             }
+        }
 
-            // Step 5: Withdraw all credit balances (collateral + any overpayment from sources)
+        /// Withdraws all collateral from the position.
+        ///
+        /// Returns an array of vaults in the same order as the collateralTypes parameter.
+        /// This ordering guarantee allows the caller to pair vaults with their types.
+        access(self) fun _withdrawAllCollateral(
+            pid: UInt64,
+            collateralTypes: [Type]
+        ): @[{FungibleToken.Vault}] {
             let positionView = self.buildPositionView(pid: pid)
             let collateralVaults: @[{FungibleToken.Vault}] <- []
-            let withdrawalsByType: {Type: UFix64} = {}  // Track withdrawals for event
 
             // Withdraw all credit balances in deterministic order
-            // (collateralTypes already deduplicated by Step 2 sanity check)
             for withdrawalType in collateralTypes {
                 let tokenBalance = positionView.trueBalance(ofToken: withdrawalType)
                 let withdrawable = FlowALPMath.toUFix64RoundDown(tokenBalance)
-
-                // Withdraw full balance (any overpayment naturally became credit in Step 3)
-                var withdrawAmount: UFix64 = withdrawable
+                let withdrawAmount = withdrawable
 
                 // Perform direct withdrawal while holding lock
                 if withdrawAmount == 0.0 {
-                    // Track zero withdrawal for this type
-                    withdrawalsByType[withdrawalType] = 0.0
                     collateralVaults.append(<- DeFiActionsUtils.getEmptyVault(withdrawalType))
                     continue
                 }
+
                 let position = self._borrowPosition(pid: pid)
                 let tokenState = self._borrowUpdatedTokenState(type: withdrawalType)
                 let reserveVault = (&self.reserves[withdrawalType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
@@ -3224,9 +3198,6 @@ access(all) contract FlowALPv0 {
                 // Withdraw from reserves
                 let withdrawn <- reserveVault.withdraw(amount: withdrawAmount)
 
-                // Track withdrawal amount for this type
-                withdrawalsByType[withdrawalType] = withdrawAmount
-
                 emit Withdrawn(
                     pid: pid,
                     poolUUID: self.uuid,
@@ -3238,6 +3209,15 @@ access(all) contract FlowALPv0 {
                 collateralVaults.append(<- withdrawn)
             }
 
+            return <- collateralVaults
+        }
+
+        /// Emits the PositionClosed event
+        access(self) fun _emitPositionClosedEvent(
+            pid: UInt64,
+            debtsByType: {Type: UFix64},
+            withdrawalsByType: {Type: UFix64}
+        ) {
             // Emit event for position closure
             // Note: repayments = debts owed (sources may have provided more, but that became credit)
             let repaymentsEvent: {String: UFix64} = {}
@@ -3256,11 +3236,80 @@ access(all) contract FlowALPv0 {
                 repaymentsByType: repaymentsEvent,
                 withdrawalsByType: withdrawalsEvent
             )
+        }
 
-            // Unlock position now that all operations are complete
+        /// Closes a position by repaying all debts from sources and returning all collateral.
+        ///
+        /// Users provide Source(s) that can supply funds to repay debts. The contract pulls exactly
+        /// what it needs to repay all debts. Sources support swapping, multi-vault, and other patterns
+        /// via the DeFiActions.Source abstraction.
+        ///
+        /// Overpayment Handling:
+        /// - Any overpayment automatically becomes a credit balance via _depositEffectsOnly
+        /// - All credit balances (collateral + any overpayment) are withdrawn and returned
+        /// - No epsilon tolerance: ALL debt must be exactly repaid (overpayment okay, underpayment fails)
+        ///
+        /// Steps:
+        /// 1. Locks the position
+        /// 2. Analyzes position to find all debt and collateral types
+        /// 3. Pulls from sources to repay debts (overpayment becomes credit balance)
+        /// 4. Verifies NO debt remains (zero tolerance for unpaid debt)
+        /// 5. Withdraws ALL collateral + any credit balances
+        /// 6. Builds withdrawals map for event emission
+        /// 7. Emits PositionClosed event
+        /// 8. Unlocks position
+        ///
+        /// @param pid: Position ID to close
+        /// @param repaymentSources: Array of Sources that can provide funds to repay debts
+        ///                          Sources are pulled from as needed (supports swapping, multi-vault, etc.)
+        /// @return Array of vaults containing all collateral + any overpayment
+        ///
+        access(EPosition) fun closePosition(
+            pid: UInt64,
+            repaymentSources: [{DeFiActions.Source}]
+        ): @[{FungibleToken.Vault}] {
+            pre {
+                !self.isPausedOrWarmup(): "Operations are paused by governance"
+                self.positions[pid] != nil: "Invalid position ID"
+            }
+            post {
+                self.positionLock[pid] == nil: "Position is not unlocked"
+            }
+
+            if self.debugLogging {
+                log("    [CONTRACT] closePosition(pid: \(pid), repaymentSources: \(repaymentSources.length))")
+            }
+
+            // Step 1: Lock the position for all state modifications
+            self._lockPosition(pid)
+
+            // Step 2: Analyze position to find all debt and collateral types
+            let analysis = self._analyzePositionForClosure(pid: pid)
+
+            // Step 3: Repay all debts by pulling from sources
+            self._repayDebtsFromSources(pid: pid, debtsByType: analysis.debtsByType, sources: repaymentSources)
+
+            // Step 4: Verify ALL debt is EXACTLY repaid (zero tolerance)
+            self._verifyNoDebtRemains(pid: pid)
+
+            // Step 5: Withdraw all credit balances (collateral + any overpayment from sources)
+            let vaults <- self._withdrawAllCollateral(pid: pid, collateralTypes: analysis.collateralTypes)
+
+            // Step 6: Build withdrawals map for event (vaults are in same order as collateralTypes)
+            let withdrawalsByType: {Type: UFix64} = {}
+            var i = 0
+            while i < analysis.collateralTypes.length {
+                withdrawalsByType[analysis.collateralTypes[i]] = vaults[i].balance
+                i = i + 1
+            }
+
+            // Step 7: Emit position closed event
+            self._emitPositionClosedEvent(pid: pid, debtsByType: analysis.debtsByType, withdrawalsByType: withdrawalsByType)
+
+            // Step 8: Unlock position now that all operations are complete
             self._unlockPosition(pid)
 
-            return <-collateralVaults
+            return <- vaults
         }
 
         ///////////////////////
