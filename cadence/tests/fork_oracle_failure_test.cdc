@@ -1,4 +1,4 @@
-#test_fork(network: "mainnet", height: 142528994)
+#test_fork(network: "mainnet-fork", height: 142528994)
 
 import Test
 import BlockchainHelpers
@@ -9,6 +9,8 @@ import "MOET"
 import "FlowALPv0"
 import "DeFiActions"
 import "MockOracle"
+import "FlowALPEvents"
+import "FlowALPMath"
 
 import "test_helpers.cdc"
 
@@ -17,11 +19,6 @@ access(all) let MAINNET_USDF_HOLDER = Test.getAccount(0xf18b50870aed46ad)
 access(all) let MAINNET_WETH_HOLDER = Test.getAccount(0xf62e3381a164f993)
 
 access(all) var snapshot: UInt64 = 0
-
-// Storage paths
-access(all) let USDF_STORAGE_PATH = /storage/EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabedVault
-access(all) let WETH_STORAGE_PATH = /storage/EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590Vault
-access(all) let MOET_STORAGE_PATH = /storage/moetTokenVault_0x6b00ff876c299c61
 
 access(all)
 fun safeReset() {
@@ -33,54 +30,7 @@ fun safeReset() {
 
 access(all)
 fun setup() {
-    var err = Test.deployContract(
-        name: "DeFiActionsUtils",
-        path: "../../FlowActions/cadence/contracts/utils/DeFiActionsUtils.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    err = Test.deployContract(
-        name: "FlowALPMath",
-        path: "../lib/FlowALPMath.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    err = Test.deployContract(
-        name: "DeFiActions",
-        path: "../../FlowActions/cadence/contracts/interfaces/DeFiActions.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    err = Test.deployContract(
-        name: "MockOracle",
-        path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [MAINNET_MOET_TOKEN_ID]
-    )
-    Test.expect(err, Test.beNil())
-
-    err = Test.deployContract(
-        name: "FungibleTokenConnectors",
-        path: "../../FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    err = Test.deployContract(
-        name: "MockDexSwapper",
-        path: "../contracts/mocks/MockDexSwapper.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
-
-    err = Test.deployContract(
-        name: "FlowALPv0",
-        path: "../contracts/FlowALPv0.cdc",
-        arguments: []
-    )
-    Test.expect(err, Test.beNil())
+    deployContracts()
 
     createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: MAINNET_MOET_TOKEN_ID, beFailed: false)
 
@@ -142,8 +92,8 @@ fun test_oracle_nil_price() {
 
     createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
     // STEP 2: Remove FLOW price from oracle
     let res = setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: nil)
@@ -212,11 +162,11 @@ fun test_oracle_near_zero_price_extreme_health() {
 
     createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
     // Borrow 500 MOET
-    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET_STORAGE_PATH, amount: 500.0, beFailed: false)
+    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 500.0, beFailed: false)
 
     // STEP 2: Crash FLOW to near-zero ($0.00000001)
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.00000001)
@@ -257,10 +207,10 @@ fun test_oracle_very_large_price_no_overflow() {
     let tinyDeposit = 0.00000001
     setMinimumTokenBalancePerPosition(signer: protocolAccount, tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID, minimum: tinyDeposit)
 
-    createPosition(admin: protocolAccount, signer: user, amount: wethAmount, vaultStoragePath: WETH_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: protocolAccount, signer: user, amount: wethAmount, vaultStoragePath: MAINNET_WETH_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
     // STEP 2: Set WETH to extreme price (UFix64.max)
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: UFix64.max)
@@ -292,25 +242,25 @@ fun test_dex_oracle_deviation_boundary_exact_threshold() {
 
     // Exactly at 300 bps (3%) — should pass
     // Oracle: $1.00, DEX: $1.03 → deviation = |1.03-1.00|/1.00 = 3.0% = 300 bps
-    var res = FlowALPv0.dexOraclePriceDeviationInRange(dexPrice: 1.03, oraclePrice: 1.0, maxDeviationBps: 300)
+    var res = FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: 1.03, oraclePrice: 1.0, maxDeviationBps: 300)
     Test.assertEqual(true, res)
 
     // One basis point over — should fail
     // Oracle: $1.00, DEX: $1.0301 → deviation = 3.01% = 301 bps
-    res = FlowALPv0.dexOraclePriceDeviationInRange(dexPrice: 1.0301, oraclePrice: 1.0, maxDeviationBps: 300)
+    res = FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: 1.0301, oraclePrice: 1.0, maxDeviationBps: 300)
     Test.assertEqual(false, res)
 
     // DEX below oracle — same threshold applies
     // Oracle: $1.00, DEX: $0.97 → deviation = |0.97-1.00|/0.97 = 3.09% = 309 bps
-    res = FlowALPv0.dexOraclePriceDeviationInRange(dexPrice: 0.97, oraclePrice: 1.0, maxDeviationBps: 300)
+    res = FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: 0.97, oraclePrice: 1.0, maxDeviationBps: 300)
     Test.assertEqual(false, res)
 
     // DEX: $0.971 → deviation = |0.971-1.00|/0.971 = 2.98% = 298 bps
-    res = FlowALPv0.dexOraclePriceDeviationInRange(dexPrice: 0.971, oraclePrice: 1.0, maxDeviationBps: 300)
+    res = FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: 0.971, oraclePrice: 1.0, maxDeviationBps: 300)
     Test.assertEqual(true, res)
 
     // Equal prices — zero deviation — always passes
-    res = FlowALPv0.dexOraclePriceDeviationInRange(dexPrice: 1.0, oraclePrice: 1.0, maxDeviationBps: 0)
+    res = FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: 1.0, oraclePrice: 1.0, maxDeviationBps: 0)
     Test.assertEqual(true, res)
 }
 
@@ -340,10 +290,10 @@ fun test_dex_oracle_deviation_blocks_liquidation() {
 
     createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
-    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET_STORAGE_PATH, amount: 700.0, beFailed: false)
+    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 700.0, beFailed: false)
 
     // Drop FLOW oracle price to make position unhealthy
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.70)
@@ -409,10 +359,10 @@ fun test_dex_oracle_within_threshold_liquidation_succeeds() {
 
     createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
-    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET_STORAGE_PATH, amount: 700.0, beFailed: false)
+    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 700.0, beFailed: false)
 
     // Drop FLOW oracle price to make position unhealthy
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.70)
@@ -466,10 +416,10 @@ fun test_governance_tightens_dex_deviation_threshold() {
 
     createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
-    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET_STORAGE_PATH, amount: 700.0, beFailed: false)
+    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 700.0, beFailed: false)
 
     // Make position unhealthy
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.70)
@@ -533,10 +483,10 @@ fun test_flash_crash_triggers_liquidation() {
 
     createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
-    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET_STORAGE_PATH, amount: 600.0, beFailed: false)
+    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 600.0, beFailed: false)
 
     // Collateral: 
     //   FLOW: 1000 * $1.00 * 0.8 = $800
@@ -630,10 +580,10 @@ fun test_flash_pump_increase_doubles_health() {
 
     createPosition(admin: protocolAccount, signer: user, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
-    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET_STORAGE_PATH, amount: 500.0, beFailed: false)
+    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 500.0, beFailed: false)
 
     // Collateral: 
     //   FLOW: 1000 * $1.00 * 0.8 = $800
@@ -673,7 +623,7 @@ fun test_flash_pump_increase_doubles_health() {
     Test.assert(availableMoet > 900.0, message: "User should be able to borrow significantly more at pumped price")
 
     // STEP 5: User borrows at pumped price, then price corrects back
-    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MOET_STORAGE_PATH, amount: 900.0, beFailed: false)
+    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 900.0, beFailed: false)
 
     // Price corrects back to $1.00
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
