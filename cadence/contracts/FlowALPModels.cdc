@@ -2252,7 +2252,10 @@ access(all) contract FlowALPModels {
         access(all) fun getCollateralTypes(): [Type] {
             let types: [Type] = []
             for type in self.balances.keys {
-                if self.balances[type]!.direction == BalanceDirection.Credit {
+                let balance = self.balances[type]!
+                // Ignore zero balances so exact repay/withdraw operations do not leave
+                // phantom token-type constraints.
+                if balance.direction == BalanceDirection.Credit && balance.scaledBalance > 0.0 {
                     types.append(type)
                 }
             }
@@ -2264,7 +2267,10 @@ access(all) contract FlowALPModels {
         access(all) fun getDebtTypes(): [Type] {
             let types: [Type] = []
             for type in self.balances.keys {
-                if self.balances[type]!.direction == BalanceDirection.Debit {
+                let balance = self.balances[type]!
+                // Ignore zero balances so exact repay/withdraw operations do not leave
+                // phantom token-type constraints.
+                if balance.direction == BalanceDirection.Debit && balance.scaledBalance > 0.0 {
                     types.append(type)
                 }
             }
