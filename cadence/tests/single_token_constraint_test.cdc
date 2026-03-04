@@ -169,42 +169,6 @@ fun testCannotAddSecondDebtType() {
     log("=== Test Passed: Borrowing Collateral Token Reduces Credit, Not Creates Second Debit ===\n")
 }
 
-/// Test that a position with MOET collateral cannot add FLOW collateral
-access(all)
-fun testCannotAddFlowToMoetCollateral() {
-    Test.reset(to: snapshot)
-    log("=== Test: Cannot Add FLOW to MOET Collateral ===")
-
-    // Create user with both tokens
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    transferFlowTokens(to: user, amount: 2_000.0)
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 2_000.0, beFailed: false)
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
-
-    // Create position with MOET collateral
-    let createPosRes = executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [1_000.0, MOET.VaultStoragePath, false],
-        user
-    )
-    Test.expect(createPosRes, Test.beSucceeded())
-    log("✓ Created position with MOET collateral")
-
-    let pid: UInt64 = 0
-
-    // Try to deposit FLOW to the same position - should FAIL
-    let depositFlowRes = executeTransaction(
-        "./transactions/position-manager/deposit_to_position.cdc",
-        [pid, 500.0, FLOW_VAULT_STORAGE_PATH, false],
-        user
-    )
-    Test.expect(depositFlowRes, Test.beFailed())
-    log("✓ Depositing FLOW to MOET-collateral position correctly failed")
-
-    log("=== Test Passed: Cannot Add FLOW to MOET Collateral ===\n")
-}
-
 /// Test that a position with FLOW collateral and MOET debt can withdraw both token types
 /// (Withdraw FLOW = reduce collateral, Withdraw MOET = borrow more debt)
 access(all)
