@@ -83,6 +83,86 @@ fun testCannotAddSecondCollateralType() {
     log("=== Test Passed: Cannot Add Second Collateral Type ===\n")
 }
 
+/// Test that over-repaying debt cannot be used to create a second collateral type.
+///
+/// Scenario:
+/// - Position starts with MOET collateral and FLOW debt.
+/// - User attempts to repay MORE FLOW than debt owed.
+/// - Surplus would flip into FLOW credit (second collateral type), so this must fail.
+access(all)
+fun testCannotCreateSecondCollateralTypeByOverRepayingDebt() {
+    Test.reset(to: snapshot)
+    log("=== Test: Cannot Create Second Collateral Type via Over-Repayment ===")
+
+    // User1 provides FLOW reserves so user2 can borrow FLOW.
+    let user1 = Test.createAccount()
+    setupMoetVault(user1, beFailed: false)
+    transferFlowTokens(to: user1, amount: 5_000.0)
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user1)
+
+    let createPos1Res = executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [3_000.0, FLOW_VAULT_STORAGE_PATH, false],
+        user1
+    )
+    Test.expect(createPos1Res, Test.beSucceeded())
+    log("✓ User1 deposited FLOW reserves")
+
+    // User2 opens with MOET collateral only.
+    let user2 = Test.createAccount()
+    setupMoetVault(user2, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: user2.address, amount: 3_000.0, beFailed: false)
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user2)
+
+    let createPos2Res = executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [2_000.0, MOET.VaultStoragePath, false],
+        user2
+    )
+    Test.expect(createPos2Res, Test.beSucceeded())
+    log("✓ User2 created MOET-collateral position")
+
+    let pid: UInt64 = 1
+
+    // First debt type is FLOW.
+    borrowFromPosition(
+        signer: user2,
+        positionId: pid,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        amount: 300.0,
+        beFailed: false
+    )
+    log("✓ User2 borrowed 300 FLOW")
+
+    // Give user2 extra FLOW so they can intentionally over-repay.
+    transferFlowTokens(to: user2, amount: 100.0)
+
+    // Attempt to repay 350 FLOW against 300 FLOW debt.
+    // This would leave 50 FLOW as credit collateral, i.e. a second collateral type.
+    let overRepayRes = executeTransaction(
+        "./transactions/position-manager/deposit_to_position.cdc",
+        [pid, 350.0, FLOW_VAULT_STORAGE_PATH, false],
+        user2
+    )
+    Test.expect(overRepayRes, Test.beFailed())
+    log("✓ Over-repayment correctly failed")
+
+    let errorMsg = overRepayRes.error?.message ?? ""
+    Test.assert(
+        errorMsg.contains("collateral") || errorMsg.contains("Only one collateral type"),
+        message: "Error should mention collateral type constraint. Got: ".concat(errorMsg)
+    )
+
+    // Confirm position was not mutated by the failed transaction.
+    let details = getPositionDetails(pid: pid, beFailed: false)
+    let flowDebtAfter = getDebitBalanceForType(details: details, vaultType: CompositeType(FLOW_TOKEN_IDENTIFIER)!)
+    let flowCreditAfter = getCreditBalanceForType(details: details, vaultType: CompositeType(FLOW_TOKEN_IDENTIFIER)!)
+    Test.assert(flowDebtAfter >= 300.0 - 0.01, message: "FLOW debt should remain ~300 after failed over-repay")
+    Test.assert(flowCreditAfter == 0.0, message: "FLOW credit should remain 0 (no second collateral type)")
+
+    log("=== Test Passed: Cannot Create Second Collateral Type via Over-Repayment ===\n")
+}
+
 /// Test that with MOET collateral and FLOW debt, borrowing MOET draws from Credit (not Debit).
 ///
 /// In the two-token case (FLOW + MOET), the single-debt-type constraint cannot be directly
