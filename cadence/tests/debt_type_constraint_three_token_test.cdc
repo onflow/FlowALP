@@ -141,6 +141,125 @@ fun testCannotBorrowSecondDebtType() {
     log("\n=== Test Complete: Debt Type Constraint Verified ===")
 }
 
+/// Regression: exact debt repayment should clear debt-type constraints.
+/// After repaying FLOW debt to exactly zero, borrowing MOET as a new debt type should succeed.
+access(all)
+fun testExactRepayClearsDebtTypeConstraint() {
+    Test.reset(to: snapshot)
+    log("\n=== Test: Exact Repay Clears Debt Type Constraint ===\n")
+
+    // Provide FLOW reserves for initial FLOW borrow.
+    let flowProvider = Test.createAccount()
+    setupMoetVault(flowProvider, beFailed: false)
+    transferFlowTokens(to: flowProvider, amount: 10_000.0)
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, flowProvider)
+
+    let createFlowPos = executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [5_000.0, FLOW_VAULT_STORAGE_PATH, false],
+        flowProvider
+    )
+    Test.expect(createFlowPos, Test.beSucceeded())
+
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    setupDummyTokenVault(user)
+    mintDummyToken(to: user, amount: 10_000.0)
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
+
+    let createPosRes = executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [5_000.0, DummyToken.VaultStoragePath, false],
+        user
+    )
+    Test.expect(createPosRes, Test.beSucceeded())
+
+    let pid: UInt64 = 1
+
+    // Create FLOW debt, then repay exactly to zero.
+    borrowFromPosition(
+        signer: user,
+        positionId: pid,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        amount: 300.0,
+        beFailed: false
+    )
+    depositToPosition(
+        signer: user,
+        positionID: pid,
+        amount: 300.0,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        pushToDrawDownSink: false
+    )
+
+    // If exact repay leaves a phantom FLOW debt type, this borrow would fail.
+    borrowFromPosition(
+        signer: user,
+        positionId: pid,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        amount: 100.0,
+        beFailed: false
+    )
+
+    let details = getPositionDetails(pid: pid, beFailed: false)
+    let flowDebt = getDebitBalanceForType(details: details, vaultType: CompositeType(FLOW_TOKEN_IDENTIFIER)!)
+    let moetDebt = getDebitBalanceForType(details: details, vaultType: CompositeType(MOET_TOKEN_IDENTIFIER)!)
+    Test.assert(flowDebt == 0.0, message: "FLOW debt should be zero after exact repay")
+    Test.assert(moetDebt >= 100.0 - 0.01, message: "MOET debt should be ~100 after new borrow")
+
+    log("\n=== Test Complete: Exact Repay Clears Debt Type Constraint ===")
+}
+
+/// Regression: exact full collateral withdrawal should clear collateral-type constraints.
+/// After withdrawing FLOW collateral to exactly zero, depositing Dummy collateral should succeed.
+access(all)
+fun testExactFullWithdrawClearsCollateralTypeConstraint() {
+    Test.reset(to: snapshot)
+    log("\n=== Test: Exact Full Withdraw Clears Collateral Type Constraint ===\n")
+
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    setupDummyTokenVault(user)
+    transferFlowTokens(to: user, amount: 2_000.0)
+    mintDummyToken(to: user, amount: 2_000.0)
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
+
+    let createPosRes = executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [1_000.0, FLOW_VAULT_STORAGE_PATH, false],
+        user
+    )
+    Test.expect(createPosRes, Test.beSucceeded())
+
+    let pid: UInt64 = 0
+
+    // Withdraw collateral exactly to zero.
+    withdrawFromPosition(
+        signer: user,
+        positionId: pid,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        amount: 1_000.0,
+        pullFromTopUpSource: false
+    )
+
+    // If exact full withdraw leaves a phantom FLOW collateral type, this deposit would fail.
+    depositToPosition(
+        signer: user,
+        positionID: pid,
+        amount: 500.0,
+        vaultStoragePath: DummyToken.VaultStoragePath,
+        pushToDrawDownSink: false
+    )
+
+    let details = getPositionDetails(pid: pid, beFailed: false)
+    let flowCredit = getCreditBalanceForType(details: details, vaultType: CompositeType(FLOW_TOKEN_IDENTIFIER)!)
+    let dummyCredit = getCreditBalanceForType(details: details, vaultType: CompositeType(DUMMY_TOKEN_IDENTIFIER)!)
+    Test.assert(flowCredit == 0.0, message: "FLOW collateral should be zero after full withdrawal")
+    Test.assert(dummyCredit >= 500.0 - 0.01, message: "Dummy collateral should be ~500 after deposit")
+
+    log("\n=== Test Complete: Exact Full Withdraw Clears Collateral Type Constraint ===")
+}
+
 // Helper functions
 
 access(all)
