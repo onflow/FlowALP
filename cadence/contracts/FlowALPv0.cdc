@@ -1333,9 +1333,12 @@ access(all) contract FlowALPv0 {
             }
 
             let positionBalance = position.getBalance(type)
-            // Determine if this is a repayment or collateral deposit
-            // based on the current balance state
-            let isRepayment = positionBalance != nil && positionBalance!.direction == FlowALPModels.BalanceDirection.Debit
+            // Determine if this deposit starts as a repayment based on pre-deposit state.
+            // If acceptedAmount exceeds the current debt, we split the deposit into:
+            // - repayment portion (routed via depositRepayment)
+            // - surplus collateral portion (routed via depositCollateral)
+            let isRepayment = positionBalance != nil
+                && positionBalance!.direction == FlowALPModels.BalanceDirection.Debit
 
             // If this position doesn't currently have an entry for this token, create one.
             if positionBalance == nil {
@@ -1355,6 +1358,18 @@ access(all) contract FlowALPv0 {
             // will be recorded at that time.
 
             let acceptedAmount = from.balance
+            var repaymentAmount: UFix64 = 0.0
+            if isRepayment {
+                let debtBalanceBefore = FlowALPMath.scaledBalanceToTrueBalance(
+                    positionBalance!.scaledBalance,
+                    interestIndex: tokenState.getDebitInterestIndex()
+                )
+                if debtBalanceBefore >= UFix128(acceptedAmount) {
+                    repaymentAmount = acceptedAmount
+                } else {
+                    repaymentAmount = UFix64(debtBalanceBefore)
+                }
+            }
             position.borrowBalance(type)!.recordDeposit(
                 amount: UFix128(acceptedAmount),
                 tokenState: tokenState
@@ -1364,13 +1379,18 @@ access(all) contract FlowALPv0 {
             // Only the accepted amount consumes capacity; queued portions will consume capacity when processed later
             tokenState.consumeDepositCapacity(acceptedAmount, pid: pid)
 
-            // Use reserve handler to deposit (burns MOET repayments, deposits to reserves for collateral/other tokens)
+            // Route repayment vs collateral portions through the reserve handler.
+            // For MOET, repayment is burned and surplus is deposited as collateral.
             let depositReserveOps = self.state.getTokenState(type)!.getReserveOperations()
             let depositStateRef = &self.state as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolState}
-            if isRepayment {
-                depositReserveOps.depositRepayment(state: depositStateRef, from: <-from)
-            } else {
+            if repaymentAmount > 0.0 {
+                let repaymentVault <- from.withdraw(amount: repaymentAmount)
+                depositReserveOps.depositRepayment(state: depositStateRef, from: <-repaymentVault)
+            }
+            if from.balance > 0.0 {
                 depositReserveOps.depositCollateral(state: depositStateRef, from: <-from)
+            } else {
+                Burner.burn(<-from)
             }
 
             self._queuePositionForUpdateIfNecessary(pid: pid)
