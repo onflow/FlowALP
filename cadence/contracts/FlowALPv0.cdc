@@ -3066,8 +3066,8 @@ access(all) contract FlowALPv0 {
         }
 
         /// Extracts all queued deposits from a position
-        /// Returns an array of vaults containing queued deposits that were never processed
-        access(self) fun _extractQueuedDeposits(pid: UInt64): @[{FungibleToken.Vault}] {
+        /// Returns a map of vault type to vault, guaranteeing no duplicate types.
+        access(self) fun _extractQueuedDeposits(pid: UInt64): @{Type: {FungibleToken.Vault}} {
             pre {
                 self.positionLock[pid] == true: "Position is not locked"
             }
@@ -3075,13 +3075,12 @@ access(all) contract FlowALPv0 {
                 self.positionLock[pid] == true: "Position is not locked"
             }
             let position = self._borrowPosition(pid: pid)
-            let queuedVaults: @[{FungibleToken.Vault}] <- []
+            let queuedVaults: @{Type: {FungibleToken.Vault}} <- {}
 
-            // Extract all queued deposits (funds that were deposited but not yet processed)
             let queuedTypes = position.queuedDeposits.keys
             for queuedType in queuedTypes {
                 let queuedVault <- position.queuedDeposits.remove(key: queuedType)!
-                queuedVaults.append(<- queuedVault)
+                queuedVaults[queuedType] <-! queuedVault
             }
 
             return <- queuedVaults
@@ -3181,12 +3180,11 @@ access(all) contract FlowALPv0 {
 
         /// Withdraws all collateral from the position.
         ///
-        /// Returns an array of vaults in the same order as the collateralTypes parameter.
-        /// This ordering guarantee allows the caller to pair vaults with their types.
+        /// Returns a map of vault type to vault, guaranteeing no duplicate types.
         access(self) fun _withdrawAllCollateral(
             pid: UInt64,
             collateralTypes: [Type]
-        ): @[{FungibleToken.Vault}] {
+        ): @{Type: {FungibleToken.Vault}} {
             pre {
                 self.positionLock[pid] == true: "Position is not locked"
             }
@@ -3194,14 +3192,13 @@ access(all) contract FlowALPv0 {
                 self.positionLock[pid] == true: "Position is not locked"
             }
             let positionView = self.buildPositionView(pid: pid)
-            let collateralVaults: @[{FungibleToken.Vault}] <- []
+            let collateralVaults: @{Type: {FungibleToken.Vault}} <- {}
 
-            // Withdraw all credit balances in deterministic order
+            // Withdraw all credit balances
             for withdrawalType in collateralTypes {
                 let tokenBalance = positionView.trueBalance(ofToken: withdrawalType)
                 let withdrawAmount = FlowALPMath.toUFix64RoundDown(tokenBalance)
 
-                // Perform direct withdrawal while holding lock
                 if withdrawAmount == 0.0 {
                     continue
                 }
@@ -3210,22 +3207,11 @@ access(all) contract FlowALPv0 {
                 let tokenState = self._borrowUpdatedTokenState(type: withdrawalType)
                 let reserveVault = (&self.reserves[withdrawalType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
 
-                // Record withdrawal in position balance
-                if position.balances[withdrawalType] == nil {
-                    position.balances[withdrawalType] = InternalBalance(
-                        direction: BalanceDirection.Credit,
-                        scaledBalance: 0.0
-                    )
-                }
                 position.balances[withdrawalType]!.recordWithdrawal(
                     amount: UFix128(withdrawAmount),
                     tokenState: tokenState
                 )
 
-                // Queue for update if necessary
-                self._queuePositionForUpdateIfNecessary(pid: pid)
-
-                // Withdraw from reserves
                 let withdrawn <- reserveVault.withdraw(amount: withdrawAmount)
 
                 emit Withdrawn(
@@ -3236,7 +3222,7 @@ access(all) contract FlowALPv0 {
                     withdrawnUUID: withdrawn.uuid
                 )
 
-                collateralVaults.append(<- withdrawn)
+                collateralVaults[withdrawalType] <-! withdrawn
             }
 
             return <- collateralVaults
@@ -3284,17 +3270,16 @@ access(all) contract FlowALPv0 {
         /// 3. Pulls from sources to repay debts (overpayment becomes credit balance)
         /// 4. Verifies NO debt remains (zero tolerance for unpaid debt)
         /// 5. Gets collateral types (after repayment, to include any overpayment credits)
-        /// 6. Withdraws ALL collateral + any credit balances
-        /// 7. Builds withdrawals map for event emission
-        /// 8. Emits PositionClosed event
-        /// 9. Extracts any queued deposits (unprocessed funds to return)
+        /// 6. Withdraws ALL collateral
+        /// 7. Extracts queued deposits and merges into collateral map (dedup by type)
+        /// 8. Builds withdrawals map for event emission
+        /// 9. Emits PositionClosed event
         /// 10. Unlocks position
-        /// 11. Combines queued deposits and collateral into return array
         ///
         /// @param pid: Position ID to close
         /// @param repaymentSources: Array of Sources that can provide funds to repay debts
         ///                          Sources are pulled from as needed (supports swapping, multi-vault, etc.)
-        /// @return Array of vaults containing queued deposits + collateral + any overpayment
+        /// @return Array of vaults containing collateral + queued deposits + any overpayment, one per token type
         ///
         access(EPosition) fun closePosition(
             pid: UInt64,
@@ -3327,31 +3312,42 @@ access(all) contract FlowALPv0 {
             // Step 5: Get collateral types (AFTER repayment, in case overpayment created new credits)
             let collateralTypes = self._getPositionCollateralTypes(pid: pid)
 
-            // Step 6: Withdraw all credit balances (collateral + any overpayment from sources)
+            // Step 6: Withdraw all credit balances
             let vaults <- self._withdrawAllCollateral(pid: pid, collateralTypes: collateralTypes)
 
-            // Step 7: Build withdrawals map for event (vaults are in same order as collateralTypes)
-            let withdrawalsByType: {Type: UFix64} = {}
-            for i in InclusiveRange(0, vaults.length-1) {
-                withdrawalsByType[vaults[i].getType()] = vaults[i].balance
-            }
-
-            // Step 8: Emit position closed event
-            self._emitPositionClosedEvent(pid: pid, debtsByType: debtsByType, withdrawalsByType: withdrawalsByType)
-
-            // Step 9: Extract any queued deposits (unprocessed deposits to return)
+            // Step 7: Extract queued deposits and merge into collateral map (dedup by type)
             let queuedVaults <- self._extractQueuedDeposits(pid: pid)
-
-            // Step 10: Unlock position now that all operations are complete
-            self._unlockPosition(pid)
-
-            // Step 11: Combine queued deposits and collateral into single return array
-            while queuedVaults.length > 0 {
-                vaults.append(<- queuedVaults.removeFirst())
+            for queuedType in queuedVaults.keys {
+                let queuedVault <- queuedVaults.remove(key: queuedType)!
+                if vaults[queuedType] != nil {
+                    let ref = (&vaults[queuedType] as &{FungibleToken.Vault}?)!
+                    ref.deposit(from: <-queuedVault)
+                } else {
+                    vaults[queuedType] <-! queuedVault
+                }
             }
             destroy queuedVaults
 
-            return <- vaults
+            // Step 8: Build withdrawals map for event (includes collateral + queued deposits)
+            let withdrawalsByType: {Type: UFix64} = {}
+            for vaultType in vaults.keys {
+                let ref = (&vaults[vaultType] as &{FungibleToken.Vault}?)!
+                withdrawalsByType[vaultType] = ref.balance
+            }
+
+            // Step 9: Emit position closed event
+            self._emitPositionClosedEvent(pid: pid, debtsByType: debtsByType, withdrawalsByType: withdrawalsByType)
+
+            // Step 10: Drain map into array and unlock
+            let returnVaults: @[{FungibleToken.Vault}] <- []
+            for vaultType in vaults.keys {
+                returnVaults.append(<- vaults.remove(key: vaultType)!)
+            }
+            destroy vaults
+
+            self._unlockPosition(pid)
+
+            return <- returnVaults
         }
 
         ///////////////////////
@@ -4327,7 +4323,7 @@ access(all) contract FlowALPv0 {
         /// Automatically detects and withdraws all collateral types in the position.
         ///
         /// @param repaymentSources: Array of sources (one per debt type) from which debt repayments can be withdrawn
-        /// @return Array of vaults containing all collateral + any overpayment dust
+        /// @return Array of vaults containing all collateral + queued deposits + any overpayment dust, one per token type
         ///
         access(FungibleToken.Withdraw) fun closePosition(
             repaymentSources: [{DeFiActions.Source}]
