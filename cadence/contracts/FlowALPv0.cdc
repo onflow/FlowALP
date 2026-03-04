@@ -577,12 +577,6 @@ access(all) contract FlowALPv0 {
             let position = self._borrowPosition(pid: pid)
             let debtState = self._borrowUpdatedTokenState(type: debtType)
 
-            if position.getBalance(debtType) == nil {
-                // Liquidation is repaying debt - validate single debt type
-                position.validateDebtType(debtType)
-
-                position.setBalance(debtType, FlowALPModels.InternalBalance(direction: FlowALPModels.BalanceDirection.Debit, scaledBalance: 0.0))
-            }
             position.borrowBalance(debtType)!.recordDeposit(amount: UFix128(repayAmount), tokenState: debtState)
 
             // Withdraw seized collateral from position and send to liquidator
