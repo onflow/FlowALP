@@ -811,7 +811,7 @@ access(all) fun batchManualLiquidation(
     signer: Test.TestAccount
 ) {
     let res = _executeTransaction(
-        "./tests/transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
+        "./transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
         [pids, debtVaultIdentifier, seizeVaultIdentifiers, seizeAmounts, repayAmounts],
         signer
     )
