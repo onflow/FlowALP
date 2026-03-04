@@ -135,22 +135,8 @@ fun testCannotBorrowSecondDebtType() {
         user
     )
 
-    // Verify it FAILED
-    if borrowMoetRes.status == Test.ResultStatus.succeeded {
-        log("❌ ERROR: Borrowing MOET should have failed but succeeded!")
-        log("❌ Debt type constraint is NOT enforced!")
-        Test.assert(false, message: "Should not be able to borrow MOET after already having FLOW debt")
-    } else {
-        log("✅ Borrowing MOET correctly FAILED")
-
-        // Check error message
-        let errorMsg = borrowMoetRes.error?.message ?? ""
-        if errorMsg.contains("debt type") || errorMsg.contains("Only one debt type") {
-            log("✅ Error message mentions debt type constraint")
-        } else {
-            log("⚠️  Warning: Error message doesn't clearly mention debt type constraint")
-        }
-    }
+    Test.expect(borrowMoetRes, Test.beFailed())
+    Test.assertError(borrowMoetRes, errorMessage: "debt type")
 
     log("\n=== Test Complete: Debt Type Constraint Verified ===")
 }
