@@ -146,7 +146,7 @@ fun test_closePosition_precisionShortfall_multipleRebalances() {
     Test.expect(reb3, Test.beSucceeded())
 
     // Get final position state
-    let finalDetails = getPositionDetails(pid: 4, beFailed: false)
+    let finalDetails = getPositionDetails(pid: 2, beFailed: false)
     log("\n--- Final State ---")
     log("Health: \(finalDetails.health)")
     logBalances(finalDetails.balances)
@@ -201,7 +201,7 @@ fun test_closePosition_extremeVolatility() {
         )
         Test.expect(rebalanceRes, Test.beSucceeded())
 
-        let details = getPositionDetails(pid: 5, beFailed: false)
+        let details = getPositionDetails(pid: 3, beFailed: false)
         log("Health: \(details.health)")
         volCount = volCount + 1
     }
