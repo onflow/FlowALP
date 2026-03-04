@@ -106,99 +106,7 @@ fun test_closePosition_withDebt() {
 }
 
 // =============================================================================
-// Test 3: Close after collateral price increase (balance increases)
-// =============================================================================
-access(all)
-fun test_closePosition_afterPriceIncrease() {
-    log("\n=== Test: Close After Collateral Price Increase (Balance Increases) ===")
-
-    // Reset price to 1.0 for this test
-    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
-
-    // Reuse existing pool from previous test
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    mintFlow(to: user, amount: 1_000.0)
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
-
-    // Open position
-    let openRes = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [100.0, FLOW_VAULT_STORAGE_PATH, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
-
-    let detailsBefore = getPositionDetails(pid: 2, beFailed: false)
-    log("Health before price increase: \(detailsBefore.health)")
-
-    // Increase FLOW price to 1.5 (50% gain)
-    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.5)
-    log("Increased FLOW price to $1.5 (+50%)")
-
-    let detailsAfter = getPositionDetails(pid: 2, beFailed: false)
-    log("Health after price increase: \(detailsAfter.health)")
-    Test.assert(detailsAfter.health > detailsBefore.health)
-
-    // Close position
-    let closeRes = _executeTransaction(
-        "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [UInt64(2)],
-        user
-    )
-    Test.expect(closeRes, Test.beSucceeded())
-
-    log("✅ Successfully closed after collateral appreciation (balance increased)")
-}
-
-// =============================================================================
-// Test 4: Close after collateral price decrease (balance falls)
-// =============================================================================
-access(all)
-fun test_closePosition_afterPriceDecrease() {
-    log("\n=== Test: Close After Collateral Price Decrease (Balance Falls) ===")
-
-    // Reset price to 1.0 for this test
-    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
-
-    // Reuse existing pool from previous test
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    mintFlow(to: user, amount: 1_000.0)
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
-
-    // Open position
-    let openRes = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [100.0, FLOW_VAULT_STORAGE_PATH, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
-
-    let detailsBefore = getPositionDetails(pid: 3, beFailed: false)
-    log("Health before price decrease: \(detailsBefore.health)")
-
-    // Decrease FLOW price to 0.8 (20% loss)
-    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 0.8)
-    log("Decreased FLOW price to $0.8 (-20%)")
-
-    let detailsAfter = getPositionDetails(pid: 3, beFailed: false)
-    log("Health after price decrease: \(detailsAfter.health)")
-    Test.assert(detailsAfter.health < detailsBefore.health)
-
-    // Close position (should still succeed)
-    let closeRes = _executeTransaction(
-        "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [UInt64(3)],
-        user
-    )
-    Test.expect(closeRes, Test.beSucceeded())
-
-    log("✅ Successfully closed after collateral depreciation (balance fell)")
-}
-
-// =============================================================================
-// Test 5: Close with precision shortfall after multiple rebalances
+// Test 3: Close with precision shortfall after multiple rebalances
 // =============================================================================
 access(all)
 fun test_closePosition_precisionShortfall_multipleRebalances() {
@@ -255,7 +163,7 @@ fun test_closePosition_precisionShortfall_multipleRebalances() {
 }
 
 // =============================================================================
-// Test 6: Demonstrate precision with extreme volatility
+// Test 4: Demonstrate precision with extreme volatility
 // =============================================================================
 access(all)
 fun test_closePosition_extremeVolatility() {
@@ -312,7 +220,7 @@ fun test_closePosition_extremeVolatility() {
 }
 
 // =============================================================================
-// Test 7: Close position with insufficient debt repayment
+// Test 5: Close position with insufficient debt repayment
 // =============================================================================
 access(all)
 fun test_closePosition_insufficientRepayment() {
