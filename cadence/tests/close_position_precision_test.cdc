@@ -54,9 +54,6 @@ fun test_closePosition_noDebt() {
     let moetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assertEqual(0.0, moetBalance)
 
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
-
     // Close position (ID 0)
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
@@ -96,9 +93,6 @@ fun test_closePosition_withDebt() {
     let moetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     log("Borrowed MOET: \(moetBalance)")
     Test.assert(moetBalance > 0.0)
-
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
 
     // Close position (ID 1 since test 1 created position 0)
     let closeRes = _executeTransaction(
@@ -146,9 +140,6 @@ fun test_closePosition_afterPriceIncrease() {
     log("Health after price increase: \(detailsAfter.health)")
     Test.assert(detailsAfter.health > detailsBefore.health)
 
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
-
     // Close position
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
@@ -194,9 +185,6 @@ fun test_closePosition_afterPriceDecrease() {
     let detailsAfter = getPositionDetails(pid: 3, beFailed: false)
     log("Health after price decrease: \(detailsAfter.health)")
     Test.assert(detailsAfter.health < detailsBefore.health)
-
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
 
     // Close position (should still succeed)
     let closeRes = _executeTransaction(
@@ -255,9 +243,6 @@ fun test_closePosition_precisionShortfall_multipleRebalances() {
     log("Health: \(finalDetails.health)")
     logBalances(finalDetails.balances)
 
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
-
     // Close position - may have tiny shortfall due to accumulated rounding
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
@@ -315,9 +300,6 @@ fun test_closePosition_extremeVolatility() {
 
     log("\n--- Closing after extreme volatility ---")
 
-    // Mint larger buffer for extreme volatility test (accumulated errors from 7 rebalances)
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 1.0, beFailed: false)
-
     // Close position
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
@@ -356,9 +338,6 @@ fun test_closePosition_minimalDebt() {
     let moetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     log("Minimal debt amount: \(moetBalance) MOET")
 
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
-
     // Close position
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
@@ -371,39 +350,58 @@ fun test_closePosition_minimalDebt() {
 }
 
 // =============================================================================
-// Test 8: Demonstrate UFix64 precision limits
+// Test 8: Close position with insufficient debt repayment
 // =============================================================================
 access(all)
-fun test_precision_demonstration() {
-    log("\n=== UFix64/UFix128 Precision Demonstration ===")
+fun test_closePosition_insufficientRepayment() {
+    log("\n=== Test: Close Position with Insufficient Debt Repayment ===")
 
-    // Demonstrate UFix64 precision (8 decimal places)
-    let value1: UFix64 = 1.00000001
-    let value2: UFix64 = 1.00000002
-    log("UFix64 minimum precision: 0.00000001")
-    log("Value 1: \(value1)")
-    log("Value 2: \(value2)")
-    log("Difference: \(value2 - value1)")
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
 
-    // Demonstrate UFix128 intermediate precision
-    let uintValue1 = UFix128(1.23456789)
-    let uintValue2 = UFix128(9.87654321)
-    let product = uintValue1 * uintValue2
-    log("\nUFix128 calculation: \(uintValue1) * \(uintValue2) = \(product)")
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    mintFlow(to: user, amount: 1_000.0)
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
 
-    // Demonstrate precision loss when converting UFix128 → UFix64
-    let rounded = FlowALPMath.toUFix64Round(product)
-    let roundedUp = FlowALPMath.toUFix64RoundUp(product)
-    let roundedDown = FlowALPMath.toUFix64RoundDown(product)
-    log("Converting \(product) to UFix64:")
-    log("  Round (nearest): \(rounded)")
-    log("  Round Up: \(roundedUp)")
-    log("  Round Down: \(roundedDown)")
-    log("  Precision loss range: \(roundedUp - roundedDown)")
+    // Open position with debt — borrowed MOET is pushed to user's MOET vault (position 7)
+    let openRes = _executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [100.0, FLOW_VAULT_STORAGE_PATH, true],
+        user
+    )
+    Test.expect(openRes, Test.beSucceeded())
 
-    log("\n✅ Precision demonstration complete")
-    log("Key insight: Each UFix128→UFix64 conversion loses up to 0.00000001")
-    log("Multiple operations accumulate this loss, requiring shortfall tolerance")
+    let debt = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
+    log("Borrowed MOET (= debt): \(debt)")
+    Test.assert(debt > 0.0)
+
+    let shortfall = 0.00000001
+
+    // Transfer a tiny amount away so user has (debt - 1 satoshi), one short of what's needed
+    let other = Test.createAccount()
+    setupMoetVault(other, beFailed: false)
+    let transferTx = Test.Transaction(
+        code: Test.readFile("../transactions/moet/transfer_moet.cdc"),
+        authorizers: [user.address],
+        signers: [user],
+        arguments: [other.address, shortfall]
+    )
+    let transferRes = Test.executeTransaction(transferTx)
+    Test.expect(transferRes, Test.beSucceeded())
+
+    let remainingMoet = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
+    log("MOET remaining after transfer: \(remainingMoet)")
+    Test.assertEqual(debt - shortfall, remainingMoet)
+
+    // Attempt to close — source has 0 MOET but debt requires repayment
+    let closeRes = _executeTransaction(
+        "../transactions/flow-alp/position/repay_and_close_position.cdc",
+        [UInt64(7)],
+        user
+    )
+    Test.expect(closeRes, Test.beFailed())
+    Test.assertError(closeRes, errorMessage: "Insufficient funds from source")
+    log("✅ Close correctly failed with insufficient repayment")
 }
 
 // =============================================================================
