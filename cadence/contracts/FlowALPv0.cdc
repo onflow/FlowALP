@@ -1859,6 +1859,9 @@ access(all) contract FlowALPv0 {
                 }
             }
 
+            log("    XXXX [CONTRACT] effectiveCollateral: \(effectiveCollateral)")
+            log("    XXXX [CONTRACT] effectiveDebt: \(effectiveDebt)")
+
             // Calculate the health as the ratio of collateral to debt.
             return FlowALPv0.healthComputation(
                 effectiveCollateral: effectiveCollateral,
@@ -2949,7 +2952,7 @@ access(all) contract FlowALPv0 {
 
             var canWithdraw = false
 
-            if requiredDeposit == 0.0 {
+            if requiredDeposit <= 0.0 {
                 // We can service this withdrawal without any top up
                 canWithdraw = true
             } else if pullFromTopUpSource {
@@ -3021,6 +3024,11 @@ access(all) contract FlowALPv0 {
                 amount: uintAmount,
                 tokenState: tokenState
             )
+
+            let positionView2 = self.buildPositionView(pid: pid)
+            for balance in positionView2.balances.keys {
+                log("    XXXX [CONTRACT] balance: \(balance.identifier) - \(positionView2.balances[balance]!.scaledBalance)")
+            }
             // Attempt to pull additional collateral from the top-up source (if configured)
             // to keep the position above minHealth after the withdrawal.
             // Regardless of whether a top-up occurs, the position must be healthy post-withdrawal.
@@ -3110,7 +3118,6 @@ access(all) contract FlowALPv0 {
                         continue
                     }
                     let pulled <- source.withdrawAvailable(maxAmount: balance)
-                    assert(pulled.getType() == balanceType, message: "source returned unexpected token type")
                     assert(pulled.balance >= balance, message: "Pulled amount is less than balance amount")
                     return <- pulled
                 }
@@ -3121,25 +3128,28 @@ access(all) contract FlowALPv0 {
             let withdrawalsEvent: {String: UFix64} = {}
             let collateralVaults: @[{FungibleToken.Vault}] <- []
             let positionView = self.buildPositionView(pid: pid)
-
             let positionDetails = self.getPositionDetails(pid: pid)
+
+            // repay all debts
             for balanceDetail in positionDetails.balances {
-                switch balanceDetail.direction {
-                    case BalanceDirection.Debit:
-                        let pulled <- repayDebitBalance(balanceType: balanceDetail.vaultType, balance: balanceDetail.balance)
-                        repaymentsEvent[balanceDetail.vaultType.identifier] = pulled.balance
-                        self._depositEffectsOnly(pid: pid, from: <-pulled)
-                    case BalanceDirection.Credit:
-                        let trueBalance = positionView.trueBalance(ofToken: balanceDetail.vaultType)
-                        let withdrawable = FlowALPMath.toUFix64RoundDown(trueBalance)
-                        // its safe to unlock and lock since withdraw will lock Position
-                        self._unlockPosition(pid)
-                        let withdrawn <- self.withdraw(pid: pid, amount: withdrawable, type: balanceDetail.vaultType)
-                        self._lockPosition(pid)
-                        withdrawalsEvent[balanceDetail.vaultType.identifier] = withdrawn.balance
-                        collateralVaults.append(<- withdrawn)
-                        self._unlockPosition(pid)
+                if balanceDetail.direction != BalanceDirection.Debit {
+                    continue
                 }
+                let pulled <- repayDebitBalance(balanceType: balanceDetail.vaultType, balance: balanceDetail.balance)
+                repaymentsEvent[balanceDetail.vaultType.identifier] = pulled.balance
+                self._depositEffectsOnly(pid: pid, from: <-pulled)
+            }
+            // withdraw all collateral
+            for balanceDetail in positionDetails.balances {
+                if balanceDetail.direction != BalanceDirection.Credit {
+                    continue
+                }
+                let withdrawable = UFix64(positionView.trueBalance(ofToken: balanceDetail.vaultType))
+                self._unlockPosition(pid)
+                let withdrawn <- self.withdraw(pid: pid, amount: withdrawable, type: balanceDetail.vaultType)
+                self._lockPosition(pid)
+                withdrawalsEvent[balanceDetail.vaultType.identifier] = withdrawn.balance
+                collateralVaults.append(<- withdrawn)
             }
 
             emit PositionClosed(
@@ -3152,6 +3162,36 @@ access(all) contract FlowALPv0 {
             self._unlockPosition(pid)
 
             return <-collateralVaults
+        }
+
+        access(self) fun withdrawCreditBalance(pid: UInt64, trueBalance: UFix128, balanceType: Type): @{FungibleToken.Vault} {
+            let withdrawable = FlowALPMath.toUFix64RoundDown(trueBalance)
+            if withdrawable == 0.0 {
+                // Track zero withdrawal for this type
+                // withdrawalsByType[balanceType] = 0.0
+                return <- DeFiActionsUtils.getEmptyVault(balanceType)
+            }
+
+            let position = self._borrowPosition(pid: pid)
+            let tokenState = self._borrowUpdatedTokenState(type: balanceType)
+            position.balances[balanceType]!.recordWithdrawal(
+                amount: UFix128(withdrawable),
+                tokenState: tokenState
+            )
+
+            // Withdraw from reserves
+            let reserveVault = (&self.reserves[balanceType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+            let withdrawn <- reserveVault.withdraw(amount: withdrawable)
+
+            emit Withdrawn(
+                pid: pid,
+                poolUUID: self.uuid,
+                vaultType: balanceType,
+                amount: withdrawable,
+                withdrawnUUID: withdrawn.uuid
+            )
+
+            return <- withdrawn
         }
 
         ///////////////////////

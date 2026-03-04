@@ -35,7 +35,18 @@ fun test_closePosition_noDebt() {
 
     // Create pool & enable token
     createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
-    addSupportedTokenZeroRateCurve(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, collateralFactor: 0.8, borrowFactor: 1.0, depositRate: 1_000_000.0, depositCapacityCap: 1_000_000.0)
+    addSupportedTokenKinkCurve(
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        collateralFactor: 0.8,
+        borrowFactor: 1.0,
+        optimalUtilization: 0.80,
+        baseRate: 0.01,
+        slope1: 0.04,
+        slope2: 0.60,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
 
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
@@ -74,6 +85,7 @@ fun test_closePosition_noDebt() {
 
     let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
     Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
+    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
     let detailsAfterClose = getPositionDetails(pid: 0, beFailed: false)
     for balance in detailsAfterClose.balances {
         Test.assertEqual(0.0, balance.balance)
@@ -107,6 +119,9 @@ fun test_closePosition_withDebt() {
     )
     Test.expect(openRes, Test.beSucceeded())
 
+    Test.moveTime(by: 10000.0)
+    Test.commitBlock()
+
     // Verify MOET was borrowed
     let moetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     log("Borrowed MOET: \(moetBalance)")
@@ -131,6 +146,7 @@ fun test_closePosition_withDebt() {
 
     let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
     Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
+    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
     let detailsAfterClose = getPositionDetails(pid: 1, beFailed: false)
     for balance in detailsAfterClose.balances {
         Test.assertEqual(0.0, balance.balance)
@@ -194,6 +210,7 @@ fun test_closePosition_afterPriceIncrease() {
 
     let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
     Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
+    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
     let detailsAfterClose = getPositionDetails(pid: 2, beFailed: false)
     for balance in detailsAfterClose.balances {
         Test.assertEqual(0.0, balance.balance)
@@ -257,6 +274,7 @@ fun test_closePosition_afterPriceDecrease() {
 
     let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
     Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
+    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
     let detailsAfterClose = getPositionDetails(pid: 3, beFailed: false)
     for balance in detailsAfterClose.balances {
         Test.assertEqual(0.0, balance.balance)
@@ -331,6 +349,7 @@ fun test_closePosition_precisionShortfall_multipleRebalances() {
 
     let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
     Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
+    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
     let detailsAfterClose = getPositionDetails(pid: 4, beFailed: false)
     for balance in detailsAfterClose.balances {
         Test.assertEqual(0.0, balance.balance)
@@ -405,6 +424,7 @@ fun test_closePosition_extremeVolatility() {
 
     let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
     Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
+    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
     let detailsAfterClose = getPositionDetails(pid: 5, beFailed: false)
     for balance in detailsAfterClose.balances {
         Test.assertEqual(0.0, balance.balance)
@@ -460,6 +480,7 @@ fun test_closePosition_minimalDebt() {
 
     let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
     Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
+    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
     let detailsAfterClose = getPositionDetails(pid: 6, beFailed: false)
     for balance in detailsAfterClose.balances {
         Test.assertEqual(0.0, balance.balance)
