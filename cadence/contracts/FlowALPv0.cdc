@@ -3261,25 +3261,25 @@ access(all) contract FlowALPv0 {
         /// via the DeFiActions.Source abstraction.
         ///
         /// Queued Deposits:
-        /// - Any deposits that were queued but not yet processed are extracted and returned
-        /// - These are funds that exceeded limits and were waiting for async processing
+        /// - Any unprocessed queued deposits are extracted and merged into the return array (dedup by type)
         ///
         /// Steps:
-        /// 1. Locks the position
-        /// 2. Gets all debts from position
-        /// 3. Pulls from sources to repay debts (overpayment becomes credit balance)
-        /// 4. Verifies NO debt remains (zero tolerance for unpaid debt)
-        /// 5. Gets collateral types (after repayment, to include any overpayment credits)
-        /// 6. Withdraws ALL collateral
-        /// 7. Extracts queued deposits and merges into collateral map (dedup by type)
-        /// 8. Builds withdrawals map for event emission
-        /// 9. Emits PositionClosed event
-        /// 10. Unlocks position
+        /// 1. Lock the position
+        /// 2. Get all debts from position
+        /// 3. Pull from sources to repay debts (overpayment becomes credit balance)
+        /// 4. Verify NO debt remains (zero tolerance for unpaid debt)
+        /// 5. Get collateral types (after repayment, to include any overpayment credits)
+        /// 6. Withdraw all collateral into a type-keyed map
+        /// 7. Extract queued deposits and merge into map (same type → deposit into existing vault)
+        /// 8. Build withdrawals map for event emission
+        /// 9. Emit PositionClosed event
+        /// 10. Drain map into return array (one vault per token type, no duplicates)
+        /// 11. Destroy InternalPosition and unlock
         ///
         /// @param pid: Position ID to close
         /// @param repaymentSources: Array of Sources that can provide funds to repay debts
         ///                          Sources are pulled from as needed (supports swapping, multi-vault, etc.)
-        /// @return Array of vaults containing collateral + queued deposits + any overpayment, one per token type
+        /// @return Array of vaults — one per token type — containing collateral + queued deposits + any overpayment
         ///
         access(EPosition) fun closePosition(
             pid: UInt64,
@@ -3338,13 +3338,15 @@ access(all) contract FlowALPv0 {
             // Step 9: Emit position closed event
             self._emitPositionClosedEvent(pid: pid, debtsByType: debtsByType, withdrawalsByType: withdrawalsByType)
 
-            // Step 10: Drain map into array and unlock
+            // Step 10: Drain map into return array (one vault per token type, no duplicates)
             let returnVaults: @[{FungibleToken.Vault}] <- []
             for vaultType in vaults.keys {
                 returnVaults.append(<- vaults.remove(key: vaultType)!)
             }
             destroy vaults
 
+            // Step 11: Destroy InternalPosition and unlock
+            destroy self.positions.remove(key: pid)!
             self._unlockPosition(pid)
 
             return <- returnVaults
