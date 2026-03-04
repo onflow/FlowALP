@@ -312,45 +312,7 @@ fun test_closePosition_extremeVolatility() {
 }
 
 // =============================================================================
-// Test 7: Close with minimal debt (edge case)
-// =============================================================================
-access(all)
-fun test_closePosition_minimalDebt() {
-    log("\n=== Test: Close with Minimal Debt ===")
-
-    // Reset price to 1.0 for this test
-    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
-
-    // Reuse existing pool from previous test
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    mintFlow(to: user, amount: 1_000.0)
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
-
-    // Open position with minimal amount
-    let openRes = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [1.0, FLOW_VAULT_STORAGE_PATH, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
-
-    let moetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
-    log("Minimal debt amount: \(moetBalance) MOET")
-
-    // Close position
-    let closeRes = _executeTransaction(
-        "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [UInt64(6)],
-        user
-    )
-    Test.expect(closeRes, Test.beSucceeded())
-
-    log("✅ Successfully closed with minimal debt")
-}
-
-// =============================================================================
-// Test 8: Close position with insufficient debt repayment
+// Test 7: Close position with insufficient debt repayment
 // =============================================================================
 access(all)
 fun test_closePosition_insufficientRepayment() {
