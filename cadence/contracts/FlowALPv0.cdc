@@ -3955,18 +3955,16 @@ access(all) contract FlowALPv0 {
         /// Removes a position from the async update queue.
         /// This is needed when closing a position to prevent stale queue entries.
         access(self) fun _removePositionFromUpdateQueue(pid: UInt64) {
-            if !self.positionsNeedingUpdates.contains(pid) {
-                return
-            }
-
-            let remaining: [UInt64] = []
-            while self.positionsNeedingUpdates.length > 0 {
-                let queuedPid = self.positionsNeedingUpdates.removeFirst()
-                if queuedPid != pid {
-                    remaining.append(queuedPid)
+            // Keep this operation linear-time:
+            // find first matching pid, then remove once while preserving queue order.
+            var i = 0
+            while i < self.positionsNeedingUpdates.length {
+                if self.positionsNeedingUpdates[i] == pid {
+                    self.positionsNeedingUpdates.remove(at: i)
+                    return
                 }
+                i = i + 1
             }
-            self.positionsNeedingUpdates = remaining
         }
 
         /// Returns a position's BalanceSheet containing its effective collateral and debt as well as its current health
