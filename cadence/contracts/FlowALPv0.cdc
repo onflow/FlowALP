@@ -3128,8 +3128,8 @@ access(all) contract FlowALPv0 {
             return collateralTypes
         }
 
-        /// Repays all debts by pulling from sources
-        /// Optimized to O(n+m) by grouping sources by type first
+        /// Validates that sources can cover all debt types before attempting repayment
+        /// Repays all debts by pulling from sources (exactly one source per debt type)
         access(self) fun _repayDebtsFromSources(
             pid: UInt64,
             debtsByType: {Type: UFix64},
@@ -3141,48 +3141,27 @@ access(all) contract FlowALPv0 {
             post {
                 self.positionLock[pid] == true: "Position is not locked"
             }
-            // Step 1: Group sources by type (O(m) where m = number of sources)
-            let sourcesByType: {Type: [{DeFiActions.Source}]} = {}
+
+            // Build source map and validate no duplicates
+            let sourcesByType: {Type: {DeFiActions.Source}} = {}
             for source in sources {
                 let sourceType = source.getSourceType()
-                if sourcesByType[sourceType] == nil {
-                    sourcesByType[sourceType] = []
+                if sourcesByType[sourceType] != nil {
+                    panic("Multiple sources provided for debt type: \(sourceType.identifier)")
                 }
-                sourcesByType[sourceType]!.append(source)
+                sourcesByType[sourceType] = source
             }
 
-            // Step 2: For each debt type, pull from matching sources (O(n) where n = number of debt types)
+            // Repay each debt: find source, validate, and pay
             for debtType in debtsByType.keys {
                 let debtAmount = debtsByType[debtType]!
-                var remainingDebt = debtAmount
+                let source = sourcesByType[debtType] ?? panic("No repayment source provided for debt type: \(debtType.identifier)")
 
-                // Only iterate through sources that match this debt type
-                let matchingSources = sourcesByType[debtType] ?? []
-                for source in matchingSources {
-                    if remainingDebt == 0.0 {
-                        break
-                    }
+                let pulled <- source.withdrawAvailable(maxAmount: debtAmount)
+                assert(pulled.getType() == debtType, message: "Source returned wrong type: expected \(debtType.identifier), got \(pulled.getType().identifier)")
+                assert(pulled.balance >= debtAmount, message: "Insufficient funds from source for \(debtType.identifier) debt: needed \(debtAmount.toString()), got \(pulled.balance.toString())")
 
-                    // Pull up to remaining debt amount
-                    let pulled <- source.withdrawAvailable(maxAmount: remainingDebt)
-                    assert(pulled.getType() == debtType, message: "repayment type doesn't match debt type")
-
-                    let pulledAmount = pulled.balance
-
-                    if pulledAmount > 0.0 {
-                        remainingDebt = remainingDebt - pulledAmount
-                        // Deposit to position (any overpayment flips to credit)
-                        self._depositEffectsOnly(pid: pid, from: <-pulled)
-                    } else {
-                        destroy pulled
-                    }
-                }
-
-                // Verify we got enough for this debt type
-                assert(
-                    remainingDebt == 0.0,
-                    message: "Insufficient funds from sources for \(debtType.identifier) debt: needed \(debtAmount), got \(debtAmount - remainingDebt)"
-                )
+                self._depositEffectsOnly(pid: pid, from: <-pulled)
             }
         }
 
