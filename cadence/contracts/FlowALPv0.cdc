@@ -1558,20 +1558,25 @@ access(all) contract FlowALPv0 {
                 positionBalance = position.getBalance(type)
             }
 
-            // Reflect the withdrawal in the position's balance
+            // Reflect the withdrawal in the position's balance.
+            // If this withdrawal would flip an existing Credit balance into Debit,
+            // validate before mutating so user-facing debt-type errors are emitted
+            // instead of hitting the invariant assert after mutation.
             let wasCredit = positionBalance!.direction == FlowALPModels.BalanceDirection.Credit
             let uintAmount = UFix128(amount)
+            if wasCredit {
+                let trueBalanceBefore = FlowALPMath.scaledBalanceToTrueBalance(
+                    positionBalance!.scaledBalance,
+                    interestIndex: tokenState.getCreditInterestIndex()
+                )
+                if uintAmount > trueBalanceBefore {
+                    position.validateDebtType(type)
+                }
+            }
             position.borrowBalance(type)!.recordWithdrawal(
                 amount: uintAmount,
                 tokenState: tokenState
             )
-
-            // If we flipped from Credit to Debit, validate debt type constraint
-            // Re-fetch balance to check if direction changed
-            positionBalance = position.getBalance(type)
-            if wasCredit && positionBalance!.direction == FlowALPModels.BalanceDirection.Debit {
-                position.validateDebtType(type)
-            }
             // Attempt to pull additional collateral from the top-up source (if configured)
             // to keep the position above minHealth after the withdrawal.
             // Regardless of whether a top-up occurs, the position must be healthy post-withdrawal.
