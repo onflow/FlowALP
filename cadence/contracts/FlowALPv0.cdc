@@ -3332,8 +3332,10 @@ access(all) contract FlowALPv0 {
 
             // Step 7: Build withdrawals map for event (vaults are in same order as collateralTypes)
             let withdrawalsByType: {Type: UFix64} = {}
-            for i in InclusiveRange(0, vaults.length-1) {
+            var i = 0
+            while i < vaults.length {
                 withdrawalsByType[vaults[i].getType()] = vaults[i].balance
+                i = i + 1
             }
 
             // Step 8: Emit position closed event
