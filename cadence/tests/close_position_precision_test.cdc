@@ -132,17 +132,17 @@ fun test_closePosition_precisionShortfall_multipleRebalances() {
     // Perform rebalances with varying prices to accumulate rounding errors
     log("\nRebalance 1: FLOW price = $1.2")
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.2)
-    let reb1 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(4), true], PROTOCOL_ACCOUNT)
+    let reb1 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(2), true], PROTOCOL_ACCOUNT)
     Test.expect(reb1, Test.beSucceeded())
 
     log("\nRebalance 2: FLOW price = $1.9")
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 0.9)
-    let reb2 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(4), true], PROTOCOL_ACCOUNT)
+    let reb2 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(2), true], PROTOCOL_ACCOUNT)
     Test.expect(reb2, Test.beSucceeded())
 
     log("\nRebalance 3: FLOW price = $1.5")
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.5)
-    let reb3 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(4), true], PROTOCOL_ACCOUNT)
+    let reb3 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(2), true], PROTOCOL_ACCOUNT)
     Test.expect(reb3, Test.beSucceeded())
 
     // Get final position state
@@ -154,7 +154,7 @@ fun test_closePosition_precisionShortfall_multipleRebalances() {
     // Close position - may have tiny shortfall due to accumulated rounding
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [UInt64(4)],
+        [UInt64(2)],
         user
     )
     Test.expect(closeRes, Test.beSucceeded())
@@ -196,7 +196,7 @@ fun test_closePosition_extremeVolatility() {
 
         let rebalanceRes = _executeTransaction(
             "../transactions/flow-alp/pool-management/rebalance_position.cdc",
-            [UInt64(5), true],
+            [UInt64(3), true],
             PROTOCOL_ACCOUNT
         )
         Test.expect(rebalanceRes, Test.beSucceeded())
@@ -211,7 +211,7 @@ fun test_closePosition_extremeVolatility() {
     // Close position
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [UInt64(5)],
+        [UInt64(3)],
         user
     )
     Test.expect(closeRes, Test.beSucceeded())
@@ -266,7 +266,7 @@ fun test_closePosition_insufficientRepayment() {
     // Attempt to close — source has 0 MOET but debt requires repayment
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [UInt64(7)],
+        [UInt64(4)],
         user
     )
     Test.expect(closeRes, Test.beFailed())
