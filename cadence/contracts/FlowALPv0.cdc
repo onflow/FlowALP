@@ -3345,7 +3345,8 @@ access(all) contract FlowALPv0 {
             }
             destroy vaults
 
-            // Step 11: Destroy InternalPosition and unlock
+            // Step 11: Remove stale queue entry, then destroy InternalPosition and unlock
+            self._removePositionFromUpdateQueue(pid: pid)
             destroy self.positions.remove(key: pid)!
             self._unlockPosition(pid)
 
@@ -3828,6 +3829,12 @@ access(all) contract FlowALPv0 {
             var processed: UInt64 = 0
             while self.positionsNeedingUpdates.length > 0 && processed < self.positionsProcessedPerCallback {
                 let pid = self.positionsNeedingUpdates.removeFirst()
+                if self.positions[pid] == nil {
+                    // Stale queue entry: position may have been closed and removed from self.positions.
+                    // Skip to keep async updates progressing for the remaining queue entries.
+                    processed = processed + 1
+                    continue
+                }
                 self.asyncUpdatePosition(pid: pid)
                 self._queuePositionForUpdateIfNecessary(pid: pid)
                 processed = processed + 1
@@ -3943,6 +3950,23 @@ access(all) contract FlowALPv0 {
                 self.positionsNeedingUpdates.append(pid)
                 return
             }
+        }
+
+        /// Removes a position from the async update queue.
+        /// This is needed when closing a position to prevent stale queue entries.
+        access(self) fun _removePositionFromUpdateQueue(pid: UInt64) {
+            if !self.positionsNeedingUpdates.contains(pid) {
+                return
+            }
+
+            let remaining: [UInt64] = []
+            while self.positionsNeedingUpdates.length > 0 {
+                let queuedPid = self.positionsNeedingUpdates.removeFirst()
+                if queuedPid != pid {
+                    remaining.append(queuedPid)
+                }
+            }
+            self.positionsNeedingUpdates = remaining
         }
 
         /// Returns a position's BalanceSheet containing its effective collateral and debt as well as its current health
