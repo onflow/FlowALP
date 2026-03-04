@@ -52,26 +52,8 @@
 				"testing": "0000000000000007"
 			}
 		},
-		"FlowALPEvents": {
-			"source": "./cadence/contracts/FlowALPEvents.cdc",
-			"aliases": {
-				"testing": "0000000000000007"
-			}
-		},
-		"FlowALPInterestRates": {
-			"source": "./cadence/contracts/FlowALPInterestRates.cdc",
-			"aliases": {
-				"testing": "0000000000000007"
-			}
-		},
 		"FlowALPMath": {
 			"source": "./cadence/lib/FlowALPMath.cdc",
-			"aliases": {
-				"testing": "0000000000000007"
-			}
-		},
-		"FlowALPModels": {
-			"source": "./cadence/contracts/FlowALPModels.cdc",
 			"aliases": {
 				"testing": "0000000000000007"
 			}
@@ -364,7 +346,6 @@
 				"DeFiActionsUtils",
 				"DeFiActions",
 				"FlowALPMath",
-				"FlowALPInterestRates",
 				{
 					"name": "MOET",
 					"args": [
@@ -374,15 +355,12 @@
 						}
 					]
 				},
-				"FlowALPEvents",
-				"FlowALPModels",
 				"FlowALPv0"
 			]
 		},
 		"mainnet": {
 			"mainnet-deployer": [
 				"FlowALPMath",
-				"FlowALPInterestRates",
 				{
 					"name": "MOET",
 					"args": [
@@ -392,8 +370,6 @@
 						}
 					]
 				},
-				"FlowALPEvents",
-				"FlowALPModels",
 				"FlowALPv0"
 			],
 			"mainnet-fyv-deployer": [
@@ -423,7 +399,6 @@
 		"testnet": {
 			"testnet-deployer": [
 				"FlowALPMath",
-				"FlowALPInterestRates",
 				{
 					"name": "MOET",
 					"args": [
@@ -433,8 +408,6 @@
 						}
 					]
 				},
-				"FlowALPEvents",
-				"FlowALPModels",
 				"FlowALPv0"
 			],
 			"testnet-fyv-deployer": [

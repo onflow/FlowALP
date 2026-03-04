@@ -1,5 +1,4 @@
 import "FlowALPv0"
-import "FlowALPModels"
 import "FungibleToken"
 import "MOET"
 import "MockDexSwapper"
@@ -27,14 +26,14 @@ transaction(
     swapperInTypeIdentifier: String,
     swapperOutTypeIdentifier: String
 ) {
-    let pool: auth(FlowALPModels.EGovernance) &FlowALPv0.Pool
+    let pool: auth(FlowALPv0.EGovernance) &FlowALPv0.Pool
     let tokenType: Type
     let swapperInType: Type
     let swapperOutType: Type
     let moetVaultCap: Capability<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>
 
     prepare(signer: auth(BorrowValue, IssueStorageCapabilityController) &Account) {
-        self.pool = signer.storage.borrow<auth(FlowALPModels.EGovernance) &FlowALPv0.Pool>(
+        self.pool = signer.storage.borrow<auth(FlowALPv0.EGovernance) &FlowALPv0.Pool>(
             from: FlowALPv0.PoolStoragePath
         ) ?? panic("Could not borrow Pool at \(FlowALPv0.PoolStoragePath)")
 

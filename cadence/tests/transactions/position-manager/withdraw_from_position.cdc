@@ -3,7 +3,6 @@ import "FlowToken"
 import "MOET"
 import "DummyToken"
 import "FlowALPv0"
-import "FlowALPModels"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
@@ -23,7 +22,7 @@ transaction(
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
         // Borrow the PositionManager from constant storage path
-        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(
+        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(
                 from: FlowALPv0.PositionStoragePath
             )
             ?? panic("Could not find PositionManager in signer's storage")

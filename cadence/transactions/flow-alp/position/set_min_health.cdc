@@ -1,16 +1,15 @@
 import "FungibleToken"
 import "FlowALPv0"
-import "FlowALPModels"
 
 /// Sets the minimum health on a position.
 transaction(
     positionId: UInt64,
     minHealth: UFix64
 ) {
-    let position: auth(FlowALPModels.EPositionAdmin) &FlowALPv0.Position
+    let position: auth(FlowALPv0.EPositionAdmin) &FlowALPv0.Position
 
     prepare(signer: auth(BorrowValue) &Account) {
-        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(
+        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(
                 from: FlowALPv0.PositionStoragePath
             )
             ?? panic("Could not find PositionManager in signer's storage")

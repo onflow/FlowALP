@@ -1,5 +1,4 @@
 import "FlowALPv0"
-import "FlowALPModels"
 
 /// TEST-ONLY: Removes the insurance swapper for a given token type.
 ///
@@ -17,11 +16,11 @@ import "FlowALPModels"
 ///
 /// @param tokenTypeIdentifier: The fully-qualified Cadence type identifier
 transaction(tokenTypeIdentifier: String) {
-    let pool: auth(FlowALPModels.EGovernance) &FlowALPv0.Pool
+    let pool: auth(FlowALPv0.EGovernance) &FlowALPv0.Pool
     let tokenType: Type
     
     prepare(signer: auth(BorrowValue) &Account) {
-        self.pool = signer.storage.borrow<auth(FlowALPModels.EGovernance) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
+        self.pool = signer.storage.borrow<auth(FlowALPv0.EGovernance) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
             ?? panic("Could not borrow Pool at \(FlowALPv0.PoolStoragePath)")
         
         self.tokenType = CompositeType(tokenTypeIdentifier)
