@@ -91,10 +91,11 @@ access(all) contract FlowALPMath {
     }
 
     /// Checks that the DEX price does not deviate from the oracle price by more than the given threshold.
-    /// The deviation is computed as the absolute difference divided by the smaller price, expressed in basis points.
+    /// We use the dexPrice as the denominator because that is the price we are actually swapping at.
     access(all) view fun dexOraclePriceDeviationInRange(dexPrice: UFix64, oraclePrice: UFix64, maxDeviationBps: UInt16): Bool {
         let diff: UFix64 = dexPrice < oraclePrice ? oraclePrice - dexPrice : dexPrice - oraclePrice
-        let diffPct: UFix64 = dexPrice < oraclePrice ? diff / dexPrice : diff / oraclePrice
+        // We care about deviation relative to the price we are actually using to swap
+        let diffPct: UFix64 = diff / dexPrice
         let diffBps = UInt16(diffPct * 10_000.0)
         return diffBps <= maxDeviationBps
     }
@@ -146,7 +147,7 @@ access(all) contract FlowALPMath {
     /// Effective Collateral is defined:
     ///   Ce = (Nc)(Pc)(Fc)
     /// Where:
-    /// Ce = Effective Collateral 
+    /// Ce = Effective Collateral
     /// Nc = Number of Collateral Tokens
     /// Pc = Collateral Token Price
     /// Fc = Collateral Factor
@@ -162,7 +163,7 @@ access(all) contract FlowALPMath {
     /// Effective Debt is defined:
     ///   De = (Nd)(Pd)(Fd)
     /// Where:
-    /// De = Effective Debt 
+    /// De = Effective Debt
     /// Nd = Number of Debt Tokens
     /// Pd = Debt Token Price
     /// Fd = Borrow Factor
