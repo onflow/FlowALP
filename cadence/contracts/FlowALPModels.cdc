@@ -2071,13 +2071,10 @@ access(all) contract FlowALPModels {
         /// Returns empty array if no Debit balance exists yet (allows any debt type for first borrow)
         access(all) fun getDebtTypes(): [Type]
 
-        /// Validates that the given token type can be used as collateral for this position
-        /// Panics if position already has a different collateral type
-        access(EImplementation) fun validateCollateralType(_ type: Type)
-
-        /// Validates that the given token type can be used as debt for this position
-        /// Panics if position already has a different debt type
-        access(EImplementation) fun validateDebtType(_ type: Type)
+        /// Temporary constraint: one collateral type and one debt type per position.
+        /// Used as a post-condition on all functions that mutate position balances.
+        /// This restriction will be lifted in a future protocol version.
+        access(all) view fun satisfiesTemporaryBalanceConstraint(): Bool
     }
 
     /// InternalPositionImplv1 is the concrete implementation of InternalPosition.
@@ -2277,52 +2274,17 @@ access(all) contract FlowALPModels {
             return types
         }
 
-        /// Validates that the given token type can be used as collateral for this position
-        /// Panics if position already has a different collateral type
-        access(EImplementation) fun validateCollateralType(_ type: Type) {
-            let existingTypes = self.getCollateralTypes()
-
-            // Constraint: For now, only one collateral type is allowed per position
-            // This assertion ensures the invariant is maintained
-            assert(existingTypes.length <= 1, message: "Internal error: Position has multiple collateral types")
-
-            if existingTypes.length == 0 {
-                // No collateral yet, allow any type
-                return
+        access(all) view fun satisfiesTemporaryBalanceConstraint(): Bool {
+            var creditCount: Int = 0
+            var debitCount: Int = 0
+            for key in self.balances.keys {
+                if self.balances[key]!.direction == BalanceDirection.Credit {
+                    creditCount = creditCount + 1
+                } else {
+                    debitCount = debitCount + 1
+                }
             }
-
-            // Check if type already exists (idempotent)
-            if existingTypes.contains(type) {
-                return
-            }
-
-            // For now, only one collateral type is allowed per position
-            // This restriction can be removed in the future to support multiple collateral types
-            panic("Position already has collateral type ".concat(existingTypes[0].identifier).concat(". Cannot deposit ").concat(type.identifier).concat(". Only one collateral type allowed per position."))
-        }
-
-        /// Validates that the given token type can be used as debt for this position
-        /// Panics if position already has a different debt type
-        access(EImplementation) fun validateDebtType(_ type: Type) {
-            let existingTypes = self.getDebtTypes()
-
-            // Constraint: For now, only one debt type is allowed per position
-            // This assertion ensures the invariant is maintained
-            assert(existingTypes.length <= 1, message: "Internal error: Position has multiple debt types")
-
-            if existingTypes.length == 0 {
-                // No debt yet, allow any type
-                return
-            }
-
-            // Check if type already exists (idempotent)
-            if existingTypes.contains(type) {
-                return
-            }
-
-            // For now, only one debt type is allowed per position
-            // This restriction can be removed in the future to support multiple debt types
-            panic("Position already has debt type ".concat(existingTypes[0].identifier).concat(". Cannot borrow ").concat(type.identifier).concat(". Only one debt type allowed per position."))
+            return creditCount <= 1 && debitCount <= 1
         }
     }
 

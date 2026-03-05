@@ -563,7 +563,10 @@ access(all) contract FlowALPv0 {
         access(self) fun _doLiquidation(pid: UInt64, repayment: @{FungibleToken.Vault}, debtType: Type, seizeType: Type, seizeAmount: UFix64): @{FungibleToken.Vault} {
             pre {
                 !self.isPausedOrWarmup(): "Liquidations are paused by governance"
-                // position must have debt and collateral balance 
+                // position must have debt and collateral balance
+            }
+            post {
+                self._borrowPosition(pid: pid).satisfiesTemporaryBalanceConstraint(): "Position \(pid) violates temporary balance constraint: only one collateral type and one debt type are allowed per position"
             }
 
             let repayAmount = repayment.balance
@@ -583,9 +586,6 @@ access(all) contract FlowALPv0 {
             let seizeState = self._borrowUpdatedTokenState(type: seizeType)
             let positionBalance = position.getBalance(seizeType)
             if positionBalance == nil {
-                // Liquidation is seizing collateral - validate single collateral type
-                position.validateCollateralType(seizeType)
-
                 position.setBalance(seizeType, FlowALPModels.InternalBalance(direction: FlowALPModels.BalanceDirection.Credit, scaledBalance: 0.0))
             }
 
@@ -1286,6 +1286,13 @@ access(all) contract FlowALPv0 {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
+            post {
+                // Only enforce when a new balance entry is being created.
+                // Overpayment that flips an existing Debit→Credit on the same token is allowed.
+                before(self._borrowPosition(pid: pid).getBalance(from.getType())) != nil
+                    || self._borrowPosition(pid: pid).satisfiesTemporaryBalanceConstraint():
+                    "Position \(pid) violates temporary balance constraint: only one collateral type and one debt type are allowed per position"
+            }
             // NOTE: caller must have already validated pid + token support
             let amount = from.balance
             if amount == 0.0 {
@@ -1333,9 +1340,6 @@ access(all) contract FlowALPv0 {
 
             // If this position doesn't currently have an entry for this token, create one.
             if positionBalance == nil {
-                // Validate single collateral type constraint
-                position.validateCollateralType(type)
-
                 position.setBalance(type, FlowALPModels.InternalBalance(
                     direction: FlowALPModels.BalanceDirection.Credit,
                     scaledBalance: 0.0
@@ -1452,6 +1456,12 @@ access(all) contract FlowALPv0 {
             }
             post {
                 !self.state.isPositionLocked(pid): "Position is not unlocked"
+                // Allow the withdrawal if the constraint was already violated before it ran
+                // (e.g. debt overpayment flipped a Debit→Credit in a prior call within the same tx).
+                // Only reject withdrawals that introduce a NEW constraint violation.
+                !before(self._borrowPosition(pid: pid).satisfiesTemporaryBalanceConstraint())
+                    || self._borrowPosition(pid: pid).satisfiesTemporaryBalanceConstraint():
+                    "Position \(pid) violates temporary balance constraint: only one collateral type and one debt type are allowed per position"
             }
             self.lockPosition(pid)
             if self.config.isDebugLogging() {
@@ -1545,10 +1555,6 @@ access(all) contract FlowALPv0 {
 
             // If this position doesn't currently have an entry for this token, create one.
             if positionBalance == nil {
-                // When withdrawing a token that doesn't exist in position yet,
-                // we'll be creating a debit (debt). Validate single debt type.
-                position.validateDebtType(type)
-
                 position.setBalance(type, FlowALPModels.InternalBalance(
                     direction: FlowALPModels.BalanceDirection.Credit,
                     scaledBalance: 0.0
@@ -1559,19 +1565,12 @@ access(all) contract FlowALPv0 {
             }
 
             // Reflect the withdrawal in the position's balance
-            let wasCredit = positionBalance!.direction == FlowALPModels.BalanceDirection.Credit
             let uintAmount = UFix128(amount)
             position.borrowBalance(type)!.recordWithdrawal(
                 amount: uintAmount,
                 tokenState: tokenState
             )
 
-            // If we flipped from Credit to Debit, validate debt type constraint
-            // Re-fetch balance to check if direction changed
-            positionBalance = position.getBalance(type)
-            if wasCredit && positionBalance!.direction == FlowALPModels.BalanceDirection.Debit {
-                position.validateDebtType(type)
-            }
             // Attempt to pull additional collateral from the top-up source (if configured)
             // to keep the position above minHealth after the withdrawal.
             // Regardless of whether a top-up occurs, the position must be healthy post-withdrawal.
@@ -1935,6 +1934,9 @@ access(all) contract FlowALPv0 {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
+            post {
+                self._borrowPosition(pid: pid).satisfiesTemporaryBalanceConstraint(): "Position \(pid) violates temporary balance constraint: only one collateral type and one debt type are allowed per position"
+            }
             if self.config.isDebugLogging() {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
             }
@@ -2002,9 +2004,6 @@ access(all) contract FlowALPv0 {
                     if sinkAmount > 0.0 {
                         let tokenState = self._borrowUpdatedTokenState(type: sinkType)
                         if position.getBalance(sinkType) == nil {
-                            // Rebalancing is borrowing/withdrawing to push to sink - validate single debt type
-                            position.validateDebtType(sinkType)
-
                             position.setBalance(sinkType, FlowALPModels.InternalBalance(
                                 direction: FlowALPModels.BalanceDirection.Credit,
                                 scaledBalance: 0.0
