@@ -1,4 +1,4 @@
-// Repay debt and close position using Sources (supports swapping, multi-vault, etc.)
+// This transaction closes a position, if that position only holds MOET-typed debt balances.
 //
 // This transaction uses the closePosition method with Source abstraction:
 // 1. Creates a VaultSource from the user's MOET vault capability
