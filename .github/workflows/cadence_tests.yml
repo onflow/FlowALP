@@ -5,10 +5,11 @@ on:
   push:
     branches:
       - main
+      - v0
   pull_request:
     branches:
       - main
-      - nialexsan/pre-refactor
+      - v0
 
 jobs:
   tests:

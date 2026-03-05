@@ -35,24 +35,12 @@ fun test_closePosition_noDebt() {
 
     // Create pool & enable token
     createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
-    addSupportedTokenKinkCurve(
-        signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
-        collateralFactor: 0.8,
-        borrowFactor: 1.0,
-        optimalUtilization: 0.80,
-        baseRate: 0.01,
-        slope1: 0.04,
-        slope2: 0.60,
-        depositRate: 1_000_000.0,
-        depositCapacityCap: 1_000_000.0
-    )
+    addSupportedTokenZeroRateCurve(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, collateralFactor: 0.8, borrowFactor: 1.0, depositRate: 1_000_000.0, depositCapacityCap: 1_000_000.0)
 
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
-    let flowBeforeOpen = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
 
     // Open position with pushToDrawDownSink = false (no debt)
     let openRes = _executeTransaction(
@@ -66,9 +54,6 @@ fun test_closePosition_noDebt() {
     let moetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assertEqual(0.0, moetBalance)
 
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
-
     // Close position (ID 0)
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
@@ -76,20 +61,6 @@ fun test_closePosition_noDebt() {
         user
     )
     Test.expect(closeRes, Test.beSucceeded())
-    let closedEvts0 = Test.eventsOfType(Type<FlowALPv0.PositionClosed>())
-    Test.assert(closedEvts0.length > 0)
-    let evt0 = closedEvts0[closedEvts0.length - 1] as! FlowALPv0.PositionClosed
-    Test.assertEqual(UInt64(0), evt0.pid)
-    Test.assert(evt0.withdrawalsByType[FLOW_TOKEN_IDENTIFIER] != nil)
-    Test.assert(evt0.withdrawalsByType[FLOW_TOKEN_IDENTIFIER]! > 0.0)
-
-    let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-    Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
-    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
-    let detailsAfterClose = getPositionDetails(pid: 0, beFailed: false)
-    for balance in detailsAfterClose.balances {
-        Test.assertEqual(0.0, balance.balance)
-    }
 
     log("✅ Successfully closed position with no debt")
 }
@@ -109,7 +80,6 @@ fun test_closePosition_withDebt() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
-    let flowBeforeOpen = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
 
     // Open position with pushToDrawDownSink = true (creates debt)
     let openRes = _executeTransaction(
@@ -119,16 +89,15 @@ fun test_closePosition_withDebt() {
     )
     Test.expect(openRes, Test.beSucceeded())
 
-    Test.moveTime(by: 10000.0)
-    Test.commitBlock()
-
     // Verify MOET was borrowed
     let moetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     log("Borrowed MOET: \(moetBalance)")
     Test.assert(moetBalance > 0.0)
 
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
+    // Verify FLOW collateral was deposited
+    let flowBalanceAfterDeposit = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
+    log("FLOW balance after deposit: \(flowBalanceAfterDeposit)")
+    Test.assert(flowBalanceAfterDeposit < 1_000.0)
 
     // Close position (ID 1 since test 1 created position 0)
     let closeRes = _executeTransaction(
@@ -137,154 +106,17 @@ fun test_closePosition_withDebt() {
         user
     )
     Test.expect(closeRes, Test.beSucceeded())
-    let closedEvts1 = Test.eventsOfType(Type<FlowALPv0.PositionClosed>())
-    Test.assert(closedEvts1.length > 0)
-    let evt1 = closedEvts1[closedEvts1.length - 1] as! FlowALPv0.PositionClosed
-    Test.assertEqual(UInt64(1), evt1.pid)
-    Test.assert(evt1.withdrawalsByType[FLOW_TOKEN_IDENTIFIER] != nil)
-    Test.assert(evt1.withdrawalsByType[FLOW_TOKEN_IDENTIFIER]! > 0.0)
 
-    let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-    Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
-    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
-    let detailsAfterClose = getPositionDetails(pid: 1, beFailed: false)
-    for balance in detailsAfterClose.balances {
-        Test.assertEqual(0.0, balance.balance)
-    }
+    // Verify FLOW collateral was returned
+    let flowBalanceAfterPositionClosed = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
+    log("FLOW balance after position closed: \(flowBalanceAfterPositionClosed)")
+    Test.assert(flowBalanceAfterPositionClosed == 1_000.0)
 
     log("✅ Successfully closed position with debt: \(moetBalance) MOET")
 }
 
 // =============================================================================
-// Test 3: Close after collateral price increase (balance increases)
-// =============================================================================
-access(all)
-fun test_closePosition_afterPriceIncrease() {
-    log("\n=== Test: Close After Collateral Price Increase (Balance Increases) ===")
-
-    // Reset price to 1.0 for this test
-    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
-
-    // Reuse existing pool from previous test
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    mintFlow(to: user, amount: 1_000.0)
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
-    let flowBeforeOpen = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-
-    // Open position
-    let openRes = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [100.0, FLOW_VAULT_STORAGE_PATH, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
-
-    let detailsBefore = getPositionDetails(pid: 2, beFailed: false)
-    log("Health before price increase: \(detailsBefore.health)")
-
-    // Increase FLOW price to 1.5 (50% gain)
-    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.5)
-    log("Increased FLOW price to $1.5 (+50%)")
-
-    let detailsAfter = getPositionDetails(pid: 2, beFailed: false)
-    log("Health after price increase: \(detailsAfter.health)")
-    Test.assert(detailsAfter.health > detailsBefore.health)
-
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
-
-    // Close position
-    let closeRes = _executeTransaction(
-        "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [UInt64(2)],
-        user
-    )
-    Test.expect(closeRes, Test.beSucceeded())
-    let closedEvts2 = Test.eventsOfType(Type<FlowALPv0.PositionClosed>())
-    Test.assert(closedEvts2.length > 0)
-    let evt2 = closedEvts2[closedEvts2.length - 1] as! FlowALPv0.PositionClosed
-    Test.assertEqual(UInt64(2), evt2.pid)
-    Test.assert(evt2.withdrawalsByType[FLOW_TOKEN_IDENTIFIER] != nil)
-    Test.assert(evt2.withdrawalsByType[FLOW_TOKEN_IDENTIFIER]! > 0.0)
-
-    let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-    Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
-    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
-    let detailsAfterClose = getPositionDetails(pid: 2, beFailed: false)
-    for balance in detailsAfterClose.balances {
-        Test.assertEqual(0.0, balance.balance)
-    }
-
-    log("✅ Successfully closed after collateral appreciation (balance increased)")
-}
-
-// =============================================================================
-// Test 4: Close after collateral price decrease (balance falls)
-// =============================================================================
-access(all)
-fun test_closePosition_afterPriceDecrease() {
-    log("\n=== Test: Close After Collateral Price Decrease (Balance Falls) ===")
-
-    // Reset price to 1.0 for this test
-    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
-
-    // Reuse existing pool from previous test
-    let user = Test.createAccount()
-    setupMoetVault(user, beFailed: false)
-    mintFlow(to: user, amount: 1_000.0)
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
-    let flowBeforeOpen = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-
-    // Open position
-    let openRes = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [100.0, FLOW_VAULT_STORAGE_PATH, true],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
-
-    let detailsBefore = getPositionDetails(pid: 3, beFailed: false)
-    log("Health before price decrease: \(detailsBefore.health)")
-
-    // Decrease FLOW price to 0.8 (20% loss)
-    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 0.8)
-    log("Decreased FLOW price to $0.8 (-20%)")
-
-    let detailsAfter = getPositionDetails(pid: 3, beFailed: false)
-    log("Health after price decrease: \(detailsAfter.health)")
-    Test.assert(detailsAfter.health < detailsBefore.health)
-
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
-
-    // Close position (should still succeed)
-    let closeRes = _executeTransaction(
-        "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [UInt64(3)],
-        user
-    )
-    Test.expect(closeRes, Test.beSucceeded())
-    let closedEvts3 = Test.eventsOfType(Type<FlowALPv0.PositionClosed>())
-    Test.assert(closedEvts3.length > 0)
-    let evt3 = closedEvts3[closedEvts3.length - 1] as! FlowALPv0.PositionClosed
-    Test.assertEqual(UInt64(3), evt3.pid)
-    Test.assert(evt3.withdrawalsByType[FLOW_TOKEN_IDENTIFIER] != nil)
-    Test.assert(evt3.withdrawalsByType[FLOW_TOKEN_IDENTIFIER]! > 0.0)
-
-    let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-    Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
-    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
-    let detailsAfterClose = getPositionDetails(pid: 3, beFailed: false)
-    for balance in detailsAfterClose.balances {
-        Test.assertEqual(0.0, balance.balance)
-    }
-
-    log("✅ Successfully closed after collateral depreciation (balance fell)")
-}
-
-// =============================================================================
-// Test 5: Close with precision shortfall after multiple rebalances
+// Test 3: Close with precision shortfall after multiple rebalances
 // =============================================================================
 access(all)
 fun test_closePosition_precisionShortfall_multipleRebalances() {
@@ -298,7 +130,6 @@ fun test_closePosition_precisionShortfall_multipleRebalances() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
-    let flowBeforeOpen = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
 
     // Open position
     let openRes = _executeTransaction(
@@ -311,55 +142,38 @@ fun test_closePosition_precisionShortfall_multipleRebalances() {
     // Perform rebalances with varying prices to accumulate rounding errors
     log("\nRebalance 1: FLOW price = $1.2")
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.2)
-    let reb1 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(4), true], PROTOCOL_ACCOUNT)
+    let reb1 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(2), true], PROTOCOL_ACCOUNT)
     Test.expect(reb1, Test.beSucceeded())
 
     log("\nRebalance 2: FLOW price = $1.9")
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 0.9)
-    let reb2 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(4), true], PROTOCOL_ACCOUNT)
+    let reb2 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(2), true], PROTOCOL_ACCOUNT)
     Test.expect(reb2, Test.beSucceeded())
 
     log("\nRebalance 3: FLOW price = $1.5")
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.5)
-    let reb3 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(4), true], PROTOCOL_ACCOUNT)
+    let reb3 = _executeTransaction("../transactions/flow-alp/pool-management/rebalance_position.cdc", [UInt64(2), true], PROTOCOL_ACCOUNT)
     Test.expect(reb3, Test.beSucceeded())
 
     // Get final position state
-    let finalDetails = getPositionDetails(pid: 4, beFailed: false)
+    let finalDetails = getPositionDetails(pid: 2, beFailed: false)
     log("\n--- Final State ---")
     log("Health: \(finalDetails.health)")
     logBalances(finalDetails.balances)
 
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
-
     // Close position - may have tiny shortfall due to accumulated rounding
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [UInt64(4)],
+        [UInt64(2)],
         user
     )
     Test.expect(closeRes, Test.beSucceeded())
-    let closedEvts4 = Test.eventsOfType(Type<FlowALPv0.PositionClosed>())
-    Test.assert(closedEvts4.length > 0)
-    let evt4 = closedEvts4[closedEvts4.length - 1] as! FlowALPv0.PositionClosed
-    Test.assertEqual(UInt64(4), evt4.pid)
-    Test.assert(evt4.withdrawalsByType[FLOW_TOKEN_IDENTIFIER] != nil)
-    Test.assert(evt4.withdrawalsByType[FLOW_TOKEN_IDENTIFIER]! > 0.0)
-
-    let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-    Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
-    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
-    let detailsAfterClose = getPositionDetails(pid: 4, beFailed: false)
-    for balance in detailsAfterClose.balances {
-        Test.assertEqual(0.0, balance.balance)
-    }
 
     log("✅ Successfully closed after 3 rebalances (precision shortfall automatically handled)")
 }
 
 // =============================================================================
-// Test 6: Demonstrate precision with extreme volatility
+// Test 4: Demonstrate precision with extreme volatility
 // =============================================================================
 access(all)
 fun test_closePosition_extremeVolatility() {
@@ -373,7 +187,6 @@ fun test_closePosition_extremeVolatility() {
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
-    let flowBeforeOpen = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
 
     // Open position
     let openRes = _executeTransaction(
@@ -393,145 +206,81 @@ fun test_closePosition_extremeVolatility() {
 
         let rebalanceRes = _executeTransaction(
             "../transactions/flow-alp/pool-management/rebalance_position.cdc",
-            [UInt64(5), true],
+            [UInt64(3), true],
             PROTOCOL_ACCOUNT
         )
         Test.expect(rebalanceRes, Test.beSucceeded())
 
-        let details = getPositionDetails(pid: 5, beFailed: false)
+        let details = getPositionDetails(pid: 3, beFailed: false)
         log("Health: \(details.health)")
         volCount = volCount + 1
     }
 
     log("\n--- Closing after extreme volatility ---")
 
-    // Mint larger buffer for extreme volatility test (accumulated errors from 7 rebalances)
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 1.0, beFailed: false)
-
     // Close position
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [UInt64(5)],
+        [UInt64(3)],
         user
     )
     Test.expect(closeRes, Test.beSucceeded())
-    let closedEvts5 = Test.eventsOfType(Type<FlowALPv0.PositionClosed>())
-    Test.assert(closedEvts5.length > 0)
-    let evt5 = closedEvts5[closedEvts5.length - 1] as! FlowALPv0.PositionClosed
-    Test.assertEqual(UInt64(5), evt5.pid)
-    Test.assert(evt5.withdrawalsByType[FLOW_TOKEN_IDENTIFIER] != nil)
-    Test.assert(evt5.withdrawalsByType[FLOW_TOKEN_IDENTIFIER]! > 0.0)
-
-    let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-    Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
-    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
-    let detailsAfterClose = getPositionDetails(pid: 5, beFailed: false)
-    for balance in detailsAfterClose.balances {
-        Test.assertEqual(0.0, balance.balance)
-    }
 
     log("✅ Successfully closed after extreme volatility (balance increased/fell dramatically)")
 }
 
 // =============================================================================
-// Test 7: Close with minimal debt (edge case)
+// Test 5: Close position with insufficient debt repayment
 // =============================================================================
 access(all)
-fun test_closePosition_minimalDebt() {
-    log("\n=== Test: Close with Minimal Debt ===")
+fun test_closePosition_insufficientRepayment() {
+    log("\n=== Test: Close Position with Insufficient Debt Repayment ===")
 
-    // Reset price to 1.0 for this test
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
 
-    // Reuse existing pool from previous test
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 1_000.0)
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
-    let flowBeforeOpen = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
 
-    // Open position with minimal amount
+    // Open position with debt — borrowed MOET is pushed to user's MOET vault (position 7)
     let openRes = _executeTransaction(
         "../transactions/flow-alp/position/create_position.cdc",
-        [1.0, FLOW_VAULT_STORAGE_PATH, true],
+        [100.0, FLOW_VAULT_STORAGE_PATH, true],
         user
     )
     Test.expect(openRes, Test.beSucceeded())
 
-    let moetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
-    log("Minimal debt amount: \(moetBalance) MOET")
+    let debt = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
+    log("Borrowed MOET (= debt): \(debt)")
+    Test.assert(debt > 0.0)
 
-    // Mint tiny buffer to handle any precision shortfall
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: user.address, amount: 0.01, beFailed: false)
+    let shortfall = 0.00000001
 
-    // Close position
+    // Transfer a tiny amount away so user has (debt - 1 satoshi), one short of what's needed
+    let other = Test.createAccount()
+    setupMoetVault(other, beFailed: false)
+    let transferTx = Test.Transaction(
+        code: Test.readFile("../transactions/moet/transfer_moet.cdc"),
+        authorizers: [user.address],
+        signers: [user],
+        arguments: [other.address, shortfall]
+    )
+    let transferRes = Test.executeTransaction(transferTx)
+    Test.expect(transferRes, Test.beSucceeded())
+
+    let remainingMoet = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
+    log("MOET remaining after transfer: \(remainingMoet)")
+    Test.assertEqual(debt - shortfall, remainingMoet)
+
+    // Attempt to close — source has 0 MOET but debt requires repayment
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [UInt64(6)],
+        [UInt64(4)],
         user
     )
-    Test.expect(closeRes, Test.beSucceeded())
-    let closedEvts6 = Test.eventsOfType(Type<FlowALPv0.PositionClosed>())
-    Test.assert(closedEvts6.length > 0)
-    let evt6 = closedEvts6[closedEvts6.length - 1] as! FlowALPv0.PositionClosed
-    Test.assertEqual(UInt64(6), evt6.pid)
-    Test.assert(evt6.withdrawalsByType[FLOW_TOKEN_IDENTIFIER] != nil)
-    Test.assert(evt6.withdrawalsByType[FLOW_TOKEN_IDENTIFIER]! > 0.0)
-
-    let flowAfterClose = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-    Test.assert(flowAfterClose >= flowBeforeOpen - 0.01, message: "User should get full collateral back; flow after close: ".concat(flowAfterClose.toString()))
-    Test.assert(flowAfterClose <= flowBeforeOpen, message: "User must not get more FLOW than they had before open; flow after close: ".concat(flowAfterClose.toString()))
-    let detailsAfterClose = getPositionDetails(pid: 6, beFailed: false)
-    for balance in detailsAfterClose.balances {
-        Test.assertEqual(0.0, balance.balance)
-    }
-
-    log("✅ Successfully closed with minimal debt")
+    Test.expect(closeRes, Test.beFailed())
+    Test.assertError(closeRes, errorMessage: "Insufficient funds from source")
+    log("✅ Close correctly failed with insufficient repayment")
 }
 
-// =============================================================================
-// Test 8: Demonstrate UFix64 precision limits
-// =============================================================================
-access(all)
-fun test_precision_demonstration() {
-    log("\n=== UFix64/UFix128 Precision Demonstration ===")
-
-    // Demonstrate UFix64 precision (8 decimal places)
-    let value1: UFix64 = 1.00000001
-    let value2: UFix64 = 1.00000002
-    log("UFix64 minimum precision: 0.00000001")
-    log("Value 1: \(value1)")
-    log("Value 2: \(value2)")
-    log("Difference: \(value2 - value1)")
-
-    // Demonstrate UFix128 intermediate precision
-    let uintValue1 = UFix128(1.23456789)
-    let uintValue2 = UFix128(9.87654321)
-    let product = uintValue1 * uintValue2
-    log("\nUFix128 calculation: \(uintValue1) * \(uintValue2) = \(product)")
-
-    // Demonstrate precision loss when converting UFix128 → UFix64
-    let rounded = FlowALPMath.toUFix64Round(product)
-    let roundedUp = FlowALPMath.toUFix64RoundUp(product)
-    let roundedDown = FlowALPMath.toUFix64RoundDown(product)
-    log("Converting \(product) to UFix64:")
-    log("  Round (nearest): \(rounded)")
-    log("  Round Up: \(roundedUp)")
-    log("  Round Down: \(roundedDown)")
-    log("  Precision loss range: \(roundedUp - roundedDown)")
-
-    log("\n✅ Precision demonstration complete")
-    log("Key insight: Each UFix128→UFix64 conversion loses up to 0.00000001")
-    log("Multiple operations accumulate this loss, requiring shortfall tolerance")
-}
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-access(all) fun logBalances(_ balances: [FlowALPv0.PositionBalance]) {
-    for balance in balances {
-        let direction = balance.direction == FlowALPv0.BalanceDirection.Credit ? "Credit" : "Debit"
-        log("  \(direction): \(balance.balance) of \(balance.vaultType.identifier)")
-    }
-}

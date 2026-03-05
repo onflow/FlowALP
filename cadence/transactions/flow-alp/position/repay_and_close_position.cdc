@@ -1,9 +1,10 @@
-// Repay debt and close position using Sources (supports swapping, multi-vault, etc.)
+// This transaction closes a position, if that position only holds MOET-typed debt balances.
 //
 // This transaction uses the closePosition method with Source abstraction:
 // 1. Creates a VaultSource from the user's MOET vault capability
 // 2. closePosition pulls exactly what it needs from the source
 // 3. Returns all collateral + any overpayment
+// 4. Removes/destroys the closed Position resource from PositionManager
 //
 // Benefits:
 // - No debt precalculation needed in transaction
@@ -20,6 +21,7 @@ import "MOET"
 
 transaction(positionId: UInt64) {
 
+    let manager: auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager
     let position: auth(FungibleToken.Withdraw) &FlowALPv0.Position
     let flowReceiverRef: &{FungibleToken.Receiver}
     let moetReceiverRef: &{FungibleToken.Receiver}
@@ -27,12 +29,12 @@ transaction(positionId: UInt64) {
 
     prepare(borrower: auth(BorrowValue, Capabilities) &Account) {
         // Borrow the PositionManager from constant storage path with both required entitlements
-        let manager = borrower.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(
+        self.manager = borrower.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(
             from: FlowALPv0.PositionStoragePath
         ) ?? panic("Could not find PositionManager in storage")
 
         // Borrow the position with withdraw entitlement
-        self.position = manager.borrowAuthorizedPosition(pid: positionId) as! auth(FungibleToken.Withdraw) &FlowALPv0.Position
+        self.position = self.manager.borrowAuthorizedPosition(pid: positionId) as! auth(FungibleToken.Withdraw) &FlowALPv0.Position
 
         // Get receiver references for depositing withdrawn collateral and overpayment
         self.flowReceiverRef = borrower.capabilities.borrow<&{FungibleToken.Receiver}>(
@@ -78,5 +80,10 @@ transaction(positionId: UInt64) {
             }
         }
         destroy returnedVaults
+
+        // Remove and destroy the closed position resource from the manager so stale
+        // capabilities/resources are not left behind after close.
+        let closedPosition <- self.manager.removePosition(pid: positionId)
+        destroy closedPosition
     }
 }
