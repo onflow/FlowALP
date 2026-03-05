@@ -94,6 +94,11 @@ fun test_closePosition_withDebt() {
     log("Borrowed MOET: \(moetBalance)")
     Test.assert(moetBalance > 0.0)
 
+    // Verify FLOW collateral was deposited
+    let flowBalanceAfterDeposit = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
+    log("FLOW balance after deposit: \(flowBalanceAfterDeposit)")
+    Test.assert(flowBalanceAfterDeposit < 1_000.0)
+
     // Close position (ID 1 since test 1 created position 0)
     let closeRes = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
@@ -101,6 +106,11 @@ fun test_closePosition_withDebt() {
         user
     )
     Test.expect(closeRes, Test.beSucceeded())
+
+    // Verify FLOW collateral was returned
+    let flowBalanceAfterPositionClosed = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
+    log("FLOW balance after position closed: \(flowBalanceAfterPositionClosed)")
+    Test.assert(flowBalanceAfterPositionClosed == 1_000.0)
 
     log("✅ Successfully closed position with debt: \(moetBalance) MOET")
 }
@@ -274,13 +284,3 @@ fun test_closePosition_insufficientRepayment() {
     log("✅ Close correctly failed with insufficient repayment")
 }
 
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-access(all) fun logBalances(_ balances: [FlowALPv0.PositionBalance]) {
-    for balance in balances {
-        let direction = balance.direction == FlowALPv0.BalanceDirection.Credit ? "Credit" : "Debit"
-        log("  \(direction): \(balance.balance) of \(balance.vaultType.identifier)")
-    }
-}

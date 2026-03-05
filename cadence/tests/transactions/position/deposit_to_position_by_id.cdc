@@ -7,7 +7,6 @@ transaction(positionId: UInt64, amount: UFix64, vaultStoragePath: StoragePath, p
 
     let collateral: @{FungibleToken.Vault}
     let position: auth(FungibleToken.Withdraw) &FlowALPv0.Position
-    let pushToDrawDownSink: Bool
 
     prepare(signer: auth(BorrowValue) &Account) {
         // Withdraw the collateral from the signer's stored Vault
@@ -22,11 +21,10 @@ transaction(positionId: UInt64, amount: UFix64, vaultStoragePath: StoragePath, p
 
         // Borrow the position with withdraw entitlement
         self.position = manager.borrowAuthorizedPosition(pid: positionId) as! auth(FungibleToken.Withdraw) &FlowALPv0.Position
-        self.pushToDrawDownSink = pushToDrawDownSink
     }
 
     execute {
         // Deposit to the position
-        self.position.depositAndPush(from: <-self.collateral, pushToDrawDownSink: self.pushToDrawDownSink)
+        self.position.depositAndPush(from: <-self.collateral, pushToDrawDownSink: pushToDrawDownSink)
     }
 }
