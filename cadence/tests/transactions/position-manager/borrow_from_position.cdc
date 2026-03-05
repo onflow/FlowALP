@@ -12,6 +12,7 @@ import "FlowALPModels"
 transaction(
     positionId: UInt64,
     tokenTypeIdentifier: String,
+    tokenVaultStoragePath: StoragePath,
     amount: UFix64
 ) {
     let position: auth(FungibleToken.Withdraw) &FlowALPv0.Position
@@ -32,23 +33,12 @@ transaction(
         self.tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier: \(tokenTypeIdentifier)")
 
-        // Ensure signer has a FlowToken vault to receive borrowed tokens
-        // (Most borrows in tests are FlowToken)
-        if signer.storage.type(at: /storage/flowTokenVault) == nil {
-            signer.storage.save(<-FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>()), to: /storage/flowTokenVault)
+        if signer.storage.type(at: tokenVaultStoragePath) == nil {
+            signer.storage.save(<-FlowToken.createEmptyVault(vaultType: self.tokenType), to: tokenVaultStoragePath)
         }
-
-        // Get receiver for the specific token type
-        var receiverRef: &{FungibleToken.Receiver}? = nil
-        if tokenTypeIdentifier == "A.0000000000000003.FlowToken.Vault" {
-            // For FlowToken, use the standard path
-            receiverRef = signer.storage.borrow<&{FungibleToken.Receiver}>(from: /storage/flowTokenVault)
-        } else if tokenTypeIdentifier == "A.0000000000000007.MOET.Vault" {
-            // For MOET, use the MOET vault path
-            receiverRef = signer.storage.borrow<&{FungibleToken.Receiver}>(from: MOET.VaultStoragePath)
-        }
-
-        self.receiverVault = receiverRef ?? panic("Could not borrow vault receiver for token type: \(tokenTypeIdentifier). Ensure vault is set up.")
+        
+        self.receiverVault = signer.storage.borrow<&{FungibleToken.Receiver}>(from: tokenVaultStoragePath)
+            ?? panic("Could not borrow receiver vault")
     }
 
     execute {
