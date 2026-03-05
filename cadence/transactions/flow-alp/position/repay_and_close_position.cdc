@@ -17,6 +17,7 @@ import "FlowToken"
 import "DeFiActions"
 import "FungibleTokenConnectors"
 import "FlowALPv0"
+import "FlowALPModels"
 import "MOET"
 
 transaction(positionId: UInt64) {
@@ -29,7 +30,7 @@ transaction(positionId: UInt64) {
 
     prepare(borrower: auth(BorrowValue, Capabilities) &Account) {
         // Borrow the PositionManager from constant storage path with both required entitlements
-        self.manager = borrower.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(
+        let manager = borrower.storage.borrow<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(
             from: FlowALPv0.PositionStoragePath
         ) ?? panic("Could not find PositionManager in storage")
 
