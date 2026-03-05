@@ -2239,10 +2239,12 @@ access(all) contract FlowALPModels {
             var debitCount: Int = 0
             for key in self.balances.keys {
                 let balance = self.balances[key]!
-                if balance.direction == BalanceDirection.Credit && balance.scaledBalance > UFix128(0) {
-                    creditCount = creditCount + 1
-                } else if balance.direction == BalanceDirection.Debit {
-                    debitCount = debitCount + 1
+                if balance.scaledBalance > UFix128(0) {
+                    if balance.direction == BalanceDirection.Credit {
+                        creditCount = creditCount + 1
+                    } else {
+                        debitCount = debitCount + 1
+                    }
                 }
             }
             return creditCount <= 1 && debitCount <= 1
