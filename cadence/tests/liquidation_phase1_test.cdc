@@ -8,7 +8,6 @@ import "MockYieldToken"
 import "FlowToken"
 import "FlowALPMath"
 
-access(all) let MOCK_YIELD_TOKEN_IDENTIFIER = "A.0000000000000007.MockYieldToken.Vault"
 access(all) var snapshot: UInt64 = 0
 
 access(all)
