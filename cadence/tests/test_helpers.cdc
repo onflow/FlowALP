@@ -834,3 +834,10 @@ fun getCreditBalanceForType(details: FlowALPv0.PositionDetails, vaultType: Type)
     }
     return 0.0
 }
+
+access(all) fun logBalances(_ balances: [FlowALPv0.PositionBalance]) {
+    for balance in balances {
+        let direction = balance.direction == FlowALPv0.BalanceDirection.Credit ? "Credit" : "Debit"
+        log("  \(direction): \(balance.balance) of \(balance.vaultType.identifier)")
+    }
+}
