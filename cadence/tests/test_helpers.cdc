@@ -1,5 +1,4 @@
 import Test
-import "FlowALPv0"
 import "FlowALPModels"
 import "MOET"
 
@@ -934,9 +933,9 @@ fun getCreditBalanceForType(details: FlowALPModels.PositionDetails, vaultType: T
     return 0.0
 }
 
-access(all) fun logBalances(_ balances: [FlowALPv0.PositionBalance]) {
+access(all) fun logBalances(_ balances: [FlowALPModels.PositionBalance]) {
     for balance in balances {
-        let direction = balance.direction == FlowALPv0.BalanceDirection.Credit ? "Credit" : "Debit"
+        let direction = balance.direction == FlowALPModels.BalanceDirection.Credit ? "Credit" : "Debit"
         log("  \(direction): \(balance.balance) of \(balance.vaultType.identifier)")
     }
 }

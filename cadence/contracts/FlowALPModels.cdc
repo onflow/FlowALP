@@ -153,9 +153,9 @@ access(all) contract FlowALPModels {
                             self.direction = BalanceDirection.Credit
                             self.scaledBalance = 0.0
                         } else {
-                            self.scaledBalance = FlowALPv0.trueBalanceToScaledBalance(
+                            self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
                                 updatedBalance,
-                                interestIndex: tokenState.debitInterestIndex
+                                interestIndex: tokenState.getDebitInterestIndex()
                             )
                         }
 
@@ -1607,6 +1607,9 @@ access(all) contract FlowALPModels {
         /// Removes and returns the first position ID from the update queue
         access(EImplementation) fun removeFirstPositionNeedingUpdate(): UInt64
 
+        /// Removes and returns a speicific position ID by index from the update queue.
+        access(EImplementation) fun removeAtPositionNeedingUpdate(_ i: Int): UInt64
+
         /// Returns whether the given position ID is in the update queue
         access(all) view fun positionsNeedingUpdatesContains(_ pid: UInt64): Bool
 
@@ -1787,6 +1790,11 @@ access(all) contract FlowALPModels {
         /// Removes and returns the first position ID from the update queue.
         access(EImplementation) fun removeFirstPositionNeedingUpdate(): UInt64 {
             return self.positionsNeedingUpdates.removeFirst()
+        }
+
+        /// Removes and returns a speicific position ID by index from the update queue.
+        access(EImplementation) fun removeAtPositionNeedingUpdate(_ i: Int): UInt64 {
+            return self.positionsNeedingUpdates.remove(at: i)
         }
 
         /// Returns whether the given position ID is in the update queue.

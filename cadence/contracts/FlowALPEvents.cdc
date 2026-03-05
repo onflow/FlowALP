@@ -331,8 +331,9 @@ access(all) contract FlowALPEvents {
     }
 
     /// Emits the PositionClosed event
-    access(self) fun emitPositionClosed(
+    access(account) fun emitPositionClosed(
         pid: UInt64,
+        poolUUID: UInt64,
         debtsByType: {Type: UFix64},
         withdrawalsByType: {Type: UFix64}
     ) {
@@ -350,7 +351,7 @@ access(all) contract FlowALPEvents {
 
         emit PositionClosed(
             pid: pid,
-            poolUUID: self.uuid,
+            poolUUID: poolUUID,
             repaymentsByType: repaymentsEvent,
             withdrawalsByType: withdrawalsEvent
         )

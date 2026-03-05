@@ -450,7 +450,7 @@ access(all) contract FlowALPv0 {
                 // Conservative rounding:
                 // - Debits (debt/withdrawals from position): round UP to ensure we require enough
                 // - Credits (deposits/collateral): round DOWN to avoid overpromising available funds
-                let balanceUFix64 = balance.direction == BalanceDirection.Debit
+                let balanceUFix64 = balance.direction == FlowALPModels.BalanceDirection.Debit
                     ? FlowALPMath.toUFix64RoundUp(trueBalance)
                     : FlowALPMath.toUFix64RoundDown(trueBalance)
 
@@ -1287,10 +1287,10 @@ access(all) contract FlowALPv0 {
         ) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
-                self.positionLock[pid] == true: "Position is not locked"
+                self.state.isPositionLocked(pid): "Position is not locked"
             }
             post {
-                self.positionLock[pid] == true: "Position is not locked"
+                self.state.isPositionLocked(pid): "Position is not locked"
             }
             // NOTE: caller must have already validated pid + token support
             let amount = from.balance
@@ -1593,17 +1593,17 @@ access(all) contract FlowALPv0 {
         /// Returns a map of vault type to vault, guaranteeing no duplicate types.
         access(self) fun _extractQueuedDeposits(pid: UInt64): @{Type: {FungibleToken.Vault}} {
             pre {
-                self.positionLock[pid] == true: "Position is not locked"
+                self.state.isPositionLocked(pid): "Position is not locked"
             }
             post {
-                self.positionLock[pid] == true: "Position is not locked"
+                self.state.isPositionLocked(pid): "Position is not locked"
             }
             let position = self._borrowPosition(pid: pid)
             let queuedVaults: @{Type: {FungibleToken.Vault}} <- {}
 
-            let queuedTypes = position.queuedDeposits.keys
+            let queuedTypes = position.getQueuedDepositKeys()
             for queuedType in queuedTypes {
-                let queuedVault <- position.queuedDeposits.remove(key: queuedType)!
+                let queuedVault <- position.removeQueuedDeposit(queuedType)!
                 queuedVaults[queuedType] <-! queuedVault
             }
 
@@ -1617,7 +1617,7 @@ access(all) contract FlowALPv0 {
             let debtsByType: {Type: UFix64} = {}
 
             for balance in positionDetails.balances {
-                if balance.direction == BalanceDirection.Debit {
+                if balance.direction == FlowALPModels.BalanceDirection.Debit {
                     let debtType = balance.vaultType
                     // Sanity check: each position should have at most one balance entry per token type
                     assert(
@@ -1638,7 +1638,7 @@ access(all) contract FlowALPv0 {
             let collateralTypes: [Type] = []
 
             for balance in positionDetails.balances {
-                if balance.direction == BalanceDirection.Credit {
+                if balance.direction == FlowALPModels.BalanceDirection.Credit {
                     // Sanity check: each position should have at most one balance entry per token type
                     assert(
                         !collateralTypes.contains(balance.vaultType),
@@ -1659,10 +1659,10 @@ access(all) contract FlowALPv0 {
             sources: [{DeFiActions.Source}]
         ) {
             pre {
-                self.positionLock[pid] == true: "Position is not locked"
+                self.state.isPositionLocked(pid): "Position is not locked"
             }
             post {
-                self.positionLock[pid] == true: "Position is not locked"
+                self.state.isPositionLocked(pid): "Position is not locked"
             }
 
             // Build source map and validate no duplicates
@@ -1696,7 +1696,7 @@ access(all) contract FlowALPv0 {
             // If a position has a zero balance in some token, that is represented as BalanceDirection.Credit,
             // so we don't need to check balance amount here (any debit balance must be non-zero).
             for balance in updatedDetails.balances {
-                if balance.direction == BalanceDirection.Debit {
+                if balance.direction == FlowALPModels.BalanceDirection.Debit {
                     panic("Debt not fully repaid for \(balance.vaultType.identifier): \(balance.balance) remaining. Position cannot be closed with outstanding debt.")
                 }
             }
@@ -1710,10 +1710,10 @@ access(all) contract FlowALPv0 {
             collateralTypes: [Type]
         ): @{Type: {FungibleToken.Vault}} {
             pre {
-                self.positionLock[pid] == true: "Position is not locked"
+                self.state.isPositionLocked(pid): "Position is not locked"
             }
             post {
-                self.positionLock[pid] == true: "Position is not locked"
+                self.state.isPositionLocked(pid): "Position is not locked"
             }
             let positionView = self.buildPositionView(pid: pid)
             let collateralVaults: @{Type: {FungibleToken.Vault}} <- {}
@@ -1729,16 +1729,16 @@ access(all) contract FlowALPv0 {
 
                 let position = self._borrowPosition(pid: pid)
                 let tokenState = self._borrowUpdatedTokenState(type: withdrawalType)
-                let reserveVault = (&self.reserves[withdrawalType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                let reserveVault = self.state.borrowReserve(withdrawalType)!
 
-                position.balances[withdrawalType]!.recordWithdrawal(
+                position.getBalance(withdrawalType)!.recordWithdrawal(
                     amount: UFix128(withdrawAmount),
                     tokenState: tokenState
                 )
 
                 let withdrawn <- reserveVault.withdraw(amount: withdrawAmount)
 
-                emit Withdrawn(
+                FlowALPEvents.emitWithdrawn(
                     pid: pid,
                     poolUUID: self.uuid,
                     vaultType: withdrawalType,
@@ -1779,7 +1779,7 @@ access(all) contract FlowALPv0 {
         ///                          Sources are pulled from as needed (supports swapping, multi-vault, etc.)
         /// @return Array of vaults — one per token type — containing collateral + queued deposits + any overpayment
         ///
-        access(EPosition) fun closePosition(
+        access(FlowALPModels.EPosition) fun closePosition(
             pid: UInt64,
             repaymentSources: [{DeFiActions.Source}]
         ): @[{FungibleToken.Vault}] {
@@ -1788,15 +1788,15 @@ access(all) contract FlowALPv0 {
                 self.positions[pid] != nil: "Invalid position ID"
             }
             post {
-                self.positionLock[pid] == nil: "Position is not unlocked"
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
 
-            if self.debugLogging {
+            if self.config.isDebugLogging() {
                 log("    [CONTRACT] closePosition(pid: \(pid), repaymentSources: \(repaymentSources.length))")
             }
 
             // Step 1: Lock the position for all state modifications
-            self._lockPosition(pid)
+            self.state.setPositionLock(pid, true)
 
             // Step 2: Get all debts from position
             let debtsByType = self._getPositionDebts(pid: pid)
@@ -1834,7 +1834,7 @@ access(all) contract FlowALPv0 {
             }
 
             // Step 9: Emit position closed event
-            FlowALPEvents.emitPositionClosed(pid: pid, debtsByType: debtsByType, withdrawalsByType: withdrawalsByType)
+            FlowALPEvents.emitPositionClosed(pid: pid, poolUUID: self.uuid, debtsByType: debtsByType, withdrawalsByType: withdrawalsByType)
 
             // Step 10: Drain map into return array (one vault per token type, no duplicates)
             let returnVaults: @[{FungibleToken.Vault}] <- []
@@ -1846,7 +1846,7 @@ access(all) contract FlowALPv0 {
             // Step 11: Remove stale queue entry, then destroy InternalPosition and unlock
             self._removePositionFromUpdateQueue(pid: pid)
             destroy self.positions.remove(key: pid)!
-            self._unlockPosition(pid)
+            self.state.setPositionLock(pid, false)
 
             return <- returnVaults
         }
@@ -2159,10 +2159,11 @@ access(all) contract FlowALPv0 {
         access(self) fun _rebalancePositionNoLock(pid: UInt64, force: Bool) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
-                self.positionLock[pid] == true: "Position is not locked"
+                self.state.isPositionLocked(pid): "Position is not locked"
+
             }
             post {
-                self.positionLock[pid] == true: "Position is not locked"
+                self.state.isPositionLocked(pid): "Position is not locked"
             }
             if self.config.isDebugLogging() {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
@@ -2496,9 +2497,9 @@ access(all) contract FlowALPv0 {
             // Keep this operation linear-time:
             // find first matching pid, then remove once while preserving queue order.
             var i = 0
-            while i < self.positionsNeedingUpdates.length {
-                if self.positionsNeedingUpdates[i] == pid {
-                    self.positionsNeedingUpdates.remove(at: i)
+            while i < self.state.getPositionsNeedingUpdatesLength() {
+                if self.state.positionsNeedingUpdatesContains(pid) {
+                    self.state.removeAtPositionNeedingUpdate(i)
                     return
                 }
                 i = i + 1
@@ -2745,7 +2746,7 @@ access(all) contract FlowALPv0 {
 
             // Collect debts by token type
             for balance in balances {
-                if balance.direction == BalanceDirection.Debit {
+                if balance.direction == FlowALPModels.BalanceDirection.Debit {
                     let tokenType = balance.vaultType
                     // Sanity check: should only be one balance entry per type
                     assert(
