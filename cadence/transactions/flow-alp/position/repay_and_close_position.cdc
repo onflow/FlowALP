@@ -1,65 +1,90 @@
-// Repay MOET debt and withdraw collateral from a position
+// This transaction closes a position, if that position only holds MOET-typed debt balances.
 //
-// This transaction uses withdrawAndPull with pullFromTopUpSource: true to:
-// 1. Automatically pull MOET from the user's vault to repay the debt
-// 2. Withdraw and return the collateral to the user
+// This transaction uses the closePosition method with Source abstraction:
+// 1. Creates a VaultSource from the user's MOET vault capability
+// 2. closePosition pulls exactly what it needs from the source
+// 3. Returns all collateral + any overpayment
+// 4. Removes/destroys the closed Position resource from PositionManager
 //
-// After running this transaction:
-// - MOET debt will be repaid (balance goes to 0)
-// - Flow collateral will be returned to the user's vault
-// - The position will be empty (all balances at 0)
+// Benefits:
+// - No debt precalculation needed in transaction
+// - No buffer required
+// - Supports swapping (can use SwapSource instead of VaultSource)
+// - Contract handles all precision internally
 
 import "FungibleToken"
 import "FlowToken"
 import "DeFiActions"
+import "FungibleTokenConnectors"
 import "FlowALPv0"
 import "FlowALPModels"
 import "MOET"
 
 transaction(positionId: UInt64) {
 
+    let manager: auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager
     let position: auth(FungibleToken.Withdraw) &FlowALPv0.Position
-    let receiverRef: &{FungibleToken.Receiver}
-    let moetWithdrawRef: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+    let flowReceiverRef: &{FungibleToken.Receiver}
+    let moetReceiverRef: &{FungibleToken.Receiver}
+    let moetVaultCap: Capability<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>
 
-    prepare(borrower: auth(BorrowValue) &Account) {
+    prepare(borrower: auth(BorrowValue, Capabilities) &Account) {
         // Borrow the PositionManager from constant storage path with both required entitlements
         let manager = borrower.storage.borrow<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(
             from: FlowALPv0.PositionStoragePath
         ) ?? panic("Could not find PositionManager in storage")
 
         // Borrow the position with withdraw entitlement
-        self.position = manager.borrowAuthorizedPosition(pid: positionId) as! auth(FungibleToken.Withdraw) &FlowALPv0.Position
+        self.position = self.manager.borrowAuthorizedPosition(pid: positionId) as! auth(FungibleToken.Withdraw) &FlowALPv0.Position
 
-        // Get receiver reference for depositing withdrawn collateral
-        self.receiverRef = borrower.capabilities.borrow<&{FungibleToken.Receiver}>(
+        // Get receiver references for depositing withdrawn collateral and overpayment
+        self.flowReceiverRef = borrower.capabilities.borrow<&{FungibleToken.Receiver}>(
             /public/flowTokenReceiver
-        ) ?? panic("Could not borrow receiver reference to the recipient's Vault")
+        ) ?? panic("Could not borrow Flow receiver reference")
 
-        // Borrow withdraw reference to borrower's MOET vault to repay debt
-        self.moetWithdrawRef = borrower.storage.borrow<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(from: MOET.VaultStoragePath)
-            ?? panic("No MOET vault in storage")
+        self.moetReceiverRef = borrower.capabilities.borrow<&{FungibleToken.Receiver}>(
+            MOET.VaultPublicPath
+        ) ?? panic("Could not borrow MOET receiver reference")
+
+        // Get or create capability for MOET vault
+        self.moetVaultCap = borrower.capabilities.storage.issue<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(
+            MOET.VaultStoragePath
+        )
+        assert(self.moetVaultCap.check(), message: "Invalid MOET vault capability")
     }
 
     execute {
-        // Repay all MOET debt without requiring EParticipant: use a Sink and depositCapacity
-        if self.moetWithdrawRef.balance > 0.0 {
-            let sink: {DeFiActions.Sink} = self.position.createSink(type: Type<@MOET.Vault>())
-            sink.depositCapacity(from: self.moetWithdrawRef)
+        // Create a VaultSource from the MOET vault capability
+        // closePosition will pull exactly what it needs
+        let moetSource = FungibleTokenConnectors.VaultSource(
+            min: nil,  // No minimum balance requirement
+            withdrawVault: self.moetVaultCap,
+            uniqueID: nil
+        )
+
+        // Close position with sources
+        // Contract calculates debt internally and pulls exact amount needed
+        let returnedVaults <- self.position.closePosition(repaymentSources: [moetSource])
+
+        // Deposit all returned collateral and overpayment to appropriate vaults
+        while returnedVaults.length > 0 {
+            let vault <- returnedVaults.removeFirst()
+            let vaultType = vault.getType()
+
+            // Route to appropriate receiver based on token type
+            if vaultType == Type<@FlowToken.Vault>() {
+                self.flowReceiverRef.deposit(from: <-vault)
+            } else if vaultType == Type<@MOET.Vault>() {
+                self.moetReceiverRef.deposit(from: <-vault)
+            } else {
+                panic("Unexpected vault type returned: \(vaultType.identifier)")
+            }
         }
+        destroy returnedVaults
 
-        // Now withdraw all available Flow collateral without top-up assistance
-        let withdrawAmount = self.position.availableBalance(
-            type: Type<@FlowToken.Vault>(),
-            pullFromTopUpSource: false
-        )
-        let withdrawnVault <- self.position.withdrawAndPull(
-            type: Type<@FlowToken.Vault>(),
-            amount: withdrawAmount,
-            pullFromTopUpSource: false
-        )
-
-        // Deposit withdrawn collateral to user's vault
-        self.receiverRef.deposit(from: <-withdrawnVault)
+        // Remove and destroy the closed position resource from the manager so stale
+        // capabilities/resources are not left behind after close.
+        let closedPosition <- self.manager.removePosition(pid: positionId)
+        destroy closedPosition
     }
-} 
+}

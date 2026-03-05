@@ -44,6 +44,18 @@ access(all) contract FlowALPEvents {
         withdrawnUUID: UInt64
     )
 
+    /// Emitted when a position is closed via the closePosition() method.
+    /// This indicates a full position closure with debt repayment and collateral extraction.
+    ///
+    /// Uses dictionaries instead of parallel arrays for deterministic, unambiguous data.
+    /// Keys are token type identifiers (e.g., "A.xxx.FlowToken.Vault").
+    access(all) event PositionClosed(
+        pid: UInt64,
+        poolUUID: UInt64,
+        repaymentsByType: {String: UFix64},    // Map of debt token type → amount repaid
+        withdrawalsByType: {String: UFix64}    // Map of token type → amount withdrawn (collateral + overpayment dust)
+    )
+
     /// Emitted when a position is automatically rebalanced toward its target health factor.
     /// Rebalancing occurs when a position drifts above or below its configured health thresholds.
     ///
@@ -316,5 +328,32 @@ access(all) contract FlowALPEvents {
     /// Emits DepositCapacityConsumed event. See DepositCapacityConsumed event definition above for additional details.
     access(account) fun emitDepositCapacityConsumed(tokenType: Type, pid: UInt64, amount: UFix64, remainingCapacity: UFix64) {
         emit DepositCapacityConsumed(tokenType: tokenType, pid: pid, amount: amount, remainingCapacity: remainingCapacity)
+    }
+
+    /// Emits the PositionClosed event
+    access(account) fun emitPositionClosed(
+        pid: UInt64,
+        poolUUID: UInt64,
+        debtsByType: {Type: UFix64},
+        withdrawalsByType: {Type: UFix64}
+    ) {
+        // Emit event for position closure
+        // Note: repayments = debts owed (sources may have provided more, but that became credit)
+        let repaymentsEvent: {String: UFix64} = {}
+        for debtType in debtsByType.keys {
+            repaymentsEvent[debtType.identifier] = debtsByType[debtType]!
+        }
+
+        let withdrawalsEvent: {String: UFix64} = {}
+        for withdrawalType in withdrawalsByType.keys {
+            withdrawalsEvent[withdrawalType.identifier] = withdrawalsByType[withdrawalType]!
+        }
+
+        emit PositionClosed(
+            pid: pid,
+            poolUUID: poolUUID,
+            repaymentsByType: repaymentsEvent,
+            withdrawalsByType: withdrawalsEvent
+        )
     }
 }
