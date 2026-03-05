@@ -52,7 +52,8 @@
 		"DummyToken": {
 			"source": "./cadence/tests/contracts/DummyToken.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"mainnet-fork": "6d888f175c158410"
 			}
 		},
 		"FlowALPEvents": {
@@ -73,6 +74,7 @@
 			"source": "./cadence/lib/FlowALPMath.cdc",
 			"aliases": {
 				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61"
 			}
 		},
@@ -80,7 +82,7 @@
 			"source": "./cadence/contracts/FlowALPModels.cdc",
 			"aliases": {
 				"testing": "0000000000000007",
-				"mainnet": "6d888f175c158410"
+				"mainnet-fork": "6b00ff876c299c61"
 			}
 		},
 		"FlowALPRebalancerPaidv1": {
