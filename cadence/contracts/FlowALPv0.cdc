@@ -585,9 +585,6 @@ access(all) contract FlowALPv0 {
             // Withdraw seized collateral from position and send to liquidator
             let seizeState = self._borrowUpdatedTokenState(type: seizeType)
             let positionBalance = position.getBalance(seizeType)
-            if positionBalance == nil {
-                position.setBalance(seizeType, FlowALPModels.InternalBalance(direction: FlowALPModels.BalanceDirection.Credit, scaledBalance: 0.0))
-            }
 
             position.borrowBalance(seizeType)!.recordWithdrawal(amount: UFix128(seizeAmount), tokenState: seizeState)
             let seizeReserveRef = self.state.borrowReserve(seizeType)!

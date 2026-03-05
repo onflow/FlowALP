@@ -341,8 +341,6 @@ access(all) contract FlowALPModels {
     /// - Debt withdrawals MINT new MOET tokens (increasing supply)
     access(all) struct MoetTokenReserveHandler: TokenReserveHandler {
 
-        init() {}
-
         access(all) view fun getTokenType(): Type {
             return Type<@MOET.Vault>()
         }
@@ -2063,14 +2061,6 @@ access(all) contract FlowALPModels {
         /// If nil, the Pool will not pull underflown value, and liquidation may occur.
         access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source}?)
 
-        /// Returns the current collateral types for this position based on existing Credit balances
-        /// Returns empty array if no Credit balance exists yet (allows any collateral type for first deposit)
-        access(all) fun getCollateralTypes(): [Type]
-
-        /// Returns the current debt types for this position based on existing Debit balances
-        /// Returns empty array if no Debit balance exists yet (allows any debt type for first borrow)
-        access(all) fun getDebtTypes(): [Type]
-
         /// Temporary constraint: one collateral type and one debt type per position.
         /// Used as a post-condition on all functions that mutate position balances.
         /// This restriction will be lifted in a future protocol version.
@@ -2244,43 +2234,14 @@ access(all) contract FlowALPModels {
             self.topUpSource = source
         }
 
-        /// Returns the current collateral types for this position based on existing Credit balances
-        /// Returns empty array if no Credit balance exists yet (allows any collateral type for first deposit)
-        access(all) fun getCollateralTypes(): [Type] {
-            let types: [Type] = []
-            for type in self.balances.keys {
-                let balance = self.balances[type]!
-                // Ignore zero balances so exact repay/withdraw operations do not leave
-                // phantom token-type constraints.
-                if balance.direction == BalanceDirection.Credit && balance.scaledBalance > 0.0 {
-                    types.append(type)
-                }
-            }
-            return types
-        }
-
-        /// Returns the current debt types for this position based on existing Debit balances
-        /// Returns empty array if no Debit balance exists yet (allows any debt type for first borrow)
-        access(all) fun getDebtTypes(): [Type] {
-            let types: [Type] = []
-            for type in self.balances.keys {
-                let balance = self.balances[type]!
-                // Ignore zero balances so exact repay/withdraw operations do not leave
-                // phantom token-type constraints.
-                if balance.direction == BalanceDirection.Debit && balance.scaledBalance > 0.0 {
-                    types.append(type)
-                }
-            }
-            return types
-        }
-
         access(all) view fun satisfiesTemporaryBalanceConstraint(): Bool {
             var creditCount: Int = 0
             var debitCount: Int = 0
             for key in self.balances.keys {
-                if self.balances[key]!.direction == BalanceDirection.Credit {
+                let balance = self.balances[key]!
+                if balance.direction == BalanceDirection.Credit && balance.scaledBalance > UFix128(0) {
                     creditCount = creditCount + 1
-                } else {
+                } else if balance.direction == BalanceDirection.Debit {
                     debitCount = debitCount + 1
                 }
             }
