@@ -471,9 +471,11 @@ Always use the oracle price as the denominator.
 
 **Claude Recommendation:** Fix this. The code comment says this is "intentional" but the asymmetry favours higher DEX prices (i.e., the liquidator seizing more collateral cheaply). Using the oracle as the fixed denominator is the standard approach and removes the bias. It's a single-line change with no side-effects. The existing test suite should be updated to confirm the symmetric range.
 
-**Action:** `[ ] No Action  [ ] Code Changes  [ ] Documentation`
-**DRI:**
+**Action:** `[ ] No Action  [x] Code Changes  [ ] Documentation`
+**DRI:** holyfuchs
 **Notes:**
+We use the DEX price as the denominator because it represents the actual execution price of the swap, making it our primary reference for realized value.
+Measuring deviation relative to the DEX price ensures we are tracking the percentage of "lost" or "gained" value based on the tokens we are actually trading.
 
 ---
 
