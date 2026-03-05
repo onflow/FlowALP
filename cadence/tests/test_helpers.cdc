@@ -7,6 +7,8 @@ import "MOET"
 
 access(all) let MOET_TOKEN_IDENTIFIER = "A.0000000000000007.MOET.Vault"
 access(all) let FLOW_TOKEN_IDENTIFIER = "A.0000000000000003.FlowToken.Vault"
+access(all) let MOCK_YIELD_TOKEN_IDENTIFIER = "A.0000000000000007.MockYieldToken.Vault"
+
 access(all) let FLOW_VAULT_STORAGE_PATH = /storage/flowTokenVault
 
 access(all) let PROTOCOL_ACCOUNT = Test.getAccount(0x0000000000000007)
@@ -41,17 +43,22 @@ access(all) let MAINNET_WBTC_TOKEN_ID = "A.1e4aa0b87d10b141.EVMVMBridgedToken_71
 
 access(all) let MAINNET_MOET_TOKEN_ID = "A.6b00ff876c299c61.MOET.Vault"
 access(all) let MAINNET_FLOW_TOKEN_ID = "A.1654653399040a61.FlowToken.Vault"
+access(all) let MAINNET_MOCKED_YIELD_TOKEN_ID = "A.6b00ff876c299c61.MockYieldToken.Vault"
 
 // Storage paths
 access(all) let MAINNET_USDF_STORAGE_PATH = /storage/EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabedVault
 access(all) let MAINNET_WETH_STORAGE_PATH = /storage/EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590Vault
 access(all) let MAINNET_WBTC_STORAGE_PATH = /storage/EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579Vault
 access(all) let MAINNET_MOET_STORAGE_PATH = /storage/moetTokenVault_0x6b00ff876c299c61
+access(all) let MAINNET_YIELD_STORAGE_PATH = /storage/mockYieldTokenVault_0x6b00ff876c299c61
 
 access(all) let MAINNET_PROTOCOL_ACCOUNT_ADDRESS: Address = 0x6b00ff876c299c61
 access(all) let MAINNET_USDF_HOLDER_ADDRESS: Address = 0xf18b50870aed46ad
 access(all) let MAINNET_WETH_HOLDER_ADDRESS: Address = 0xf62e3381a164f993
 access(all) let MAINNET_WBTC_HOLDER_ADDRESS: Address = 0x47f544294e3b7656
+
+access(all) let MAINNET_BAND_ORACLE_ADDRESS: Address = 0x6801a6222ebf784a
+access(all) let MAINNET_BAND_ORACLE_CONNECTORS_ADDRESS: Address = 0xe36ef556b8b5d955
 
 /* --- Test execution helpers --- */
 
@@ -414,6 +421,45 @@ fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, pri
     let setRes = _executeTransaction(
         "./transactions/mock-oracle/set_price.cdc",
         [forTokenIdentifier, price],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun updateOracleToBandOracle(signer: Test.TestAccount) {
+    let setRes = _executeTransaction(
+        "../transactions/flow-alp/pool-governance/update_oracle.cdc",
+        [],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+/// Sets multiple BandOracle prices at once
+access(all)
+fun setBandOraclePrices(signer: Test.TestAccount, symbolPrices: {String: UFix64}) {
+    let symbolsRates: {String: UInt64} = {}
+    for symbol in symbolPrices.keys {
+        // BandOracle uses 1e9 multiplier for prices
+        // e.g., $1.00 = 1_000_000_000, $0.50 = 500_000_000
+        let price = symbolPrices[symbol]!
+        symbolsRates[symbol] = UInt64(price * 1_000_000_000.0)
+    }
+    
+    let setRes = _executeTransaction(
+        "./transactions/band-oracle/update_data.cdc",
+        [symbolsRates],
+        signer
+    )
+    Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun addSymbolToBandOracle(signer: Test.TestAccount, symbol: String, tokenTypeIdentifier: String) {
+    let setRes = _executeTransaction(
+        "../../FlowActions/cadence/transactions/band-oracle-connector/add_symbol.cdc",
+        [symbol, tokenTypeIdentifier],
         signer
     )
     Test.expect(setRes, Test.beSucceeded())
