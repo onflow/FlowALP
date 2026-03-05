@@ -1334,6 +1334,17 @@ access(all) contract FlowALPv0 {
             // Determine if this is a repayment or collateral deposit
             // based on the current balance state
             let isRepayment = positionBalance != nil && positionBalance!.direction == FlowALPModels.BalanceDirection.Debit
+            if isRepayment {
+                // Over-repayment can flip Debit -> Credit and effectively create collateral.
+                // Enforce single-collateral-type constraints before recording the deposit.
+                let debtBalanceBefore = FlowALPMath.scaledBalanceToTrueBalance(
+                    positionBalance!.scaledBalance,
+                    interestIndex: tokenState.getDebitInterestIndex()
+                )
+                if UFix128(from.balance) > debtBalanceBefore {
+                    position.validateCollateralType(type)
+                }
+            }
 
             // If this position doesn't currently have an entry for this token, create one.
             if positionBalance == nil {
