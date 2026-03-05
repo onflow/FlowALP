@@ -741,9 +741,12 @@ Make `fixReschedule` non-panicking on missing UUID (use optional unwrap + early 
 
 **Recommendation:** Fix this. The force-unwrap is clearly wrong – missing UUID should be a soft warning, not a panic. Change `borrowRebalancer(uuid)!` to `borrowRebalancer(uuid) ?? return` (guard pattern). Also see FLO-4: part of the fix for FLO-4 is tracking active rebalancer UUIDs – that same registry should be the authoritative source for the Supervisor set, ensuring they stay in sync.
 
-**Action:** `[ ] No Action  [ ] Code Changes  [ ] Documentation`
-**DRI:**
+**Action:** `[ ] No Action  [x] Code Changes  [ ] Documentation`
+**DRI:** holyfuchs
 **Notes:**
+- `fixReschedule(uuid:)` now returns `Bool` (true = found, false = stale) instead of force-unwrapping.
+- The Supervisor's `executeTransaction` loop checks the return value and calls `removePaidRebalancer(uuid:)` to self-clean stale entries automatically.
+- Regression test added: `test_supervisor_stale_uuid_does_not_panic` in `paid_auto_balance_test.cdc` verifies no panic, that `Executed` is emitted, that `RemovedPaidRebalancer` fires for the stale UUID, and that the UUID is not re-removed on a subsequent tick.
 
 ---
 
