@@ -107,9 +107,16 @@ Restrict to admin-only, or add per-position deduplication tracking which positio
 
 **Claude Recommendation:** Fix this. The simplest safe fix is to require an admin `EGovernance` capability to call `createPaidRebalancer()`. If the intent is that participants can set up their own paid rebalancer without admin involvement, track active rebalancer UUIDs per position in a pool-level set and `pre` that the position has no existing entry. The deduplication set should be updated on both creation and deletion (see FLO-27 for the deletion side).
 
-**Action:** `[ ] No Action  [ ] Code Changes  [ ] Documentation`
-**DRI:**
-**Notes:**
+#### **Action:** `[ ] No Action  [x] Code Changes  [x] Documentation`
+- **Refactor:** Replace `uuid` with `positionID` in `createPaidRebalancer`.
+- **Validation:** Add tests/docs confirming `createPaidRebalancer` panics on existing positions.
+- **Security:** Document permissionless design.
+
+#### **DRI:** holyfuchs
+
+#### **Notes:**
+- **Deduplication:** A check is added where `StoreRebalancer` will fail if multiple paid rebalancers are initiated for the same position.
+- **Security:** The function is intentionally permissionless; however, a mandatory minimum deposit prevents malicious actors from spamming the state with high-volume, low-balance positions.
 
 ---
 
