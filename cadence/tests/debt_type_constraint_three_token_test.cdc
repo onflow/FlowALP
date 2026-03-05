@@ -106,6 +106,7 @@ fun testCannotBorrowSecondDebtType() {
         signer: user,
         positionId: pid,
         tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 1_000.0,
         beFailed: false
     )
@@ -131,7 +132,7 @@ fun testCannotBorrowSecondDebtType() {
 
     let borrowMoetRes = executeTransaction(
         "./transactions/position-manager/borrow_from_position.cdc",
-        [pid, MOET_TOKEN_IDENTIFIER, 500.0],
+        [pid, MOET_TOKEN_IDENTIFIER, MOET.VaultStoragePath, 500.0],
         user
     )
 
@@ -181,6 +182,7 @@ fun testExactRepayClearsDebtTypeConstraint() {
         signer: user,
         positionId: pid,
         tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 300.0,
         beFailed: false
     )
@@ -197,6 +199,7 @@ fun testExactRepayClearsDebtTypeConstraint() {
         signer: user,
         positionId: pid,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultStoragePath: MOET.VaultStoragePath,
         amount: 100.0,
         beFailed: false
     )

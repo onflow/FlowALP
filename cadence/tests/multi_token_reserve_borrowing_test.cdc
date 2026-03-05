@@ -78,6 +78,7 @@ fun testMultiTokenReserveBorrowing() {
         signer: user1,
         positionId: pid1,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultStoragePath: MOET.VaultStoragePath,
         amount: user1MoetBorrowAmount,
         beFailed: false
     )
@@ -132,6 +133,7 @@ fun testMultiTokenReserveBorrowing() {
         signer: user2,
         positionId: pid2,
         tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: user2FlowBorrowAmount,
         beFailed: false
     )

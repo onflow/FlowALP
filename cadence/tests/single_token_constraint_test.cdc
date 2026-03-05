@@ -133,6 +133,7 @@ fun testCannotAddSecondDebtType() {
         signer: user2,
         positionId: pid,
         tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 300.0,
         beFailed: false
     )
@@ -152,6 +153,7 @@ fun testCannotAddSecondDebtType() {
         signer: user2,
         positionId: pid,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultStoragePath: MOET.VaultStoragePath,
         amount: 200.0,
         beFailed: false  // SUCCEEDS: draws from existing MOET Credit, no new Debit created
     )
@@ -198,6 +200,7 @@ fun testCanWithdrawBothCollateralAndDebtTokens() {
         signer: user,
         positionId: pid,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultStoragePath: MOET.VaultStoragePath,
         amount: 500.0,
         beFailed: false
     )
@@ -233,6 +236,7 @@ fun testCanWithdrawBothCollateralAndDebtTokens() {
         signer: user,
         positionId: pid,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultStoragePath: MOET.VaultStoragePath,
         amount: 200.0,
         beFailed: false
     )
@@ -295,6 +299,7 @@ fun testCannotWithdrawCollateralBeyondBalanceWithDifferentDebt() {
         signer: user2,
         positionId: pid,
         tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 30.0,
         beFailed: false
     )
@@ -414,6 +419,7 @@ fun testMultipleBorrowsOfSameDebtTypeSucceed() {
         signer: user,
         positionId: pid,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultStoragePath: MOET.VaultStoragePath,
         amount: 300.0,
         beFailed: false
     )
@@ -429,6 +435,7 @@ fun testMultipleBorrowsOfSameDebtTypeSucceed() {
         signer: user,
         positionId: pid,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultStoragePath: MOET.VaultStoragePath,
         amount: 200.0,
         beFailed: false
     )
@@ -445,6 +452,7 @@ fun testMultipleBorrowsOfSameDebtTypeSucceed() {
         signer: user,
         positionId: pid,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultStoragePath: MOET.VaultStoragePath,
         amount: 100.0,
         beFailed: false
     )
