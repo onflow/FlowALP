@@ -45,11 +45,15 @@ access(all) contract FlowALPSupervisorv1 {
         }
 
         /// Scheduler callback: on each tick, call fixReschedule on every registered paid rebalancer,
-        /// recovering any that failed to schedule their next transaction.
+        /// recovering any that failed to schedule their next transaction. Stale UUIDs (rebalancer
+        /// deleted without being removed from this set) are pruned automatically.
         access(FlowTransactionScheduler.Execute) fun executeTransaction(id: UInt64, data: AnyStruct?) {
             emit Executed(id: id)
             for rebalancerUUID in self.paidRebalancers.keys {
-                FlowALPRebalancerPaidv1.fixReschedule(uuid: rebalancerUUID)
+                let found = FlowALPRebalancerPaidv1.fixReschedule(uuid: rebalancerUUID)
+                if !found {
+                    let _ = self.removePaidRebalancer(uuid: rebalancerUUID)
+                }
             }
         }
     }
