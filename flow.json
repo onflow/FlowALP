@@ -121,7 +121,6 @@
 			"aliases": {
 				"testing": "0000000000000007",
 				"mainnet": "6b00ff876c299c61"
-				
 			}
 		},
 		"MockDexSwapper": {
