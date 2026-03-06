@@ -3,7 +3,23 @@ import "FlowALPModels"
 
 access(all) contract FlowALPHealth {
 
-    // TODO: documentation
+    /// Computes adjusted effective collateral and debt after a hypothetical withdrawal.
+    ///
+    /// This function determines how a withdrawal would affect the position's balance sheet,
+    /// accounting for whether the position holds a credit (collateral) or debit (debt) balance
+    /// in the withdrawn token. If the position has collateral in the token, the withdrawal may
+    /// either draw down collateral, or exhaust it entirely and create new debt.
+    ///
+    /// @param balanceSheet: The position's current effective collateral and debt
+    /// @param withdrawBalance: The position's existing balance for the withdrawn token, if any
+    /// @param withdrawAmount: The amount of tokens to withdraw
+    /// @param withdrawPrice: The oracle price of the withdrawn token
+    /// @param withdrawBorrowFactor: The borrow factor applied to debt in the withdrawn token
+    /// @param withdrawCollateralFactor: The collateral factor applied to collateral in the withdrawn token
+    /// @param withdrawCreditInterestIndex: The credit interest index for the withdrawn token;
+    ///        must be non-nil when the position has a credit balance in this token, nil otherwise
+    /// @param isDebugLogging: Whether to emit debug log messages
+    /// @return A new BalanceSheet reflecting the effective collateral and debt after the withdrawal
     access(all) fun computeAdjustedBalancesAfterWithdrawal(
         balanceSheet: FlowALPModels.BalanceSheet,
         withdrawBalance: FlowALPModels.InternalBalance?,
@@ -11,7 +27,7 @@ access(all) contract FlowALPHealth {
         withdrawPrice: UFix128,
         withdrawBorrowFactor: UFix128,
         withdrawCollateralFactor: UFix128,
-        withdrawCreditInterestIndex: UFix128,
+        withdrawCreditInterestIndex: UFix128?,
         isDebugLogging: Bool
     ): FlowALPModels.BalanceSheet {
         var effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral
@@ -47,7 +63,7 @@ access(all) contract FlowALPHealth {
                 // will flip over into debt, or just draw down the collateral.
                 let trueCollateral = FlowALPMath.scaledBalanceToTrueBalance(
                     scaledBalance,
-                    interestIndex: withdrawCreditInterestIndex
+                    interestIndex: withdrawCreditInterestIndex!
                 )
                 let collateralFactor = withdrawCollateralFactor
                 if trueCollateral >= withdrawAmountU {
@@ -70,11 +86,28 @@ access(all) contract FlowALPHealth {
         )
     }
 
+    /// Computes the amount of a given token that must be deposited to bring a position to a target health.
+    ///
+    /// This function handles the case where the deposit token may have an existing debit (debt) balance.
+    /// If so, the deposit first pays down debt before accumulating as collateral. The computation
+    /// determines the minimum deposit required to reach the target health, accounting for both
+    /// debt repayment and collateral accumulation as needed.
+    ///
+    /// @param depositBalance: The position's existing balance for the deposit token, if any
+    /// @param depositDebitInterestIndex: The debit interest index for the deposit token;
+    ///        must be non-nil when the position has a debit balance in this token, nil otherwise
+    /// @param depositPrice: The oracle price of the deposit token
+    /// @param depositBorrowFactor: The borrow factor applied to debt in the deposit token
+    /// @param depositCollateralFactor: The collateral factor applied to collateral in the deposit token
+    /// @param effectiveCollateral: The position's current effective collateral (post any prior withdrawal)
+    /// @param effectiveDebt: The position's current effective debt (post any prior withdrawal)
+    /// @param targetHealth: The target health ratio to achieve
+    /// @param isDebugLogging: Whether to emit debug log messages
+    /// @return The amount of tokens (in UFix64) required to reach the target health
     // TODO(jord): ~100-line function - consider refactoring
-    // TODO: documentation
     access(all) fun computeRequiredDepositForHealth(
         depositBalance: FlowALPModels.InternalBalance?,
-        depositDebitInterestIndex: UFix128,
+        depositDebitInterestIndex: UFix128?,
         depositPrice: UFix128,
         depositBorrowFactor: UFix128,
         depositCollateralFactor: UFix128,
@@ -116,7 +149,7 @@ access(all) contract FlowALPHealth {
             let debtBalance = maybeBalance!.scaledBalance
             let trueDebtTokenCount = FlowALPMath.scaledBalanceToTrueBalance(
                 debtBalance,
-                interestIndex: depositDebitInterestIndex
+                interestIndex: depositDebitInterestIndex!
             )
             let debtEffectiveValue = (depositPrice * trueDebtTokenCount) / depositBorrowFactor
 
@@ -189,7 +222,23 @@ access(all) contract FlowALPHealth {
         return FlowALPMath.toUFix64Round(collateralTokenCount + debtTokenCount)
     }
 
-    // Helper function to compute balances after deposit
+    /// Computes adjusted effective collateral and debt after a hypothetical deposit.
+    ///
+    /// This function determines how a deposit would affect the position's balance sheet,
+    /// accounting for whether the position holds a credit (collateral) or debit (debt) balance
+    /// in the deposited token. If the position has debt in the token, the deposit first pays
+    /// down debt before accumulating as collateral.
+    ///
+    /// @param balanceSheet: The position's current effective collateral and debt
+    /// @param depositBalance: The position's existing balance for the deposited token, if any
+    /// @param depositAmount: The amount of tokens to deposit
+    /// @param depositPrice: The oracle price of the deposited token
+    /// @param depositBorrowFactor: The borrow factor applied to debt in the deposited token
+    /// @param depositCollateralFactor: The collateral factor applied to collateral in the deposited token
+    /// @param depositDebitInterestIndex: The debit interest index for the deposited token;
+    ///        must be non-nil when the position has a debit balance in this token, nil otherwise
+    /// @param isDebugLogging: Whether to emit debug log messages
+    /// @return A new BalanceSheet reflecting the effective collateral and debt after the deposit
     access(all) fun computeAdjustedBalancesAfterDeposit(
         balanceSheet: FlowALPModels.BalanceSheet,
         depositBalance: FlowALPModels.InternalBalance?,
@@ -197,7 +246,7 @@ access(all) contract FlowALPHealth {
         depositPrice: UFix128,
         depositBorrowFactor: UFix128,
         depositCollateralFactor: UFix128,
-        depositDebitInterestIndex: UFix128,
+        depositDebitInterestIndex: UFix128?,
         isDebugLogging: Bool
     ): FlowALPModels.BalanceSheet {
         var effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral
@@ -234,7 +283,7 @@ access(all) contract FlowALPHealth {
                 // will result in net collateral, or just bring down the debt.
                 let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
                     scaledBalance,
-                    interestIndex: depositDebitInterestIndex
+                    interestIndex: depositDebitInterestIndex!
                 )
                 if isDebugLogging {
                     log("    [CONTRACT] trueDebt: \(trueDebt)")
@@ -269,11 +318,29 @@ access(all) contract FlowALPHealth {
         )
     }
 
-    // Helper function to compute available withdrawal
+    /// Computes the maximum amount of a given token that can be withdrawn while maintaining a target health.
+    ///
+    /// This function determines how many tokens are available for withdrawal, accounting for
+    /// whether the position holds a credit (collateral) balance in the withdrawn token. If the
+    /// position has collateral, the withdrawal may draw down collateral only, or exhaust it and
+    /// create new debt. The function finds the maximum withdrawal that keeps health at or above
+    /// the target.
+    ///
+    /// @param withdrawBalance: The position's existing balance for the withdrawn token, if any
+    /// @param withdrawCreditInterestIndex: The credit interest index for the withdrawn token;
+    ///        must be non-nil when the position has a credit balance in this token, nil otherwise
+    /// @param withdrawPrice: The oracle price of the withdrawn token
+    /// @param withdrawCollateralFactor: The collateral factor applied to collateral in the withdrawn token
+    /// @param withdrawBorrowFactor: The borrow factor applied to debt in the withdrawn token
+    /// @param effectiveCollateral: The position's current effective collateral (post any prior deposit)
+    /// @param effectiveDebt: The position's current effective debt (post any prior deposit)
+    /// @param targetHealth: The minimum health ratio to maintain
+    /// @param isDebugLogging: Whether to emit debug log messages
+    /// @return The maximum amount of tokens (in UFix64) that can be withdrawn
     // TODO(jord): ~100-line function - consider refactoring
     access(all) fun computeAvailableWithdrawal(
         withdrawBalance: FlowALPModels.InternalBalance?,
-        withdrawCreditInterestIndex: UFix128,
+        withdrawCreditInterestIndex: UFix128?,
         withdrawPrice: UFix128,
         withdrawCollateralFactor: UFix128,
         withdrawBorrowFactor: UFix128,
@@ -309,7 +376,7 @@ access(all) contract FlowALPHealth {
             let creditBalance = maybeBalance!.scaledBalance
             let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
                 creditBalance,
-                interestIndex: withdrawCreditInterestIndex
+                interestIndex: withdrawCreditInterestIndex!
             )
             let collateralEffectiveValue = (withdrawPrice * trueCredit) * withdrawCollateralFactor
 
