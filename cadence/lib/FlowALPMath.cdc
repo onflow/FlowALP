@@ -90,11 +90,11 @@ access(all) contract FlowALPMath {
         return scaledInt % 2 == 1 ? self.roundUp(base) : base
     }
 
-    /// Checks that the DEX price does not deviate from the oracle price by more than the given threshold.
-    /// We use the dexPrice as the denominator because that is the price we are actually swapping at.
+    /// Checks if the DEX price deviates from the oracle price by more than the allowed threshold (in basis points).
+    /// The deviation is measured relative to the oracle price, which is treated as the reference price.
     access(all) view fun dexOraclePriceDeviationInRange(dexPrice: UFix64, oraclePrice: UFix64, maxDeviationBps: UInt16): Bool {
         let diff: UFix64 = dexPrice < oraclePrice ? oraclePrice - dexPrice : dexPrice - oraclePrice
-        // We care about deviation relative to the price we are actually using to swap
+        // Deviation expressed as a percentage of the oracle price (reference)
         let diffPct: UFix64 = diff / oraclePrice
         let diffBps = UInt16(diffPct * 10_000.0)
         return diffBps <= maxDeviationBps

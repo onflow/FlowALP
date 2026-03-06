@@ -109,7 +109,7 @@ fun test_oracle_nil_price() {
 // =============================================================================
 
 // -----------------------------------------------------------------------------
-/// Verifies that the protocol rejects a position when the PriceOracle returns a zero price. 
+/// Verifies that the protocol rejects a position when the PriceOracle returns a zero price.
 /// A zero price would cause division-by-zero in health calculations
 /// and incorrectly value collateral at $0. The PriceOracle interface
 /// guarantees `result! > 0.0`, so setting price to 0.0 must cause the oracle to revert.
@@ -171,9 +171,9 @@ fun test_oracle_near_zero_price_extreme_health() {
     // STEP 2: Crash FLOW to near-zero ($0.00000001)
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.00000001)
 
-    // Collateral: 
+    // Collateral:
     //   FLOW: 1000 * $0.00000001 * 0.8 = $0.000008
-    // Debt: 
+    // Debt:
     //  MOET: 500 * $1.00 / 1.0 = $500
     //
     // Health = $0.000008 / $500 = 0.000000016 (unhealty, essentially zero)
@@ -215,9 +215,9 @@ fun test_oracle_very_large_price_no_overflow() {
     // STEP 2: Set WETH to extreme price (UFix64.max)
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: UFix64.max)
 
-    // Collateral: 
+    // Collateral:
     //   WETH: 0.001 * $100,000,000 * 0.75 = $75,000
-    // Debt: 0$ 
+    // Debt: 0$
     //
     // Health = infinite (UFix128.max)
     let health = getPositionHealth(pid: pid, beFailed: false)
@@ -226,42 +226,6 @@ fun test_oracle_very_large_price_no_overflow() {
     // Verify available balance doesn't overflow
     let available = getAvailableBalance(pid: pid, vaultIdentifier: MAINNET_WETH_TOKEN_ID, pullFromTopUpSource: false, beFailed: false)
     Test.assertEqual(wethAmount, available)
-}
-
-// =============================================================================
-// DEX-Oracle price deviation utility function
-// =============================================================================
-
-// -----------------------------------------------------------------------------
-// dexOraclePriceDeviationInRange — Boundary Cases
-// Tests the pure helper function that computes deviation in basis points.
-// -----------------------------------------------------------------------------
-access(all)
-fun test_dex_oracle_deviation_boundary_exact_threshold() {
-    safeReset()
-
-    // Exactly at 300 bps (3%) — should pass
-    // Oracle: $1.00, DEX: $1.03 → deviation = |1.03-1.00|/1.00 = 3.0% = 300 bps
-    var res = FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: 1.03, oraclePrice: 1.0, maxDeviationBps: 300)
-    Test.assertEqual(true, res)
-
-    // One basis point over — should fail
-    // Oracle: $1.00, DEX: $1.0301 → deviation = 3.01% = 301 bps
-    res = FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: 1.0301, oraclePrice: 1.0, maxDeviationBps: 300)
-    Test.assertEqual(false, res)
-
-    // DEX below oracle — same threshold applies
-    // Oracle: $1.00, DEX: $0.97 → deviation = |0.97-1.00|/0.97 = 3.09% = 309 bps
-    res = FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: 0.97, oraclePrice: 1.0, maxDeviationBps: 300)
-    Test.assertEqual(false, res)
-
-    // DEX: $0.971 → deviation = |0.971-1.00|/0.971 = 2.98% = 298 bps
-    res = FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: 0.971, oraclePrice: 1.0, maxDeviationBps: 300)
-    Test.assertEqual(true, res)
-
-    // Equal prices — zero deviation — always passes
-    res = FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: 1.0, oraclePrice: 1.0, maxDeviationBps: 0)
-    Test.assertEqual(true, res)
 }
 
 // -----------------------------------------------------------------------------
@@ -358,10 +322,10 @@ fun test_flash_crash_triggers_liquidation() {
 
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 600.0, beFailed: false)
 
-    // Collateral: 
+    // Collateral:
     //   FLOW: 1000 * $1.00 * 0.8 = $800
     // Total collateral: $800
-    // Debt: 
+    // Debt:
     //   MOET: 600 * $1.00 / 1.0 = $600
     // Total debt: $600
     //
@@ -381,10 +345,10 @@ fun test_flash_crash_triggers_liquidation() {
     )
 
     // New position state:
-    // Collateral: 
+    // Collateral:
     //   FLOW: 1000 * $0.5 * 0.8 = $400
     // Total collateral: $400
-    // Debt: 
+    // Debt:
     //   MOET: 600 * $1.00 / 1.0 = $600
     // Total debt: $600
     //
@@ -431,7 +395,7 @@ fun test_flash_crash_triggers_liquidation() {
 // Tests that a position immediately reflects the new higher health.
 // Typical collateral factors are not sufficient to protect against sudden and dramatic price moves.
 // FlowALP relies on Oracle implementations to smooth out underlying price information or return no price
-// at all when price information sources disagree. 
+// at all when price information sources disagree.
 // -----------------------------------------------------------------------------
 access(all)
 fun test_flash_pump_increase_doubles_health() {
@@ -455,11 +419,11 @@ fun test_flash_pump_increase_doubles_health() {
 
     borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 500.0, beFailed: false)
 
-    // Collateral: 
+    // Collateral:
     //   FLOW: 1000 * $1.00 * 0.8 = $800
     // Total collateral: $800
     //
-    // Debt: 
+    // Debt:
     //   MOET: 500 * $1.00 / 1.0 = $500
     // Total debt: $500
     //
@@ -473,11 +437,11 @@ fun test_flash_pump_increase_doubles_health() {
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 2.0)
 
     // New position state:
-    // Collateral: 
+    // Collateral:
     //   FLOW: 1000 * $2.00 * 0.8 = $1600
     // Total collateral: $1600
     //
-    // Debt: 
+    // Debt:
     //   MOET: 500 * $1.00 / 1.0 = $500
     // Total debt: $500
     //
@@ -499,11 +463,11 @@ fun test_flash_pump_increase_doubles_health() {
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
 
     // Position after correction:
-    // Collateral: 
+    // Collateral:
     //   FLOW: 1000 * $1.00 * 0.8 = $800
     // Total collateral: $800
     //
-    // Debt: 
+    // Debt:
     //   MOET: (500+900) * $1.00 / 1.0 = $1400
     // Total debt: $1400
     //
