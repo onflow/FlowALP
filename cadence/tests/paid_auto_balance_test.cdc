@@ -47,14 +47,14 @@ access(all) fun setup() {
     let evts = Test.eventsOfType(Type<FlowALPRebalancerv1.CreatedRebalancer>())
     let paidRebalancerUUID = evts[0] as! FlowALPRebalancerv1.CreatedRebalancer
     createSupervisor(
-        signer: userAccount, 
+        signer: userAccount,
         cronExpression: "0 * * * *",
         cronHandlerStoragePath: cronHandlerStoragePath,
         keeperExecutionEffort: 1000,
         executorExecutionEffort: 1000,
         supervisorStoragePath: supervisorStoragePath
     )
-    
+
     snapshot = getCurrentBlockHeight()
 }
 
@@ -165,6 +165,44 @@ access(all) fun test_fix_reschedule_no_funds() {
 
     evts = Test.eventsOfType(Type<FlowALPRebalancerv1.FixedReschedule>())
     Test.assertEqual(2, evts.length)
+}
+
+// FLO-17 regression: when setRecurringConfig is called, cancel must use the OLD config's funder
+// so that pre-paid fees are refunded to the original payer, not the new funder.
+access(all) fun test_flo17_refund_goes_to_old_funder_not_new_funder() {
+    // The rebalancer was created in setup() with protocolAccount as the txFunder.
+    // A scheduled transaction with fees pre-paid from protocolAccount already exists.
+    let createdEvts = Test.eventsOfType(Type<FlowALPRebalancerPaidv1.CreatedRebalancerPaid>())
+    Test.assertEqual(1, createdEvts.length)
+    let e = createdEvts[0] as! FlowALPRebalancerPaidv1.CreatedRebalancerPaid
+
+    // Create a new funder account — this should NOT receive the refund for previously paid fees.
+    let newFunderAccount = Test.createAccount()
+    let _ = mintFlow(to: newFunderAccount, amount: 100.0)
+
+    let oldFunderBalanceBefore = getBalance(address: protocolAccount.address, vaultPublicPath: /public/flowTokenBalance)!
+    let newFunderBalanceBefore = getBalance(address: newFunderAccount.address, vaultPublicPath: /public/flowTokenBalance)!
+
+    // Switch the recurring config to use newFunderAccount as the fee payer going forward.
+    // This calls setRecurringConfig, which cancels the existing scheduled tx and refunds its fee.
+    changePaidFunder(
+        adminSigner: protocolAccount,
+        newFunderSigner: newFunderAccount,
+        uuid: e.uuid,
+        interval: 100,
+        expectFailure: false
+    )
+
+    let oldFunderBalanceAfter = getBalance(address: protocolAccount.address, vaultPublicPath: /public/flowTokenBalance)!
+    let newFunderBalanceAfter = getBalance(address: newFunderAccount.address, vaultPublicPath: /public/flowTokenBalance)!
+
+    // The pre-paid fee must be refunded to the OLD funder (protocolAccount), not the new one.
+    Test.assert(
+        oldFunderBalanceAfter > oldFunderBalanceBefore,
+        message: "FLO-17: old funder should receive refund on config change, balance before=\(oldFunderBalanceBefore) after=\(oldFunderBalanceAfter)"
+    )
+    // New funder must not receive a windfall
+    Test.assert(newFunderBalanceBefore >= newFunderBalanceAfter)
 }
 
 access(all) fun test_change_recurring_config_as_user() {
