@@ -565,9 +565,6 @@ access(all) contract FlowALPv0 {
                 !self.isPausedOrWarmup(): "Liquidations are paused by governance"
                 // position must have debt and collateral balance
             }
-            post {
-                self._borrowPosition(pid: pid).satisfiesTemporaryBalanceConstraint(): "Position \(pid) violates temporary balance constraint: only one collateral type and one debt type are allowed per position"
-            }
 
             let repayAmount = repayment.balance
             assert(repayment.getType() == debtType, message: "Vault type mismatch for repay. Repayment type is \(repayment.getType().identifier) but debt type is \(debtType.identifier)")
@@ -1283,13 +1280,6 @@ access(all) contract FlowALPv0 {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
             }
-            post {
-                // Only enforce when a new balance entry is being created.
-                // Overpayment that flips an existing Debit→Credit on the same token is allowed.
-                before(self._borrowPosition(pid: pid).getBalance(from.getType())) != nil
-                    || self._borrowPosition(pid: pid).satisfiesTemporaryBalanceConstraint():
-                    "Position \(pid) violates temporary balance constraint: only one collateral type and one debt type are allowed per position"
-            }
             // NOTE: caller must have already validated pid + token support
             let amount = from.balance
             if amount == 0.0 {
@@ -1453,12 +1443,6 @@ access(all) contract FlowALPv0 {
             }
             post {
                 !self.state.isPositionLocked(pid): "Position is not unlocked"
-                // Allow the withdrawal if the constraint was already violated before it ran
-                // (e.g. debt overpayment flipped a Debit→Credit in a prior call within the same tx).
-                // Only reject withdrawals that introduce a NEW constraint violation.
-                !before(self._borrowPosition(pid: pid).satisfiesTemporaryBalanceConstraint())
-                    || self._borrowPosition(pid: pid).satisfiesTemporaryBalanceConstraint():
-                    "Position \(pid) violates temporary balance constraint: only one collateral type and one debt type are allowed per position"
             }
             self.lockPosition(pid)
             if self.config.isDebugLogging() {
@@ -1930,9 +1914,6 @@ access(all) contract FlowALPv0 {
         access(self) fun _rebalancePositionNoLock(pid: UInt64, force: Bool) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
-            }
-            post {
-                self._borrowPosition(pid: pid).satisfiesTemporaryBalanceConstraint(): "Position \(pid) violates temporary balance constraint: only one collateral type and one debt type are allowed per position"
             }
             if self.config.isDebugLogging() {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")

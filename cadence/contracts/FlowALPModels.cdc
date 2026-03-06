@@ -2060,11 +2060,6 @@ access(all) contract FlowALPModels {
         /// Sets the top-up source. See borrowTopUpSource for additional details.
         /// If nil, the Pool will not pull underflown value, and liquidation may occur.
         access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source}?)
-
-        /// Temporary constraint: one collateral type and one debt type per position.
-        /// Used as a post-condition on all functions that mutate position balances.
-        /// This restriction will be lifted in a future protocol version.
-        access(all) view fun satisfiesTemporaryBalanceConstraint(): Bool
     }
 
     /// InternalPositionImplv1 is the concrete implementation of InternalPosition.
@@ -2232,22 +2227,6 @@ access(all) contract FlowALPModels {
         /// Possibly an attack vector on automated rebalancing, if multiple positions are rebalanced in the same transaction.
         access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source}?) {
             self.topUpSource = source
-        }
-
-        access(all) view fun satisfiesTemporaryBalanceConstraint(): Bool {
-            var creditCount: Int = 0
-            var debitCount: Int = 0
-            for key in self.balances.keys {
-                let balance = self.balances[key]!
-                if balance.scaledBalance > UFix128(0) {
-                    if balance.direction == BalanceDirection.Credit {
-                        creditCount = creditCount + 1
-                    } else {
-                        debitCount = debitCount + 1
-                    }
-                }
-            }
-            return creditCount <= 1 && debitCount <= 1
         }
     }
 
