@@ -511,7 +511,7 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
     let liqRes = _executeTransaction(
-        "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
+        "../tests/transactions/flow-alp/helpers/manual_liquidation_chosen_vault.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
@@ -567,7 +567,7 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
     let liqRes = _executeTransaction(
-        "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
+        "../tests/transactions/flow-alp/helpers/manual_liquidation_chosen_vault.cdc",
         [pid, Type<@MOET.Vault>().identifier, MOCK_YIELD_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
@@ -622,7 +622,7 @@ fun testManualLiquidation_unsupportedDebtType() {
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
     let liqRes = _executeTransaction(
-        "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
+        "../tests/transactions/flow-alp/helpers/manual_liquidation_chosen_vault.cdc",
         [pid, MOCK_YIELD_TOKEN_IDENTIFIER, MOCK_YIELD_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )

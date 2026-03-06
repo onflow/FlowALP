@@ -1,6 +1,7 @@
 import Test
 import "FlowALPv0"
 import "FlowALPModels"
+import "FlowALPEvents"
 import "MOET"
 
 /* --- Global test constants --- */
@@ -76,7 +77,7 @@ access(all)
 fun grantBetaPoolParticipantAccess(_ admin: Test.TestAccount, _ grantee: Test.TestAccount) {
     let signers = admin.address == grantee.address ? [admin] : [admin, grantee]
     let betaTxn = Test.Transaction(
-        code: Test.readFile("./transactions/flow-alp/pool-management/03_grant_beta.cdc"),
+        code: Test.readFile("./transactions/flow-alp/setup/grant_beta_cap.cdc"),
         authorizers: [admin.address, grantee.address],
         signers: signers,
         arguments: []
@@ -394,7 +395,7 @@ fun getIsLiquidatable(pid: UInt64): Bool {
 access(all)
 fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String, beFailed: Bool) {
     let createRes = _executeTransaction(
-        "transactions/flow-alp/pool-factory/create_and_store_pool.cdc",
+        "./transactions/flow-alp/setup/create_and_store_pool.cdc",
         [defaultTokenIdentifier],
         signer
     )
@@ -531,7 +532,7 @@ fun setPoolPauseState(
     pause: Bool
 ): Test.TransactionResult {
     return _executeTransaction(
-        "./transactions/flow-alp/pool-governance/set_pool_paused.cdc",
+        "./transactions/flow-alp/helpers/set_pool_paused.cdc",
         [pause],
         signer
     )
@@ -676,7 +677,7 @@ fun setInsuranceSwapper(
     priceRatio: UFix64,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-alp/pool-governance/set_insurance_swapper_mock.cdc",
+        "./transactions/flow-alp/helpers/set_insurance_swapper_mock.cdc",
         [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, MOET_TOKEN_IDENTIFIER],
         signer
     )
@@ -689,7 +690,7 @@ fun removeInsuranceSwapper(
     tokenTypeIdentifier: String,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-alp/pool-governance/remove_insurance_swapper.cdc",
+        "./transactions/flow-alp/helpers/remove_insurance_swapper.cdc",
         [ tokenTypeIdentifier],
         signer
     )
@@ -932,4 +933,14 @@ fun getCreditBalanceForType(details: FlowALPModels.PositionDetails, vaultType: T
         }
     }
     return 0.0
+}
+
+access(all)
+fun getLastPositonId(): UInt64 {
+    var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    if openEvents.length > 0 {
+        let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+        return pid
+    }
+    return 0
 }
