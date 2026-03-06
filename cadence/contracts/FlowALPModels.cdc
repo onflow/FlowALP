@@ -248,42 +248,30 @@ access(all) contract FlowALPModels {
     /// TokenReserveHandler
     ///
     /// Interface for handling token reserve operations. Different token types may require
-    /// different handling for deposits and withdrawals. For example, MOET tokens are minted
-    /// on debt withdrawals and burned on repayments, while standard tokens use reserve vaults.
+    /// different handling for deposits and withdrawals. For example, MOET tokens are always
+    /// burned on deposits and minted on withdrawals, while standard tokens use reserve vaults.
     access(all) struct interface TokenReserveHandler {
         /// Returns the token type this handler manages
         access(all) view fun getTokenType(): Type
 
-        /// Deposits collateral (always to reserves, including MOET)
-        access(all) fun depositCollateral(
+        /// Deposits tokens (BURNS for MOET, deposits to reserves for other tokens)
+        access(all) fun deposit(
             state: auth(EImplementation) &{PoolState},
             from: @{FungibleToken.Vault}
         ): UFix64
 
-        /// Deposits repayment (to reserves for most tokens, BURNS for MOET)
-        access(all) fun depositRepayment(
-            state: auth(EImplementation) &{PoolState},
-            from: @{FungibleToken.Vault}
-        ): UFix64
-
-        /// Withdraws debt (from reserves for most tokens, MINTS for MOET)
-        access(all) fun withdrawDebt(
+        /// Withdraws tokens (MINTS for MOET, withdraws from reserves for other tokens)
+        access(all) fun withdraw(
             state: auth(EImplementation) &{PoolState},
             amount: UFix64,
             minterRef: &MOET.Minter?
-        ): @{FungibleToken.Vault}
-
-        /// Withdraws collateral (always from reserves, including MOET)
-        access(all) fun withdrawCollateral(
-            state: auth(EImplementation) &{PoolState},
-            amount: UFix64
         ): @{FungibleToken.Vault}
     }
 
     /// StandardTokenReserveHandler
     ///
     /// Standard implementation of TokenReserveHandler that interacts with reserve vaults
-    /// for all four operations (deposit/withdraw collateral and debt).
+    /// for both deposit and withdraw operations.
     access(all) struct StandardTokenReserveHandler: TokenReserveHandler {
         access(self) let tokenType: Type
 
@@ -295,7 +283,7 @@ access(all) contract FlowALPModels {
             return self.tokenType
         }
 
-        access(all) fun depositCollateral(
+        access(all) fun deposit(
             state: auth(EImplementation) &{PoolState},
             from: @{FungibleToken.Vault}
         ): UFix64 {
@@ -305,28 +293,10 @@ access(all) contract FlowALPModels {
             return amount
         }
 
-        access(all) fun depositRepayment(
-            state: auth(EImplementation) &{PoolState},
-            from: @{FungibleToken.Vault}
-        ): UFix64 {
-            let amount = from.balance
-            let reserveVault = state.borrowOrCreateReserve(self.tokenType)
-            reserveVault.deposit(from: <-from)
-            return amount
-        }
-
-        access(all) fun withdrawDebt(
+        access(all) fun withdraw(
             state: auth(EImplementation) &{PoolState},
             amount: UFix64,
             minterRef: &MOET.Minter?
-        ): @{FungibleToken.Vault} {
-            let reserveVault = state.borrowOrCreateReserve(self.tokenType)
-            return <- reserveVault.withdraw(amount: amount)
-        }
-
-        access(all) fun withdrawCollateral(
-            state: auth(EImplementation) &{PoolState},
-            amount: UFix64
         ): @{FungibleToken.Vault} {
             let reserveVault = state.borrowOrCreateReserve(self.tokenType)
             return <- reserveVault.withdraw(amount: amount)
@@ -336,51 +306,32 @@ access(all) contract FlowALPModels {
     /// MoetTokenReserveHandler
     ///
     /// Special implementation of TokenReserveHandler for MOET tokens.
-    /// - Collateral deposits/withdrawals use reserve vaults (standard behavior)
-    /// - Debt repayments BURN the MOET tokens (reducing supply)
-    /// - Debt withdrawals MINT new MOET tokens (increasing supply)
+    /// - Deposits always BURN the MOET tokens (reducing supply)
+    /// - Withdrawals always MINT new MOET tokens (increasing supply)
     access(all) struct MoetTokenReserveHandler: TokenReserveHandler {
 
         access(all) view fun getTokenType(): Type {
             return Type<@MOET.Vault>()
         }
 
-        access(all) fun depositCollateral(
+        access(all) fun deposit(
             state: auth(EImplementation) &{PoolState},
             from: @{FungibleToken.Vault}
         ): UFix64 {
-            let amount = from.balance
-            let reserveVault = state.borrowOrCreateReserve(Type<@MOET.Vault>())
-            reserveVault.deposit(from: <-from)
-            return amount
-        }
-
-        access(all) fun depositRepayment(
-            state: auth(EImplementation) &{PoolState},
-            from: @{FungibleToken.Vault}
-        ): UFix64 {
-            // Repayments burn MOET tokens to reduce supply
+            // All deposits burn MOET tokens to reduce supply
             let amount = from.balance
             Burner.burn(<-from)
             return amount
         }
 
-        access(all) fun withdrawDebt(
+        access(all) fun withdraw(
             state: auth(EImplementation) &{PoolState},
             amount: UFix64,
             minterRef: &MOET.Minter?
         ): @{FungibleToken.Vault} {
-            // Debt withdrawals mint new MOET tokens
-            assert(minterRef != nil, message: "MOET Minter reference required for debt withdrawal")
+            // All withdrawals mint new MOET tokens
+            assert(minterRef != nil, message: "MOET Minter reference required for withdrawal")
             return <- minterRef!.mintTokens(amount: amount)
-        }
-
-        access(all) fun withdrawCollateral(
-            state: auth(EImplementation) &{PoolState},
-            amount: UFix64
-        ): @{FungibleToken.Vault} {
-            let reserveVault = state.borrowOrCreateReserve(Type<@MOET.Vault>())
-            return <- reserveVault.withdraw(amount: amount)
         }
     }
 

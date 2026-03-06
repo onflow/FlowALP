@@ -571,7 +571,7 @@ access(all) contract FlowALPv0 {
             // Use reserve handler to deposit repayment (burns MOET, deposits to reserves for other tokens)
             let repayReserveOps = self.state.getTokenState(debtType)!.getReserveOperations()
             let repayStateRef = &self.state as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolState}
-            repayReserveOps.depositRepayment(state: repayStateRef, from: <-repayment)
+            repayReserveOps.deposit(state: repayStateRef, from: <-repayment)
 
             // Reduce borrower's debt position by repayAmount
             let position = self._borrowPosition(pid: pid)
@@ -1349,14 +1349,10 @@ access(all) contract FlowALPv0 {
             // Only the accepted amount consumes capacity; queued portions will consume capacity when processed later
             tokenState.consumeDepositCapacity(acceptedAmount, pid: pid)
 
-            // Use reserve handler to deposit (burns MOET repayments, deposits to reserves for collateral/other tokens)
+            // Use reserve handler to deposit (burns MOET, deposits to reserves for other tokens)
             let depositReserveOps = self.state.getTokenState(type)!.getReserveOperations()
             let depositStateRef = &self.state as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolState}
-            if isRepayment {
-                depositReserveOps.depositRepayment(state: depositStateRef, from: <-from)
-            } else {
-                depositReserveOps.depositCollateral(state: depositStateRef, from: <-from)
-            }
+            depositReserveOps.deposit(state: depositStateRef, from: <-from)
 
             self._queuePositionForUpdateIfNecessary(pid: pid)
 
@@ -1576,23 +1572,14 @@ access(all) contract FlowALPv0 {
             // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
 
-            // Withdraw via reserve handler (handles MOET mint/burn vs standard reserve operations)
+            // Withdraw via reserve handler (mints MOET, withdraws from reserves for other tokens)
             let reserveOps = self.state.getTokenState(type)!.getReserveOperations()
             let stateRef = &self.state as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolState}
-            var vault: @{FungibleToken.Vault}? <- nil
-            if isDebtWithdrawal {
-                vault <-! reserveOps.withdrawDebt(
-                    state: stateRef,
-                    amount: amount,
-                    minterRef: FlowALPv0._borrowMOETMinter()
-                )
-            } else {
-                vault <-! reserveOps.withdrawCollateral(
-                    state: stateRef,
-                    amount: amount
-                )
-            }
-            let unwrappedVault <- vault!
+            let unwrappedVault <- reserveOps.withdraw(
+                state: stateRef,
+                amount: amount,
+                minterRef: FlowALPv0._borrowMOETMinter()
+            )
 
             FlowALPEvents.emitWithdrawn(
                 pid: pid,
@@ -1994,16 +1981,14 @@ access(all) contract FlowALPv0 {
                             tokenState: tokenState
                         )
 
-                        // Withdraw debt via reserve handler (handles MOET mint vs standard reserve withdrawal)
+                        // Withdraw via reserve handler (mints MOET, withdraws from reserves for other tokens)
                         let sinkReserveOps = self.state.getTokenState(sinkType)!.getReserveOperations()
                         let sinkStateRef = &self.state as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolState}
-                        var sinkVault: @{FungibleToken.Vault}? <- nil
-                        sinkVault <-! sinkReserveOps.withdrawDebt(
+                        let unwrappedSinkVault <- sinkReserveOps.withdraw(
                             state: sinkStateRef,
                             amount: sinkAmount,
                             minterRef: FlowALPv0._borrowMOETMinter()
                         )
-                        let unwrappedSinkVault <- sinkVault!
 
                         FlowALPEvents.emitRebalanced(
                             pid: pid,
