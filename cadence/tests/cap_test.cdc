@@ -44,23 +44,13 @@ import "test_helpers.cdc"
 //   PROTOCOL_ACCOUNT         — Pool owner; exercises EImplementation directly via storage borrow.
 //
 // Negative tests:
-//   Cadence entitlements for Pool capabilities (EParticipant, EPosition, ERebalance,
-//   EGovernance, EImplementation) are enforced by the type checker at check time.
-//   A transaction that calls an entitlement-gated method without holding that entitlement
-//   is rejected before it can be submitted — no runtime negative test is needed.
-//
-//   Runtime negative tests are present where access is enforced at runtime, not statically:
-//   1. Cap not issued — a user without a cap at a given storage path gets nil from borrow
-//      and panics. Representative case: testEPositionAdmin_SetTargetHealth_Neg
-//      (ePositionUser has no PositionManager).
-//   2. Ownership check — a user with a PositionManager requests a pid not in their manager.
-//      Representative case: testEPositionAdmin_BorrowUnauthorized_Fails.
-//
+//   Cadence entitlements for Pool capabilities are enforced by the Cadence type checker.
+//   Only borrowAuthorizedPosition has a runtime enforcement (it panics if the pid is not in
+//   the signer's PositionManager), so testEPositionAdmin_BorrowUnauthorizedPosition_Fails tests that path.
 // =============================================================================
 
 
 // Position created for PROTOCOL_ACCOUNT in setup — used as target for EPosition tests.
-// Pool.nextPositionID starts at 0; the first createPosition call produces pid=0.
 access(all) var setupPid: UInt64 = 0
 access(all) var ePositionAdminPid: UInt64 = 0
 
@@ -273,7 +263,8 @@ fun testEParticipant_CreateAndDeposit() {
 //
 // Matrix rows: createPosition (EParticipant), depositToPosition (EParticipant),
 //              withdraw [OVERGRANT], withdrawAndPull [OVERGRANT], depositAndPush [OVERGRANT],
-//              lockPosition [OVERGRANT], unlockPosition [OVERGRANT], rebalancePosition [OVERGRANT]
+//              lockPosition [OVERGRANT], unlockPosition [OVERGRANT], rebalancePosition [OVERGRANT],
+//              rebalance (Position) [OVERGRANT — same entry point as rebalancePosition]
 //
 // The [OVERGRANT] rows confirm the security issue: a normal beta user can operate on
 // positions they do not own (setupPid is owned by PROTOCOL_ACCOUNT).
@@ -460,9 +451,12 @@ fun testERebalance_RebalancePosition() {
     Test.expect(result, Test.beSucceeded())
 }
 
-/// ERebalance cap exercises Pool.rebalancePosition, which is the target of Position.rebalance().
-/// The contract fix (EPosition | ERebalance on Position.pool) ensures the internal call chain
-/// for Position.rebalance() works under ERebalance. Both matrix rows share this entry point.
+/// Matrix row: rebalance (Position) — Position.rebalance() delegates to Pool.rebalancePosition()
+/// internally, so both matrix rows share the same Pool-level entry point. There is no separate
+/// transaction that calls Position.rebalance() directly; this test confirms the ERebalance
+/// entitlement is sufficient for the rebalancePosition call that Position.rebalance() invokes.
+/// (The contract fix changes Position.pool to Capability<auth(EPosition | ERebalance) &Pool>
+/// so the internal call chain accepts ERebalance callers.)
 access(all)
 fun testERebalance_PositionRebalance() {
     safeReset()
