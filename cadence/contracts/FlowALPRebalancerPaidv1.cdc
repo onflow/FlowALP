@@ -114,12 +114,11 @@ access(all) contract FlowALPRebalancerPaidv1 {
     access(all) fun fixReschedule(
         uuid: UInt64,
     ): Bool {
-        let rebalancer = FlowALPRebalancerPaidv1.borrowRebalancer(uuid: uuid)
-        if rebalancer == nil {
-            return false
+        if let rebalancer = FlowALPRebalancerPaidv1.borrowRebalancer(uuid: uuid) {
+            rebalancer.fixReschedule()
+            return true
         }
-        rebalancer!.fixReschedule()
-        return true
+        return false
     }
 
     /// Storage path where a user would store their RebalancerPaid for the given uuid (convention for discovery).
