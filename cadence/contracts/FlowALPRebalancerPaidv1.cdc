@@ -8,10 +8,12 @@ import "FlowTransactionScheduler"
 // This contract hosts scheduled rebalancers on behalf of users. Anyone may call createPaidRebalancer
 // (permissionless): pass a position rebalance capability and receive a lightweight RebalancerPaid
 // resource. The contract stores the underlying Rebalancer, wires it to the FlowTransactionScheduler,
-// and applies defaultRecurringConfig (interval, priority, txFunder, etc.). The admin's txFunder in
-// that config is used to pay for rebalance transactions. Users can fixReschedule (via their
-// RebalancerPaid) or delete RebalancerPaid to stop. Admins control the default config and can update
-// or remove individual paid rebalancers. See RebalanceArchitecture.md.
+// and applies defaultRecurringConfig (interval, priority, txFunder, etc.).
+// The admin's txFunder is used to pay for rebalance transactions. We rely on 2 things to limit how funds
+// can be spent indirectly by used by creating rebalancers in this way:
+// 1. This contract enforces that only one rebalancer can be created per position.
+// 2. FlowALP enforces a minimum economic value per position.
+// Users can fixReschedule (via their RebalancerPaid) or delete RebalancerPaid to stop. Admins control the default config and can update or remove individual paid rebalancers. See RebalanceArchitecture.md.
 access(all) contract FlowALPRebalancerPaidv1 {
 
     access(all) event CreatedRebalancerPaid(positionID: UInt64)
