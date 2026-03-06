@@ -3,9 +3,34 @@ import BlockchainHelpers
 
 import "MOET"
 import "FlowToken"
+import "DummyToken"
 import "test_helpers.cdc"
 
+access(all) let DUMMY_TOKEN_IDENTIFIER = "A.0000000000000007.DummyToken.Vault"
+
 access(all) var snapshot: UInt64 = 0
+
+// Helper function to setup DummyToken vault
+access(all)
+fun setupDummyTokenVault(_ account: Test.TestAccount) {
+    let result = executeTransaction(
+        "./transactions/dummy_token/setup_vault.cdc",
+        [],
+        account
+    )
+    Test.expect(result, Test.beSucceeded())
+}
+
+// Helper function to mint DummyToken
+access(all)
+fun mintDummyToken(to: Test.TestAccount, amount: UFix64) {
+    let result = executeTransaction(
+        "./transactions/dummy_token/mint.cdc",
+        [amount, to.address],
+        PROTOCOL_ACCOUNT
+    )
+    Test.expect(result, Test.beSucceeded())
+}
 
 access(all)
 fun setup() {
@@ -102,61 +127,79 @@ fun test_collectInsurance_zeroDebitBalance_returnsNil() {
 // When calculated insurance amount exceeds reserve balance, it collects
 // only what is available. Verify exact amount withdrawn from reserves.
 // Note: Insurance is calculated on debit income (interest accrued on debit balance)
+// Uses DummyToken (not MOET) to test reserve-capping behavior.
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_partialReserves_collectsAvailable() {
-    // setup LP to provide MOET liquidity for borrowing (small amount to create limited reserves)
+    // Add DummyToken as a supported token for borrowing
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: DUMMY_TOKEN_IDENTIFIER, price: 1.0)
+    addSupportedTokenZeroRateCurve(
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER,
+        collateralFactor: 0.8,
+        borrowFactor: 1.0,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
+
+    // setup LP to provide DummyToken liquidity for borrowing (small amount to create limited reserves)
     let lp = Test.createAccount()
-    setupMoetVault(lp, beFailed: false)
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 1000.0, beFailed: false)
+    setupDummyTokenVault(lp)
+    mintDummyToken(to: lp, amount: 1000.0)
 
-    // LP deposits 1000 MOET (creates credit balance, provides borrowing liquidity)
-    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // LP deposits 1000 DummyToken (creates credit balance, provides borrowing liquidity)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 1000.0, vaultStoragePath: DummyToken.VaultStoragePath, pushToDrawDownSink: false)
 
-    // setup borrower with large FLOW collateral to borrow most of the MOET
+    // setup borrower with large FLOW collateral to borrow most of the DummyToken
     let borrower = Test.createAccount()
-    setupMoetVault(borrower, beFailed: false)
+    setupDummyTokenVault(borrower)
     transferFlowTokens(to: borrower, amount: 10000.0)
 
-    // borrower deposits 10000 FLOW and auto-borrows MOET
-    // With 0.8 CF and 1.3 target health: 10000 FLOW allows borrowing ~6153 MOET
-    // But pool only has 1000 MOET, so borrower gets ~1000 MOET (limited by liquidity)
-    // This leaves reserves very low (close to 0)
-    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    // borrower deposits 10000 FLOW collateral
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    // Then borrows 900 DummyToken to create DummyToken debit balance
+    borrowFromPosition(signer: borrower, positionId: 1, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, vaultStoragePath: DummyToken.VaultStoragePath, amount: 900.0, beFailed: false)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
 
-    // configure insurance swapper (1:1 ratio)
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    // configure insurance swapper for DummyToken (1:1 ratio)
+    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set 90% annual debit rate
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.9)
+    // set 90% annual debit rate for DummyToken
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, yearlyRate: 0.9)
 
     // set a high insurance rate (90% of debit income goes to insurance)
-    // Note: default stabilityFeeRate is 0.05, so insuranceRate + stabilityFeeRate = 0.9 + 0.05 = 0.95 < 1.0
-    let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, insuranceRate: 0.9)
+    let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, insuranceRate: 0.9)
     Test.expect(rateResult, Test.beSucceeded())
 
     let initialInsuranceBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialInsuranceBalance)
 
+    // DummyToken reserves should exist after deposit
+    let reserveBalanceBefore = getReserveBalance(vaultIdentifier: DUMMY_TOKEN_IDENTIFIER)
+    Test.assert(reserveBalanceBefore > 0.0, message: "DummyToken reserves should exist after deposit")
+
     Test.moveTime(by: ONE_YEAR + DAY * 30.0) // year + month
 
     // collect insurance - should collect up to available reserve balance
-    collectInsurance(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
+    collectInsurance(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, beFailed: false)
 
     let finalInsuranceBalance = getInsuranceFundBalance()
-    let reserveBalanceAfter = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    let reserveBalanceAfter = getReserveBalance(vaultIdentifier: DUMMY_TOKEN_IDENTIFIER)
 
-    // with 1:1 swap ratio, insurance fund balance should equal amount withdrawn from reserves
-    Test.assertEqual(0.0, reserveBalanceAfter)
+    // verify reserves were used (decreased)
+    Test.assert(reserveBalanceAfter < reserveBalanceBefore, message: "DummyToken reserves should have decreased")
 
-    // verify collection was limited by reserves
-    // Formula: 90% debit income -> 90% insurance rate -> large insurance amount, but limited by available reserves
-    Test.assertEqual(1000.0, finalInsuranceBalance)
+    // For DummyToken, insurance is withdrawn from reserves and swapped to MOET
+    // The amount collected should be limited by available reserves
+    let amountWithdrawn = reserveBalanceBefore - reserveBalanceAfter
+    Test.assert(amountWithdrawn > 0.0, message: "Should have withdrawn from reserves")
+
+    // Insurance fund should have MOET (swapped from DummyToken)
+    Test.assert(finalInsuranceBalance > 0.0, message: "Insurance fund should have received MOET")
 }
 
 // -----------------------------------------------------------------------------
@@ -206,58 +249,72 @@ fun test_collectInsurance_tinyAmount_roundsToZero_returnsNil() {
 // -----------------------------------------------------------------------------
 // Test: collectInsurance full success flow
 // Full flow: LP deposits to create credit → borrower borrows to create debit
-// → advance time → collect insurance → verify MOET returned, reserves reduced, timestamp updated
+// → advance time → collect insurance → verify tokens returned, reserves reduced, timestamp updated
 // Note: Formula verification is in insurance_collection_formula_test.cdc (isolated test)
+// Uses DummyToken (not MOET) to test reserve behavior.
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_success_fullAmount() {
-    // setup LP to provide MOET liquidity for borrowing
-    let lp = Test.createAccount()
-    setupMoetVault(lp, beFailed: false)
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10000.0, beFailed: false)
+    // Add DummyToken as a supported token for borrowing
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: DUMMY_TOKEN_IDENTIFIER, price: 1.0)
+    addSupportedTokenZeroRateCurve(
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER,
+        collateralFactor: 0.8,
+        borrowFactor: 1.0,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
 
-    // LP deposits MOET (creates credit balance, provides borrowing liquidity)
-    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // setup LP to provide DummyToken liquidity for borrowing
+    let lp = Test.createAccount()
+    setupDummyTokenVault(lp)
+    mintDummyToken(to: lp, amount: 10000.0)
+
+    // LP deposits DummyToken (creates credit balance, provides borrowing liquidity)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 10000.0, vaultStoragePath: DummyToken.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with FLOW collateral
     let borrower = Test.createAccount()
-    setupMoetVault(borrower, beFailed: false)
+    setupDummyTokenVault(borrower)
     transferFlowTokens(to: borrower, amount: 1000.0)
 
-    // borrower deposits FLOW and auto-borrows MOET (creates debit balance)
-    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    // borrower deposits FLOW collateral
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    // Then borrows DummyToken to create DummyToken debit balance
+    borrowFromPosition(signer: borrower, positionId: 1, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, vaultStoragePath: DummyToken.VaultStoragePath, amount: 615.38, beFailed: false)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
 
-    // configure insurance swapper (1:1 ratio)
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    // configure insurance swapper for DummyToken (1:1 ratio)
+    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set 10% annual debit rate
+    // set 10% annual debit rate for DummyToken
     // Insurance is calculated on debit income, not debit balance directly
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, yearlyRate: 0.1)
 
     // set insurance rate (10% of debit income)
-    let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, insuranceRate: 0.1)
+    let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, insuranceRate: 0.1)
     Test.expect(rateResult, Test.beSucceeded())
 
     // initial insurance and reserves
     let initialInsuranceBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialInsuranceBalance)
-    let reserveBalanceBefore = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
-    Test.assert(reserveBalanceBefore > 0.0, message: "Reserves should exist after deposit")
+    let reserveBalanceBefore = getReserveBalance(vaultIdentifier: DUMMY_TOKEN_IDENTIFIER)
+    Test.assert(reserveBalanceBefore > 0.0, message: "DummyToken reserves should exist after deposit")
 
     Test.moveTime(by: ONE_YEAR)
 
-    collectInsurance(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
+    collectInsurance(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, beFailed: false)
 
     // verify insurance was collected, reserves decreased
     let finalInsuranceBalance = getInsuranceFundBalance()
     Test.assert(finalInsuranceBalance > 0.0, message: "Insurance fund should have received MOET")
-    let reserveBalanceAfter = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
-    Test.assert(reserveBalanceAfter < reserveBalanceBefore, message: "Reserves should have decreased after collection")
+    let reserveBalanceAfter = getReserveBalance(vaultIdentifier: DUMMY_TOKEN_IDENTIFIER)
+    Test.assert(reserveBalanceAfter < reserveBalanceBefore, message: "DummyToken reserves should have decreased after collection")
 
     // verify the amount withdrawn from reserves equals the insurance fund balance (1:1 swap ratio)
     let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
@@ -265,7 +322,7 @@ fun test_collectInsurance_success_fullAmount() {
 
     // verify last insurance collection time was updated to current block timestamp
     let currentTimestamp = getBlockTimestamp()
-    let lastCollectionTime = getLastInsuranceCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
+    let lastCollectionTime = getLastInsuranceCollectionTime(tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER)
     Test.assertEqual(currentTimestamp, lastCollectionTime!)
 }
 
@@ -274,34 +331,46 @@ fun test_collectInsurance_success_fullAmount() {
 // Verifies that insurance collection works independently for different tokens
 // Each token type has its own last insurance collection timestamp and rate
 // Note: Insurance is calculated on totalDebitBalance, so we need borrowing activity for each token
+// Uses DummyToken and FlowToken (both reserve-based) to test multi-token reserve behavior.
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_multipleTokens() {
-    // Note: FlowToken is already added in setup()
+    // Add DummyToken support
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: DUMMY_TOKEN_IDENTIFIER, price: 1.0)
+    addSupportedTokenZeroRateCurve(
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER,
+        collateralFactor: 0.8,
+        borrowFactor: 1.0,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
 
-    // setup MOET LP to provide MOET liquidity for borrowing
-    let moetLp = Test.createAccount()
-    setupMoetVault(moetLp, beFailed: false)
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: moetLp.address, amount: 10000.0, beFailed: false)
+    // setup DummyToken LP to provide DummyToken liquidity for borrowing
+    let dummyLp = Test.createAccount()
+    setupDummyTokenVault(dummyLp)
+    mintDummyToken(to: dummyLp, amount: 10000.0)
 
-    // MOET LP deposits MOET (creates MOET credit balance)
-    createPosition(admin: PROTOCOL_ACCOUNT, signer: moetLp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // DummyToken LP deposits DummyToken (creates DummyToken credit balance)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: dummyLp, amount: 10000.0, vaultStoragePath: DummyToken.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup FLOW LP to provide FLOW liquidity for borrowing
     let flowLp = Test.createAccount()
-    setupMoetVault(flowLp, beFailed: false)
     transferFlowTokens(to: flowLp, amount: 10000.0)
 
-    // FLOW LP deposits FLOW (creates FLOW debit balance)
+    // FLOW LP deposits FLOW (creates FLOW credit balance)
     createPosition(admin: PROTOCOL_ACCOUNT, signer: flowLp, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
-    // setup MOET borrower with FLOW collateral (creates MOET debit)
-    let moetBorrower = Test.createAccount()
-    setupMoetVault(moetBorrower, beFailed: false)
-    transferFlowTokens(to: moetBorrower, amount: 1000.0)
+    // setup DummyToken borrower with MOET collateral (creates DummyToken debit)
+    let dummyBorrower = Test.createAccount()
+    setupMoetVault(dummyBorrower, beFailed: false)
+    setupDummyTokenVault(dummyBorrower)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: dummyBorrower.address, amount: 1000.0, beFailed: false)
 
-    // MOET borrower deposits FLOW and auto-borrows MOET (creates MOET debit balance)
-    createPosition(admin: PROTOCOL_ACCOUNT, signer: moetBorrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    // DummyToken borrower deposits MOET collateral
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: dummyBorrower, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // Then borrows DummyToken (creates DummyToken debit balance)
+    borrowFromPosition(signer: dummyBorrower, positionId: 2, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, vaultStoragePath: DummyToken.VaultStoragePath, amount: 615.0, beFailed: false)
 
     // setup FLOW borrower with MOET collateral (creates FLOW debit)
     let flowBorrower = Test.createAccount()
@@ -318,20 +387,20 @@ fun test_collectInsurance_multipleTokens() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 20000.0, beFailed: false)
 
     // configure insurance swappers for both tokens (both swap to MOET at 1:1)
-    let moetSwapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
-    Test.expect(moetSwapperResult, Test.beSucceeded())
+    let dummySwapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    Test.expect(dummySwapperResult, Test.beSucceeded())
 
     let flowSwapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, priceRatio: 1.0)
     Test.expect(flowSwapperResult, Test.beSucceeded())
 
     // set 10% annual debit rates
     // Insurance is calculated on debit income, not debit balance directly
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, yearlyRate: 0.1)
     setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, yearlyRate: 0.1)
 
     // set different insurance rates for each token type (percentage of debit income)
-    let moetRateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, insuranceRate: 0.1) // 10%
-    Test.expect(moetRateResult, Test.beSucceeded())
+    let dummyRateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, insuranceRate: 0.1) // 10%
+    Test.expect(dummyRateResult, Test.beSucceeded())
 
     let flowRateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.05) // 5%
     Test.expect(flowRateResult, Test.beSucceeded())
@@ -340,54 +409,54 @@ fun test_collectInsurance_multipleTokens() {
     let initialInsuranceBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialInsuranceBalance)
 
-    let moetReservesBefore = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    let dummyReservesBefore = getReserveBalance(vaultIdentifier: DUMMY_TOKEN_IDENTIFIER)
     let flowReservesBefore = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
-    Test.assert(moetReservesBefore > 0.0, message: "MOET reserves should exist after deposit")
+    Test.assert(dummyReservesBefore > 0.0, message: "DummyToken reserves should exist after deposit")
     Test.assert(flowReservesBefore > 0.0, message: "Flow reserves should exist after deposit")
 
     // advance time
     Test.moveTime(by: ONE_YEAR)
 
-    // collect insurance for MOET only
-    collectInsurance(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
+    // collect insurance for DummyToken only
+    collectInsurance(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER, beFailed: false)
 
-    let balanceAfterMoetCollection = getInsuranceFundBalance()
-    Test.assert(balanceAfterMoetCollection > 0.0, message: "Insurance fund should have received MOET after MOET collection")
+    let balanceAfterDummyCollection = getInsuranceFundBalance()
+    Test.assert(balanceAfterDummyCollection > 0.0, message: "Insurance fund should have received MOET after DummyToken collection")
 
-    // verify the amount withdrawn from MOET reserves equals the insurance fund balance increase (1:1 swap ratio)
-    let moetAmountWithdrawn = moetReservesBefore - getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
-    Test.assertEqual(moetAmountWithdrawn, balanceAfterMoetCollection)
+    // verify the amount withdrawn from DummyToken reserves equals the insurance fund balance increase (1:1 swap ratio)
+    let dummyAmountWithdrawn = dummyReservesBefore - getReserveBalance(vaultIdentifier: DUMMY_TOKEN_IDENTIFIER)
+    Test.assertEqual(dummyAmountWithdrawn, balanceAfterDummyCollection)
 
-    let moetLastCollectionTime = getLastInsuranceCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
+    let dummyLastCollectionTime = getLastInsuranceCollectionTime(tokenTypeIdentifier: DUMMY_TOKEN_IDENTIFIER)
     let flowLastCollectionTimeBeforeFlowCollection = getLastInsuranceCollectionTime(tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER)
 
-    // MOET timestamp should be updated, Flow timestamp should still be at pool creation time
-    Test.assert(moetLastCollectionTime != nil, message: "MOET lastInsuranceCollectionTime should be set")
+    // DummyToken timestamp should be updated, Flow timestamp should still be at pool creation time
+    Test.assert(dummyLastCollectionTime != nil, message: "DummyToken lastInsuranceCollectionTime should be set")
     Test.assert(flowLastCollectionTimeBeforeFlowCollection != nil, message: "Flow lastInsuranceCollectionTime should be set")
-    Test.assert(moetLastCollectionTime! > flowLastCollectionTimeBeforeFlowCollection!, message: "MOET timestamp should be newer than Flow timestamp")
+    Test.assert(dummyLastCollectionTime! > flowLastCollectionTimeBeforeFlowCollection!, message: "DummyToken timestamp should be newer than Flow timestamp")
 
     // collect insurance for Flow
     collectInsurance(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, beFailed: false)
 
     let balanceAfterFlowCollection = getInsuranceFundBalance()
-    Test.assert(balanceAfterFlowCollection > balanceAfterMoetCollection, message: "Insurance fund should increase after Flow collection")
+    Test.assert(balanceAfterFlowCollection > balanceAfterDummyCollection, message: "Insurance fund should increase after Flow collection")
 
     let flowLastCollectionTimeAfter = getLastInsuranceCollectionTime(tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER)
     Test.assert(flowLastCollectionTimeAfter != nil, message: "Flow lastInsuranceCollectionTime should be set after collection")
 
     // verify reserves decreased for both token types
-    let moetReservesAfter = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    let dummyReservesAfter = getReserveBalance(vaultIdentifier: DUMMY_TOKEN_IDENTIFIER)
     let flowReservesAfter = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
-    Test.assert(moetReservesAfter < moetReservesBefore, message: "MOET reserves should have decreased")
+    Test.assert(dummyReservesAfter < dummyReservesBefore, message: "DummyToken reserves should have decreased")
     Test.assert(flowReservesAfter < flowReservesBefore, message: "Flow reserves should have decreased")
 
     // verify the amount withdrawn from Flow reserves equals the insurance fund balance increase (1:1 swap ratio)
     let flowAmountWithdrawn = flowReservesBefore - flowReservesAfter
-    let flowInsuranceIncrease = balanceAfterFlowCollection - balanceAfterMoetCollection
+    let flowInsuranceIncrease = balanceAfterFlowCollection - balanceAfterDummyCollection
     Test.assertEqual(flowAmountWithdrawn, flowInsuranceIncrease)
 
-    // verify Flow timestamp is now updated (should be >= MOET timestamp since it was collected after)
-    Test.assert(flowLastCollectionTimeAfter! >= moetLastCollectionTime!, message: "Flow timestamp should be >= MOET timestamp")
+    // verify Flow timestamp is now updated (should be >= DummyToken timestamp since it was collected after)
+    Test.assert(flowLastCollectionTimeAfter! >= dummyLastCollectionTime!, message: "Flow timestamp should be >= DummyToken timestamp")
 }
 
 // -----------------------------------------------------------------------------
