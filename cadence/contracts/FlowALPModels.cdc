@@ -248,19 +248,38 @@ access(all) contract FlowALPModels {
     /// TokenReserveHandler
     ///
     /// Interface for handling token reserve operations. Different token types may require
-    /// different handling for deposits and withdrawals. For example, MOET tokens are always
-    /// burned on deposits and minted on withdrawals, while standard tokens use reserve vaults.
+    /// different handling for deposits and withdrawals. For MOET: deposits always burn tokens,
+    /// withdrawals always mint tokens. For other tokens: standard reserve vault operations.
     access(all) struct interface TokenReserveHandler {
         /// Returns the token type this handler manages
         access(all) view fun getTokenType(): Type
 
-        /// Deposits tokens (BURNS for MOET, deposits to reserves for other tokens)
+        /// Checks if reserves need to exist for this token type
+        /// For MOET: returns false (MOET uses mint/burn, not reserves)
+        /// For other tokens: checks if reserves exist in the pool state
+        access(all) view fun hasReserve(
+            state: &{PoolState}
+        ): Bool
+
+        /// Returns the maximum amount that can be withdrawn given the requested amount
+        /// For MOET: returns requestedAmount (can mint unlimited)
+        /// For other tokens: returns min(requestedAmount, reserveBalance) or 0 if no reserves
+        access(all) fun getMaxWithdrawableAmount(
+            state: auth(EImplementation) &{PoolState},
+            requestedAmount: UFix64
+        ): UFix64
+
+        /// Deposits tokens
+        /// For MOET: always burns tokens
+        /// For other tokens: deposits to reserves
         access(all) fun deposit(
             state: auth(EImplementation) &{PoolState},
             from: @{FungibleToken.Vault}
         ): UFix64
 
-        /// Withdraws tokens (MINTS for MOET, withdraws from reserves for other tokens)
+        /// Withdraws tokens
+        /// For MOET: always mints new tokens
+        /// For other tokens: withdraws from reserves
         access(all) fun withdraw(
             state: auth(EImplementation) &{PoolState},
             amount: UFix64,
@@ -281,6 +300,23 @@ access(all) contract FlowALPModels {
 
         access(all) view fun getTokenType(): Type {
             return self.tokenType
+        }
+
+        access(all) view fun hasReserve(
+            state: &{PoolState}
+        ): Bool {
+            return state.hasReserve(self.tokenType)
+        }
+
+        access(all) fun getMaxWithdrawableAmount(
+            state: auth(EImplementation) &{PoolState},
+            requestedAmount: UFix64
+        ): UFix64 {
+            if let reserveVault = state.borrowReserve(self.tokenType) {
+                let balance = reserveVault.balance
+                return requestedAmount > balance ? balance : requestedAmount
+            }
+            return 0.0
         }
 
         access(all) fun deposit(
@@ -306,19 +342,34 @@ access(all) contract FlowALPModels {
     /// MoetTokenReserveHandler
     ///
     /// Special implementation of TokenReserveHandler for MOET tokens.
-    /// - Deposits always BURN the MOET tokens (reducing supply)
-    /// - Withdrawals always MINT new MOET tokens (increasing supply)
+    /// - All deposits BURN tokens (reducing supply, never stored in reserves)
+    /// - All withdrawals MINT new tokens (increasing supply, never from reserves)
     access(all) struct MoetTokenReserveHandler: TokenReserveHandler {
 
         access(all) view fun getTokenType(): Type {
             return Type<@MOET.Vault>()
         }
 
+        access(all) view fun hasReserve(
+            state: &{PoolState}
+        ): Bool {
+            // MOET doesn't use reserves (always mints/burns)
+            return true
+        }
+
+        access(all) fun getMaxWithdrawableAmount(
+            state: auth(EImplementation) &{PoolState},
+            requestedAmount: UFix64
+        ): UFix64 {
+            // MOET can mint unlimited amounts
+            return requestedAmount
+        }
+
         access(all) fun deposit(
             state: auth(EImplementation) &{PoolState},
             from: @{FungibleToken.Vault}
         ): UFix64 {
-            // All deposits burn MOET tokens to reduce supply
+            // Always burn MOET deposits (never store in reserves)
             let amount = from.balance
             Burner.burn(<-from)
             return amount
@@ -329,7 +380,7 @@ access(all) contract FlowALPModels {
             amount: UFix64,
             minterRef: &MOET.Minter?
         ): @{FungibleToken.Vault} {
-            // All withdrawals mint new MOET tokens
+            // Always mint MOET withdrawals (never withdraw from reserves)
             assert(minterRef != nil, message: "MOET Minter reference required for withdrawal")
             return <- minterRef!.mintTokens(amount: amount)
         }

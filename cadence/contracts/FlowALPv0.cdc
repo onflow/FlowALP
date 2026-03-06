@@ -584,8 +584,14 @@ access(all) contract FlowALPv0 {
             let positionBalance = position.getBalance(seizeType)
 
             position.borrowBalance(seizeType)!.recordWithdrawal(amount: UFix128(seizeAmount), tokenState: seizeState)
-            let seizeReserveRef = self.state.borrowReserve(seizeType)!
-            let seizedCollateral <- seizeReserveRef.withdraw(amount: seizeAmount)
+
+            // Use handler to withdraw seized collateral (mints MOET or withdraws from reserves)
+            let seizeReserveOps = seizeState.getReserveOperations()
+            let seizedCollateral <- seizeReserveOps.withdraw(
+                state: &self.state as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolState},
+                amount: seizeAmount,
+                minterRef: FlowALPv0._borrowMOETMinter()
+            )
 
             let newHealth = self.positionHealth(pid: pid)
             // TODO: sanity check health here? for auto-liquidating, we may need to perform a bounded search which could result in unbounded error in the final health
@@ -2081,16 +2087,15 @@ access(all) contract FlowALPv0 {
             let tokenState = self._borrowUpdatedTokenState(type: tokenType)
             tokenState.updateInterestRates()
 
-            // Ensure reserves exist for this token type
-            if !self.state.hasReserve(tokenType) {
+            // Check if reserves are available using the handler
+            let reserveOps = tokenState.getReserveOperations()
+
+            if !reserveOps.hasReserve(state: &self.state as &{FlowALPModels.PoolState}) {
                 return
             }
 
-            // Get reference to reserves
-            let reserveRef = self.state.borrowReserve(tokenType)!
-
-            // Collect stability and get token vault
-            if let collectedVault <- self._collectStability(tokenState: tokenState, reserveVault: reserveRef) {
+            // Collect stability using the pool state
+            if let collectedVault <- self._collectStability(tokenState: tokenState, poolState: &self.state as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolState}) {
                 let collectedBalance = collectedVault.balance
                 // Deposit collected token into stability fund
                 if !self.state.hasStabilityFund(tokenType) {
@@ -2109,10 +2114,10 @@ access(all) contract FlowALPv0 {
             }
         }
 
-        /// Collects insurance by withdrawing from reserves and swapping to MOET.
+        /// Collects insurance by using the reserve handler (mints MOET or withdraws from reserves), then swaps to MOET if needed.
         access(self) fun _collectInsurance(
             tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
-            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
+            poolState: auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolState},
             oraclePrice: UFix64,
             maxDeviationBps: UInt16
         ): @MOET.Vault? {
@@ -2137,17 +2142,39 @@ access(all) contract FlowALPv0 {
                 return nil
             }
 
-            if reserveVault.balance == 0.0 {
+            let tokenType = tokenState.getTokenType()
+            let reserveOps = tokenState.getReserveOperations()
+
+            // Check if reserves are available using the handler
+            if !reserveOps.hasReserve(state: poolState) {
                 tokenState.setLastInsuranceCollectionTime(currentTime)
                 return nil
             }
 
-            let amountToCollect = insuranceAmountUFix64 > reserveVault.balance ? reserveVault.balance : insuranceAmountUFix64
-            var insuranceVault <- reserveVault.withdraw(amount: amountToCollect)
+            // Get max withdrawable amount (unlimited for MOET, capped by reserves for others)
+            let amountToCollect = reserveOps.getMaxWithdrawableAmount(state: poolState, requestedAmount: insuranceAmountUFix64)
+            if amountToCollect == 0.0 {
+                tokenState.setLastInsuranceCollectionTime(currentTime)
+                return nil
+            }
 
+            // Use handler to withdraw (mints MOET or withdraws from reserves)
+            var collectedVault <- reserveOps.withdraw(
+                state: poolState,
+                amount: amountToCollect,
+                minterRef: FlowALPv0._borrowMOETMinter()
+            )
+
+            // If MOET, we're done - return the minted vault
+            if tokenType == Type<@MOET.Vault>() {
+                tokenState.setLastInsuranceCollectionTime(currentTime)
+                return <-collectedVault as! @MOET.Vault
+            }
+
+            // For other tokens, swap to MOET
             let insuranceSwapper = tokenState.getInsuranceSwapper() ?? panic("missing insurance swapper")
 
-            assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
+            assert(insuranceSwapper.inType() == collectedVault.getType(), message: "Insurance swapper input type must match collected vault type")
             assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
 
             let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
@@ -2155,16 +2182,16 @@ access(all) contract FlowALPv0 {
             assert(
                 FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
                 message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
-            var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
+            var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-collectedVault) as! @MOET.Vault
 
             tokenState.setLastInsuranceCollectionTime(currentTime)
             return <-moetVault
         }
 
-        /// Collects stability funds by withdrawing from reserves.
+        /// Collects stability funds by using the reserve handler (mints MOET or withdraws from reserves).
         access(self) fun _collectStability(
             tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
-            reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+            poolState: auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolState}
         ): @{FungibleToken.Vault}? {
             let currentTime = getCurrentBlock().timestamp
 
@@ -2188,14 +2215,28 @@ access(all) contract FlowALPv0 {
                 return nil
             }
 
-            if reserveVault.balance == 0.0 {
+            let tokenType = tokenState.getTokenType()
+            let reserveOps = tokenState.getReserveOperations()
+
+            // Check if reserves are available using the handler
+            if !reserveOps.hasReserve(state: poolState) {
                 tokenState.setLastStabilityFeeCollectionTime(currentTime)
                 return nil
             }
 
-            let reserveVaultBalance = reserveVault.balance
-            let amountToCollect = stabilityAmountUFix64 > reserveVaultBalance ? reserveVaultBalance : stabilityAmountUFix64
-            let stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
+            // Get max withdrawable amount (unlimited for MOET, capped by reserves for others)
+            let amountToCollect = reserveOps.getMaxWithdrawableAmount(state: poolState, requestedAmount: stabilityAmountUFix64)
+            if amountToCollect == 0.0 {
+                tokenState.setLastStabilityFeeCollectionTime(currentTime)
+                return nil
+            }
+
+            // Use handler to withdraw (mints MOET or withdraws from reserves)
+            let stabilityVault <- reserveOps.withdraw(
+                state: poolState,
+                amount: amountToCollect,
+                minterRef: FlowALPv0._borrowMOETMinter()
+            )
 
             tokenState.setLastStabilityFeeCollectionTime(currentTime)
             return <-stabilityVault
@@ -2293,23 +2334,22 @@ access(all) contract FlowALPv0 {
         access(self) fun updateInterestRatesAndCollectInsurance(tokenType: Type) {
             let tokenState = self._borrowUpdatedTokenState(type: tokenType)
             tokenState.updateInterestRates()
-            
-            // Collect insurance if swapper is configured
-            // Ensure reserves exist for this token type
-            if !self.state.hasReserve(tokenType) {
+
+            // Check if reserves are available using the handler
+            let reserveOps = tokenState.getReserveOperations()
+
+            if !reserveOps.hasReserve(state: &self.state as &{FlowALPModels.PoolState}) {
                 return
             }
 
-            // Get reference to reserves
-            if let reserveRef = self.state.borrowReserve(tokenType) {
-                // Collect insurance and get MOET vault
-                let oraclePrice = self.config.getPriceOracle().price(ofToken: tokenType)!
-                if let collectedMOET <- self._collectInsurance(
-                    tokenState: tokenState,
-                    reserveVault: reserveRef,
-                    oraclePrice: oraclePrice,
-                    maxDeviationBps: self.config.getDexOracleDeviationBps()
-                ) {
+            // Collect insurance using the pool state
+            let oraclePrice = self.config.getPriceOracle().price(ofToken: tokenType)!
+            if let collectedMOET <- self._collectInsurance(
+                tokenState: tokenState,
+                poolState: &self.state as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolState},
+                oraclePrice: oraclePrice,
+                maxDeviationBps: self.config.getDexOracleDeviationBps()
+            ) {
                     let collectedMOETBalance = collectedMOET.balance
                     // Deposit collected MOET into insurance fund
                     self.state.depositToInsuranceFund(from: <-collectedMOET)
@@ -2321,7 +2361,6 @@ access(all) contract FlowALPv0 {
                         collectionTime: tokenState.getLastInsuranceCollectionTime()
                     )
                 }
-            }
         }
 
         /// Returns an authorized reference to the requested InternalPosition or `nil` if the position does not exist
