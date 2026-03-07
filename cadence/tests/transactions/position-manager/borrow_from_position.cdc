@@ -1,6 +1,5 @@
 import "FungibleToken"
 import "FlowToken"
-import "MOET"
 import "FlowALPv0"
 import "FlowALPModels"
 
@@ -33,10 +32,6 @@ transaction(
         self.tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier: \(tokenTypeIdentifier)")
 
-        if signer.storage.type(at: tokenVaultStoragePath) == nil {
-            signer.storage.save(<-FlowToken.createEmptyVault(vaultType: self.tokenType), to: tokenVaultStoragePath)
-        }
-        
         self.receiverVault = signer.storage.borrow<&{FungibleToken.Receiver}>(from: tokenVaultStoragePath)
             ?? panic("Could not borrow receiver vault")
     }
