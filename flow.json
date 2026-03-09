@@ -150,6 +150,16 @@
 		}
 	},
 	"dependencies": {
+		"BandOracle": {
+			"source": "mainnet://6801a6222ebf784a.BandOracle",
+			"hash": "ababa195ef50b63d71520022aa2468656a9703b924c0f5228cfaa51a71db094d",
+			"aliases": {
+				"mainnet": "6801a6222ebf784a",
+				"mainnet-fork": "6801a6222ebf784a",
+				"testing": "0000000000000007",
+				"testnet": "9fb6606c300b5051"
+			}
+		},
 		"Burner": {
 			"source": "mainnet://f233dcee88fe0abe.Burner",
 			"hash": "71af18e227984cd434a3ad00bb2f3618b76482842bae920ee55662c37c8bf331",
