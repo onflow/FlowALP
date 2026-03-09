@@ -3,6 +3,7 @@ import BlockchainHelpers
 
 import "MOET"
 import "FlowALPv0"
+import "FlowALPEvents"
 import "DeFiActions"
 import "DeFiActionsUtils"
 import "FlowToken"
@@ -14,7 +15,6 @@ access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 access(all) let userAccount = Test.createAccount()
 
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) let moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
 
 access(all) let flowBorrowFactor = 1.0
@@ -33,10 +33,10 @@ fun setup() {
 
     // Price setup
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: flowStartPrice)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: moetTokenIdentifier, price: 1.0)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MOET_TOKEN_IDENTIFIER, price: 1.0)
 
     // Create the Pool & add FLOW as supported token
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
@@ -99,8 +99,8 @@ fun testRecursiveWithdrawSource() {
     Test.expect(openRes, Test.beSucceeded())
 
     // Read the newly opened position id from the latest Opened event.
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
     log("[TEST] Position opened with ID: \(positionID)")
 

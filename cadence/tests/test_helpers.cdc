@@ -1,5 +1,7 @@
 import Test
 import "FlowALPv0"
+import "FlowALPModels"
+import "MOET"
 
 /* --- Global test constants --- */
 
@@ -118,6 +120,27 @@ fun deployContracts() {
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
+        name: "FlowALPInterestRates",
+        path: "../contracts/FlowALPInterestRates.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowALPEvents",
+        path: "../contracts/FlowALPEvents.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowALPModels",
+        path: "../contracts/FlowALPModels.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
         name: "FlowALPv0",
         path: "../contracts/FlowALPv0.cdc",
         arguments: []
@@ -127,7 +150,7 @@ fun deployContracts() {
     err = Test.deployContract(
         name: "MockOracle",
         path: "../contracts/mocks/MockOracle.cdc",
-        arguments: [MOET_TOKEN_IDENTIFIER]
+        arguments: [Type<@MOET.Vault>().identifier]
     )
     Test.expect(err, Test.beNil())
 
@@ -146,14 +169,14 @@ fun deployContracts() {
     )
     Test.expect(err, Test.beNil())
 
-    // Deploy FungibleTokenConnectors
+
     err = Test.deployContract(
         name: "FungibleTokenConnectors",
         path: "../../FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
         arguments: []
     )
     Test.expect(err, Test.beNil())
-    // Deploy MockDexSwapper for DEX liquidation tests
+
     err = Test.deployContract(
         name: "MockDexSwapper",
         path: "../contracts/mocks/MockDexSwapper.cdc",
@@ -167,7 +190,6 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
-
 
     err = Test.deployContract(
         name: "AdversarialTypeSpoofingConnectors",
@@ -247,16 +269,16 @@ fun getPositionHealth(pid: UInt64, beFailed: Bool): UFix128 {
 }
 
 access(all)
-fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALPv0.PositionDetails {
+fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALPModels.PositionDetails {
     let res = _executeScript("../scripts/flow-alp/position_details.cdc",
             [pid]
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
-    return res.returnValue as! FlowALPv0.PositionDetails
+    return res.returnValue as! FlowALPModels.PositionDetails
 }
 
 access(all)
-fun getPositionBalance(pid: UInt64, vaultID: String): FlowALPv0.PositionBalance {
+fun getPositionBalance(pid: UInt64, vaultID: String): FlowALPModels.PositionBalance {
     let positionDetails = getPositionDetails(pid: pid, beFailed: false)
     for bal in positionDetails.balances {
         if bal.vaultType == CompositeType(vaultID) {
@@ -361,6 +383,13 @@ fun getLastStabilityCollectionTime(tokenTypeIdentifier: String): UFix64? {
     return res.returnValue as? UFix64
 }
 
+access(all)
+fun getIsLiquidatable(pid: UInt64): Bool {
+    let res = _executeScript("../scripts/flow-alp/get_is_liquidatable.cdc", [pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! Bool
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
@@ -382,7 +411,7 @@ fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String,
 }
 
 access(all)
-fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, price: UFix64) {
+fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, price: UFix64?) {
     let setRes = _executeTransaction(
         "./transactions/mock-oracle/set_price.cdc",
         [forTokenIdentifier, price],
@@ -406,6 +435,19 @@ fun setMockDexPriceForPair(
     let addRes = _executeTransaction(
         "./transactions/mock-dex-swapper/set_mock_dex_price_for_pair.cdc",
         [inVaultIdentifier, outVaultIdentifier, vaultSourceStoragePath, priceRatio],
+        signer
+    )
+    Test.expect(addRes, Test.beSucceeded())
+}
+
+access(all)
+fun setDexLiquidationConfig(
+    signer: Test.TestAccount,
+    dexOracleDeviationBps: UInt16,
+) {
+    let addRes = _executeTransaction(
+        "./../transactions/flow-alp/pool-governance/set_dex_liquidation_config.cdc",
+        [dexOracleDeviationBps],
         signer
     )
     Test.expect(addRes, Test.beSucceeded())
@@ -875,9 +917,9 @@ fun getBlockTimestamp(): UFix64 {
 }
 
 access(all)
-fun getDebitBalanceForType(details: FlowALPv0.PositionDetails, vaultType: Type): UFix64 {
+fun getDebitBalanceForType(details: FlowALPModels.PositionDetails, vaultType: Type): UFix64 {
     for balance in details.balances {
-        if balance.vaultType == vaultType && balance.direction == FlowALPv0.BalanceDirection.Debit {
+        if balance.vaultType == vaultType && balance.direction == FlowALPModels.BalanceDirection.Debit {
             return balance.balance
         }
     }
@@ -885,9 +927,9 @@ fun getDebitBalanceForType(details: FlowALPv0.PositionDetails, vaultType: Type):
 }
 
 access(all)
-fun getCreditBalanceForType(details: FlowALPv0.PositionDetails, vaultType: Type): UFix64 {
+fun getCreditBalanceForType(details: FlowALPModels.PositionDetails, vaultType: Type): UFix64 {
     for balance in details.balances {
-        if balance.vaultType == vaultType && balance.direction == FlowALPv0.BalanceDirection.Credit {
+        if balance.vaultType == vaultType && balance.direction == FlowALPModels.BalanceDirection.Credit {
             return balance.balance
         }
     }

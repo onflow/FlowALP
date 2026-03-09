@@ -1,6 +1,7 @@
 import "FungibleToken"
 import "FlowToken"
 import "FlowALPv0"
+import "FlowALPModels"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
@@ -21,9 +22,10 @@ transaction(
 
     prepare(signer: auth(BorrowValue) &Account) {
         // Borrow the PositionManager from constant storage path
-        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(
-            from: FlowALPv0.PositionStoragePath
-        ) ?? panic("Could not find PositionManager in signer's storage")
+        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(
+                from: FlowALPv0.PositionStoragePath
+            )
+            ?? panic("Could not find PositionManager in signer's storage")
 
         // Borrow the position with withdraw entitlement
         self.position = manager.borrowAuthorizedPosition(pid: positionId)
