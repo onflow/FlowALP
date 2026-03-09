@@ -2,6 +2,7 @@ import Test
 import "FlowALPv0"
 import "FlowALPModels"
 import "MOET"
+import "DeFiActions"
 
 /* --- Global test constants --- */
 
@@ -736,7 +737,7 @@ fun collectStability(
         [ tokenTypeIdentifier ],
         signer
     )
-    
+
     return res
 }
 
@@ -753,7 +754,7 @@ fun withdrawStabilityFund(
         [tokenTypeIdentifier, amount, recipient, recipientPath],
         signer
     )
-    
+
     return res
 }
 
@@ -769,11 +770,11 @@ fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFail
 
 access(all)
 fun manualLiquidation(
-    signer: Test.TestAccount, 
-    pid: UInt64, 
-    debtVaultIdentifier: String, 
-    seizeVaultIdentifier: String, 
-    seizeAmount: UFix64, 
+    signer: Test.TestAccount,
+    pid: UInt64,
+    debtVaultIdentifier: String,
+    seizeVaultIdentifier: String,
+    seizeAmount: UFix64,
     repayAmount: UFix64,
 ): Test.TransactionResult {
     return _executeTransaction(
@@ -877,6 +878,16 @@ fun withdrawReserve(
         signer
     )
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun provideSource(signer: Test.TestAccount, positionId: UInt64, source: {DeFiActions.Source}?) {
+    let provideSourceRes = _executeTransaction(
+        "../transactions/flow-alp/position/provide_source.cdc",
+        [positionId, source],
+        signer
+    )
+    Test.expect(provideSourceRes, Test.beSucceeded())
 }
 
 /* --- Assertion Helpers --- */

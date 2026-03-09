@@ -504,6 +504,10 @@ access(all) contract FlowALPv0 {
             
             self.lockPosition(pid)
 
+            // Attempt to restore position health via topUpSource before evaluating liquidatability.
+            // This prevents liquidations of positions that have sufficient backup funds configured.
+            self._rebalancePositionNoLock(pid: pid, force: false)
+
             let positionView = self.buildPositionView(pid: pid)
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let initialHealth = balanceSheet.health

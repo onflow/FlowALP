@@ -61,6 +61,7 @@ fun testManualLiquidation_healthyPosition() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // Log initial health
     let health = getPositionHealth(pid: pid, beFailed: false)
@@ -77,12 +78,12 @@ fun testManualLiquidation_healthyPosition() {
     let repayAmount = 2.0
     let seizeAmount = 1.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     Test.expect(liqRes, Test.beFailed())
     Test.assertError(liqRes, errorMessage: "Cannot liquidate healthy position")
@@ -102,6 +103,8 @@ fun testManualLiquidation_liquidationExceedsTargetHealth() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -131,12 +134,12 @@ fun testManualLiquidation_liquidationExceedsTargetHealth() {
     let repayAmount = 500.0
     let seizeAmount = 500.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should fail because we are repaying/seizing too much
     Test.expect(liqRes, Test.beFailed())
@@ -162,6 +165,7 @@ fun testManualLiquidation_repayExceedsDebt() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -194,12 +198,12 @@ fun testManualLiquidation_repayExceedsDebt() {
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should fail because we are repaying too much
     Test.expect(liqRes, Test.beFailed())
@@ -225,6 +229,7 @@ fun testManualLiquidation_seizeExceedsCollateral() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -255,12 +260,12 @@ fun testManualLiquidation_seizeExceedsCollateral() {
     let seizeAmount = collateralBalance + 0.001
     let repayAmount = seizeAmount * newPrice * 1.01
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should fail because we are seizing too much collateral
     Test.expect(liqRes, Test.beFailed())
@@ -286,6 +291,7 @@ fun testManualLiquidation_reduceHealth() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -317,12 +323,12 @@ fun testManualLiquidation_reduceHealth() {
     let seizeAmount = collateralBalancePreLiq - 0.01
     let repayAmount = seizeAmount * newPrice * 1.01
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should succeed, even though we are reducing health
     Test.expect(liqRes, Test.beSucceeded())
@@ -355,6 +361,7 @@ fun testManualLiquidation_increaseHealthBelowTarget() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // cause severe undercollateralization
     let newPrice = 0.5 // $/FLOW
@@ -383,12 +390,12 @@ fun testManualLiquidation_increaseHealthBelowTarget() {
     let repayAmount = 100.0
     let seizeAmount = 150.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should succeed
     Test.expect(liqRes, Test.beSucceeded())
@@ -417,6 +424,7 @@ fun testManualLiquidation_liquidateToTarget() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // cause undercollateralization
     let newPrice = 0.7 // $/FLOW
@@ -451,12 +459,12 @@ fun testManualLiquidation_liquidateToTarget() {
     let repayAmount = 100.0
     let seizeAmount = 33.66
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should succeed
     Test.expect(liqRes, Test.beSucceeded())
@@ -482,6 +490,7 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -535,6 +544,7 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -590,6 +600,7 @@ fun testManualLiquidation_unsupportedDebtType() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -645,6 +656,7 @@ fun testManualLiquidation_unsupportedCollateralType() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // health before price drop
     let hBefore = getPositionHealth(pid: pid, beFailed: false)
@@ -677,12 +689,12 @@ fun testManualLiquidation_unsupportedCollateralType() {
     let seizeAmount = collateralBalancePreLiq - 0.01
     let repayAmount = seizeAmount * newPrice * 1.01
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: MOCK_YIELD_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: MOCK_YIELD_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should fail because we are specifying an unsupported collateral type (yield token)
     Test.expect(liqRes, Test.beFailed())
@@ -725,6 +737,7 @@ fun testManualLiquidation_supportedDebtTypeNotInPosition() {
     // debt is MOET, collateral is FLOW
     let pid1: UInt64 = 0
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user1, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user1, positionId: pid1, source: nil)
 
     // user2 setup - deposits MockYieldToken
     let user2 = Test.createAccount()
@@ -735,6 +748,7 @@ fun testManualLiquidation_supportedDebtTypeNotInPosition() {
     // user2 opens wrapped position with MockYieldToken collateral
     let pid2: UInt64 = 1
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user2, amount: 1000.0, vaultStoragePath: MockYieldToken.VaultStoragePath, pushToDrawDownSink: true)
+    provideSource(signer: user2, positionId: pid2, source: nil)
 
     // health before price drop for user1
     let hBefore = getPositionHealth(pid: pid1, beFailed: false)
@@ -760,16 +774,16 @@ fun testManualLiquidation_supportedDebtTypeNotInPosition() {
     let liqBalance = getBalance(address: liquidator.address, vaultPublicPath: MOET.VaultPublicPath) ?? 0.0
 
     // Try to liquidate user1's position but repay MockYieldToken instead of MOET
-    // user1 has no MockYieldToken debt balance 
+    // user1 has no MockYieldToken debt balance
     let seizeAmount = 0.01
     let repayAmount = 100.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid1, 
-        debtVaultIdentifier: MOCK_YIELD_TOKEN_IDENTIFIER, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid1,
+        debtVaultIdentifier: MOCK_YIELD_TOKEN_IDENTIFIER,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should fail because user1's position doesn't have MockYieldToken collateral
     Test.expect(liqRes, Test.beFailed())
@@ -811,6 +825,7 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
     // user1 opens wrapped position with FLOW collateral, MOET debt
     let pid1: UInt64 = 0
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user1, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user1, positionId: pid1, source: nil)
 
     // user2 setup - deposits MockYieldToken, borrows MOET
     let user2 = Test.createAccount()
@@ -821,6 +836,7 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
     // user2 opens wrapped position with MockYieldToken collateral
     let pid2: UInt64 = 1
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user2, amount: 1000.0, vaultStoragePath: MockYieldToken.VaultStoragePath, pushToDrawDownSink: true)
+    provideSource(signer: user2, positionId: pid2, source: nil)
 
     // health before price drop for user1
     let hBefore = getPositionHealth(pid: pid1, beFailed: false)
@@ -851,12 +867,12 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
     let seizeAmount = 0.01
     let repayAmount = 100.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid1, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: MOCK_YIELD_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid1,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: MOCK_YIELD_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should fail because user1's position doesn't have MockYieldToken debt
     Test.expect(liqRes, Test.beFailed())
@@ -885,6 +901,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_withinThreshold() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // cause undercollateralization
     let oraclePrice = 0.7 // $/FLOW
@@ -913,12 +930,12 @@ fun testManualLiquidation_dexOraclePriceDivergence_withinThreshold() {
     let repayAmount = 50.0
     let seizeAmount = 72.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should succeed because divergence is within threshold
     Test.expect(liqRes, Test.beSucceeded())
@@ -934,6 +951,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexBelowOracle() {
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // cause undercollateralization
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 0.7)
@@ -951,12 +969,12 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexBelowOracle() {
     setupMoetVault(liquidator, beFailed: false)
     mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: 70.0, 
-        repayAmount: 50.0, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: 70.0,
+        repayAmount: 50.0,
     )
     // Should fail because divergence exceeds threshold
     Test.expect(liqRes, Test.beFailed())
@@ -973,6 +991,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexAboveOracle() {
     setupMoetVault(user, beFailed: false)
     transferFlowTokens(to: user, amount: 1000.0)
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // cause undercollateralization
     setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 0.7)
@@ -990,12 +1009,12 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexAboveOracle() {
     setupMoetVault(liquidator, beFailed: false)
     mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: 66.0, 
-        repayAmount: 50.0, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: 66.0,
+        repayAmount: 50.0,
     )
     // Should fail because divergence exceeds threshold
     Test.expect(liqRes, Test.beFailed())
@@ -1016,6 +1035,7 @@ fun testManualLiquidation_liquidatorOfferWorseThanDex() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // cause undercollateralization
     let newPrice = 0.7 // $/FLOW
@@ -1044,12 +1064,12 @@ fun testManualLiquidation_liquidatorOfferWorseThanDex() {
     let repayAmount = 50.0
     let seizeAmount = 75.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should fail because liquidator offer is worse than DEX
     Test.expect(liqRes, Test.beFailed())
@@ -1070,6 +1090,7 @@ fun testManualLiquidation_combinedEdgeCase() {
     // open wrapped position and deposit via existing helper txs
     // debt is MOET, collateral is FLOW
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+    provideSource(signer: user, positionId: pid, source: nil)
 
     // cause undercollateralization
     let oraclePrice = 0.7 // $/FLOW
@@ -1100,15 +1121,71 @@ fun testManualLiquidation_combinedEdgeCase() {
     let repayAmount = 50.0
     let seizeAmount = 75.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
-        pid: pid, 
-        debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
-        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
-        seizeAmount: seizeAmount, 
-        repayAmount: repayAmount, 
+        signer:liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
     )
     // Should fail because DEX/oracle divergence is too high, even though liquidator offer is competitive
     Test.expect(liqRes, Test.beFailed())
     Test.assertError(liqRes, errorMessage: "DEX/oracle price deviation too large")
 }
 
+
+/// FLO-23: manualLiquidation should attempt rebalance via topUpSource before liquidating.
+/// If the topUpSource has sufficient funds to restore health, the liquidation should be reverted.
+access(all)
+fun testManualLiquidation_topUpSourcePreventsLiquidation() {
+    safeReset()
+    let pid: UInt64 = 0
+
+    // user setup
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    transferFlowTokens(to: user, amount: 1000.0)
+
+    // open position with pushToDrawDownSink=true, which wires the user's MOET vault as both
+    // drawDownSink and topUpSource
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+
+    // The user now holds some MOET from the drawDownSink. Mint additional MOET so the topUpSource
+    // has enough funds to fully restore health after the price drop.
+    mintMoet(signer: Test.getAccount(0x0000000000000007), to: user.address, amount: 1000.0, beFailed: false)
+
+    let userMoetBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
+
+    // cause mild undercollateralization (price drop of 20%)
+    let newPrice = 0.7 // $/FLOW
+    setMockOraclePrice(signer: Test.getAccount(0x0000000000000007), forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: newPrice)
+    setMockDexPriceForPair(
+        signer: Test.getAccount(0x0000000000000007),
+        inVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        outVaultIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: newPrice
+    )
+
+    let healthAfterPriceDrop = getPositionHealth(pid: pid, beFailed: false)
+    Test.assert(healthAfterPriceDrop < 1.0, message: "position should be unhealthy after price drop")
+
+    // attempt liquidation - should fail because rebalance restores health via topUpSource
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
+
+    let repayAmount = 50.0
+    let seizeAmount = 50.0
+    let liqRes = manualLiquidation(
+        signer: liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: seizeAmount,
+        repayAmount: repayAmount,
+    )
+    // Should fail because rebalance via topUpSource restored health above 1.0
+    Test.expect(liqRes, Test.beFailed())
+    Test.assertError(liqRes, errorMessage: "Cannot liquidate healthy position")
+}
