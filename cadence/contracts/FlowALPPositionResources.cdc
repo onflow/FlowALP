@@ -7,6 +7,19 @@ import "FlowALPModels"
 
 access(all) contract FlowALPPositionResources {
 
+    /// A single authorized Capability to the Pool, shared across all Position resources.
+    /// Issued once at pool creation time to avoid per-position capability controller bloat.
+    access(self) var poolCap: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>?
+
+    /// Sets the contract-level pool capability. Called once by FlowALPv0 when the Pool is created.
+    access(account) fun setPoolCap(cap: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>) {
+        FlowALPPositionResources.poolCap = cap
+    }
+
+    access(self) fun borrowPool(): auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool} {
+        return self.poolCap!.borrow()!
+    }
+
     /// Position
     ///
     /// A Position is a resource representing ownership of value deposited to the protocol.
@@ -23,24 +36,13 @@ access(all) contract FlowALPPositionResources {
         /// The unique ID of the Position used to track deposits and withdrawals to the Pool
         access(all) let id: UInt64
 
-        /// An authorized Capability to the Pool for which this Position was opened.
-        access(self) let pool: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>
-
-        init(
-            id: UInt64,
-            pool: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>
-        ) {
-            pre {
-                pool.check():
-                    "Invalid Pool Capability provided - cannot construct Position"
-            }
+        init(id: UInt64) {
             self.id = id
-            self.pool = pool
         }
 
         /// Returns the balances (both positive and negative) for all tokens in this position.
         access(all) fun getBalances(): [FlowALPModels.PositionBalance] {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             return pool.getPositionDetails(pid: self.id).balances
         }
 
@@ -49,54 +51,54 @@ access(all) contract FlowALPPositionResources {
         /// below its min health. If pullFromTopUpSource is false, the calculation will return the balance currently
         /// available without topping up the position.
         access(all) fun availableBalance(type: Type, pullFromTopUpSource: Bool): UFix64 {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             return pool.availableBalance(pid: self.id, type: type, pullFromTopUpSource: pullFromTopUpSource)
         }
 
         /// Returns the current health of the position
         access(all) fun getHealth(): UFix128 {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             return pool.positionHealth(pid: self.id)
         }
 
         /// Returns the Position's target health (unitless ratio ≥ 1.0)
         access(all) fun getTargetHealth(): UFix64 {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             let pos = pool.borrowPosition(pid: self.id)
             return FlowALPMath.toUFix64Round(pos.getTargetHealth())
         }
 
         /// Sets the target health of the Position
         access(FlowALPModels.EPositionAdmin) fun setTargetHealth(targetHealth: UFix64) {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             let pos = pool.borrowPosition(pid: self.id)
             pos.setTargetHealth(UFix128(targetHealth))
         }
 
         /// Returns the minimum health of the Position
         access(all) fun getMinHealth(): UFix64 {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             let pos = pool.borrowPosition(pid: self.id)
             return FlowALPMath.toUFix64Round(pos.getMinHealth())
         }
 
         /// Sets the minimum health of the Position
         access(FlowALPModels.EPositionAdmin) fun setMinHealth(minHealth: UFix64) {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             let pos = pool.borrowPosition(pid: self.id)
             pos.setMinHealth(UFix128(minHealth))
         }
 
         /// Returns the maximum health of the Position
         access(all) fun getMaxHealth(): UFix64 {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             let pos = pool.borrowPosition(pid: self.id)
             return FlowALPMath.toUFix64Round(pos.getMaxHealth())
         }
 
         /// Sets the maximum health of the position
         access(FlowALPModels.EPositionAdmin) fun setMaxHealth(maxHealth: UFix64) {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             let pos = pool.borrowPosition(pid: self.id)
             pos.setMaxHealth(UFix128(maxHealth))
         }
@@ -123,7 +125,7 @@ access(all) contract FlowALPPositionResources {
             from: @{FungibleToken.Vault},
             pushToDrawDownSink: Bool
         ) {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             pool.depositAndPush(
                 pid: self.id,
                 from: <-from,
@@ -148,7 +150,7 @@ access(all) contract FlowALPPositionResources {
             amount: UFix64,
             pullFromTopUpSource: Bool
         ): @{FungibleToken.Vault} {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             return <- pool.withdrawAndPull(
                 pid: self.id,
                 type: type,
@@ -179,10 +181,8 @@ access(all) contract FlowALPPositionResources {
             type: Type,
             pushToDrawDownSink: Bool
         ): {DeFiActions.Sink} {
-            let pool = self.pool.borrow()!
             return PositionSink(
                 id: self.id,
-                pool: self.pool,
                 type: type,
                 pushToDrawDownSink: pushToDrawDownSink
             )
@@ -210,10 +210,8 @@ access(all) contract FlowALPPositionResources {
             type: Type,
             pullFromTopUpSource: Bool
         ): {DeFiActions.Source} {
-            let pool = self.pool.borrow()!
             return PositionSource(
                 id: self.id,
-                pool: self.pool,
                 type: type,
                 pullFromTopUpSource: pullFromTopUpSource
             )
@@ -230,7 +228,7 @@ access(all) contract FlowALPPositionResources {
         ///
         /// Pass nil to configure the position to not push tokens when the Position exceeds its maximum health.
         access(FlowALPModels.EPositionAdmin) fun provideSink(sink: {DeFiActions.Sink}?) {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             pool.lockPosition(self.id)
             let pos = pool.borrowPosition(pid: self.id)
             pos.setDrawDownSink(sink)
@@ -246,7 +244,7 @@ access(all) contract FlowALPPositionResources {
         ///
         /// Pass nil to configure the position to not pull tokens.
         access(FlowALPModels.EPositionAdmin) fun provideSource(source: {DeFiActions.Source}?) {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             pool.lockPosition(self.id)
             let pos = pool.borrowPosition(pid: self.id)
             pos.setTopUpSource(source)
@@ -262,7 +260,7 @@ access(all) contract FlowALPPositionResources {
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
         access(FlowALPModels.EPosition | FlowALPModels.ERebalance) fun rebalance(force: Bool) {
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             pool.rebalancePosition(pid: self.id, force: force)
         }
     }
@@ -320,11 +318,8 @@ access(all) contract FlowALPPositionResources {
 
     /// Creates and returns a new Position resource.
     /// This remains account-scoped so only the protocol account can mint canonical wrappers.
-    access(account) fun createPosition(
-        id: UInt64,
-        pool: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>
-    ): @Position {
-        return <- create Position(id: id, pool: pool)
+    access(account) fun createPosition(id: UInt64): @Position {
+        return <- create Position(id: id)
     }
 
     /// Creates and returns a new PositionManager resource
@@ -342,9 +337,6 @@ access(all) contract FlowALPPositionResources {
         /// An optional DeFiActions.UniqueIdentifier that identifies this Sink with the DeFiActions stack its a part of
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
 
-        /// An authorized Capability on the Pool for which the related Position is in
-        access(self) let pool: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>
-
         /// The ID of the position in the Pool
         access(self) let positionID: UInt64
 
@@ -357,13 +349,11 @@ access(all) contract FlowALPPositionResources {
 
         init(
             id: UInt64,
-            pool: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>,
             type: Type,
             pushToDrawDownSink: Bool
         ) {
             self.uniqueID = nil
             self.positionID = id
-            self.pool = pool
             self.type = type
             self.pushToDrawDownSink = pushToDrawDownSink
         }
@@ -375,13 +365,13 @@ access(all) contract FlowALPPositionResources {
 
         /// Returns the minimum capacity this Sink can accept as deposits
         access(all) fun minimumCapacity(): UFix64 {
-            return self.pool.check() ? UFix64.max : 0.0
+            return FlowALPPositionResources.poolCap?.check() ?? false ? UFix64.max : 0.0
         }
 
         /// Deposits the funds from the provided Vault reference to the related Position
         access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
-            if let pool = self.pool.borrow() {
-                pool.depositAndPush(
+            if let pool = FlowALPPositionResources.poolCap?.borrow() {
+                pool!.depositAndPush(
                     pid: self.positionID,
                     from: <-from.withdraw(amount: from.balance),
                     pushToDrawDownSink: self.pushToDrawDownSink
@@ -416,9 +406,6 @@ access(all) contract FlowALPPositionResources {
         /// An optional DeFiActions.UniqueIdentifier that identifies this Sink with the DeFiActions stack its a part of
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
 
-        /// An authorized Capability on the Pool for which the related Position is in
-        access(self) let pool: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>
-
         /// The ID of the position in the Pool
         access(self) let positionID: UInt64
 
@@ -431,13 +418,11 @@ access(all) contract FlowALPPositionResources {
 
         init(
             id: UInt64,
-            pool: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>,
             type: Type,
             pullFromTopUpSource: Bool
         ) {
             self.uniqueID = nil
             self.positionID = id
-            self.pool = pool
             self.type = type
             self.pullFromTopUpSource = pullFromTopUpSource
         }
@@ -449,11 +434,11 @@ access(all) contract FlowALPPositionResources {
 
         /// Returns the minimum available this Source can provide on withdrawal
         access(all) fun minimumAvailable(): UFix64 {
-            if !self.pool.check() {
+            if FlowALPPositionResources.poolCap?.check() != true {
                 return 0.0
             }
 
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             return pool.availableBalance(
                 pid: self.positionID,
                 type: self.type,
@@ -463,11 +448,11 @@ access(all) contract FlowALPPositionResources {
 
         /// Withdraws up to the max amount as the sourceType Vault
         access(FungibleToken.Withdraw) fun withdrawAvailable(maxAmount: UFix64): @{FungibleToken.Vault} {
-            if !self.pool.check() {
+            if FlowALPPositionResources.poolCap?.check() != true {
                 return <- DeFiActionsUtils.getEmptyVault(self.type)
             }
 
-            let pool = self.pool.borrow()!
+            let pool = FlowALPPositionResources.borrowPool()
             let available = pool.availableBalance(
                 pid: self.positionID,
                 type: self.type,
@@ -502,5 +487,9 @@ access(all) contract FlowALPPositionResources {
         access(contract) fun setID(_ id: DeFiActions.UniqueIdentifier?) {
             self.uniqueID = id
         }
+    }
+
+    init() {
+        self.poolCap = nil
     }
 }
