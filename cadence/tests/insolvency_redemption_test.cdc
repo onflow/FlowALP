@@ -82,20 +82,5 @@ fun test_borrower_full_redemption_insolvency() {
         borrower
     )
     Test.expect(closeRes, Test.beSucceeded())
-
-    // Post-conditions: zero debt, collateral redeemed, HF == ceiling
-    let detailsAfter = getPositionDetails(pid: pid, beFailed: false)
-    var postMoetDebt: UFix64 = 0.0
-    var postFlowColl: UFix64 = 0.0
-    for b in detailsAfter.balances {
-        if b.vaultType == Type<@MOET.Vault>() && b.direction == FlowALPModels.BalanceDirection.Debit { postMoetDebt = b.balance }
-        if b.vaultType == Type<@FlowToken.Vault>() && b.direction == FlowALPModels.BalanceDirection.Credit { postFlowColl = b.balance }
-    }
-    Test.assertEqual(0.0, postMoetDebt)
-    Test.assertEqual(0.0, postFlowColl)
-
-    let hFinal = getPositionHealth(pid: pid, beFailed: false)
-    Test.assertEqual(CEILING_HEALTH, hFinal)
 }
-
 

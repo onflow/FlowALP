@@ -48,7 +48,6 @@ access(all) contract FlowALPv0 {
         - We convert at boundaries via type casting to UFix128 or FlowALPMath.toUFix64.
     */
 
-    ///
     /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth
     access(all) view fun maxWithdraw(
         view: FlowALPModels.PositionView,
@@ -448,10 +447,17 @@ access(all) contract FlowALPv0 {
                         : tokenState.getDebitInterestIndex()
                 )
 
+                // Conservative rounding:
+                // - Debits (debt/withdrawals from position): round UP to ensure we require enough
+                // - Credits (deposits/collateral): round DOWN to avoid overpromising available funds
+                let balanceUFix64 = balance.direction == FlowALPModels.BalanceDirection.Debit
+                    ? FlowALPMath.toUFix64RoundUp(trueBalance)
+                    : FlowALPMath.toUFix64RoundDown(trueBalance)
+
                 balances.append(FlowALPModels.PositionBalance(
                     vaultType: type,
                     direction: balance.direction,
-                    balance: FlowALPMath.toUFix64Round(trueBalance)
+                    balance: balanceUFix64
                 ))
             }
 
@@ -1281,6 +1287,10 @@ access(all) contract FlowALPv0 {
         ) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
+                self.state.isPositionLocked(pid): "Position is not locked"
+            }
+            post {
+                self.state.isPositionLocked(pid): "Position is not locked"
             }
             // NOTE: caller must have already validated pid + token support
             let amount = from.balance
@@ -1577,6 +1587,268 @@ access(all) contract FlowALPv0 {
 
             self.unlockPosition(pid)
             return <- withdrawn
+        }
+
+        /// Extracts all queued deposits from a position
+        /// Returns a map of vault type to vault, guaranteeing no duplicate types.
+        access(self) fun _extractQueuedDeposits(pid: UInt64): @{Type: {FungibleToken.Vault}} {
+            pre {
+                self.state.isPositionLocked(pid): "Position is not locked"
+            }
+            post {
+                self.state.isPositionLocked(pid): "Position is not locked"
+            }
+            let position = self._borrowPosition(pid: pid)
+            let queuedVaults: @{Type: {FungibleToken.Vault}} <- {}
+
+            let queuedTypes = position.getQueuedDepositKeys()
+            for queuedType in queuedTypes {
+                let queuedVault <- position.removeQueuedDeposit(queuedType)!
+                queuedVaults[queuedType] <-! queuedVault
+            }
+
+            return <- queuedVaults
+        }
+
+        /// Gets all debts for a position
+        /// Returns a dictionary mapping token type to debt amount (rounded up to UFix64)
+        access(self) fun _getPositionDebts(pid: UInt64): {Type: UFix64} {
+            let positionDetails = self.getPositionDetails(pid: pid)
+            let debtsByType: {Type: UFix64} = {}
+
+            for balance in positionDetails.balances {
+                if balance.direction == FlowALPModels.BalanceDirection.Debit {
+                    let debtType = balance.vaultType
+                    // Sanity check: each position should have at most one balance entry per token type
+                    assert(
+                        debtsByType[debtType] == nil,
+                        message: "Sanity check failed: found multiple balances for \(debtType.identifier)"
+                    )
+                    debtsByType[debtType] = balance.balance
+                }
+            }
+
+            return debtsByType
+        }
+
+        /// Gets all collateral types for a position
+        /// Returns an array of token types that have credit balances (including dust amounts)
+        access(self) fun _getPositionCollateralTypes(pid: UInt64): [Type] {
+            let positionDetails = self.getPositionDetails(pid: pid)
+            let collateralTypes: [Type] = []
+
+            for balance in positionDetails.balances {
+                if balance.direction == FlowALPModels.BalanceDirection.Credit {
+                    // Sanity check: each position should have at most one balance entry per token type
+                    assert(
+                        !collateralTypes.contains(balance.vaultType),
+                        message: "Sanity check failed: found multiple balances for \(balance.vaultType.identifier)"
+                    )
+                    collateralTypes.append(balance.vaultType)
+                }
+            }
+
+            return collateralTypes
+        }
+
+        /// Validates that sources can cover all debt types before attempting repayment
+        /// Repays all debts by pulling from sources (exactly one source per debt type)
+        access(self) fun _repayDebtsFromSources(
+            pid: UInt64,
+            debtsByType: {Type: UFix64},
+            sources: [{DeFiActions.Source}]
+        ) {
+            pre {
+                self.state.isPositionLocked(pid): "Position is not locked"
+            }
+            post {
+                self.state.isPositionLocked(pid): "Position is not locked"
+            }
+
+            // Build source map and validate no duplicates
+            let sourcesByType: {Type: {DeFiActions.Source}} = {}
+            for source in sources {
+                let sourceType = source.getSourceType()
+                if sourcesByType[sourceType] != nil {
+                    panic("Multiple sources provided for debt type: \(sourceType.identifier)")
+                }
+                sourcesByType[sourceType] = source
+            }
+
+            // Repay each debt: find source, validate, and pay
+            for debtType in debtsByType.keys {
+                let debtAmount = debtsByType[debtType]!
+                let source = sourcesByType[debtType] ?? panic("No repayment source provided for debt type: \(debtType.identifier)")
+
+                let pulled <- source.withdrawAvailable(maxAmount: debtAmount)
+                assert(pulled.getType() == debtType, message: "Source returned wrong type: expected \(debtType.identifier), got \(pulled.getType().identifier)")
+                assert(pulled.balance >= debtAmount, message: "Insufficient funds from source for \(debtType.identifier) debt: needed \(debtAmount.toString()), got \(pulled.balance.toString())")
+
+                self._depositEffectsOnly(pid: pid, from: <-pulled)
+            }
+        }
+
+        /// Verifies that no debt remains in the position
+        access(self) fun _verifyNoDebtRemains(pid: UInt64) {
+            let updatedDetails = self.getPositionDetails(pid: pid)
+
+            // CRITICAL: No debt tokens should remain in debit. (zero tolerance)
+            // If a position has a zero balance in some token, that is represented as BalanceDirection.Credit,
+            // so we don't need to check balance amount here (any debit balance must be non-zero).
+            for balance in updatedDetails.balances {
+                if balance.direction == FlowALPModels.BalanceDirection.Debit {
+                    panic("Debt not fully repaid for \(balance.vaultType.identifier): \(balance.balance) remaining. Position cannot be closed with outstanding debt.")
+                }
+            }
+        }
+
+        /// Withdraws all collateral from the position.
+        ///
+        /// Returns a map of vault type to vault, guaranteeing no duplicate types.
+        access(self) fun _withdrawAllCollateral(
+            pid: UInt64,
+            collateralTypes: [Type]
+        ): @{Type: {FungibleToken.Vault}} {
+            pre {
+                self.state.isPositionLocked(pid): "Position is not locked"
+            }
+            post {
+                self.state.isPositionLocked(pid): "Position is not locked"
+            }
+            let positionView = self.buildPositionView(pid: pid)
+            let collateralVaults: @{Type: {FungibleToken.Vault}} <- {}
+
+            // Withdraw all credit balances
+            for withdrawalType in collateralTypes {
+                let tokenBalance = positionView.trueBalance(ofToken: withdrawalType)
+                let withdrawAmount = FlowALPMath.toUFix64RoundDown(tokenBalance)
+
+                if withdrawAmount == 0.0 {
+                    continue
+                }
+
+                let position = self._borrowPosition(pid: pid)
+                let tokenState = self._borrowUpdatedTokenState(type: withdrawalType)
+                let reserveVault = self.state.borrowReserve(withdrawalType)!
+
+                position.getBalance(withdrawalType)!.recordWithdrawal(
+                    amount: UFix128(withdrawAmount),
+                    tokenState: tokenState
+                )
+
+                let withdrawn <- reserveVault.withdraw(amount: withdrawAmount)
+
+                FlowALPEvents.emitWithdrawn(
+                    pid: pid,
+                    poolUUID: self.uuid,
+                    vaultType: withdrawalType,
+                    amount: withdrawAmount,
+                    withdrawnUUID: withdrawn.uuid
+                )
+
+                collateralVaults[withdrawalType] <-! withdrawn
+            }
+
+            return <- collateralVaults
+        }
+
+        /// Closes a position by repaying all debts from sources and returning all funds.
+        ///
+        /// Users provide Source(s) that can supply funds to repay debts. The contract pulls exactly
+        /// what it needs to repay all debts. Sources support swapping, multi-vault, and other patterns
+        /// via the DeFiActions.Source abstraction.
+        ///
+        /// Queued Deposits:
+        /// - Any unprocessed queued deposits are extracted and merged into the return array (dedup by type)
+        ///
+        /// Steps:
+        /// 1. Lock the position
+        /// 2. Get all debts from position
+        /// 3. Pull from sources to repay debts (overpayment becomes credit balance)
+        /// 4. Verify NO debt remains (zero tolerance for unpaid debt)
+        /// 5. Get collateral types (after repayment, to include any overpayment credits)
+        /// 6. Withdraw all collateral into a type-keyed map
+        /// 7. Extract queued deposits and merge into map (same type → deposit into existing vault)
+        /// 8. Build withdrawals map for event emission
+        /// 9. Emit PositionClosed event
+        /// 10. Drain map into return array (one vault per token type, no duplicates)
+        /// 11. Destroy InternalPosition and unlock
+        ///
+        /// @param pid: Position ID to close
+        /// @param repaymentSources: Array of Sources that can provide funds to repay debts
+        ///                          Sources are pulled from as needed (supports swapping, multi-vault, etc.)
+        /// @return Array of vaults — one per token type — containing collateral + queued deposits + any overpayment
+        ///
+        access(FlowALPModels.EPosition) fun closePosition(
+            pid: UInt64,
+            repaymentSources: [{DeFiActions.Source}]
+        ): @[{FungibleToken.Vault}] {
+            pre {
+                !self.isPausedOrWarmup(): "Operations are paused by governance"
+                self.positions[pid] != nil: "Invalid position ID"
+            }
+            post {
+                !self.state.isPositionLocked(pid): "Position is not unlocked"
+            }
+
+            if self.config.isDebugLogging() {
+                log("    [CONTRACT] closePosition(pid: \(pid), repaymentSources: \(repaymentSources.length))")
+            }
+
+            // Step 1: Lock the position for all state modifications
+            self.state.setPositionLock(pid, true)
+
+            // Step 2: Get all debts from position
+            let debtsByType = self._getPositionDebts(pid: pid)
+
+            // Step 3: Repay all debts by pulling from sources
+            self._repayDebtsFromSources(pid: pid, debtsByType: debtsByType, sources: repaymentSources)
+
+            // Step 4: Verify ALL debt is EXACTLY repaid (zero tolerance)
+            self._verifyNoDebtRemains(pid: pid)
+
+            // Step 5: Get collateral types (AFTER repayment, in case overpayment created new credits)
+            let collateralTypes = self._getPositionCollateralTypes(pid: pid)
+
+            // Step 6: Withdraw all credit balances
+            let vaults <- self._withdrawAllCollateral(pid: pid, collateralTypes: collateralTypes)
+
+            // Step 7: Extract queued deposits and merge into collateral map (dedup by type)
+            let queuedVaults <- self._extractQueuedDeposits(pid: pid)
+            for queuedType in queuedVaults.keys {
+                let queuedVault <- queuedVaults.remove(key: queuedType)!
+                if vaults[queuedType] != nil {
+                    let ref = (&vaults[queuedType] as &{FungibleToken.Vault}?)!
+                    ref.deposit(from: <-queuedVault)
+                } else {
+                    vaults[queuedType] <-! queuedVault
+                }
+            }
+            destroy queuedVaults
+
+            // Step 8: Build withdrawals map for event (includes collateral + queued deposits)
+            let withdrawalsByType: {Type: UFix64} = {}
+            for vaultType in vaults.keys {
+                let ref = (&vaults[vaultType] as &{FungibleToken.Vault}?)!
+                withdrawalsByType[vaultType] = ref.balance
+            }
+
+            // Step 9: Emit position closed event
+            FlowALPEvents.emitPositionClosed(pid: pid, poolUUID: self.uuid, debtsByType: debtsByType, withdrawalsByType: withdrawalsByType)
+
+            // Step 10: Drain map into return array (one vault per token type, no duplicates)
+            let returnVaults: @[{FungibleToken.Vault}] <- []
+            for vaultType in vaults.keys {
+                returnVaults.append(<- vaults.remove(key: vaultType)!)
+            }
+            destroy vaults
+
+            // Step 11: Remove stale queue entry, then destroy InternalPosition and unlock
+            self._removePositionFromUpdateQueue(pid: pid)
+            destroy self.positions.remove(key: pid)!
+            self.state.setPositionLock(pid, false)
+
+            return <- returnVaults
         }
 
         ///////////////////////
@@ -1887,6 +2159,11 @@ access(all) contract FlowALPv0 {
         access(self) fun _rebalancePositionNoLock(pid: UInt64, force: Bool) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
+                self.state.isPositionLocked(pid): "Position is not locked"
+
+            }
+            post {
+                self.state.isPositionLocked(pid): "Position is not locked"
             }
             if self.config.isDebugLogging() {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
@@ -2004,6 +2281,12 @@ access(all) contract FlowALPv0 {
             var processed: UInt64 = 0
             while self.state.getPositionsNeedingUpdatesLength() > 0 && processed < self.config.getPositionsProcessedPerCallback() {
                 let pid = self.state.removeFirstPositionNeedingUpdate()
+                if self.positions[pid] == nil {
+                    // Stale queue entry: position may have been closed and removed from self.positions.
+                    // Skip to keep async updates progressing for the remaining queue entries.
+                    processed = processed + 1
+                    continue
+                }
                 self.asyncUpdatePosition(pid: pid)
                 self._queuePositionForUpdateIfNecessary(pid: pid)
                 processed = processed + 1
@@ -2205,6 +2488,21 @@ access(all) contract FlowALPv0 {
                 // This position is outside the configured health bounds, we queue it for an update
                 self.state.appendPositionNeedingUpdate(pid)
                 return
+            }
+        }
+
+        /// Removes a position from the async update queue.
+        /// This is needed when closing a position to prevent stale queue entries.
+        access(self) fun _removePositionFromUpdateQueue(pid: UInt64) {
+            // Keep this operation linear-time:
+            // find first matching pid, then remove once while preserving queue order.
+            var i = 0
+            while i < self.state.getPositionsNeedingUpdatesLength() {
+                if self.state.positionsNeedingUpdatesContains(pid) {
+                    self.state.removeAtPositionNeedingUpdate(i)
+                    return
+                }
+                i = i + 1
             }
         }
 
@@ -2434,6 +2732,34 @@ access(all) contract FlowALPv0 {
             return pool.getPositionDetails(pid: self.id).balances
         }
 
+        /// Returns the total debt for this position, grouped by token type.
+        /// This is a convenience method for strategies to avoid recalculating debt from balances.
+        ///
+        /// Supports multiple debt token types - returns a dictionary mapping each debt token type
+        /// to its outstanding amount.
+        ///
+        /// @return Dictionary mapping token Type to debt amount. Empty if no debt.
+        access(all) fun getTotalDebt(): {Type: UFix64} {
+            let pool = self.pool.borrow()!
+            let balances = pool.getPositionDetails(pid: self.id).balances
+            let debtsByType: {Type: UFix64} = {}
+
+            // Collect debts by token type
+            for balance in balances {
+                if balance.direction == FlowALPModels.BalanceDirection.Debit {
+                    let tokenType = balance.vaultType
+                    // Sanity check: should only be one balance entry per type
+                    assert(
+                        debtsByType[tokenType] == nil,
+                        message: "Duplicate debt entry for \(tokenType.identifier)"
+                    )
+                    debtsByType[tokenType] = balance.balance
+                }
+            }
+
+            return debtsByType
+        }
+
         /// Returns the balance available for withdrawal of a given Vault type. If pullFromTopUpSource is true, the
         /// calculation will be made assuming the position is topped up if the withdrawal amount puts the Position
         /// below its min health. If pullFromTopUpSource is false, the calculation will return the balance currently
@@ -2544,6 +2870,28 @@ access(all) contract FlowALPv0 {
                 type: type,
                 amount: amount,
                 pullFromTopUpSource: pullFromTopUpSource
+            )
+        }
+
+        /// Closes the position by repaying all debt with a pre-prepared vault and returning all collateral.
+        ///
+        /// This is the ONLY close method. Users must prepare repayment funds externally.
+        /// This design eliminates circular dependencies and gives users full control over fund sourcing.
+        ///
+        /// See Pool.closePosition() for detailed implementation documentation.
+        ///
+        /// Automatically detects and withdraws all collateral types in the position.
+        ///
+        /// @param repaymentSources: Array of sources (one per debt type) from which debt repayments can be withdrawn
+        /// @return Array of vaults containing all collateral + queued deposits + any overpayment dust, one per token type
+        ///
+        access(FungibleToken.Withdraw) fun closePosition(
+            repaymentSources: [{DeFiActions.Source}]
+        ): @[{FungibleToken.Vault}] {
+            let pool = self.pool.borrow()!
+            return <- pool.closePosition(
+                pid: self.id,
+                repaymentSources: repaymentSources
             )
         }
 
