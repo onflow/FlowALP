@@ -1,5 +1,3 @@
-import "FlowALPMath"
-
 access(all) contract FlowALPInterestRates {
 
     /// InterestCurve
@@ -119,7 +117,7 @@ access(all) contract FlowALPInterestRates {
                 // If utilization is above the optimal point, use slope2 for excess
                 // excessUtilization = (utilization - optimalUtilization) / (1 - optimalUtilization)
                 let excessUtilization = utilization - self.optimalUtilization
-                let maxExcess = FlowALPMath.one - self.optimalUtilization
+                let maxExcess = (1.0 as UFix128) - self.optimalUtilization
                 let excessFactor = excessUtilization / maxExcess
 
                 // rate = baseRate + slope1 + (slope2 × excessFactor)
