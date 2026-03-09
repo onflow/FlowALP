@@ -11,7 +11,7 @@
 | FLOW  | Native Flow token | 0.80 | 0.90 |
 | WETH  | EVM-bridged | 0.75 | 0.85 |
 | WBTC  | EVM-bridged | 0.70 | 0.80 |
-| MOET  | Protocol token | ⚠️ TBD | ⚠️ TBD |
+| MOET  | Protocol token | ⚠️ ??? | ⚠️ ??? |
 
 > ⚠️ **USDF** appears in fork test configurations alongside FLOW/WETH/WBTC — confirm whether it is in v1 scope.
 
@@ -36,7 +36,7 @@
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| Minimum position value | ⚠️ TBD | Set via governance (`setMinimumTokenBalancePerPosition`) |
+| Minimum position value | ⚠️ ??? | Set via governance (`setMinimumTokenBalancePerPosition`) |
 | Maximum deposit per token | 1,000,000 (default) | Governance-configurable cap per token |
 | Deposit limit fraction | 5% of capacity per deposit | Default; configurable per token |
 
@@ -78,8 +78,8 @@ The rebalancing interval is configurable per position via `RecurringConfigImplv1
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| Insurance rate | ⚠️ TBD | Governance-configurable per token |
-| Stability fee rate | ⚠️ TBD | Governance-configurable per token |
+| Insurance rate | ⚠️ ??? | Governance-configurable per token |
+| Stability fee rate | ⚠️ ??? | Governance-configurable per token |
 | Combined constraint | `insuranceRate + stabilityFeeRate < 100%` | Enforced by contract |
 
 ---
