@@ -128,6 +128,105 @@ fun setup() {
     snapshot = getCurrentBlockHeight()
 }
 
+// =============================================================================
+/// Verifies extreme utilization (nearly all liquidity borrowed), KinkCurve Steep Slope Behavior
+// =============================================================================
+access(all)
+fun test_extreme_utilization() {
+    safeReset()
+
+    setInterestCurveKink(
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        optimalUtilization: flowOptimalUtilization,
+        baseRate: flowBaseRate,
+        slope1: flowSlope1,
+        slope2: flowSlope2
+    )
+
+    // create Flow LP with 2000 FLOW
+    let FLOWAmount = 2000.0
+
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: MAINNET_FLOW_HOLDER, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    var openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let lpDepositPid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+
+    // create borrower with MOET collateral
+    let borrower = Test.createAccount()
+    setupMoetVault(borrower, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 10_000.0, beFailed: false)
+
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 10_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
+
+    openEvents = Test.eventsOfType(Type<FlowALPv0.Opened>())
+    let borrowerPid = (openEvents[openEvents.length - 1] as! FlowALPv0.Opened).pid
+
+    // borrow 999 FLOW
+    borrowFromPosition(
+        signer: borrower,
+        positionId: borrowerPid,
+        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: 999.0,
+        beFailed: false
+    )
+
+    // LP withdraws 1000 FLOW to push utilization higher
+    let withdrawRes = withdrawFromPosition(
+        signer: MAINNET_FLOW_HOLDER,
+        positionId: lpDepositPid,
+        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: 1000.0,
+        pullFromTopUpSource: false,
+    )
+
+    // Pool state:
+    //   FLOW credit = 2000 - 1000 = 1000
+    //   FLOW debit  = 999
+    //
+    // KinkInterestCurve:
+    //   utilization = debitBalance / (creditBalance + debitBalance) //TODO(Uliana): nearly all liquidity borrowed, but utilization = 49%
+    //   utilization = 999 / (1000 + 999) = 999 / 1999 = 0.4997498749 = 49.9% > 45%
+    //
+    //   rate = baseRate + slope1 + (slope2 * excessUtilization)
+    //   excessUtilization = (utilization - optimalUtilization) / (1 - optimalUtilization)
+    ///
+    //   excessUtilization = (0.4997498749 - 0.45) / (1 - 0.45) = 0.090454318
+    //   rate = 0.0 + 0.04 + 3.0 * 0.090454318 = 0.311362954 (31.13% APY)
+
+    // record initial state
+    let detailsBefore = getPositionDetails(pid: borrowerPid, beFailed: false)
+    let FLOWDebtBefore = getDebitBalanceForType(details: detailsBefore, vaultType: Type<@FlowToken.Vault>())
+
+    // Borrower position
+    // Collateral:
+    //   MOET: 10000 * $1.0 * CF(1.0) = $10000
+    // Debt:
+    //   FLOW: 999 * $1.0 / BF(0.9) = $1110
+    //
+    // Health = $10000 / $1110 = 9.00900900900...
+
+    // advance 30 days
+    Test.moveTime(by: THIRTY_DAYS)
+    Test.commitBlock()
+
+    // verify debt growth
+    let detailsAfter = getPositionDetails(pid: borrowerPid, beFailed: false)
+    let FLOWDebtAfter = getDebitBalanceForType(details: detailsAfter, vaultType: Type<@FlowToken.Vault>())
+    let healthAfter = detailsAfter.health
+    Test.assert(FLOWDebtAfter > FLOWDebtBefore, message: "Debt should increase at above-kink utilization")
+    
+    // perSecondRate = 1 + (yearlyRate / 31_557_600)
+    // 30 days growth rate = perSecondRate ^ 2_592_000 - 1
+    // FLOW debit 30 days growth rate = (1 + (0.311362954 / 31_557_600))^2_592_000 - 1 = 0.02590377842 = 2.59%
+    let expectedFLOWGrowthRate = 0.02590377
+    let FLOWDebtGrowth = FLOWDebtAfter - FLOWDebtBefore
+    let FLOWGrowthRate = FLOWDebtGrowth / FLOWDebtBefore
+
+    Test.assert(equalWithinVariance(expectedFLOWGrowthRate, FLOWGrowthRate),
+        message: "Expected FLOW debt growth rate to be ~\(expectedFLOWGrowthRate), but got \(FLOWGrowthRate)")
+}
 
 // =============================================================================
 /// Verifies the scenario when there is no liquidity to borrow.
