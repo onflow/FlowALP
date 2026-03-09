@@ -126,7 +126,6 @@ fun testRecursiveWithdrawSource() {
         receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 1500.0,
         pullFromTopUpSource: true
-
     )
     Test.expect(withdrawRes, Test.beFailed())
 

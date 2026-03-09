@@ -43,7 +43,7 @@ access(all) var snapshot: UInt64 = 0
 // MOET: FixedRateInterestCurve (Spread Model)
 // -----------------------------------------------------------------------------
 // In the spread model, the curve defines the DEBIT rate (what borrowers pay).
-// The CREDIT rate is derived as: creditRate = debitRate - insuranceRate
+// The CREDIT rate is derived as: creditRate = debitRate - protocolRate
 // This ensures lenders always earn less than borrowers pay, with the
 // difference going to the insurance pool for protocol solvency.
 //
