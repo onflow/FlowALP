@@ -99,9 +99,11 @@ access(all) contract FlowALPMath {
         return diffBps <= maxDeviationBps
     }
 
-    /// Converts a yearly interest rate to a per-second multiplication factor (stored in a UFix128 as a fixed point
-    /// number with 18 decimal places). The input to this function will be just the relative annual interest rate
-    /// (e.g. 0.05 for 5% interest), and the result will be the per-second multiplier (e.g. 1.000000000001).
+    /// Converts a nominal yearly interest rate to a per-second multiplication factor (stored in a UFix128 as a fixed
+    /// point number with 18 decimal places). The input to this function is the relative nominal annual rate
+    /// (e.g. 0.05 for a 5% nominal yearly rate), and the result is the per-second multiplier
+    /// (e.g. 1.000000000001). For positive rates, the effective one-year growth will be slightly higher than the
+    /// nominal rate because interest compounds over time.
     access(all) view fun perSecondInterestRate(yearlyRate: UFix128): UFix128 {
         let perSecondScaledValue = yearlyRate / 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
         assert(

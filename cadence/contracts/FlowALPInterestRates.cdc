@@ -4,7 +4,7 @@ access(all) contract FlowALPInterestRates {
     ///
     /// A simple interface to calculate interest rate for a token type.
     access(all) struct interface InterestCurve {
-        /// Returns the annual interest rate for the given credit and debit balance, for some token T.
+        /// Returns the annual nominal interest rate for the given credit and debit balance, for some token T.
         /// @param creditBalance The credit (deposit) balance of token T
         /// @param debitBalance The debit (withdrawal) balance of token T
         access(all) fun interestRate(creditBalance: UFix128, debitBalance: UFix128): UFix128 {
@@ -22,7 +22,7 @@ access(all) contract FlowALPInterestRates {
     /// A fixed-rate interest curve implementation that returns a constant yearly interest rate
     /// regardless of utilization. This is suitable for stable assets like MOET where predictable
     /// rates are desired.
-    /// @param yearlyRate The fixed yearly interest rate as a UFix128 (e.g., 0.05 for 5% APY)
+    /// @param yearlyRate The fixed yearly nominal rate as a UFix128 (e.g., 0.05 for a 5% nominal yearly rate)
     access(all) struct FixedCurve: InterestCurve {
 
         access(all) let yearlyRate: UFix128
@@ -62,7 +62,7 @@ access(all) contract FlowALPInterestRates {
     /// This matches the live TokenState accounting used by FlowALP.
     ///
     /// @param optimalUtilization The target utilization ratio (e.g., 0.80 for 80%)
-    /// @param baseRate The minimum yearly interest rate (e.g., 0.01 for 1% APY)
+    /// @param baseRate The minimum yearly nominal rate (e.g., 0.01 for a 1% nominal yearly rate)
     /// @param slope1 The total rate increase from 0% to optimal utilization (e.g., 0.04 for 4%)
     /// @param slope2 The total rate increase from optimal to 100% utilization (e.g., 0.60 for 60%)
     access(all) struct KinkCurve: InterestCurve {
