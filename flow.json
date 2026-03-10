@@ -49,6 +49,13 @@
 				"mainnet-fork": "6d888f175c158410"
 			}
 		},
+		"DummyToken": {
+			"source": "./cadence/tests/contracts/DummyToken.cdc",
+			"aliases": {
+				"testing": "0000000000000007",
+				"mainnet-fork": "6d888f175c158410"
+			}
+		},
 		"FlowALPEvents": {
 			"source": "./cadence/contracts/FlowALPEvents.cdc",
 			"aliases": {
@@ -63,18 +70,19 @@
 				"mainnet-fork": "6b00ff876c299c61"
 			}
 		},
+		"FlowALPMath": {
+			"source": "./cadence/lib/FlowALPMath.cdc",
+			"aliases": {
+				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61"
+			}
+		},
 		"FlowALPModels": {
 			"source": "./cadence/contracts/FlowALPModels.cdc",
 			"aliases": {
 				"testing": "0000000000000007",
 				"mainnet-fork": "6b00ff876c299c61"
-			}
-		},
-		"FlowALPMath": {
-			"source": "./cadence/lib/FlowALPMath.cdc",
-			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet": "6d888f175c158410"
 			}
 		},
 		"FlowALPRebalancerPaidv1": {

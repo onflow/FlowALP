@@ -31,7 +31,7 @@ transaction(
         // Parse the token type
         self.tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier: \(tokenTypeIdentifier)")
-        
+
         self.receiverVault = signer.storage.borrow<&{FungibleToken.Receiver}>(from: tokenVaultStoragePath)
             ?? panic("Could not borrow receiver vault")
     }
