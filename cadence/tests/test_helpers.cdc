@@ -426,7 +426,7 @@ fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, pri
 access(all)
 fun getOraclePrice(tokenIdentifier: String): UFix64 {
     let result = Test.executeScript(
-        Test.readFile("../scripts/flow-alp/get_oracle_price.cdc"),
+        Test.readFile("./scripts/get_oracle_price.cdc"),
         [tokenIdentifier]
     )
 

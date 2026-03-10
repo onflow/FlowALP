@@ -18,21 +18,24 @@ import "MockDexSwapper"
 /// repayAmounts: Array of debt amounts to repay for each position (sourced from the DEX)
 transaction(
     pids: [UInt64],
-    debtVaultIdentifier: String,
+    repayVaultIdentifier: String,
     seizeVaultIdentifiers: [String],
     seizeAmounts: [UFix64],
     repayAmounts: [UFix64]
 ) {
     let pool: &FlowALPv0.Pool
     let debtType: Type
+    let signerAccount: auth(BorrowValue) &Account
 
-    prepare(signer: &Account) {
+    prepare(signer: auth(BorrowValue) &Account) {
         let protocolAddress = Type<@FlowALPv0.Pool>().address!
         self.pool = getAccount(protocolAddress).capabilities.borrow<&FlowALPv0.Pool>(FlowALPv0.PoolPublicPath)
             ?? panic("Could not borrow Pool at \(FlowALPv0.PoolPublicPath)")
 
-        self.debtType = CompositeType(debtVaultIdentifier)
-            ?? panic("Invalid debtVaultIdentifier: \(debtVaultIdentifier)")
+        self.debtType = CompositeType(repayVaultIdentifier)
+            ?? panic("Invalid debtVaultIdentifier: \(repayVaultIdentifier)")
+
+        self.signerAccount = signer
     }
 
     execute {
@@ -55,7 +58,7 @@ transaction(
             // Retrieve the stored MockDexSwapper for this collateral → debt pair.
             // The swapper's vaultSource (protocolAccount's vault) provides the debt tokens.
             let swapper = MockDexSwapper.getSwapper(inType: seizeType, outType: self.debtType)
-                ?? panic("No MockDexSwapper configured for \(seizeVaultIdentifier) -> \(debtVaultIdentifier)")
+                ?? panic("No MockDexSwapper configured for \(seizeVaultIdentifier) -> \(repayVaultIdentifier)")
 
             // Build an exact quote for the repayAmount we need from the swapper's vaultSource
             let swapQuote = MockDexSwapper.BasicQuote(
@@ -87,7 +90,11 @@ transaction(
             )
 
             totalRepaid = totalRepaid + repayAmount
-            destroy seizedVault
+
+            // Deposit seized collateral back to liquidator
+            let liquidatorVault = self.signerAccount.storage.borrow<&{FungibleToken.Vault}>(from: seizeVaultData.storagePath)
+                ?? panic("No vault at \(seizeVaultData.storagePath) to deposit seized collateral")
+            liquidatorVault.deposit(from: <-seizedVault)
         }
 
         log("Batch DEX liquidation completed: \(numPositions) positions, total repaid: \(totalRepaid)")

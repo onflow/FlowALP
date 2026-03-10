@@ -101,16 +101,16 @@ access(all) fun setup() {
 // collateral types, and that operations on one position have no effect on any
 // other (isolation guarantee).
 //
-// Pool liquidity: 800 FLOW LP deposit
+// Pool liquidity: 800 MOET LP deposit
 //
-// Positions (all borrow FLOW as debt):
-//   pos 1:  500 FLOW    @ $1.00 (CF=0.80), borrow 100  → health = 500*1.0*0.80/100     = 4.000
-//   pos 2: 1500 USDF    @ $1.00 (CF=0.85), borrow 150  → health = 1500*1.0*0.85/150    = 8.500
-//   pos 3:   10 USDC    @ $1.00 (CF=0.85), borrow   5  → health = 10*1.0*0.85/5        = 1.700
-//   pos 4: 0.05 WETH    @ $3500 (CF=0.75), borrow  50  → health = 0.05*3500*0.75/50    = 2.625
-//   pos 5: 0.0004 WBTC  @ $50000 (CF=0.75), borrow  8  → health = 0.0004*50000*0.75/8  = 1.875
+// Positions (all borrow MOET as debt):
+//   pos 1:  500 FLOW    @ 1.00 MOET (CF=0.80), borrow 100  → health = 500*1.0*0.80/100     = 4.000
+//   pos 2: 1500 USDF    @ 1.00 MOET (CF=0.85), borrow 150  → health = 1500*1.0*0.85/150    = 8.500
+//   pos 3:   10 USDC    @ 1.00 MOET (CF=0.85), borrow   5  → health = 10*1.0*0.85/5        = 1.700
+//   pos 4: 0.05 WETH    @ 3500 MOET (CF=0.75), borrow  50  → health = 0.05*3500*0.75/50    = 2.625
+//   pos 5: 0.0004 WBTC  @ 50000 MOET (CF=0.75), borrow  8  → health = 0.0004*50000*0.75/8  = 1.875
 //
-// Isolation test: borrow 100 more FLOW from pos 2 (USDF)
+// Isolation test: borrow 100 more MOET from pos 2 (USDF)
 //   new debt = 150 + 100 = 250  →  health = 1500*1.0*0.85/250 = 5.100  (lower)
 //   pos 1, 3, 4, 5: unchanged
 // =============================================================================
@@ -122,24 +122,25 @@ access(all) fun testMultiplePositionsPerUser() {
     let lpUser = Test.createAccount()
     let user = Test.createAccount()
 
-    // Transfer FLOW from holder to LP
-    log("Setting up liquidity provider with FLOW\n")
+    // Mint MOET to LP to create liquidity for borrowing
+    log("Setting up liquidity provider with MOET\n")
     let liquidityAmount = 800.0
-    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_ID, from: MAINNET_FLOW_HOLDER, to: lpUser, amount: liquidityAmount)
+    setupMoetVault(lpUser, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: lpUser.address, amount: liquidityAmount, beFailed: false)
 
-    // LP deposits FLOW to create liquidity for borrowing
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: liquidityAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    // LP deposits MOET to create liquidity for borrowing
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: liquidityAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     //////////// Position creation ///////////////////
     log("Create 5 Positions with Different Collateral Types\n")
 
     // Define positions with different collateral types
     // Token holder balances and prices:
-    // - flowHolder: 1921 FLOW x $1 = $1921
-    // - usdfHolder: 25000 USDF x $1 = $25000
-    // - usdcHolder: 97 USDC x $1 = $97
-    // - wethHolder: 0.07032 WETH x $3500 = $246.12
-    // - wbtcHolder: 0.0005 WBTC x $50000 = $25
+    // - flowHolder: 1921 FLOW x 1 = 1921 MOET
+    // - usdfHolder: 25000 USDF x 1 = 25000 MOET
+    // - usdcHolder: 97 USDC x 1 = 97 MOET
+    // - wethHolder: 0.07032 WETH x 3500 = 246.12 MOET
+    // - wbtcHolder: 0.0005 WBTC x 50000 = 25 MOET
 
     let positions = [
         {"type": MAINNET_FLOW_TOKEN_ID, "amount": 500.0, "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": MAINNET_FLOW_HOLDER},
@@ -178,7 +179,7 @@ access(all) fun testMultiplePositionsPerUser() {
     var healths: [UFix128] = []
     for i, debt in debts {
         let pid = userPids[i]
-        borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: debt, beFailed: false)
+        borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: debt, beFailed: false)
 
         // Get health factor
         let health = getPositionHealth(pid: pid, beFailed: false)
@@ -195,8 +196,8 @@ access(all) fun testMultiplePositionsPerUser() {
 
     log("Testing isolation by borrowing more from Position \(isolationTestPid)\n")
 
-    log("\n  Action: Borrow 100 more FLOW from Position \(isolationTestPid)\n")
-    borrowFromPosition(signer: user, positionId: isolationTestPid, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: additionalDebt, beFailed: false)
+    log("\n  Action: Borrow 100 more MOET from Position \(isolationTestPid)\n")
+    borrowFromPosition(signer: user, positionId: isolationTestPid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: additionalDebt, beFailed: false)
 
     // Get health of all positions after
     var healthsAfterBorrow: [UFix128] = []
@@ -220,25 +221,25 @@ access(all) fun testMultiplePositionsPerUser() {
 // and B compete for the same limited liquidity; a repayment by one restores it
 // for the other. A price crash on A's collateral leaves B's health unaffected.
 //
-// Pool liquidity: 400 FLOW LP deposit
+// Pool liquidity: 400 MOET LP deposit
 //
-// Position A: 90 USDC @ $1.00 (CF=0.85), borrow 60 FLOW
+// Position A: 90 USDC @ 1.00 MOET (CF=0.85), borrow 60 MOET
 //   health = 90*1.0*0.85 / 60 = 76.5/60 = 1.275
-//   pool remaining = 400 - 60 = 340 FLOW
+//   pool remaining = 400 - 60 = 340 MOET
 //
-// Position B: 500 USDF @ $1.00 (CF=0.85), borrow 340 FLOW (drains pool)
+// Position B: 500 USDF @ 1.00 MOET (CF=0.85), borrow 340 MOET (drains pool)
 //   health = 500*1.0*0.85 / 340 = 425/340 = 1.250
-//   pool remaining = 0  →  Position B borrow of 1 FLOW fails
+//   pool remaining = 0  →  Position B borrow of 1 MOET fails
 //
-// Position A repays 40 FLOW:
+// Position A repays 40 MOET:
 //   debt = 60 - 40 = 20  →  health = 76.5/20 = 3.825
-//   pool remaining = 40 FLOW
+//   pool remaining = 40 MOET
 //
-// USDC price crash $1.00 → $0.50 (Position A's collateral only):
+// USDC price crash 1.00 MOET → 0.50 MOET (Position A's collateral only):
 //   Position A health = 90*0.50*0.85 / 20 = 38.25/20 = 1.913  (still healthy)
 //   Position B health: unchanged (USDF collateral unaffected)
 //
-// Position B borrows 30 FLOW from restored pool:
+// Position B borrows 30 MOET from restored pool:
 //   health = 500*1.0*0.85 / (340 + 30) = 425/370 = 1.149
 // =============================================================================
 access(all) fun testPositionInteractionsSharedLiquidity() {
@@ -252,11 +253,12 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
 
     log("Setting up shared liquidity pool with limited capacity\n")
     let liquidityAmount = 400.0
-    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_ID, from: MAINNET_FLOW_HOLDER, to: lpUser, amount: liquidityAmount)
+    setupMoetVault(lpUser, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: lpUser.address, amount: liquidityAmount, beFailed: false)
 
-    // LP deposits FLOW - this creates the shared liquidity pool
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: liquidityAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    log("  Liquidity Provider deposited: \(liquidityAmount) FLOW\n")
+    // LP deposits MOET - this creates the shared liquidity pool
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: liquidityAmount, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    log("  Liquidity Provider deposited: \(liquidityAmount) MOET\n")
 
     //////////// Create Position A with USDC collateral ///////////////////
 
@@ -278,37 +280,37 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
 
     log("Position A borrows heavily from shared pool\n")
     // Formula: Effective Collateral = (collateralAmount * price) * collateralFactor = (90 × 1.0) × 0.85 = 76.50
-    // Max Borrow = 76.50 / 1.1 (minHealth) = 69.55 FLOW
+    // Max Borrow = 76.50 / 1.1 (minHealth) = 69.55 MOET
     // Health after borrow = 76.50 / 60 = 1.275
-    let positionA_borrow1 = 60.0  // Borrow 60 FLOW (within max 69.55)
-    borrowFromPosition(signer: user, positionId: positionA_id, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionA_borrow1, beFailed: false)
+    let positionA_borrow1 = 60.0  // Borrow 60 MOET (within max 69.55)
+    borrowFromPosition(signer: user, positionId: positionA_id, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: positionA_borrow1, beFailed: false)
 
     let healthA_after1 = getPositionHealth(pid: positionA_id, beFailed: false)
-    log("  Position A borrowed \(positionA_borrow1) FLOW - Health: \(healthA_after1)\n")
+    log("  Position A borrowed \(positionA_borrow1) MOET - Health: \(healthA_after1)\n")
 
-    // Check remaining liquidity in pool: liquidityAmount - positionA_borrow1 = 400.0 - 60.0 = 340.0 FLOW
-    log("  Remaining liquidity in pool: 340.0 FLOW\n")
+    // Check remaining liquidity in pool: liquidityAmount - positionA_borrow1 = 400.0 - 60.0 = 340.0 MOET
+    log("  Remaining liquidity in pool: 340.0 MOET\n")
 
     //////////// 2. Position B borrows successfully from shared pool ///////////////////
     log("Position B borrows from shared pool\n")
 
     // Formula: Effective Collateral = (collateralAmount * price) * collateralFactor = (500 × 1.0) × 0.85 = 425.00
-    // Max Borrow = 425.00 / 1.1 (minHealth) = 386.36 FLOW
-    let positionB_borrow1 = 340.0  // Borrow 340 FLOW (within max 386.36 borrow and 340 remaining liquidity)
-    log("  Attempting to borrow \(positionB_borrow1) FLOW...")
-    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionB_borrow1, beFailed: false)
-    log("  Success - Position B borrowed \(positionB_borrow1) FLOW")
+    // Max Borrow = 425.00 / 1.1 (minHealth) = 386.36 MOET
+    let positionB_borrow1 = 340.0  // Borrow 340 MOET (within max 386.36 borrow and 340 remaining liquidity)
+    log("  Attempting to borrow \(positionB_borrow1) MOET...")
+    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: positionB_borrow1, beFailed: false)
+    log("  Success - Position B borrowed \(positionB_borrow1) MOET")
     let healthB_after1 = getPositionHealth(pid: positionB_id, beFailed: false)
     log("  Position B Health: \(healthB_after1)\n")
-    log("  Remaining liquidity in pool: 0.0 FLOW\n")
+    log("  Remaining liquidity in pool: 0.0 MOET\n")
 
     //////////// 3. Position B tries to exceed max borrowing capacity - expects failure ///////////////////
     log("Position B tries to borrow beyond its capacity - EXPECTS FAILURE\n")
 
     // Position B can't borrow more because remaining liquidity is 0
     let positionB_borrow2_attempt = 1.0
-    log("  Attempting to borrow \(positionB_borrow2_attempt) FLOW...")
-    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionB_borrow2_attempt, beFailed: true)
+    log("  Attempting to borrow \(positionB_borrow2_attempt) MOET...")
+    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: positionB_borrow2_attempt, beFailed: true)
     log("  Failed as expected - remaining liquidity is 0\n")
 
     let healthB_after2 = getPositionHealth(pid: positionB_id, beFailed: false)
@@ -316,15 +318,15 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
     //////////// 4. Position A repayment increases available liquidity ///////////////////
     log("Position A repays debt, freeing liquidity back to pool\n")
 
-    // Position A repays substantial debt by depositing borrowed FLOW back
+    // Position A repays substantial debt by depositing borrowed MOET back
     let repayAmount = 40.0
 
-    // Deposit FLOW back to position (repays debt using previously borrowed funds)
-    depositToPosition(signer: user, positionID: positionA_id, amount: repayAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    // Deposit MOET back to position (repays debt using previously borrowed funds)
+    depositToPosition(signer: user, positionID: positionA_id, amount: repayAmount, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
     let healthA_after2 = getPositionHealth(pid: positionA_id, beFailed: false)
-    log("  Position A repaid \(repayAmount) FLOW - Health: \(healthA_after2)\n")
-    log("  Remaining liquidity in pool after repayment: \(repayAmount) FLOW\n")
+    log("  Position A repaid \(repayAmount) MOET - Health: \(healthA_after2)\n")
+    log("  Remaining liquidity in pool after repayment: \(repayAmount) MOET\n")
 
     //////////// Verify cross-position effects ///////////////////
 
@@ -338,7 +340,7 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
     let healthB_before_priceChange = getPositionHealth(pid: positionB_id, beFailed: false)
     log("  Position B health: \(healthB_before_priceChange)")
 
-    // Crash USDC price (Position A's collateral) from $1.0 to $0.5
+    // Crash USDC price (Position A's collateral) from 1.0 MOET to 0.5 MOET
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDC_TOKEN_ID, price: 0.5)
 
     let healthA_after_crash = getPositionHealth(pid: positionA_id, beFailed: false)
@@ -356,9 +358,9 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
 
     // Position B can still borrow from the shared pool (liquidity is independent of Position A's health)
     // Position B has: 425 effective collateral, 340 borrowed, can borrow up to 46.36 more
-    let positionB_borrow3 = 30.0  // Well within remaining capacity (40 FLOW available, 46.36 max allowed)
-    log("  Position B attempts to borrow \(positionB_borrow3) FLOW after Position A's health deterioration...")
-    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: positionB_borrow3, beFailed: false)
+    let positionB_borrow3 = 30.0  // Well within remaining capacity (40 MOET available, 46.36 max allowed)
+    log("  Position B attempts to borrow \(positionB_borrow3) MOET after Position A's health deterioration...")
+    borrowFromPosition(signer: user, positionId: positionB_id, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: positionB_borrow3, beFailed: false)
     log("  Success - Position B can still borrow despite Position A's poor health\n")
 
     let healthB_final = getPositionHealth(pid: positionB_id, beFailed: false)
@@ -374,18 +376,18 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
 // single transaction via the batch DEX helper. Full liquidations bring positions
 // above health 1.0; partial liquidations improve health without fully recovering.
 //
-// Pool liquidity: 600 FLOW LP deposit
+// Pool liquidity: 600 MOET LP deposit
 //
-// Positions (all borrow FLOW as debt):
-//   pid 0:  500 USDF   @ $1.00  (CF=0.85), borrow 200 → health = 500*1.0*0.85/200    = 2.125
-//   pid 1: 0.06 WETH   @ $3500  (CF=0.75), borrow  90 → health = 0.06*3500*0.75/90   = 1.750
-//   pid 2:   80 USDC   @ $1.00  (CF=0.85), borrow  40 → health = 80*1.0*0.85/40      = 1.700
-//   pid 3: 0.0004 WBTC @ $50000 (CF=0.75), borrow  10 → health = 0.0004*50000*0.75/10 = 1.500
-//   pid 4:  200 FLOW   @ $1.00  (CF=0.80), borrow  80 → health = 200*1.0*0.80/80     = 2.000
+// Positions (all borrow MOET as debt):
+//   pid 0:  500 USDF   @ 1.00 MOET  (CF=0.85), borrow 200 → health = 500*1.0*0.85/200    = 2.125
+//   pid 1: 0.06 WETH   @ 3500 MOET  (CF=0.75), borrow  90 → health = 0.06*3500*0.75/90   = 1.750
+//   pid 2:   80 USDC   @ 1.00 MOET  (CF=0.85), borrow  40 → health = 80*1.0*0.85/40      = 1.700
+//   pid 3: 0.0004 WBTC @ 50000 MOET (CF=0.75), borrow  10 → health = 0.0004*50000*0.75/10 = 1.500
+//   pid 4:  200 FLOW   @ 1.00 MOET  (CF=0.80), borrow  80 → health = 200*1.0*0.80/80     = 2.000
 //
 // Price crash:
-//   USDF: $1.00 → $0.30 (-70%)  |  WETH: $3500 → $1050 (-70%)
-//   USDC: $1.00 → $0.50 (-50%)  |  WBTC: $50000 → $25000 (-50%)  |  FLOW: unchanged
+//   USDF: 1.00 → 0.30 (-70%)  |  WETH: 3500 → 1050 (-70%)
+//   USDC: 1.00 → 0.50 (-50%)  |  WBTC: 50000 → 25000 (-50%)  |  FLOW: unchanged
 //
 // Health after crash:
 //   pid 0 (USDF): 500*0.30*0.85/200      = 127.5/200  = 0.638  (unhealthy)
@@ -416,20 +418,21 @@ access(all) fun testBatchLiquidations() {
     let lpUser = Test.createAccount()
     let user = Test.createAccount()
 
-    // LP deposits 600 FLOW to provide borrowing liquidity
-    // (total borrows = 200+90+40+10+80 = 420 FLOW < 600)
-    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_ID, from: MAINNET_FLOW_HOLDER, to: lpUser, amount: 600.0)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 600.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    // LP deposits 600 MOET to provide borrowing liquidity
+    // (total borrows = 200+90+40+10+80 = 420 MOET < 600)
+    setupMoetVault(lpUser, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: lpUser.address, amount: 600.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 600.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // 5 positions with distinct collateral types:
     //
     //  pid | Collateral| Amount      | Borrow   | Crash price | Health after | Action
     //  ----|-----------|-------------|----------|-------------|--------------|--------
-    //   1  | USDF      | 500 USDF    | 200 FLOW | $0.30 (-70%)| 0.638        | FULL liquidation
-    //   2  | WETH      | 0.06 WETH   |  90 FLOW | $1050 (-70%)| 0.525        | FULL liquidation
-    //   3  | USDC      | 80 USDC     |  40 FLOW | $0.50 (-50%)| 0.850        | PARTIAL liquidation
-    //   4  | WBTC      | 0.0004 WBTC |  10 FLOW | $25000(-50%)| 0.750        | PARTIAL liquidation
-    //   5  | FLOW      | 200 FLOW    |  80 FLOW | $1.00 (0%)  | 2.000        | NOT liquidated
+    //   1  | USDF      | 500 USDF    | 200 MOET | 0.30 (-70%)| 0.638        | FULL liquidation
+    //   2  | WETH      | 0.06 WETH   |  90 MOET | 1050 (-70%)| 0.525        | FULL liquidation
+    //   3  | USDC      | 80 USDC     |  40 MOET | 0.50 (-50%)| 0.850        | PARTIAL liquidation
+    //   4  | WBTC      | 0.0004 WBTC |  10 MOET | 25000(-50%)| 0.750        | PARTIAL liquidation
+    //   5  | FLOW      | 200 FLOW    |  80 MOET | 1.00 (0%)  | 2.000        | NOT liquidated
     //
     log("Creating 5 positions with different collateral types\n")
 
@@ -455,21 +458,21 @@ access(all) fun testBatchLiquidations() {
         userPids.append(getLastPositionId())
     }
 
-    log("Borrowing FLOW from each position\n")
+    log("Borrowing MOET from each position\n")
     var healths: [UFix128] = []
     for i, position in positions {
         let pid = userPids[i]
         let borrowAmount = position["borrow"]! as! UFix64
         let collateralName = position["name"]! as! String
 
-        borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: borrowAmount, beFailed: false)
+        borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: borrowAmount, beFailed: false)
 
         let health = getPositionHealth(pid: pid, beFailed: false)
         healths.append(health)
-        log("  Position \(pid) (\(collateralName)): Borrowed \(borrowAmount) FLOW - Health: \(health)")
+        log("  Position \(pid) (\(collateralName)): Borrowed \(borrowAmount) MOET - Health: \(health)")
     }
 
-    // Crash collateral prices. FLOW stays at $1.0 so userPids[4] stays healthy.
+    // Crash collateral prices. FLOW stays at 1.0 so userPids[4] stays healthy.
     log("\nCrashing collateral prices to trigger liquidations\n")
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 0.3)     // -70%
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: 1050.0)  // -70%
@@ -497,52 +500,56 @@ access(all) fun testBatchLiquidations() {
     Test.assert(healths[0] < healths[3], message: "USDF should be worse than WBTC")
     Test.assert(healths[3] < healths[2], message: "WBTC should be worse than USDC")
 
-    // Setup protocol account FLOW vault as the DEX output source.
-    // priceRatio = Pc_crashed / Pd = post-crash collateral price / FLOW price.
+    // Setup protocol account MOET vault as the DEX output source.
+    // priceRatio = Pc_crashed / Pd = post-crash collateral price / MOET price.
     // This must match the oracle prices exactly to pass the DEX/oracle deviation check.
-    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_ID, from: MAINNET_FLOW_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 300.0)
+    setupMoetVault(MAINNET_PROTOCOL_ACCOUNT, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: MAINNET_PROTOCOL_ACCOUNT.address, amount: 300.0, beFailed: false)
 
     log("\nSetting up DEX swappers (priceRatio = post-crash Pc / Pd)\n")
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        outVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
-        priceRatio: 0.3     // $0.30 USDF / $1.00 FLOW
+        outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
+        priceRatio: 0.3     // 0.30 USDF / 1.00 MOET
     )
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_WETH_TOKEN_ID,
-        outVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
-        priceRatio: 1050.0  // $1050 WETH / $1.00 FLOW
+        outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
+        priceRatio: 1050.0  // 1050 WETH / 1.00 MOET
     )
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_USDC_TOKEN_ID,
-        outVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
-        priceRatio: 0.5     // $0.50 USDC / $1.00 FLOW
+        outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
+        priceRatio: 0.5     // 0.50 USDC / 1.00 MOET
     )
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_WBTC_TOKEN_ID,
-        outVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
-        priceRatio: 25000.0 // $25000 WBTC / $1.00 FLOW
+        outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
+        priceRatio: 25000.0 // 25000 WBTC / 1.00 MOET
     )
 
-    // Liquidator setup: transfer FLOW for debt repayment (total needed: 71+113+4+12 = 200 FLOW)
+    // Liquidator setup: mint MOET for debt repayment (total needed: 71+113+4+12 = 200 MOET)
     // and 1 unit of each collateral token to initialize vault storage paths.
     //
     // Repay amounts derived from: repay = debt - (collat - seize) * CF * P_crashed / H_target
+    // let chose target health factor H_target ≈ 1.034 (randomly chosen ~1.03-1.04, close to 1.05 target)
+    //
     //   WETH=71:  debt=90,  (0.06-0.035)*0.75*1050 = 19.6875, H≈1.034 → 90  - 19.6875/1.034 ≈ 71
     //   USDF=113: debt=200, (500-147)*0.85*0.3      = 90.015,  H≈1.034 → 200 - 90.015/1.034  ≈ 113
     //   WBTC=4:   partial;  (0.0004-0.00011)*0.75*25000 = 5.4375 → repay=4  → postHealth=5.4375/6≈0.906
     //   USDC=12:  partial;  (80-17)*0.85*0.5            = 26.775 → repay=12 → postHealth=26.775/28≈0.956
     log("\nSetting up liquidator account\n")
     let liquidator = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_ID, from: MAINNET_FLOW_HOLDER, to: liquidator, amount: 250.0)
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: liquidator.address, amount: 250.0, beFailed: false)
     transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 1.0)
     transferTokensWithSetup(tokenIdentifier: MAINNET_WETH_TOKEN_ID, from: MAINNET_WETH_HOLDER, to: liquidator, amount: 0.001)
     transferTokensWithSetup(tokenIdentifier: MAINNET_USDC_TOKEN_ID, from: MAINNET_USDC_HOLDER, to: liquidator, amount: 1.0)
@@ -553,19 +560,22 @@ access(all) fun testBatchLiquidations() {
     //   2. postHealth <= 1.05             (liquidationTargetHF default)
     //   3. postHealth > pre-liq health    (position improves)
     //
+    //   postHealth = (collateral*CF - seize*price*CF) / (debt - repay)
+    //   DEX check:  seize < repay / priceRatio   where priceRatio = collateralPrice / debtPrice
+    //
     // Full liquidations — bring health up to ~1.03-1.04 (as close to 1.05 target as possible):
-    //   pid=WETH: repay 71 FLOW, seize 0.035 WETH
+    //   pid=WETH: repay 71 MOET, seize 0.035 WETH
     //     postHealth = (47.25 - 0.035*787.5) / (90 - 71) = 19.6875/19 ≈ 1.036
     //     DEX check:  0.035 < 71/1050 = 0.0676
-    //   pid=USDF: repay 113 FLOW, seize 147 USDF
+    //   pid=USDF: repay 113 MOET, seize 147 USDF
     //     postHealth = (127.5 - 147*0.255) / (200 - 113) = 90.015/87 ≈ 1.034
     //     DEX check:  147 < 113/0.3 = 376.7
     //
     // Partial liquidations — improve health without reaching 1.05:
-    //   pid=WBTC: repay 4 FLOW, seize 0.00011 WBTC
+    //   pid=WBTC: repay 4 MOET, seize 0.00011 WBTC
     //     postHealth = (7.5 - 0.00011*18750) / (10 - 4) = 5.4375/6 ≈ 0.906
     //     DEX check:  0.00011 < 4/25000 = 0.00016
-    //   pid=USDC: repay 12 FLOW, seize 17 USDC
+    //   pid=USDC: repay 12 MOET, seize 17 USDC
     //     postHealth = (34 - 17*0.425) / (40 - 12) = 26.775/28 ≈ 0.956
     //     DEX check:  17 < 12/0.5 = 24
 
@@ -577,7 +587,7 @@ access(all) fun testBatchLiquidations() {
 
     batchManualLiquidation(
         pids: batchPids,
-        debtVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
+        debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         seizeVaultIdentifiers: batchSeizeTypes,
         seizeAmounts: batchSeizeAmounts,
         repayAmounts: batchRepayAmounts,
@@ -626,10 +636,11 @@ access(all) fun testMassUnhealthyLiquidations() {
 
     //////////// LP setup ///////////////////
 
-    // LP deposits 450 FLOW — covers the ~397 FLOW of total borrows with headroom.
-    log("LP depositing 450 FLOW to shared liquidity pool\n")
-    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_ID, from: MAINNET_FLOW_HOLDER, to: lpUser, amount: 450.0)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 450.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    // LP deposits 450 MOET — covers the ~397 MOET of total borrows with headroom.
+    log("LP depositing 450 MOET to shared liquidity pool\n")
+    setupMoetVault(lpUser, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: lpUser.address, amount: 450.0, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 450.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     //////////// Transfer collateral to user ///////////////////
 
@@ -671,32 +682,32 @@ access(all) fun testMassUnhealthyLiquidations() {
     //////////// Borrow FLOW from each position ///////////////////
 
     // Group A — USDF positions:
-    //   high-risk [0..24]:  borrow 7.0 FLOW → health = (10×1.0×0.85)/7.0  = 1.214
-    //   moderate  [25..49]: borrow 6.0 FLOW → health = (10×1.0×0.85)/6.0  = 1.417
-    log("Borrowing FLOW from 50 USDF positions...\n")
+    //   high-risk [0..24]:  borrow 7.0 MOET → health = (10×1.0×0.85)/7.0  = 1.214
+    //   moderate  [25..49]: borrow 6.0 MOET → health = (10×1.0×0.85)/6.0  = 1.417
+    log("Borrowing MOET from 50 USDF positions...\n")
     for i in InclusiveRange(0, 24) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 7.0, beFailed: false)
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 7.0, beFailed: false)
     }
     for i in InclusiveRange(25, 49) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 6.0, beFailed: false)
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 6.0, beFailed: false)
     }
 
     // Group B — USDC positions:
-    //   high-risk [50..72]: borrow 1.4 FLOW → health = (2×1.0×0.85)/1.4  = 1.214
-    //   moderate  [73..94]: borrow 1.2 FLOW → health = (2×1.0×0.85)/1.2  = 1.417
-    log("Borrowing FLOW from 45 USDC positions...\n")
+    //   high-risk [50..72]: borrow 1.4 MOET → health = (2×1.0×0.85)/1.4  = 1.214
+    //   moderate  [73..94]: borrow 1.2 MOET → health = (2×1.0×0.85)/1.2  = 1.417
+    log("Borrowing MOET from 45 USDC positions...\n")
     for i in InclusiveRange(50, 72) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 1.4, beFailed: false)
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 1.4, beFailed: false)
     }
     for i in InclusiveRange(73, 94) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 1.2, beFailed: false)
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 1.2, beFailed: false)
     }
 
     // Group C — WBTC positions:
-    //   uniform  [95..99]: borrow 2.5 FLOW → health = (0.00009×50000×0.75)/2.5 = 1.350
-    log("Borrowing FLOW from 5 WBTC positions...\n")
+    //   uniform  [95..99]: borrow 2.5 MOET → health = (0.00009×50000×0.75)/2.5 = 1.350
+    log("Borrowing MOET from 5 WBTC positions...\n")
     for i in InclusiveRange(95, 99) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 2.5, beFailed: false)
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 2.5, beFailed: false)
     }
 
     // Confirm all 100 positions are healthy before the crash
@@ -707,7 +718,7 @@ access(all) fun testMassUnhealthyLiquidations() {
 
     //////////// Simulate 40% price crash across all three collateral types ///////////////////
 
-    // USDF/USDC: $1.00 → $0.60 (-40%)  |  WBTC: $50000 → $30000 (-40%)
+    // USDF/USDC: 1.00 MOET → 0.60 MOET (-40%)  |  WBTC: 50000 MOET → 30000 MOET (-40%)
     //
     // Health after crash:
     //   USDF high: (10×0.60×0.85)/7.0        = 0.729   USDF mod:  (10×0.60×0.85)/6.0       = 0.850
@@ -751,45 +762,46 @@ access(all) fun testMassUnhealthyLiquidations() {
 
     //////////// DEX setup ///////////////////
 
-    // Three DEX pairs (all source FLOW from MAINNET_PROTOCOL_ACCOUNT's vault):
-    //   USDF→FLOW at priceRatio=0.6    ($0.60 USDF / $1.00 FLOW)
-    //   USDC→FLOW at priceRatio=0.6    ($0.60 USDC / $1.00 FLOW)
-    //   WBTC→FLOW at priceRatio=30000  ($30000 WBTC / $1.00 FLOW)
+    // Three DEX pairs (all source MOET from MAINNET_PROTOCOL_ACCOUNT's vault):
+    //   USDF→MOET at priceRatio=0.6    (0.60 USDF / 1.00 MOET)
+    //   USDC→MOET at priceRatio=0.6    (0.60 USDC / 1.00 MOET)
+    //   WBTC→MOET at priceRatio=30000  (30000 WBTC / 1.00 MOET)
     //
-    // Total DEX FLOW: 25×4.0 + 25×3.0 + 23×0.8 + 22×0.6 + 5×1.18
-    //               = 100 + 75 + 18.4 + 13.2 + 5.90 = 212.50; transfer 230 for headroom
-    log("Configuring DEX pairs: USDF→FLOW, USDC→FLOW, WBTC→FLOW\n")
-    transferTokensWithSetup(tokenIdentifier: MAINNET_FLOW_TOKEN_ID, from: MAINNET_FLOW_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 230.0)
+    // Total DEX MOET: 25×4.0 + 25×3.0 + 23×0.8 + 22×0.6 + 5×1.18
+    //               = 100 + 75 + 18.4 + 13.2 + 5.90 = 212.50; mint 230 for headroom
+    log("Configuring DEX pairs: USDF→MOET, USDC→MOET, WBTC→MOET\n")
+    setupMoetVault(MAINNET_PROTOCOL_ACCOUNT, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: MAINNET_PROTOCOL_ACCOUNT.address, amount: 230.0, beFailed: false)
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        outVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
-        priceRatio: 0.6      // $0.60 USDF / $1.00 FLOW
+        outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
+        priceRatio: 0.6      // 0.60 USDF / 1.00 MOET
     )
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_USDC_TOKEN_ID,
-        outVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
-        priceRatio: 0.6      // $0.60 USDC / $1.00 FLOW
+        outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
+        priceRatio: 0.6      // 0.60 USDC / 1.00 MOET
     )
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_WBTC_TOKEN_ID,
-        outVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        vaultSourceStoragePath: FLOW_VAULT_STORAGE_PATH,
-        priceRatio: 30000.0  // $30000 WBTC / $1.00 FLOW
+        outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
+        priceRatio: 30000.0  // 30000 WBTC / 1.00 MOET
     )
 
     //////////// Build batch parameters (ordered worst health first) ///////////////////
     //
     // Seize/repay parameters:
-    //   USDF high  [0..24]:  seize 4.0 USDF,      repay 4.0 FLOW  post=1.02,  DEX: 4<6.67
-    //   USDC high [50..72]:  seize 0.8 USDC,      repay 0.8 FLOW  post=1.02,  DEX: 0.8<1.33
-    //   WBTC      [95..99]:  seize 0.00003 WBTC,  repay 1.18 FLOW post=1.023, DEX: 0.00003<0.0000393
-    //   USDF mod  [25..49]:  seize 4.0 USDF,      repay 3.0 FLOW  post=1.02,  DEX: 4<5.00
-    //   USDC mod  [73..94]:  seize 0.8 USDC,      repay 0.6 FLOW  post=1.02,  DEX: 0.8<1.00
+    //   USDF high  [0..24]:  seize 4.0 USDF,      repay 4.0 MOET  post=1.02,  DEX: 4<6.67
+    //   USDC high [50..72]:  seize 0.8 USDC,      repay 0.8 MOET  post=1.02,  DEX: 0.8<1.33
+    //   WBTC      [95..99]:  seize 0.00003 WBTC,  repay 1.18 MOET post=1.023, DEX: 0.00003<0.0000393
+    //   USDF mod  [25..49]:  seize 4.0 USDF,      repay 3.0 MOET  post=1.02,  DEX: 4<5.00
+    //   USDC mod  [73..94]:  seize 0.8 USDC,      repay 0.6 MOET  post=1.02,  DEX: 0.8<1.00
     var batchPids:    [UInt64] = []
     var batchSeize:   [String] = []
     var batchAmounts: [UFix64] = []
@@ -835,12 +847,17 @@ access(all) fun testMassUnhealthyLiquidations() {
 
     //////////// Batch liquidation — 100 positions in chunks of 10 ///////////////////
 
+    // Setup liquidator vaults for seized collateral tokens (required to receive seized amounts).
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 1.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_USDC_TOKEN_ID, from: MAINNET_USDC_HOLDER, to: liquidator, amount: 1.0)
+    transferTokensWithSetup(tokenIdentifier: MAINNET_WBTC_TOKEN_ID, from: MAINNET_WBTC_HOLDER, to: liquidator, amount: 0.00001)
+
     // Split into chunks of 10 to stay within the computation limit (single tx of 100 exceeds it).
-    // DEX sources FLOW from MAINNET_PROTOCOL_ACCOUNT's vault; liquidator needs no tokens upfront.
+    // DEX sources MOET from MAINNET_PROTOCOL_ACCOUNT's vault; liquidator receives seized collateral.
     log("Liquidating all 100 positions via DEX in chunks of 10...\n")
     batchLiquidateViaMockDex(
         pids: batchPids,
-        debtVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
+        debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         seizeVaultIdentifiers: batchSeize,
         seizeAmounts: batchAmounts,
         repayAmounts: batchRepay,
@@ -875,7 +892,7 @@ access(all) fun testMassUnhealthyLiquidations() {
     }
 
     // Protocol solvency: FLOW reserve must remain positive after mass liquidation
-    let reserveBalance = getReserveBalance(vaultIdentifier: MAINNET_FLOW_TOKEN_ID)
-    log("Protocol FLOW reserve after mass liquidation: \(reserveBalance)\n")
-    Test.assert(reserveBalance > 0.0, message: "Protocol must remain solvent (positive FLOW reserve) after mass liquidation")
+    let reserveBalance = getReserveBalance(vaultIdentifier: MAINNET_MOET_TOKEN_ID)
+    log("Protocol MOET reserve after mass liquidation: \(reserveBalance)\n")
+    Test.assert(reserveBalance > 0.0, message: "Protocol must remain solvent (positive MOET reserve) after mass liquidation")
 }
