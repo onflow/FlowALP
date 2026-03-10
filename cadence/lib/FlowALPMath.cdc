@@ -99,16 +99,32 @@ access(all) contract FlowALPMath {
         return diffBps <= maxDeviationBps
     }
 
-    /// Converts a yearly interest rate to a per-second multiplication factor (stored in a UFix128 as a fixed point
-    /// number with 18 decimal places). The input to this function will be just the relative annual interest rate
-    /// (e.g. 0.05 for 5% interest), and the result will be the per-second multiplier (e.g. 1.000000000001).
-    access(all) view fun perSecondInterestRate(yearlyRate: UFix128): UFix128 {
-        let perSecondScaledValue = yearlyRate / 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
+    /// Converts a nominal yearly interest rate to a per-second multiplication factor (stored in a UFix128 as a fixed
+    /// point number with 18 decimal places). The input is the nominal annual interest rate (e.g. 0.05 for 5%), and
+    /// the result is the per-second multiplier (e.g. 1.000000001585).
+    ///
+    /// NOTE: This uses linear (nominal) decomposition — the per-second rate is simply `nominalRate / secondsPerYear`.
+    /// Because interest is then applied as `rate^timeElapsed` (exponential compounding), the effective APY will
+    /// exceed the stated nominal rate. Use `effectiveYearlyRate` to compute the true effective annual yield.
+    access(all) view fun perSecondInterestRate(nominalYearlyRate: UFix128): UFix128 {
+        let perSecondScaledValue = nominalYearlyRate / 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
         assert(
             perSecondScaledValue < UFix128.max,
             message: "Per-second interest rate \(perSecondScaledValue) is too high"
         )
         return perSecondScaledValue + 1.0
+    }
+
+    /// Returns the effective annual yield (EAY) for a given nominal yearly rate, assuming per-second compounding.
+    ///
+    /// Formula: EAY = (1 + nominalRate / secondsPerYear) ^ secondsPerYear - 1
+    ///
+    /// For example, a nominal rate of 100% (1.0) produces an effective rate of ~171.8% (≈ e - 1), because
+    /// continuous per-second compounding causes the effective return to approach Euler's number.
+    access(all) view fun effectiveYearlyRate(nominalYearlyRate: UFix128): UFix128 {
+        let perSecondRate = FlowALPMath.perSecondInterestRate(nominalYearlyRate: nominalYearlyRate)
+        let compounded = FlowALPMath.powUFix128(perSecondRate, 31_557_600.0)
+        return compounded - 1.0
     }
 
     /// Returns the compounded interest index reflecting the passage of time
