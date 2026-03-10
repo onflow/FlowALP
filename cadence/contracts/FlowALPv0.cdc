@@ -2115,28 +2115,33 @@ access(all) contract FlowALPv0 {
                 return nil
             }
 
-            if reserveVault.balance == 0.0 {
+            let reserveVaultBalance = reserveVault.balance
+            if reserveVaultBalance == 0.0 {
                 tokenState.setLastInsuranceCollectionTime(currentTime)
                 return nil
             }
 
-            let amountToCollect = insuranceAmountUFix64 > reserveVault.balance ? reserveVault.balance : insuranceAmountUFix64
-            var insuranceVault <- reserveVault.withdraw(amount: amountToCollect)
 
-            let insuranceSwapper = tokenState.getInsuranceSwapper() ?? panic("missing insurance swapper")
+            if insuranceAmountUFix64 > reserveVaultBalance {
+                // do not collect the insurance fee if the reserve doesn't have enough tokens to cover the full amount 
+                tokenState.setLastInsuranceCollectionTime(currentTime)
+                return nil
+            } else {    
+                let insuranceVault <- reserveVault.withdraw(amount: insuranceAmountUFix64)
+                let insuranceSwapper = tokenState.getInsuranceSwapper() ?? panic("missing insurance swapper")
 
-            assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
-            assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
+                assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
+                assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
 
-            let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
-            let dexPrice = quote.outAmount / quote.inAmount
-            assert(
-                FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
-                message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
-            var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
-
-            tokenState.setLastInsuranceCollectionTime(currentTime)
-            return <-moetVault
+                let quote = insuranceSwapper.quoteOut(forProvided: insuranceAmountUFix64, reverse: false)
+                let dexPrice = quote.outAmount / quote.inAmount
+                assert(
+                    FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
+                    message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
+                var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
+                tokenState.setLastInsuranceCollectionTime(currentTime)
+                return <-moetVault
+            }
         }
 
         /// Collects stability funds by withdrawing from reserves.
@@ -2166,17 +2171,20 @@ access(all) contract FlowALPv0 {
                 return nil
             }
 
-            if reserveVault.balance == 0.0 {
+            let reserveVaultBalance = reserveVault.balance
+            if reserveVaultBalance == 0.0 {
                 tokenState.setLastStabilityFeeCollectionTime(currentTime)
                 return nil
             }
 
-            let reserveVaultBalance = reserveVault.balance
-            let amountToCollect = stabilityAmountUFix64 > reserveVaultBalance ? reserveVaultBalance : stabilityAmountUFix64
-            let stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
-
             tokenState.setLastStabilityFeeCollectionTime(currentTime)
-            return <-stabilityVault
+            if stabilityAmountUFix64 > reserveVaultBalance {
+                // do not collect the stability fee if the reserve doesn't have enough tokens to cover the full amount 
+                return nil
+            } else {    
+                let stabilityVault <- reserveVault.withdraw(amount: stabilityAmountUFix64)
+                return <-stabilityVault
+            }
         }
 
         ////////////////
