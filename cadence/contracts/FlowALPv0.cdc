@@ -3778,22 +3778,22 @@ access(all) contract FlowALPv0 {
                     let sinkCapacity = drawDownSink.minimumCapacity()
                     let sinkAmount = (idealWithdrawal > sinkCapacity) ? sinkCapacity : idealWithdrawal
 
-                    if sinkAmount > 0.0 && sinkType == self.defaultToken {
-                        let tokenState = self._borrowUpdatedTokenState(type: self.defaultToken)
-                        if position.balances[self.defaultToken] == nil {
-                            position.balances[self.defaultToken] = InternalBalance(
+                    if sinkAmount > 0.0 {
+                        let tokenState = self._borrowUpdatedTokenState(type: sinkType)
+                        if position.balances[sinkType] == nil {
+                            position.balances[sinkType] = InternalBalance(
                                 direction: BalanceDirection.Credit,
                                 scaledBalance: 0.0
                             )
                         }
-                        // Record the withdrawal, then issue the default token.
+                        // Record the withdrawal against sinkType, then issue it.
                         // For MOET: mint new tokens. For other tokens: withdraw from pool reserves.
                         let uintSinkAmount = UFix128(sinkAmount)
-                        position.balances[self.defaultToken]!.recordWithdrawal(
+                        position.balances[sinkType]!.recordWithdrawal(
                             amount: uintSinkAmount,
                             tokenState: tokenState
                         )
-                        if self.defaultToken == Type<@MOET.Vault>() {
+                        if sinkType == Type<@MOET.Vault>() {
                             let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
                             emit Rebalanced(
                                 pid: pid,
@@ -3809,7 +3809,7 @@ access(all) contract FlowALPv0 {
                                 Burner.burn(<-sinkVault)
                             }
                         } else {
-                            let reserveRef = (&self.reserves[self.defaultToken] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                            let reserveRef = (&self.reserves[sinkType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
                             let sinkVault <- reserveRef.withdraw(amount: sinkAmount)
                             emit Rebalanced(
                                 pid: pid,
