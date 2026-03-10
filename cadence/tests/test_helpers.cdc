@@ -1015,7 +1015,7 @@ fun getCreditBalanceForType(details: FlowALPModels.PositionDetails, vaultType: T
 }
 
 access(all)
-fun getLastPositonId(): UInt64 {
+fun getLastPositionId(): UInt64 {
     var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     if openEvents.length > 0 {
         let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid

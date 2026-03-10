@@ -117,7 +117,7 @@ fun setup() {
         pushToDrawDownSink: false
     )
 
-    setupPid = getLastPositonId()
+    setupPid = getLastPositionId()
 
     // ─────────────────────────────────────────────────────────────────────────
     // EParticipant user — EParticipant-ONLY capability (fixed beta cap)
@@ -182,7 +182,7 @@ fun setup() {
         vaultStoragePath: MOET.VaultStoragePath,
         pushToDrawDownSink: false
     )
-    ePositionAdminPid = getLastPositonId()
+    ePositionAdminPid = getLastPositionId()
 
     // ─────────────────────────────────────────────────────────────────────────
     // EGovernance user — EGovernance capability delegated from PROTOCOL_ACCOUNT
