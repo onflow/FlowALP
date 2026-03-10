@@ -13,7 +13,6 @@ access(all) let liquidityAccount = Test.getAccount(0x0000000000000009)
 access(all) var hackerAccount = Test.getAccount(0x0000000000000008)
 
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) let moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
 
 access(all)
@@ -24,10 +23,10 @@ fun setup() {
     grantBetaPoolParticipantAccess(protocolAccount, hackerAccount)
 
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: 0.0001)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: moetTokenIdentifier, price: 1.0)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MOET_TOKEN_IDENTIFIER, price: 1.0)
 
     // Create the Pool & add FLOW as supported token
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
@@ -42,7 +41,7 @@ fun setup() {
     setupMoetVault(hackerAccount, beFailed: false)
 
     // provide liquidity to the pool we can extract
-    createPosition(signer: liquidityAccount, amount: 10000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: liquidityAccount, amount: 10000.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
 }
 
 access(all)
