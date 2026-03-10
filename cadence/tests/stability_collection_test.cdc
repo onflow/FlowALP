@@ -418,7 +418,7 @@ fun test_collectStability_midPeriodRateChange() {
         : stabilityAfterPhase2 - expectedStabilityTotal
     Test.assert(diff < tolerance, message: "Stability collected should be around \(expectedStabilityTotal) but current \(stabilityAfterPhase2)")
 
-    // cumulative stability fund must equal sum of both collections
+    // acumulative stability fund must equal sum of both collections
     let collected_phase2 = reservesBefore_phase2 - reservesAfterPhase2
     Test.assertEqual(stabilityAfterPhase2, stabilityAfterPhase1 + collected_phase2)
     Test.assert(collected_phase2 > collected_phase1, message: "Phase 2 collection should exceed phase 1 due to higher rate")
