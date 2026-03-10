@@ -12,9 +12,10 @@ transaction(pause: Bool) {
     let pool: auth(FlowALPModels.EGovernance) &FlowALPv0.Pool
 
     prepare(signer: auth(BorrowValue) &Account) {
-        self.pool = signer.storage.borrow<auth(FlowALPModels.EGovernance) &FlowALPv0.Pool>(
-            from: FlowALPv0.PoolStoragePath
-        ) ?? panic("Could not borrow Pool at \(FlowALPv0.PoolStoragePath)")
+        let cap = signer.storage.borrow<&Capability<auth(FlowALPModels.EGovernance) &FlowALPv0.Pool>>(
+            from: FlowALPv0.PoolCapStoragePath
+        ) ?? panic("No EGovernance cap found")
+        self.pool = cap.borrow() ?? panic("Could not borrow Pool from EGovernance cap")
     }
 
     execute {
