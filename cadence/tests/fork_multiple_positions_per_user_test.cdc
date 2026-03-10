@@ -19,6 +19,27 @@ access(all) let MAINNET_USDC_HOLDER = Test.getAccount(MAINNET_USDC_HOLDER_ADDRES
 
 access(all) var snapshot: UInt64 = 0
 
+// ─── Protocol constants (set once in setup(), referenced in formula comments) ──
+
+// Initial oracle prices
+access(all) let PRICE_FLOW  = 1.0
+access(all) let PRICE_USDC  = 1.0
+access(all) let PRICE_USDF  = 1.0
+access(all) let PRICE_WETH  = 3500.0
+access(all) let PRICE_WBTC  = 50000.0
+access(all) let PRICE_MOET  = 1.0
+
+// Collateral factors
+access(all) let CF_FLOW = 0.80
+access(all) let CF_USDC = 0.85
+access(all) let CF_USDF = 0.85
+access(all) let CF_WETH = 0.75
+access(all) let CF_WBTC = 0.75
+
+// Minimum token balance per position
+access(all) let MIN_BAL_WETH = 0.01
+access(all) let MIN_BAL_WBTC = 0.00001
+
 access(all)
 fun safeReset() {
     let cur = getCurrentBlockHeight()
@@ -33,18 +54,18 @@ access(all) fun setup() {
     createAndStorePool(signer: MAINNET_PROTOCOL_ACCOUNT, defaultTokenIdentifier: MAINNET_MOET_TOKEN_ID, beFailed: false)
 
     // Set oracle prices
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDC_TOKEN_ID, price: 1.0)
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 1.0)
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: 3500.0)
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WBTC_TOKEN_ID, price: 50000.0)
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_MOET_TOKEN_ID, price: 1.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: PRICE_FLOW)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDC_TOKEN_ID, price: PRICE_USDC)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: PRICE_USDF)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: PRICE_WETH)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WBTC_TOKEN_ID, price: PRICE_WBTC)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_MOET_TOKEN_ID, price: PRICE_MOET)
 
     // Add multiple token types as supported collateral (FLOW, USDC, USDF, WETH, WBTC)
     addSupportedTokenZeroRateCurve(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
-        collateralFactor: 0.8,
+        collateralFactor: CF_FLOW,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
@@ -53,7 +74,7 @@ access(all) fun setup() {
     addSupportedTokenZeroRateCurve(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_USDC_TOKEN_ID,
-        collateralFactor: 0.85,
+        collateralFactor: CF_USDC,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
@@ -62,7 +83,7 @@ access(all) fun setup() {
     addSupportedTokenZeroRateCurve(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID,
-        collateralFactor: 0.85,
+        collateralFactor: CF_USDF,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
@@ -71,25 +92,25 @@ access(all) fun setup() {
     addSupportedTokenZeroRateCurve(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID,
-        collateralFactor: 0.75,
+        collateralFactor: CF_WETH,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
     )
 
-    // Set minimum deposit for WETH to 0.01 (since holder only has 0.07032)
-    setMinimumTokenBalancePerPosition(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID, minimum: 0.01)
+    // Set minimum deposit for WETH to MIN_BAL_WETH (since holder only has 0.07032)
+    setMinimumTokenBalancePerPosition(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_WETH_TOKEN_ID, minimum: MIN_BAL_WETH)
 
     addSupportedTokenZeroRateCurve(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MAINNET_WBTC_TOKEN_ID,
-        collateralFactor: 0.75,
+        collateralFactor: CF_WBTC,
         borrowFactor: 1.0,
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
     )
-    // Set minimum deposit for WBTC to 0.00001 (since holder only has 0.0005)
-    setMinimumTokenBalancePerPosition(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_WBTC_TOKEN_ID, minimum: 0.00001)
+    // Set minimum deposit for WBTC to MIN_BAL_WBTC (since holder only has 0.0005)
+    setMinimumTokenBalancePerPosition(signer: MAINNET_PROTOCOL_ACCOUNT, tokenTypeIdentifier: MAINNET_WBTC_TOKEN_ID, minimum: MIN_BAL_WBTC)
 
     snapshot = getCurrentBlockHeight()
 }
@@ -141,16 +162,23 @@ access(all) fun testMultiplePositionsPerUser() {
     // - usdcHolder: 97 USDC x 1 = 97 MOET
     // - wethHolder: 0.07032 WETH x 3500 = 246.12 MOET
     // - wbtcHolder: 0.0005 WBTC x 50000 = 25 MOET
+    //
+    // health = col * PRICE * CF / debt
+    let flowCol = 500.0;  let flowDebt = 100.0  // health = 500.0  * PRICE_FLOW * CF_FLOW / 100.0  = 4.000
+    let usdfCol = 1500.0; let usdfDebt = 150.0  // health = 1500.0 * PRICE_USDF * CF_USDF / 150.0  = 8.500
+    let usdcCol = 10.0;   let usdcDebt = 5.0    // health = 10.0   * PRICE_USDC * CF_USDC / 5.0     = 1.700
+    let wethCol = 0.05;   let wethDebt = 50.0   // health = 0.05   * PRICE_WETH * CF_WETH / 50.0    = 2.625
+    let wbtcCol = 0.0004; let wbtcDebt = 8.0    // health = 0.0004 * PRICE_WBTC * CF_WBTC / 8.0    = 1.875
 
     let positions = [
-        {"type": MAINNET_FLOW_TOKEN_ID, "amount": 500.0, "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": MAINNET_FLOW_HOLDER},
-        {"type": MAINNET_USDF_TOKEN_ID, "amount": 1500.0, "storagePath": MAINNET_USDF_STORAGE_PATH, "name": "USDF", "holder": MAINNET_USDF_HOLDER},
-        {"type": MAINNET_USDC_TOKEN_ID, "amount": 10.0, "storagePath": MAINNET_USDC_STORAGE_PATH, "name": "USDC", "holder": MAINNET_USDC_HOLDER},
-        {"type": MAINNET_WETH_TOKEN_ID, "amount": 0.05, "storagePath": MAINNET_WETH_STORAGE_PATH, "name": "WETH", "holder": MAINNET_WETH_HOLDER},
-        {"type": MAINNET_WBTC_TOKEN_ID, "amount": 0.0004, "storagePath": MAINNET_WBTC_STORAGE_PATH, "name": "WBTC", "holder": MAINNET_WBTC_HOLDER}
+        {"type": MAINNET_FLOW_TOKEN_ID, "amount": flowCol, "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": MAINNET_FLOW_HOLDER},
+        {"type": MAINNET_USDF_TOKEN_ID, "amount": usdfCol, "storagePath": MAINNET_USDF_STORAGE_PATH, "name": "USDF", "holder": MAINNET_USDF_HOLDER},
+        {"type": MAINNET_USDC_TOKEN_ID, "amount": usdcCol, "storagePath": MAINNET_USDC_STORAGE_PATH, "name": "USDC", "holder": MAINNET_USDC_HOLDER},
+        {"type": MAINNET_WETH_TOKEN_ID, "amount": wethCol, "storagePath": MAINNET_WETH_STORAGE_PATH, "name": "WETH", "holder": MAINNET_WETH_HOLDER},
+        {"type": MAINNET_WBTC_TOKEN_ID, "amount": wbtcCol, "storagePath": MAINNET_WBTC_STORAGE_PATH, "name": "WBTC", "holder": MAINNET_WBTC_HOLDER}
     ]
 
-    let debts = [100.0, 150.0, 5.0, 50.0, 8.0]
+    let debts = [flowDebt, usdfDebt, usdcDebt, wethDebt, wbtcDebt]
 
     var userPids: [UInt64] = []
 
@@ -340,8 +368,9 @@ access(all) fun testPositionInteractionsSharedLiquidity() {
     let healthB_before_priceChange = getPositionHealth(pid: positionB_id, beFailed: false)
     log("  Position B health: \(healthB_before_priceChange)")
 
-    // Crash USDC price (Position A's collateral) from 1.0 MOET to 0.5 MOET
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDC_TOKEN_ID, price: 0.5)
+    // Crash USDC price (Position A's collateral) −50%
+    let usdcCrashPrice = 0.5  // PRICE_USDC * 0.50
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDC_TOKEN_ID, price: usdcCrashPrice)
 
     let healthA_after_crash = getPositionHealth(pid: positionA_id, beFailed: false)
     log("  Position A health after price crash: \(healthA_after_crash)\n")
@@ -418,11 +447,32 @@ access(all) fun testBatchLiquidations() {
     let lpUser = Test.createAccount()
     let user = Test.createAccount()
 
-    // LP deposits 600 MOET to provide borrowing liquidity
-    // (total borrows = 200+90+40+10+80 = 420 MOET < 600)
+    // Collateral deposits and target debts (health = col * PRICE * CF / debt):
+    let usdfCol = 500.0;  let usdfDebt = 200.0  // health = 500.0  * PRICE_USDF * CF_USDF / 200.0  = 2.125
+    let wethCol = 0.06;   let wethDebt = 90.0   // health = 0.06   * PRICE_WETH * CF_WETH / 90.0   = 1.750
+    let usdcCol = 80.0;   let usdcDebt = 40.0   // health = 80.0   * PRICE_USDC * CF_USDC / 40.0   = 1.700
+    let wbtcCol = 0.0004; let wbtcDebt = 10.0   // health = 0.0004 * PRICE_WBTC * CF_WBTC / 10.0   = 1.500
+    let flowCol = 200.0;  let flowDebt = 80.0   // health = 200.0  * PRICE_FLOW * CF_FLOW / 80.0   = 2.000
+
+    // Crashed prices (−70% for USDF/WETH, −50% for USDC/WBTC; FLOW unchanged)
+    let usdfCrashPrice = 0.3      // PRICE_USDF * 0.30
+    let wethCrashPrice = 1050.0   // PRICE_WETH * 0.30
+    let usdcCrashPrice = 0.5      // PRICE_USDC * 0.50
+    let wbtcCrashPrice = 25000.0  // PRICE_WBTC * 0.50
+    // DEX priceRatio == crashed oracle price (required to pass deviation check)
+
+    // Seize / repay per position (postHealth = (col*CF - seize*P*CF) / (debt - repay))
+    let usdfSeize = 147.0;   let usdfRepay = 113.0  // postHealth ≈ 1.034  (full)
+    let wethSeize = 0.035;   let wethRepay = 71.0   // postHealth ≈ 1.036  (full)
+    let usdcSeize = 17.0;    let usdcRepay = 12.0   // postHealth ≈ 0.956  (partial)
+    let wbtcSeize = 0.00011; let wbtcRepay = 4.0    // postHealth ≈ 0.906  (partial)
+
+    // LP deposits lpLiquidity MOET to provide borrowing liquidity
+    // (total borrows = usdfDebt+wethDebt+usdcDebt+wbtcDebt+flowDebt = 420 MOET < lpLiquidity)
+    let lpLiquidity = 600.0
     setupMoetVault(lpUser, beFailed: false)
-    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: lpUser.address, amount: 600.0, beFailed: false)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 600.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: lpUser.address, amount: lpLiquidity, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: lpLiquidity, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // 5 positions with distinct collateral types:
     //
@@ -437,11 +487,11 @@ access(all) fun testBatchLiquidations() {
     log("Creating 5 positions with different collateral types\n")
 
     let positions = [
-        {"type": MAINNET_USDF_TOKEN_ID,         "amount": 500.0,   "storagePath": MAINNET_USDF_STORAGE_PATH, "name": "USDF", "holder": MAINNET_USDF_HOLDER, "borrow": 200.0},
-        {"type": MAINNET_WETH_TOKEN_ID,         "amount": 0.06,    "storagePath": MAINNET_WETH_STORAGE_PATH, "name": "WETH", "holder": MAINNET_WETH_HOLDER, "borrow": 90.0},
-        {"type": MAINNET_USDC_TOKEN_ID,         "amount": 80.0,    "storagePath": MAINNET_USDC_STORAGE_PATH, "name": "USDC", "holder": MAINNET_USDC_HOLDER, "borrow": 40.0},
-        {"type": MAINNET_WBTC_TOKEN_ID,         "amount": 0.0004,  "storagePath": MAINNET_WBTC_STORAGE_PATH, "name": "WBTC", "holder": MAINNET_WBTC_HOLDER, "borrow": 10.0},
-        {"type": MAINNET_FLOW_TOKEN_ID, "amount": 200.0,   "storagePath": FLOW_VAULT_STORAGE_PATH, "name": "FLOW", "holder": MAINNET_FLOW_HOLDER, "borrow": 80.0}
+        {"type": MAINNET_USDF_TOKEN_ID, "amount": usdfCol, "storagePath": MAINNET_USDF_STORAGE_PATH, "name": "USDF", "holder": MAINNET_USDF_HOLDER, "borrow": usdfDebt},
+        {"type": MAINNET_WETH_TOKEN_ID, "amount": wethCol, "storagePath": MAINNET_WETH_STORAGE_PATH, "name": "WETH", "holder": MAINNET_WETH_HOLDER, "borrow": wethDebt},
+        {"type": MAINNET_USDC_TOKEN_ID, "amount": usdcCol, "storagePath": MAINNET_USDC_STORAGE_PATH, "name": "USDC", "holder": MAINNET_USDC_HOLDER, "borrow": usdcDebt},
+        {"type": MAINNET_WBTC_TOKEN_ID, "amount": wbtcCol, "storagePath": MAINNET_WBTC_STORAGE_PATH, "name": "WBTC", "holder": MAINNET_WBTC_HOLDER, "borrow": wbtcDebt},
+        {"type": MAINNET_FLOW_TOKEN_ID, "amount": flowCol, "storagePath": FLOW_VAULT_STORAGE_PATH,   "name": "FLOW", "holder": MAINNET_FLOW_HOLDER, "borrow": flowDebt}
     ]
 
     var userPids: [UInt64] = []
@@ -474,10 +524,10 @@ access(all) fun testBatchLiquidations() {
 
     // Crash collateral prices. FLOW stays at 1.0 so userPids[4] stays healthy.
     log("\nCrashing collateral prices to trigger liquidations\n")
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 0.3)     // -70%
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: 1050.0)  // -70%
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDC_TOKEN_ID, price: 0.5)     // -50%
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WBTC_TOKEN_ID, price: 25000.0) // -50%
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: usdfCrashPrice)  // -70%
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: wethCrashPrice)  // -70%
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDC_TOKEN_ID, price: usdcCrashPrice)  // -50%
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WBTC_TOKEN_ID, price: wbtcCrashPrice)  // -50%
 
     log("\nPosition health after price crash:\n")
     for i in InclusiveRange(0, 4) {
@@ -512,28 +562,28 @@ access(all) fun testBatchLiquidations() {
         inVaultIdentifier: MAINNET_USDF_TOKEN_ID,
         outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
-        priceRatio: 0.3     // 0.30 USDF / 1.00 MOET
+        priceRatio: usdfCrashPrice  // usdfCrashPrice USDF / 1.00 MOET
     )
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_WETH_TOKEN_ID,
         outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
-        priceRatio: 1050.0  // 1050 WETH / 1.00 MOET
+        priceRatio: wethCrashPrice  // wethCrashPrice WETH / 1.00 MOET
     )
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_USDC_TOKEN_ID,
         outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
-        priceRatio: 0.5     // 0.50 USDC / 1.00 MOET
+        priceRatio: usdcCrashPrice  // usdcCrashPrice USDC / 1.00 MOET
     )
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_WBTC_TOKEN_ID,
         outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
-        priceRatio: 25000.0 // 25000 WBTC / 1.00 MOET
+        priceRatio: wbtcCrashPrice  // wbtcCrashPrice WBTC / 1.00 MOET
     )
 
     // Liquidator setup: mint MOET for debt repayment (total needed: 71+113+4+12 = 200 MOET)
@@ -582,8 +632,8 @@ access(all) fun testBatchLiquidations() {
     log("\nExecuting batch liquidation of 4 positions (2 full, 2 partial) in SINGLE transaction...\n")
     let batchPids          = [userPids[0],           userPids[1],           userPids[2],           userPids[3]          ]
     let batchSeizeTypes    = [MAINNET_USDF_TOKEN_ID, MAINNET_WETH_TOKEN_ID, MAINNET_USDC_TOKEN_ID, MAINNET_WBTC_TOKEN_ID]
-    let batchSeizeAmounts  = [147.0,                 0.035,                 17.0,                  0.00011              ]
-    let batchRepayAmounts  = [113.0,                 71.0,                  12.0,                  4.0                  ]
+    let batchSeizeAmounts  = [usdfSeize, wethSeize, usdcSeize, wbtcSeize]
+    let batchRepayAmounts  = [usdfRepay, wethRepay, usdcRepay, wbtcRepay]
 
     batchManualLiquidation(
         pids: batchPids,
@@ -634,19 +684,56 @@ access(all) fun testMassUnhealthyLiquidations() {
     let user       = Test.createAccount()
     let liquidator = Test.createAccount()
 
+    // ── Group index ranges ──────────────────────────────────────────────────────
+    // Group A — USDF: indices 0..49 (50 positions)
+    let usdfHighStart = 0;  let usdfHighEnd = 24   // high-risk: 25 positions
+    let usdfModStart  = 25; let usdfModEnd  = 49   // moderate:  25 positions
+    // Group B — USDC: indices 50..94 (45 positions)
+    let usdcHighStart = 50; let usdcHighEnd = 72   // high-risk: 23 positions
+    let usdcModStart  = 73; let usdcModEnd  = 94   // moderate:  22 positions
+    // Group C — WBTC: indices 95..99 (5 positions)
+    let wbtcStart = 95; let wbtcEnd = 99
+
+    // Collateral per position (health = colPerPos * PRICE * CF / debt)
+    let usdfColPerPos = 10.0    // 50 × usdfColPerPos = 500 USDF transferred
+    let usdcColPerPos = 2.0     // 45 × usdcColPerPos = 90  USDC transferred
+    let wbtcColPerPos = 0.00009 //  5 × wbtcColPerPos = 0.00045 WBTC transferred
+
+    // Borrow amounts per position
+    let usdfHighDebt = 7.0    // health = usdfColPerPos * PRICE_USDF * CF_USDF / usdfHighDebt = 1.214
+    let usdfModDebt  = 6.0    // health = usdfColPerPos * PRICE_USDF * CF_USDF / usdfModDebt  = 1.417
+    let usdcHighDebt = 1.4    // health = usdcColPerPos * PRICE_USDC * CF_USDC / usdcHighDebt = 1.214
+    let usdcModDebt  = 1.2    // health = usdcColPerPos * PRICE_USDC * CF_USDC / usdcModDebt  = 1.417
+    let wbtcDebt     = 2.5    // health = wbtcColPerPos * PRICE_WBTC * CF_WBTC / wbtcDebt     = 1.350
+
+    // Crashed prices (−40% across all three collateral types)
+    let usdfCrashPrice = 0.6       // PRICE_USDF * 0.60
+    let usdcCrashPrice = 0.6       // PRICE_USDC * 0.60
+    let wbtcCrashPrice = 30000.0   // PRICE_WBTC * 0.60
+
+    // Seize / repay per position (postHealth = (col*CF - seize*P*CF) / (debt - repay))
+    let usdfHighSeize = 4.0;    let usdfHighRepay = 4.0    // postHealth ≈ 1.02
+    let usdcHighSeize = 0.8;    let usdcHighRepay = 0.8    // postHealth ≈ 1.02
+    let wbtcSeize     = 0.00003; let wbtcRepay    = 1.18   // postHealth ≈ 1.023
+    let usdfModSeize  = 4.0;    let usdfModRepay  = 3.0    // postHealth ≈ 1.02
+    let usdcModSeize  = 0.8;    let usdcModRepay  = 0.6    // postHealth ≈ 1.02
+
+    let batchChunkSize = 10
+
     //////////// LP setup ///////////////////
 
-    // LP deposits 450 MOET — covers the ~397 MOET of total borrows with headroom.
-    log("LP depositing 450 MOET to shared liquidity pool\n")
+    // LP deposits lpLiquidity MOET — covers the ~397 MOET of total borrows with headroom.
+    let lpLiquidity = 450.0
+    log("LP depositing \(lpLiquidity) MOET to shared liquidity pool\n")
     setupMoetVault(lpUser, beFailed: false)
-    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: lpUser.address, amount: 450.0, beFailed: false)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 450.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: lpUser.address, amount: lpLiquidity, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: lpLiquidity, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     //////////// Transfer collateral to user ///////////////////
 
-    // Group A: 50 positions × 10 USDF = 500 USDF
-    // Group B: 45 positions × 2 USDC  = 90 USDC
-    // Group C:  5 positions × 0.00009 WBTC = 0.00045 WBTC
+    // Group A: 50 positions × usdfColPerPos = 500 USDF
+    // Group B: 45 positions × usdcColPerPos = 90 USDC
+    // Group C:  5 positions × wbtcColPerPos = 0.00045 WBTC
     log("Transferring collateral: 500 USDF + 90 USDC + 0.00045 WBTC\n")
     transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: user, amount: 500.0)
     transferTokensWithSetup(tokenIdentifier: MAINNET_USDC_TOKEN_ID, from: MAINNET_USDC_HOLDER, to: user, amount: 90.0)
@@ -657,23 +744,23 @@ access(all) fun testMassUnhealthyLiquidations() {
     var allPids: [UInt64] = []
 
     // Group A — 50 USDF positions
-    log("Creating 50 USDF positions (10 USDF each)...\n")
-    for i in InclusiveRange(0, 49) {
-        createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 10.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
+    log("Creating 50 USDF positions (\(usdfColPerPos) USDF each)...\n")
+    for i in InclusiveRange(usdfHighStart, usdfModEnd) {
+        createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: usdfColPerPos, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
         allPids.append(getLastPositionId())
     }
 
     // Group B — 45 USDC positions
-    log("Creating 45 USDC positions (2 USDC each)...\n")
-    for i in InclusiveRange(50, 94) {
-        createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 2.0, vaultStoragePath: MAINNET_USDC_STORAGE_PATH, pushToDrawDownSink: false)
+    log("Creating 45 USDC positions (\(usdcColPerPos) USDC each)...\n")
+    for i in InclusiveRange(usdcHighStart, usdcModEnd) {
+        createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: usdcColPerPos, vaultStoragePath: MAINNET_USDC_STORAGE_PATH, pushToDrawDownSink: false)
         allPids.append(getLastPositionId())
     }
 
     // Group C — 5 WBTC positions
-    log("Creating 5 WBTC positions (0.00009 WBTC each)...\n")
-    for i in InclusiveRange(95, 99) {
-        createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 0.00009, vaultStoragePath: MAINNET_WBTC_STORAGE_PATH, pushToDrawDownSink: false)
+    log("Creating 5 WBTC positions (\(wbtcColPerPos) WBTC each)...\n")
+    for i in InclusiveRange(wbtcStart, wbtcEnd) {
+        createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: wbtcColPerPos, vaultStoragePath: MAINNET_WBTC_STORAGE_PATH, pushToDrawDownSink: false)
         allPids.append(getLastPositionId())
     }
 
@@ -682,32 +769,32 @@ access(all) fun testMassUnhealthyLiquidations() {
     //////////// Borrow FLOW from each position ///////////////////
 
     // Group A — USDF positions:
-    //   high-risk [0..24]:  borrow 7.0 MOET → health = (10×1.0×0.85)/7.0  = 1.214
-    //   moderate  [25..49]: borrow 6.0 MOET → health = (10×1.0×0.85)/6.0  = 1.417
+    //   high-risk [usdfHighStart..usdfHighEnd]: borrow usdfHighDebt → health = 1.214
+    //   moderate  [usdfModStart..usdfModEnd]:   borrow usdfModDebt  → health = 1.417
     log("Borrowing MOET from 50 USDF positions...\n")
-    for i in InclusiveRange(0, 24) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 7.0, beFailed: false)
+    for i in InclusiveRange(usdfHighStart, usdfHighEnd) {
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: usdfHighDebt, beFailed: false)
     }
-    for i in InclusiveRange(25, 49) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 6.0, beFailed: false)
+    for i in InclusiveRange(usdfModStart, usdfModEnd) {
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: usdfModDebt, beFailed: false)
     }
 
     // Group B — USDC positions:
-    //   high-risk [50..72]: borrow 1.4 MOET → health = (2×1.0×0.85)/1.4  = 1.214
-    //   moderate  [73..94]: borrow 1.2 MOET → health = (2×1.0×0.85)/1.2  = 1.417
+    //   high-risk [usdcHighStart..usdcHighEnd]: borrow usdcHighDebt → health = 1.214
+    //   moderate  [usdcModStart..usdcModEnd]:   borrow usdcModDebt  → health = 1.417
     log("Borrowing MOET from 45 USDC positions...\n")
-    for i in InclusiveRange(50, 72) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 1.4, beFailed: false)
+    for i in InclusiveRange(usdcHighStart, usdcHighEnd) {
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: usdcHighDebt, beFailed: false)
     }
-    for i in InclusiveRange(73, 94) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 1.2, beFailed: false)
+    for i in InclusiveRange(usdcModStart, usdcModEnd) {
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: usdcModDebt, beFailed: false)
     }
 
     // Group C — WBTC positions:
-    //   uniform  [95..99]: borrow 2.5 MOET → health = (0.00009×50000×0.75)/2.5 = 1.350
+    //   uniform [wbtcStart..wbtcEnd]: borrow wbtcDebt → health = 1.350
     log("Borrowing MOET from 5 WBTC positions...\n")
-    for i in InclusiveRange(95, 99) {
-        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 2.5, beFailed: false)
+    for i in InclusiveRange(wbtcStart, wbtcEnd) {
+        borrowFromPosition(signer: user, positionId: allPids[i], tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: wbtcDebt, beFailed: false)
     }
 
     // Confirm all 100 positions are healthy before the crash
@@ -718,16 +805,18 @@ access(all) fun testMassUnhealthyLiquidations() {
 
     //////////// Simulate 40% price crash across all three collateral types ///////////////////
 
-    // USDF/USDC: 1.00 MOET → 0.60 MOET (-40%)  |  WBTC: 50000 MOET → 30000 MOET (-40%)
+    // USDF/USDC: PRICE_USDF → usdfCrashPrice (-40%)  |  WBTC: PRICE_WBTC → wbtcCrashPrice (-40%)
     //
     // Health after crash:
-    //   USDF high: (10×0.60×0.85)/7.0        = 0.729   USDF mod:  (10×0.60×0.85)/6.0       = 0.850
-    //   USDC high: (2×0.60×0.85)/1.4         = 0.729   USDC mod:  (2×0.60×0.85)/1.2        = 0.850
-    //   WBTC:      (0.00009×30000×0.75)/2.5  = 0.810
+    //   USDF high: (usdfColPerPos×usdfCrashPrice×CF_USDF)/usdfHighDebt = 0.729
+    //   USDF mod:  (usdfColPerPos×usdfCrashPrice×CF_USDF)/usdfModDebt  = 0.850
+    //   USDC high: (usdcColPerPos×usdcCrashPrice×CF_USDC)/usdcHighDebt = 0.729
+    //   USDC mod:  (usdcColPerPos×usdcCrashPrice×CF_USDC)/usdcModDebt  = 0.850
+    //   WBTC:      (wbtcColPerPos×wbtcCrashPrice×CF_WBTC)/wbtcDebt     = 0.810
     log("All three collateral types crash 40% simultaneously\n")
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 0.6)
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDC_TOKEN_ID, price: 0.6)
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WBTC_TOKEN_ID, price: 30000.0)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: usdfCrashPrice)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDC_TOKEN_ID, price: usdcCrashPrice)
+    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WBTC_TOKEN_ID, price: wbtcCrashPrice)
 
     // Capture post-crash health by token type and verify all positions are unhealthy
     var usdfHealths: [UFix128] = []
@@ -763,11 +852,11 @@ access(all) fun testMassUnhealthyLiquidations() {
     //////////// DEX setup ///////////////////
 
     // Three DEX pairs (all source MOET from MAINNET_PROTOCOL_ACCOUNT's vault):
-    //   USDF→MOET at priceRatio=0.6    (0.60 USDF / 1.00 MOET)
-    //   USDC→MOET at priceRatio=0.6    (0.60 USDC / 1.00 MOET)
-    //   WBTC→MOET at priceRatio=30000  (30000 WBTC / 1.00 MOET)
+    //   USDF→MOET at priceRatio=usdfCrashPrice
+    //   USDC→MOET at priceRatio=usdcCrashPrice
+    //   WBTC→MOET at priceRatio=wbtcCrashPrice
     //
-    // Total DEX MOET: 25×4.0 + 25×3.0 + 23×0.8 + 22×0.6 + 5×1.18
+    // Total DEX MOET: 25×usdfHighRepay + 25×usdfModRepay + 23×usdcHighRepay + 22×usdcModRepay + 5×wbtcRepay
     //               = 100 + 75 + 18.4 + 13.2 + 5.90 = 212.50; mint 230 for headroom
     log("Configuring DEX pairs: USDF→MOET, USDC→MOET, WBTC→MOET\n")
     setupMoetVault(MAINNET_PROTOCOL_ACCOUNT, beFailed: false)
@@ -777,70 +866,70 @@ access(all) fun testMassUnhealthyLiquidations() {
         inVaultIdentifier: MAINNET_USDF_TOKEN_ID,
         outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
-        priceRatio: 0.6      // 0.60 USDF / 1.00 MOET
+        priceRatio: usdfCrashPrice
     )
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_USDC_TOKEN_ID,
         outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
-        priceRatio: 0.6      // 0.60 USDC / 1.00 MOET
+        priceRatio: usdcCrashPrice
     )
     setMockDexPriceForPair(
         signer: MAINNET_PROTOCOL_ACCOUNT,
         inVaultIdentifier: MAINNET_WBTC_TOKEN_ID,
         outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
-        priceRatio: 30000.0  // 30000 WBTC / 1.00 MOET
+        priceRatio: wbtcCrashPrice
     )
 
     //////////// Build batch parameters (ordered worst health first) ///////////////////
     //
-    // Seize/repay parameters:
-    //   USDF high  [0..24]:  seize 4.0 USDF,      repay 4.0 MOET  post=1.02,  DEX: 4<6.67
-    //   USDC high [50..72]:  seize 0.8 USDC,      repay 0.8 MOET  post=1.02,  DEX: 0.8<1.33
-    //   WBTC      [95..99]:  seize 0.00003 WBTC,  repay 1.18 MOET post=1.023, DEX: 0.00003<0.0000393
-    //   USDF mod  [25..49]:  seize 4.0 USDF,      repay 3.0 MOET  post=1.02,  DEX: 4<5.00
-    //   USDC mod  [73..94]:  seize 0.8 USDC,      repay 0.6 MOET  post=1.02,  DEX: 0.8<1.00
+    // Seize/repay parameters (ordered worst health first):
+    //   USDF high  [usdfHighStart..usdfHighEnd]: seize usdfHighSeize, repay usdfHighRepay  post=1.02
+    //   USDC high  [usdcHighStart..usdcHighEnd]: seize usdcHighSeize, repay usdcHighRepay  post=1.02
+    //   WBTC       [wbtcStart..wbtcEnd]:         seize wbtcSeize,     repay wbtcRepay      post=1.023
+    //   USDF mod   [usdfModStart..usdfModEnd]:   seize usdfModSeize,  repay usdfModRepay   post=1.02
+    //   USDC mod   [usdcModStart..usdcModEnd]:   seize usdcModSeize,  repay usdcModRepay   post=1.02
     var batchPids:    [UInt64] = []
     var batchSeize:   [String] = []
     var batchAmounts: [UFix64] = []
     var batchRepay:   [UFix64] = []
 
-    // USDF high-risk [0..24]
-    for i in InclusiveRange(0, 24) {
+    // USDF high-risk [usdfHighStart..usdfHighEnd]
+    for i in InclusiveRange(usdfHighStart, usdfHighEnd) {
         batchPids.append(allPids[i])
         batchSeize.append(MAINNET_USDF_TOKEN_ID)
-        batchAmounts.append(4.0)
-        batchRepay.append(4.0)
+        batchAmounts.append(usdfHighSeize)
+        batchRepay.append(usdfHighRepay)
     }
-    // USDC high-risk [50..72]
-    for i in InclusiveRange(50, 72) {
+    // USDC high-risk [usdcHighStart..usdcHighEnd]
+    for i in InclusiveRange(usdcHighStart, usdcHighEnd) {
         batchPids.append(allPids[i])
         batchSeize.append(MAINNET_USDC_TOKEN_ID)
-        batchAmounts.append(0.8)
-        batchRepay.append(0.8)
+        batchAmounts.append(usdcHighSeize)
+        batchRepay.append(usdcHighRepay)
     }
-    // WBTC uniform [95..99]
-    for i in InclusiveRange(95, 99) {
+    // WBTC uniform [wbtcStart..wbtcEnd]
+    for i in InclusiveRange(wbtcStart, wbtcEnd) {
         batchPids.append(allPids[i])
         batchSeize.append(MAINNET_WBTC_TOKEN_ID)
-        batchAmounts.append(0.00003)
-        batchRepay.append(1.18)
+        batchAmounts.append(wbtcSeize)
+        batchRepay.append(wbtcRepay)
     }
-    // USDF moderate [25..49]
-    for i in InclusiveRange(25, 49) {
+    // USDF moderate [usdfModStart..usdfModEnd]
+    for i in InclusiveRange(usdfModStart, usdfModEnd) {
         batchPids.append(allPids[i])
         batchSeize.append(MAINNET_USDF_TOKEN_ID)
-        batchAmounts.append(4.0)
-        batchRepay.append(3.0)
+        batchAmounts.append(usdfModSeize)
+        batchRepay.append(usdfModRepay)
     }
-    // USDC moderate [73..94]
-    for i in InclusiveRange(73, 94) {
+    // USDC moderate [usdcModStart..usdcModEnd]
+    for i in InclusiveRange(usdcModStart, usdcModEnd) {
         batchPids.append(allPids[i])
         batchSeize.append(MAINNET_USDC_TOKEN_ID)
-        batchAmounts.append(0.8)
-        batchRepay.append(0.6)
+        batchAmounts.append(usdcModSeize)
+        batchRepay.append(usdcModRepay)
     }
 
     Test.assert(batchPids.length == 100, message: "Expected 100 batch entries, got \(batchPids.length)")
@@ -861,7 +950,7 @@ access(all) fun testMassUnhealthyLiquidations() {
         seizeVaultIdentifiers: batchSeize,
         seizeAmounts: batchAmounts,
         repayAmounts: batchRepay,
-        chunkSize: 10,
+        chunkSize: batchChunkSize,
         signer: liquidator
     )
 
