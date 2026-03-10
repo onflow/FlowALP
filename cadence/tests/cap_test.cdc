@@ -613,14 +613,14 @@ fun testEGovernance_PauseUnpause() {
     safeReset()
 
     let pauseResult = _executeTransaction(
-        "../tests/transactions/flow-alp/helpers/set_pool_paused.cdc",
+        "../tests/transactions/flow-alp/egovernance/set_pool_paused.cdc",
         [true],
         eGovernanceUser
     )
     Test.expect(pauseResult, Test.beSucceeded())
 
     let unpauseResult = _executeTransaction(
-        "../tests/transactions/flow-alp/helpers/set_pool_paused.cdc",
+        "../tests/transactions/flow-alp/egovernance/set_pool_paused.cdc",
         [false],
         eGovernanceUser
     )

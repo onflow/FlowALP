@@ -532,7 +532,7 @@ fun setPoolPauseState(
     pause: Bool
 ): Test.TransactionResult {
     return _executeTransaction(
-        "./transactions/flow-alp/helpers/set_pool_paused.cdc",
+        "./transactions/flow-alp/egovernance/set_pool_paused.cdc",
         [pause],
         signer
     )
@@ -677,7 +677,7 @@ fun setInsuranceSwapper(
     priceRatio: UFix64,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-alp/helpers/set_insurance_swapper_mock.cdc",
+        "./transactions/flow-alp/egovernance/set_insurance_swapper_mock.cdc",
         [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, MOET_TOKEN_IDENTIFIER],
         signer
     )
@@ -690,7 +690,7 @@ fun removeInsuranceSwapper(
     tokenTypeIdentifier: String,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-alp/helpers/remove_insurance_swapper.cdc",
+        "./transactions/flow-alp/egovernance/remove_insurance_swapper.cdc",
         [ tokenTypeIdentifier],
         signer
     )
