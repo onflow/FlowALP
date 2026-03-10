@@ -19,7 +19,7 @@ access(all) contract FlowALPInterestRates {
 
     /// FixedCurve
     ///
-    /// A fixed-rate interest curve implementation that returns a constant yearly interest rate
+    /// A fixed-rate interest curve implementation that returns a constant nominal yearly interest rate
     /// regardless of utilization. This is suitable for stable assets like MOET where predictable
     /// rates are desired.
     /// @param yearlyRate The fixed yearly nominal rate as a UFix128 (e.g., 0.05 for a 5% nominal yearly rate)
