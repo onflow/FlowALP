@@ -1,5 +1,3 @@
-import "FlowALPMath"
-
 access(all) contract FlowALPInterestRates {
 
     /// InterestCurve
@@ -51,12 +49,17 @@ access(all) contract FlowALPInterestRates {
     /// optimal point while heavily penalizing over-utilization to protect protocol liquidity.
     ///
     /// Formula:
-    /// - utilization = debitBalance / (creditBalance + debitBalance)
+    /// - utilization = min(debitBalance / creditBalance, 1.0)
     /// - Before kink (utilization <= optimalUtilization):
     ///   rate = baseRate + (slope1 × utilization / optimalUtilization)
     /// - After kink (utilization > optimalUtilization):
     ///   rate = baseRate + slope1 + (slope2 × excessUtilization)
     ///   where excessUtilization = (utilization - optimalUtilization) / (1 - optimalUtilization)
+    ///
+    /// `creditBalance` is expected to be the total credit balance, i.e. the
+    /// total supplied balance for the token, not the remaining idle liquidity
+    /// in the pool.
+    /// This matches the live TokenState accounting used by FlowALP.
     ///
     /// @param optimalUtilization The target utilization ratio (e.g., 0.80 for 80%)
     /// @param baseRate The minimum yearly interest rate (e.g., 0.01 for 1% APY)
@@ -104,10 +107,16 @@ access(all) contract FlowALPInterestRates {
                 return self.baseRate
             }
 
-            // Calculate utilization ratio: debitBalance / (creditBalance + debitBalance)
-            // Note: totalBalance > 0 is guaranteed since debitBalance > 0 and creditBalance >= 0
-            let totalBalance = creditBalance + debitBalance
-            let utilization = debitBalance / totalBalance
+            // Calculate utilization ratio from debt over total supplied.
+            // If the supplied side is zero or debt grows past supply, saturate at
+            // 100% utilization instead of dividing by zero or exceeding the kink curve.
+            var utilization: UFix128 = 1.0
+            if creditBalance > 0.0 {
+                utilization = debitBalance / creditBalance
+                if utilization > 1.0 {
+                    utilization = 1.0
+                }
+            }
 
             // If utilization is below or at the optimal point, use slope1
             if utilization <= self.optimalUtilization {
@@ -119,7 +128,7 @@ access(all) contract FlowALPInterestRates {
                 // If utilization is above the optimal point, use slope2 for excess
                 // excessUtilization = (utilization - optimalUtilization) / (1 - optimalUtilization)
                 let excessUtilization = utilization - self.optimalUtilization
-                let maxExcess = FlowALPMath.one - self.optimalUtilization
+                let maxExcess = (1.0 as UFix128) - self.optimalUtilization
                 let excessFactor = excessUtilization / maxExcess
 
                 // rate = baseRate + slope1 + (slope2 × excessFactor)
