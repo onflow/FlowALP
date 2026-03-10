@@ -1,5 +1,7 @@
 import "FungibleToken"
 import "FlowToken"
+import "MOET"
+import "DummyToken"
 import "FlowALPv0"
 import "FlowALPModels"
 
@@ -39,15 +41,19 @@ transaction(
         }
 
         // Get receiver for the specific token type
-        // For FlowToken, use the standard path
+        var receiverRef: &{FungibleToken.Receiver}? = nil
         if tokenTypeIdentifier == "A.0000000000000003.FlowToken.Vault" {
-            self.receiverVault = signer.storage.borrow<&{FungibleToken.Receiver}>(from: /storage/flowTokenVault)
-                ?? panic("Could not borrow FlowToken vault receiver")
-        } else {
-            // For other tokens, try to find a matching vault
-            // This is a simplified approach for testing
-            panic("Unsupported token type for withdrawal: \(tokenTypeIdentifier)")
+            // For FlowToken, use the standard path
+            receiverRef = signer.storage.borrow<&{FungibleToken.Receiver}>(from: /storage/flowTokenVault)
+        } else if tokenTypeIdentifier == "A.0000000000000007.MOET.Vault" {
+            // For MOET, use the MOET vault path
+            receiverRef = signer.storage.borrow<&{FungibleToken.Receiver}>(from: MOET.VaultStoragePath)
+        } else if tokenTypeIdentifier == "A.0000000000000007.DummyToken.Vault" {
+            // For DummyToken, use the DummyToken vault path
+            receiverRef = signer.storage.borrow<&{FungibleToken.Receiver}>(from: DummyToken.VaultStoragePath)
         }
+
+        self.receiverVault = receiverRef ?? panic("Could not borrow vault receiver for token type: \(tokenTypeIdentifier). Ensure vault is set up.")
     }
 
     execute {
