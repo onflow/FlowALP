@@ -582,12 +582,12 @@ access(all) contract FlowALPv0 {
         /// Sets the InternalPosition's drawDownSink. If `nil`, the Pool will not be able to push overflown value when
         /// the position exceeds its maximum health.
         ///
-        /// NOTE: If a non-nil value is provided, the Sink MUST accept MOET deposits or the operation will revert.
-        /// TODO(jord): precondition assumes Pool's default token is MOET, however Pool has option to specify default token in constructor.
-        access(EImplementation) fun setDrawDownSink(_ sink: {DeFiActions.Sink}?) {
+        /// The Sink MUST accept a token type that is supported by the pool (i.e. present in the pool's globalLedger).
+        /// Validated against the caller-supplied `supportedTypes` set (pass `globalLedger.keys` from Pool).
+        access(EImplementation) fun setDrawDownSink(_ sink: {DeFiActions.Sink}?, supportedTypes: {Type: Bool}) {
             pre {
-                sink == nil || sink!.getSinkType() == Type<@MOET.Vault>():
-                    "Invalid Sink provided - Sink must accept MOET"
+                sink == nil || supportedTypes[sink!.getSinkType()] == true:
+                    "Invalid Sink provided - Sink must accept a pool-supported token type"
             }
             self.drawDownSink = sink
         }
@@ -2690,7 +2690,9 @@ access(all) contract FlowALPv0 {
             // assign issuance & repayment connectors within the InternalPosition
             let iPos = self._borrowPosition(pid: id)
             let fundsType = funds.getType()
-            iPos.setDrawDownSink(issuanceSink)
+            var supportedTypes: {Type: Bool} = {}
+            for t in self.globalLedger.keys { supportedTypes[t] = true }
+            iPos.setDrawDownSink(issuanceSink, supportedTypes: supportedTypes)
             if repaymentSource != nil {
                 iPos.setTopUpSource(repaymentSource)
             }
@@ -3776,40 +3778,52 @@ access(all) contract FlowALPv0 {
                     let sinkCapacity = drawDownSink.minimumCapacity()
                     let sinkAmount = (idealWithdrawal > sinkCapacity) ? sinkCapacity : idealWithdrawal
 
-                    // TODO(jord): we enforce in setDrawDownSink that the type is MOET -> we should panic here if that does not hold (currently silently fail)
-                    if sinkAmount > 0.0 && sinkType == Type<@MOET.Vault>() {
-                        let tokenState = self._borrowUpdatedTokenState(type: Type<@MOET.Vault>())
-                        if position.balances[Type<@MOET.Vault>()] == nil {
-                            position.balances[Type<@MOET.Vault>()] = InternalBalance(
+                    if sinkAmount > 0.0 {
+                        let tokenState = self._borrowUpdatedTokenState(type: sinkType)
+                        if position.balances[sinkType] == nil {
+                            position.balances[sinkType] = InternalBalance(
                                 direction: BalanceDirection.Credit,
                                 scaledBalance: 0.0
                             )
                         }
-                        // record the withdrawal and mint the tokens
+                        // Record the withdrawal against sinkType, then issue it.
+                        // For MOET: mint new tokens. For other tokens: withdraw from pool reserves.
                         let uintSinkAmount = UFix128(sinkAmount)
-                        position.balances[Type<@MOET.Vault>()]!.recordWithdrawal(
+                        position.balances[sinkType]!.recordWithdrawal(
                             amount: uintSinkAmount,
                             tokenState: tokenState
                         )
-                        let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
-
-                        emit Rebalanced(
-                            pid: pid,
-                            poolUUID: self.uuid,
-                            atHealth: balanceSheet.health,
-                            amount: sinkVault.balance,
-                            fromUnder: false
-                        )
-
-                        // Push what we can into the sink, and redeposit the rest
-                        drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-                        if sinkVault.balance > 0.0 {
-                            self._depositEffectsOnly(
+                        if sinkType == Type<@MOET.Vault>() {
+                            let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
+                            emit Rebalanced(
                                 pid: pid,
-                                from: <-sinkVault,
+                                poolUUID: self.uuid,
+                                atHealth: balanceSheet.health,
+                                amount: sinkVault.balance,
+                                fromUnder: false
                             )
+                            drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
+                            if sinkVault.balance > 0.0 {
+                                self._depositEffectsOnly(pid: pid, from: <-sinkVault)
+                            } else {
+                                Burner.burn(<-sinkVault)
+                            }
                         } else {
-                            Burner.burn(<-sinkVault)
+                            let reserveRef = (&self.reserves[sinkType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
+                            let sinkVault <- reserveRef.withdraw(amount: sinkAmount)
+                            emit Rebalanced(
+                                pid: pid,
+                                poolUUID: self.uuid,
+                                atHealth: balanceSheet.health,
+                                amount: sinkVault.balance,
+                                fromUnder: false
+                            )
+                            drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
+                            if sinkVault.balance > 0.0 {
+                                self._depositEffectsOnly(pid: pid, from: <-sinkVault)
+                            } else {
+                                Burner.burn(<-sinkVault)
+                            }
                         }
                     }
                 }
@@ -4435,7 +4449,9 @@ access(all) contract FlowALPv0 {
             let pool = self.pool.borrow()!
             pool.lockPosition(self.id)
             let pos = pool.borrowPosition(pid: self.id)
-            pos.setDrawDownSink(sink)
+            var supportedTypes: {Type: Bool} = {}
+            for t in pool.getSupportedTokens() { supportedTypes[t] = true }
+            pos.setDrawDownSink(sink, supportedTypes: supportedTypes)
             pool.unlockPosition(self.id)
         }
 

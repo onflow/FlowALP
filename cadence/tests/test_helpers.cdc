@@ -247,6 +247,16 @@ fun getPositionBalance(pid: UInt64, vaultID: String): FlowALPv0.PositionBalance 
 }
 
 access(all)
+fun equalAmounts(a: UFix64, b: UFix64, tolerance: UFix64): Bool {
+    return a >= b ? a - b <= tolerance : b - a <= tolerance
+}
+
+access(all)
+fun equalAmounts128(a: UFix128, b: UFix128, tolerance: UFix128): Bool {
+    return a >= b ? a - b <= tolerance : b - a <= tolerance
+}
+
+access(all)
 fun poolExists(address: Address): Bool {
     let res = _executeScript("../scripts/flow-alp/pool_exists.cdc", [address])
     Test.expect(res, Test.beSucceeded())
