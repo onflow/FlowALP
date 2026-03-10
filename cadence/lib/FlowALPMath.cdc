@@ -104,8 +104,8 @@ access(all) contract FlowALPMath {
     /// (e.g. 0.05 for a 5% nominal yearly rate), and the result is the per-second multiplier
     /// (e.g. 1.000000000001). For positive rates, the effective one-year growth will be slightly higher than the
     /// nominal rate because interest compounds over time.
-    access(all) view fun perSecondInterestRate(yearlyRate: UFix128): UFix128 {
-        let perSecondScaledValue = yearlyRate / 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
+    access(all) view fun perSecondInterestRate(nominalYearlyRate: UFix128): UFix128 {
+        let perSecondScaledValue = nominalYearlyRate / 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
         assert(
             perSecondScaledValue < UFix128.max,
             message: "Per-second interest rate \(perSecondScaledValue) is too high"

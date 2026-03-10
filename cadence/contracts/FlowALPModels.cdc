@@ -1426,8 +1426,8 @@ access(all) contract FlowALPModels {
                 }
             }
 
-            self.currentCreditRate = FlowALPMath.perSecondInterestRate(yearlyRate: creditRate)
-            self.currentDebitRate = FlowALPMath.perSecondInterestRate(yearlyRate: debitRate)
+            self.currentCreditRate = FlowALPMath.perSecondInterestRate(nominalYearlyRate: creditRate)
+            self.currentDebitRate = FlowALPMath.perSecondInterestRate(nominalYearlyRate: debitRate)
         }
 
         /// Updates the credit and debit interest indices for elapsed time since last update.
