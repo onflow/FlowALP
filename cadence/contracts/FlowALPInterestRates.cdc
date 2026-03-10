@@ -48,8 +48,10 @@ access(all) contract FlowALPInterestRates {
     /// This creates a "kinked" curve that incentivizes maintaining utilization near the
     /// optimal point while heavily penalizing over-utilization to protect protocol liquidity.
     ///
-    /// Formula:
-    /// - utilization = min(debitBalance / creditBalance, 1.0)
+    /// Utilization handling:
+    /// - if debitBalance == 0, treat utilization as 0% and return baseRate
+    /// - else if creditBalance == 0, saturate utilization at 100%
+    /// - else utilization = min(debitBalance / creditBalance, 1.0)
     /// - Before kink (utilization <= optimalUtilization):
     ///   rate = baseRate + (slope1 × utilization / optimalUtilization)
     /// - After kink (utilization > optimalUtilization):

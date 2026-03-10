@@ -34,33 +34,123 @@ Both fees are deducted from the interest income that would otherwise go to lende
 
 ### 1. Debit Rate Calculation
 
-The debit rate is determined by an interest curve that takes into account the utilization ratio of the pool:
+For each token, the protocol stores one interest curve. The debit rate (borrow APY) is computed from that curve and the current pool utilization:
 
-```
+```text
+if totalDebitBalance == 0:
+    utilization = 0
+else if totalCreditBalance == 0:
+    utilization = 100%
+else:
+    utilization = min(totalDebitBalance / totalCreditBalance, 1.0)
+
 debitRate = interestCurve.interestRate(
     creditBalance: totalCreditBalance,
     debitBalance: totalDebitBalance
 )
 ```
 
-The interest curve typically increases the rate as utilization increases, incentivizing borrowers to repay when the pool is highly utilized and encouraging lenders to supply liquidity when rates are high.
+Here, `totalCreditBalance` means the total supplied balance, i.e. total creditor claims. It does not mean the remaining idle liquidity in the pool.
+
+Under this accounting model, FlowALP's utilization matches the Aave-style reserve usage ratio after mapping variables:
+
+```
+totalCreditBalance = availableLiquidity + totalDebitBalance
+```
+
+Utilization in this model is:
+- `0%` when there is no debt
+- `40%` when `40` is borrowed against `100` supplied
+- `100%` when debit and credit balances are equal
+- capped at `100%` in defensive edge cases where debt exceeds supply or supply is zero while debt remains positive
+
+### FixedCurve (constant APY)
+
+For `FixedCurve`, debit APY is constant regardless of utilization:
+
+```
+debitRate = yearlyRate
+```
+
+Example:
+- `yearlyRate = 0.05` (5% APY)
+- debit APY stays at 5% whether utilization is 10% or 95%
+
+### KinkCurve (utilization-based APY)
+
+For `KinkCurve`, debit APY follows a two-segment curve:
+- below `optimalUtilization` ("before the kink"), rates rise gently
+- above `optimalUtilization` ("after the kink"), rates rise steeply
+
+Definitions:
+
+```
+u = utilization
+u* = optimalUtilization
+```
+
+If `u <= u*`:
+
+```
+debitRate = baseRate + slope1 * (u / u*)
+```
+
+If `u > u*`:
+
+```
+debitRate = baseRate + slope1 + slope2 * ((u - u*) / (1 - u*))
+```
+
+At full utilization (`u = 100%`), the rate is:
+
+```
+maxDebitRate = baseRate + slope1 + slope2
+```
+
+#### Example profile (Aave v3 "Volatile One" style)
+
+Reference values discussed for volatile assets:
+- Source: https://github.com/onflow/FlowYieldVaults/pull/108#discussion_r2688322723
+- `optimalUtilization = 45%` (`0.45`)
+- `baseRate = 0%` (`0.0`)
+- `slope1 = 4%` (`0.04`)
+- `slope2 = 300%` (`3.0`)
+
+Interpretation:
+- at or below 45% utilization, borrowers see relatively low/gradual APY increases
+- above 45%, APY increases very aggressively to push utilization back down
+- theoretical max debit APY at 100% utilization is `304%` (`0% + 4% + 300%`)
+
+This is the mechanism that helps protect withdrawal liquidity under stress.
 
 ### 2. Credit Rate Calculation
 
-The credit rate is derived from the total debit interest income, with insurance and stability fees applied proportionally as a percentage of the interest generated.
+The credit rate (deposit APY) is derived from debit-side income after protocol fees.
 
-For **FixedRateInterestCurve** (used for stable assets like MOET):
+Shared definitions:
+
+```
+protocolFeeRate = insuranceRate + stabilityFeeRate
+```
+
+and `protocolFeeRate` must be `< 1.0`.
+
+For **FixedCurve** (used for stable assets like MOET):
 ```
 creditRate = debitRate * (1 - protocolFeeRate)
 ```
 
-For **KinkInterestCurve** and other curves:
+This gives a simple spread model between borrow APY and lend APY.
+
+For **KinkCurve** and other non-fixed curves:
 ```
 debitIncome = totalDebitBalance * debitRate
 protocolFeeRate = insuranceRate + stabilityFeeRate
 protocolFeeAmount = debitIncome * protocolFeeRate
 creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
 ```
+
+This computes lender yield from actual debit-side income, after reserve deductions.
 
 **Important**: The combined `insuranceRate + stabilityFeeRate` must be less than 1.0 to avoid underflow in credit rate calculation. This is enforced by preconditions when setting either rate.
 
@@ -77,6 +167,16 @@ Where `secondsInYear = 31_557_600` (365.25 days × 24 hours × 60 minutes × 60 
 This conversion allows for discrete per-second compounding of interest over time.
 
 Important terminology: the configured `yearlyRate` is a **nominal yearly rate**, not a promise that a balance will grow by exactly that percentage over one calendar year. For positive fixed rates, the effective one-year growth is slightly higher because of compounding. For variable curves, realized growth also depends on when utilization changes and the rate is recomputed.
+
+### 4. Querying Curve Parameters On-Chain
+
+The pool exposes `getInterestCurveParams(tokenType)` and the repo includes script:
+- `cadence/scripts/flow-alp/get_interest_curve_params.cdc`
+
+Returned fields:
+- Always: `curveType`, `currentDebitRatePerSecond`, `currentCreditRatePerSecond`
+- FixedCurve: `yearlyRate`
+- KinkCurve: `optimalUtilization`, `baseRate`, `slope1`, `slope2`
 
 ## Interest Accrual Mechanism
 
