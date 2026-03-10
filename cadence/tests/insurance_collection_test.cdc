@@ -524,16 +524,9 @@ fun test_collectInsurance_midPeriodRateChange() {
     let reservesAfterPhase1 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
     let collected_phase1 = reservesBefore_phase1 - reservesAfterPhase1
 
-    // NOTE:
-    // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
-    // The default variance is designed for deterministic math, but insurance collection
-    // depends on block timestamps, which can differ slightly between test runs.
-    // A larger, time-aware tolerance is required.
-    let tolerance = 0.00001
-    var diff = expectedCollectedInsuranceAmountAfterPhase1 > insuranceAfterPhase1 
-        ? expectedCollectedInsuranceAmountAfterPhase1 - insuranceAfterPhase1
-        : insuranceAfterPhase1 - expectedCollectedInsuranceAmountAfterPhase1
-    Test.assert(diff < tolerance, message: "Insurance collected should be around \(expectedCollectedInsuranceAmountAfterPhase1) but current \(insuranceAfterPhase1)")
+    let expectedCollectedAmount = 6.472
+    Test.assert(equalWithinVariance(expectedCollectedInsuranceAmountAfterPhase1, insuranceAfterPhase1, 0.00001),
+        message: "Insurance collected should be around \(expectedCollectedInsuranceAmountAfterPhase1) but current \(insuranceAfterPhase1)")
     Test.assertEqual(collected_phase1, insuranceAfterPhase1)
 
     let reservesBefore_phase2 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
@@ -559,19 +552,11 @@ fun test_collectInsurance_midPeriodRateChange() {
 
     let insuranceAfterPhase2 = getInsuranceFundBalance()
     let reservesAfterPhase2 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
-    
-    // NOTE:
-    // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
-    // The default variance is designed for deterministic math, but insurance collection
-    // depends on block timestamps, which can differ slightly between test runs.
-    // A larger, time-aware tolerance is required.
+
     let expectedCollectedInsuranceAmount= expectedCollectedInsuranceAmountAfterPhase1 + expectedCollectedInsuranceAmountAfterPhase2 // 5.25854589 + 10.51709179
-    diff = expectedCollectedInsuranceAmount > insuranceAfterPhase2 
-        ? expectedCollectedInsuranceAmount - insuranceAfterPhase2
-        : insuranceAfterPhase2 - expectedCollectedInsuranceAmount
-
-    Test.assert(diff < tolerance, message: "Insurance collected should be around \(expectedCollectedInsuranceAmount) but current \(insuranceAfterPhase2)")
-
+    Test.assert(equalWithinVariance(expectedCollectedInsuranceAmount, insuranceAfterPhase2, 0.00001),
+        message: "Insurance collected should be around \(expectedCollectedInsuranceAmount) but current \(insuranceAfterPhase2)")
+    
     // acumulative insurance fund must equal sum of both collections
     let collected_phase2 = reservesBefore_phase2 - reservesAfterPhase2
     Test.assertEqual(insuranceAfterPhase2, insuranceAfterPhase1 + collected_phase2)

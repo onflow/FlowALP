@@ -80,7 +80,7 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     
     // Verify position health is at target
     let health = getPositionHealth(pid: 0, beFailed: false)
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health),
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health, DEFAULT_UFIX128_VARIANCE),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)")
 
     // Verify the user actually received the borrowed MOET in their Vault (draw-down sink)
