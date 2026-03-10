@@ -36,8 +36,13 @@ Both fees are deducted from the interest income that would otherwise go to lende
 
 For each token, the protocol stores one interest curve. The debit rate (borrow APY) is computed from that curve and the current pool utilization:
 
-```
-utilization = totalDebitBalance / (totalCreditBalance + totalDebitBalance)
+```text
+if totalDebitBalance == 0:
+    utilization = 0
+else if totalCreditBalance == 0:
+    utilization = 100%
+else:
+    utilization = min(totalDebitBalance / totalCreditBalance, 1.0)
 
 debitRate = interestCurve.interestRate(
     creditBalance: totalCreditBalance,
@@ -45,10 +50,19 @@ debitRate = interestCurve.interestRate(
 )
 ```
 
+Here, `totalCreditBalance` means the total supplied balance, i.e. total creditor claims. It does not mean the remaining idle liquidity in the pool.
+
+Under this accounting model, FlowALP's utilization matches the Aave-style reserve usage ratio after mapping variables:
+
+```
+totalCreditBalance = availableLiquidity + totalDebitBalance
+```
+
 Utilization in this model is:
 - `0%` when there is no debt
-- `50%` when debit and credit balances are equal
-- near `100%` when most liquidity is borrowed
+- `40%` when `40` is borrowed against `100` supplied
+- `100%` when debit and credit balances are equal
+- capped at `100%` in defensive edge cases where debt exceeds supply or supply is zero while debt remains positive
 
 ### FixedCurve (constant APY)
 
