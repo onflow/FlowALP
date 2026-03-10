@@ -36,8 +36,13 @@ Both fees are deducted from the interest income that would otherwise go to lende
 
 For each token, the protocol stores one interest curve. The debit rate (borrow APY) is computed from that curve and the current pool utilization:
 
-```
-utilization = min(totalDebitBalance / totalCreditBalance, 1.0)
+```text
+if totalDebitBalance == 0:
+    utilization = 0
+else if totalCreditBalance == 0:
+    utilization = 100%
+else:
+    utilization = min(totalDebitBalance / totalCreditBalance, 1.0)
 
 debitRate = interestCurve.interestRate(
     creditBalance: totalCreditBalance,
