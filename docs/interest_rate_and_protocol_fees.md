@@ -166,6 +166,16 @@ Where `secondsInYear = 31_557_600` (365.25 days × 24 hours × 60 minutes × 60 
 
 This conversion allows for continuous compounding of interest over time.
 
+### 4. Querying Curve Parameters On-Chain
+
+The pool exposes `getInterestCurveParams(tokenType)` and the repo includes script:
+- `cadence/scripts/flow-alp/get_interest_curve_params.cdc`
+
+Returned fields:
+- Always: `curveType`, `currentDebitRatePerSecond`, `currentCreditRatePerSecond`
+- FixedCurve: `yearlyRate`
+- KinkCurve: `optimalUtilization`, `baseRate`, `slope1`, `slope2`
+
 
 ## Interest Accrual Mechanism
 
