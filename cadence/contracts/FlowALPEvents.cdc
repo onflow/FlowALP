@@ -167,7 +167,7 @@ access(all) contract FlowALPEvents {
     )
 
     /// Emitted when the stability fee rate for a token is updated by governance.
-    /// The stability fee rate is a fee fraction of accrued debit interest diverted to the stability fund.
+    /// The stability fee rate is a fee of accrued debit interest diverted to the stability fund.
     ///
     /// @param poolUUID the UUID of the pool containing the token
     /// @param tokenType the type identifier string of the token whose rate changed
