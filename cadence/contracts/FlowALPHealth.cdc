@@ -20,7 +20,7 @@ access(all) contract FlowALPHealth {
     ///        must be non-nil when the position has a credit balance in this token, nil otherwise
     /// @param isDebugLogging: Whether to emit debug log messages
     /// @return A new BalanceSheet reflecting the effective collateral and debt after the withdrawal
-    access(all) fun computeAdjustedBalancesAfterWithdrawal(
+    access(account) fun computeAdjustedBalancesAfterWithdrawal(
         balanceSheet: FlowALPModels.BalanceSheet,
         withdrawBalance: FlowALPModels.InternalBalance?,
         withdrawAmount: UFix64,
@@ -105,7 +105,7 @@ access(all) contract FlowALPHealth {
     /// @param isDebugLogging: Whether to emit debug log messages
     /// @return The amount of tokens (in UFix64) required to reach the target health
     // TODO(jord): ~100-line function - consider refactoring
-    access(all) fun computeRequiredDepositForHealth(
+    access(account) fun computeRequiredDepositForHealth(
         depositBalance: FlowALPModels.InternalBalance?,
         depositDebitInterestIndex: UFix128?,
         depositPrice: UFix128,
@@ -239,7 +239,7 @@ access(all) contract FlowALPHealth {
     ///        must be non-nil when the position has a debit balance in this token, nil otherwise
     /// @param isDebugLogging: Whether to emit debug log messages
     /// @return A new BalanceSheet reflecting the effective collateral and debt after the deposit
-    access(all) fun computeAdjustedBalancesAfterDeposit(
+    access(account) fun computeAdjustedBalancesAfterDeposit(
         balanceSheet: FlowALPModels.BalanceSheet,
         depositBalance: FlowALPModels.InternalBalance?,
         depositAmount: UFix64,
@@ -338,7 +338,7 @@ access(all) contract FlowALPHealth {
     /// @param isDebugLogging: Whether to emit debug log messages
     /// @return The maximum amount of tokens (in UFix64) that can be withdrawn
     // TODO(jord): ~100-line function - consider refactoring
-    access(all) fun computeAvailableWithdrawal(
+    access(account) fun computeAvailableWithdrawal(
         withdrawBalance: FlowALPModels.InternalBalance?,
         withdrawCreditInterestIndex: UFix128?,
         withdrawPrice: UFix128,

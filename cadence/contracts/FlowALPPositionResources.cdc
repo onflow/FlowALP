@@ -319,7 +319,8 @@ access(all) contract FlowALPPositionResources {
     }
 
     /// Creates and returns a new Position resource.
-    access(all) fun createPosition(
+    /// This remains account-scoped so only the protocol account can mint canonical wrappers.
+    access(account) fun createPosition(
         id: UInt64,
         pool: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>
     ): @Position {
