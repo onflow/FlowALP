@@ -117,8 +117,9 @@ access(all) contract FlowALPMath {
     ///
     /// Formula: EAY = (1 + nominalRate / secondsPerYear) ^ secondsPerYear - 1
     ///
-    /// For example, a nominal rate of 100% (1.0) produces an effective rate of ~171.8% (≈ e - 1), because
-    /// discrete per-second compounding at 31_557_600 steps/year is very close to the continuous limit.
+    /// For example, a nominal rate of 100% (1.0) produces an effective rate of about 171.8281776413%
+    /// under discrete per-second compounding: (1 + 1 / 31_557_600) ^ 31_557_600 - 1.
+    /// This is extremely close to the continuous-compounding limit of e - 1.
     access(all) view fun effectiveYearlyRate(nominalYearlyRate: UFix128): UFix128 {
         let perSecondRate = FlowALPMath.perSecondInterestRate(yearlyRate: nominalYearlyRate)
         let compounded = FlowALPMath.powUFix128(perSecondRate, 31_557_600.0)
