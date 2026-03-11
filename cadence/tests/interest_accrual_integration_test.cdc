@@ -50,7 +50,8 @@ access(all) var snapshot: UInt64 = 0
 // Example at a 4% nominal yearly debit rate:
 // - Borrowers pay: 4.0% nominal yearly debit rate
 // - Lenders earn: a lower nominal yearly credit rate after protocol fees
-// - Insurance/stability: configured fee fractions of accrued debit interest
+// - Protocol Fees are comprised of two parts -
+// - Insurance/Stability: configurable fees of accrued debit interest
 access(all) let moetFixedRate: UFix128 = 0.04  // 4% nominal yearly debit rate
 
 // FlowToken: KinkCurve (Aave v3 Volatile One Parameters)
