@@ -105,7 +105,7 @@ access(all) contract FlowALPMath {
     /// (e.g. 1.000000000001). For positive rates, the effective one-year growth will be slightly higher than the
     /// nominal rate because interest compounds over time.
     access(all) view fun perSecondInterestRate(yearlyRate: UFix128): UFix128 {
-        let perSecondScaledValue = nominalYearlyRate / 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
+        let perSecondScaledValue = yearlyRate / 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
         assert(
             perSecondScaledValue < UFix128.max,
             message: "Per-second interest rate \(perSecondScaledValue) is too high"
@@ -120,7 +120,7 @@ access(all) contract FlowALPMath {
     /// For example, a nominal rate of 100% (1.0) produces an effective rate of ~171.8% (≈ e - 1), because
     /// continuous per-second compounding causes the effective return to approach Euler's number.
     access(all) view fun effectiveYearlyRate(nominalYearlyRate: UFix128): UFix128 {
-        let perSecondRate = FlowALPMath.perSecondInterestRate(nominalYearlyRate: nominalYearlyRate)
+        let perSecondRate = FlowALPMath.perSecondInterestRate(yearlyRate: nominalYearlyRate)
         let compounded = FlowALPMath.powUFix128(perSecondRate, 31_557_600.0)
         return compounded - 1.0
     }

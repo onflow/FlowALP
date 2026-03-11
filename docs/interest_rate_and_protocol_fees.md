@@ -34,7 +34,7 @@ Both fees are deducted from the interest income that would otherwise go to lende
 
 ### 1. Debit Rate Calculation
 
-For each token, the protocol stores one interest curve. The debit rate (borrow nominal yearly rate) is computed from that curve and the current pool utilization:
+For each token, the protocol stores one interest curve. The debit rate (borrow APY) is computed from that curve and the current pool utilization:
 
 ```text
 if totalDebitBalance == 0:
@@ -64,21 +64,21 @@ Utilization in this model is:
 - `100%` when debit and credit balances are equal
 - capped at `100%` in defensive edge cases where debt exceeds supply or supply is zero while debt remains positive
 
-### FixedCurve (constant nominal yearly rate)
+### FixedCurve (constant APY)
 
-For `FixedCurve`, the debit nominal yearly rate is constant regardless of utilization:
+For `FixedCurve`, debit APY is constant regardless of utilization:
 
 ```
 debitRate = yearlyRate
 ```
 
 Example:
-- `yearlyRate = 0.05` (5% nominal yearly rate)
-- the debit nominal yearly rate stays at 5% whether utilization is 10% or 95%
+- `yearlyRate = 0.05` (5% APY)
+- debit APY stays at 5% whether utilization is 10% or 95%
 
-### KinkCurve (utilization-based nominal yearly rate)
+### KinkCurve (utilization-based APY)
 
-For `KinkCurve`, the debit nominal yearly rate follows a two-segment curve:
+For `KinkCurve`, debit APY follows a two-segment curve:
 - below `optimalUtilization` ("before the kink"), rates rise gently
 - above `optimalUtilization` ("after the kink"), rates rise steeply
 
@@ -117,15 +117,15 @@ Reference values discussed for volatile assets:
 - `slope2 = 300%` (`3.0`)
 
 Interpretation:
-- at or below 45% utilization, borrowers see relatively low/gradual nominal-rate increases
-- above 45%, the nominal yearly rate increases very aggressively to push utilization back down
-- theoretical max debit nominal yearly rate at 100% utilization is `304%` (`0% + 4% + 300%`)
+- at or below 45% utilization, borrowers see relatively low/gradual APY increases
+- above 45%, APY increases very aggressively to push utilization back down
+- theoretical max debit APY at 100% utilization is `304%` (`0% + 4% + 300%`)
 
 This is the mechanism that helps protect withdrawal liquidity under stress.
 
 ### 2. Credit Rate Calculation
 
-The credit rate (deposit nominal yearly rate) is derived from debit-side income after protocol fees.
+The credit rate (deposit APY) is derived from debit-side income after protocol fees.
 
 Shared definitions:
 
@@ -140,7 +140,7 @@ For **FixedCurve** (used for stable assets like MOET):
 creditRate = debitRate * (1 - protocolFeeRate)
 ```
 
-This gives a simple spread model between borrow and lend nominal yearly rates.
+This gives a simple spread model between borrow APY and lend APY.
 
 For **KinkCurve** and other non-fixed curves:
 ```
