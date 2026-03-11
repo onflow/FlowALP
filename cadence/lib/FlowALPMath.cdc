@@ -100,13 +100,11 @@ access(all) contract FlowALPMath {
     }
 
     /// Converts a nominal yearly interest rate to a per-second multiplication factor (stored in a UFix128 as a fixed
-    /// point number with 18 decimal places). The input is the nominal annual interest rate (e.g. 0.05 for 5%), and
-    /// the result is the per-second multiplier (e.g. 1.000000001585).
-    ///
-    /// NOTE: This uses linear (nominal) decomposition — the per-second rate is simply `nominalRate / secondsPerYear`.
-    /// Because interest is then applied as `rate^timeElapsed` (exponential compounding), the effective APY will
-    /// exceed the stated nominal rate. Use `effectiveYearlyRate` to compute the true effective annual yield.
-    access(all) view fun perSecondInterestRate(nominalYearlyRate: UFix128): UFix128 {
+    /// point number with 18 decimal places). The input to this function is the relative nominal annual rate
+    /// (e.g. 0.05 for a 5% nominal yearly rate), and the result is the per-second multiplier
+    /// (e.g. 1.000000000001). For positive rates, the effective one-year growth will be slightly higher than the
+    /// nominal rate because interest compounds over time.
+    access(all) view fun perSecondInterestRate(yearlyRate: UFix128): UFix128 {
         let perSecondScaledValue = nominalYearlyRate / 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
         assert(
             perSecondScaledValue < UFix128.max,
