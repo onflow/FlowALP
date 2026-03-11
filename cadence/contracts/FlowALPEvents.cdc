@@ -171,7 +171,7 @@ access(all) contract FlowALPEvents {
     ///
     /// @param poolUUID the UUID of the pool containing the token
     /// @param tokenType the type identifier string of the token whose rate changed
-    /// @param stabilityFeeRate the new stability fee fraction (e.g. 0.05 for 5%)
+    /// @param stabilityFeeRate the new stability fee (e.g. 0.05 for 5%)
     access(all) event StabilityFeeRateUpdated(
         poolUUID: UInt64,
         tokenType: String,
