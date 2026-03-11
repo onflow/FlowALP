@@ -16,8 +16,7 @@ access(all) contract FlowALPHealth {
     /// @param withdrawPrice: The oracle price of the withdrawn token
     /// @param withdrawBorrowFactor: The borrow factor applied to debt in the withdrawn token
     /// @param withdrawCollateralFactor: The collateral factor applied to collateral in the withdrawn token
-    /// @param withdrawCreditInterestIndex: The credit interest index for the withdrawn token;
-    ///        must be non-nil when the position has a credit balance in this token, nil otherwise
+    /// @param withdrawCreditInterestIndex: The credit interest index for the withdrawn token
     /// @param isDebugLogging: Whether to emit debug log messages
     /// @return A new BalanceSheet reflecting the effective collateral and debt after the withdrawal
     access(account) fun computeAdjustedBalancesAfterWithdrawal(
@@ -27,7 +26,7 @@ access(all) contract FlowALPHealth {
         withdrawPrice: UFix128,
         withdrawBorrowFactor: UFix128,
         withdrawCollateralFactor: UFix128,
-        withdrawCreditInterestIndex: UFix128?,
+        withdrawCreditInterestIndex: UFix128,
         isDebugLogging: Bool
     ): FlowALPModels.BalanceSheet {
         var effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral
@@ -63,7 +62,7 @@ access(all) contract FlowALPHealth {
                 // will flip over into debt, or just draw down the collateral.
                 let trueCollateral = FlowALPMath.scaledBalanceToTrueBalance(
                     scaledBalance,
-                    interestIndex: withdrawCreditInterestIndex!
+                    interestIndex: withdrawCreditInterestIndex
                 )
                 let collateralFactor = withdrawCollateralFactor
                 if trueCollateral >= withdrawAmountU {
@@ -94,8 +93,7 @@ access(all) contract FlowALPHealth {
     /// debt repayment and collateral accumulation as needed.
     ///
     /// @param depositBalance: The position's existing balance for the deposit token, if any
-    /// @param depositDebitInterestIndex: The debit interest index for the deposit token;
-    ///        must be non-nil when the position has a debit balance in this token, nil otherwise
+    /// @param depositDebitInterestIndex: The debit interest index for the deposit token
     /// @param depositPrice: The oracle price of the deposit token
     /// @param depositBorrowFactor: The borrow factor applied to debt in the deposit token
     /// @param depositCollateralFactor: The collateral factor applied to collateral in the deposit token
@@ -107,7 +105,7 @@ access(all) contract FlowALPHealth {
     // TODO(jord): ~100-line function - consider refactoring
     access(account) fun computeRequiredDepositForHealth(
         depositBalance: FlowALPModels.InternalBalance?,
-        depositDebitInterestIndex: UFix128?,
+        depositDebitInterestIndex: UFix128,
         depositPrice: UFix128,
         depositBorrowFactor: UFix128,
         depositCollateralFactor: UFix128,
@@ -149,7 +147,7 @@ access(all) contract FlowALPHealth {
             let debtBalance = maybeBalance!.scaledBalance
             let trueDebtTokenCount = FlowALPMath.scaledBalanceToTrueBalance(
                 debtBalance,
-                interestIndex: depositDebitInterestIndex!
+                interestIndex: depositDebitInterestIndex
             )
             let debtEffectiveValue = (depositPrice * trueDebtTokenCount) / depositBorrowFactor
 
@@ -235,8 +233,7 @@ access(all) contract FlowALPHealth {
     /// @param depositPrice: The oracle price of the deposited token
     /// @param depositBorrowFactor: The borrow factor applied to debt in the deposited token
     /// @param depositCollateralFactor: The collateral factor applied to collateral in the deposited token
-    /// @param depositDebitInterestIndex: The debit interest index for the deposited token;
-    ///        must be non-nil when the position has a debit balance in this token, nil otherwise
+    /// @param depositDebitInterestIndex: The debit interest index for the deposited token
     /// @param isDebugLogging: Whether to emit debug log messages
     /// @return A new BalanceSheet reflecting the effective collateral and debt after the deposit
     access(account) fun computeAdjustedBalancesAfterDeposit(
@@ -246,7 +243,7 @@ access(all) contract FlowALPHealth {
         depositPrice: UFix128,
         depositBorrowFactor: UFix128,
         depositCollateralFactor: UFix128,
-        depositDebitInterestIndex: UFix128?,
+        depositDebitInterestIndex: UFix128,
         isDebugLogging: Bool
     ): FlowALPModels.BalanceSheet {
         var effectiveCollateralAfterDeposit = balanceSheet.effectiveCollateral
@@ -283,7 +280,7 @@ access(all) contract FlowALPHealth {
                 // will result in net collateral, or just bring down the debt.
                 let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
                     scaledBalance,
-                    interestIndex: depositDebitInterestIndex!
+                    interestIndex: depositDebitInterestIndex
                 )
                 if isDebugLogging {
                     log("    [CONTRACT] trueDebt: \(trueDebt)")
@@ -327,8 +324,7 @@ access(all) contract FlowALPHealth {
     /// the target.
     ///
     /// @param withdrawBalance: The position's existing balance for the withdrawn token, if any
-    /// @param withdrawCreditInterestIndex: The credit interest index for the withdrawn token;
-    ///        must be non-nil when the position has a credit balance in this token, nil otherwise
+    /// @param withdrawCreditInterestIndex: The credit interest index for the withdrawn token
     /// @param withdrawPrice: The oracle price of the withdrawn token
     /// @param withdrawCollateralFactor: The collateral factor applied to collateral in the withdrawn token
     /// @param withdrawBorrowFactor: The borrow factor applied to debt in the withdrawn token
@@ -340,7 +336,7 @@ access(all) contract FlowALPHealth {
     // TODO(jord): ~100-line function - consider refactoring
     access(account) fun computeAvailableWithdrawal(
         withdrawBalance: FlowALPModels.InternalBalance?,
-        withdrawCreditInterestIndex: UFix128?,
+        withdrawCreditInterestIndex: UFix128,
         withdrawPrice: UFix128,
         withdrawCollateralFactor: UFix128,
         withdrawBorrowFactor: UFix128,
@@ -376,7 +372,7 @@ access(all) contract FlowALPHealth {
             let creditBalance = maybeBalance!.scaledBalance
             let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
                 creditBalance,
-                interestIndex: withdrawCreditInterestIndex!
+                interestIndex: withdrawCreditInterestIndex
             )
             let collateralEffectiveValue = (withdrawPrice * trueCredit) * withdrawCollateralFactor
 
