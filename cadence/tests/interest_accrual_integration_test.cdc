@@ -898,7 +898,7 @@ fun test_flow_credit_accrues_interest_with_insurance() {
 //
 // Key Insight (FixedCurve Protocol-Fee Spread):
 // - debitRate is set by the fixed curve
-// - insurance/stability remain configured fee fractions
+// - insurance/stability remain configured fee parameters
 // - creditRate is reduced relative to debitRate by those protocol fees
 // - the realized spread shows up as a lower lender growth rate than borrower growth rate
 // =============================================================================
