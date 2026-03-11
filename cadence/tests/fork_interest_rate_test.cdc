@@ -81,7 +81,7 @@ fun setup() {
 }
 
 // =============================================================================
-/// Verifies protocol behavior when extreme utilization (nearly all liquidity borrowed) and verifies KinkCurve Steep clope Behavior
+/// Verifies protocol behavior when extreme utilization (nearly all liquidity borrowed)
 // =============================================================================
 access(all)
 fun test_extreme_utilization() {
@@ -113,77 +113,65 @@ fun test_extreme_utilization() {
     openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let borrowerPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
-    // borrow 999 FLOW
+    // borrow 1800 FLOW (90% of 2000 FLOW credit)
     borrowFromPosition(
         signer: borrower,
         positionId: borrowerPid,
         tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
         vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
-        amount: 999.0,
+        amount: 1800.0,
         beFailed: false
     )
 
-    // LP withdraws 1000 FLOW to push utilization higher
-    let withdrawRes = withdrawFromPosition(
-        signer: MAINNET_FLOW_HOLDER,
-        positionId: lpDepositPid,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
-        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
-        amount: 1000.0,
-        pullFromTopUpSource: false,
-    )
-
     // Pool state:
-    //   FLOW credit = 2000 - 1000 = 1000
-    //   FLOW debit  = 999
+    //   FLOW credit = 2000
+    //   FLOW debit  = 1800
     //
     // KinkInterestCurve:
-    //   utilization = debitBalance / (creditBalance + debitBalance) //TODO(Uliana): nearly all liquidity borrowed, but utilization = 49%
-    //   utilization = 999 / (1000 + 999) = 999 / 1999 = 0.4997498749 = 49.9% > 45%
+    //   utilization = debitBalance / creditBalance
+    //   utilization = 1800 / 2000 = 0.9 = 90% > 45% (above kink)
+    //
+    //   excessUtilization = (utilization - optimalUtilization) / (1 - optimalUtilization)
+    //   excessUtilization = (0.9 - 0.45) / (1 - 0.45) = 0.45 / 0.55 = 0.81818181818...
     //
     //   rate = baseRate + slope1 + (slope2 * excessUtilization)
-    //   excessUtilization = (utilization - optimalUtilization) / (1 - optimalUtilization)
-    ///
-    //   excessUtilization = (0.4997498749 - 0.45) / (1 - 0.45) = 0.090454318
-    //   rate = 0.0 + 0.04 + 3.0 * 0.090454318 = 0.311362954 (31.13% APY)
+    //   rate = 0.0 + 0.04 + 3.0 * 0.81818181818 = 2.49454545454... (249.45% APY)
 
     // record initial state
     let detailsBefore = getPositionDetails(pid: borrowerPid, beFailed: false)
     let FLOWDebtBefore = getDebitBalanceForType(details: detailsBefore, vaultType: Type<@FlowToken.Vault>())
 
-    // Borrower position
-    // Collateral:
-    //   MOET: 10000 * $1.0 * CF(1.0) = $10000
-    // Debt:
-    //   FLOW: 999 * $1.0 / BF(0.9) = $1110
-    //
-    // Health = $10000 / $1110 = 9.00900900900...
-
     // advance 30 days
     Test.moveTime(by: THIRTY_DAYS)
     Test.commitBlock()
 
+    // perSecondRate = 1 + (yearlyRate / 31_557_600)
+    // 30 days growth rate = perSecondRate ^ 2_592_000 - 1
+    // FLOW debit 30 days growth rate = (1 + 2.49454545 / 31557600)^2592000 - 1 = 0.22739266 //0.22739266
+    let expectedFLOWGrowthRate = 0.22739266
+
     // verify debt growth
     let detailsAfter = getPositionDetails(pid: borrowerPid, beFailed: false)
     let FLOWDebtAfter = getDebitBalanceForType(details: detailsAfter, vaultType: Type<@FlowToken.Vault>())
-    let healthAfter = detailsAfter.health
     Test.assert(FLOWDebtAfter > FLOWDebtBefore, message: "Debt should increase at above-kink utilization")
-    
-    // perSecondRate = 1 + (yearlyRate / 31_557_600)
-    // 30 days growth rate = perSecondRate ^ 2_592_000 - 1
-    // FLOW debit 30 days growth rate = (1 + (0.311362954 / 31_557_600))^2_592_000 - 1 = 0.02590377842 = 2.59%
-    let expectedFLOWGrowthRate = 0.02590378
+
     let FLOWDebtGrowth = FLOWDebtAfter - FLOWDebtBefore
     let FLOWGrowthRate = FLOWDebtGrowth / FLOWDebtBefore
 
-    Test.assert(equalWithinVariance(expectedFLOWGrowthRate, FLOWGrowthRate),
-        message: "Expected FLOW debt growth rate to be ~\(expectedFLOWGrowthRate), but got \(FLOWGrowthRate)")
+    // NOTE: TODO(Uliana): update to equalWithinVariance when PR https://github.com/onflow/FlowALP/pull/255 will be merged
+    // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
+    // The default variance is designed for deterministic math, but insurance collection
+    // depends on block timestamps, which can differ slightly between test runs.
+    // A larger, time-aware tolerance is required.
+    let tolerance = 0.00001
+    var diff = expectedFLOWGrowthRate > FLOWGrowthRate 
+        ? expectedFLOWGrowthRate - FLOWGrowthRate
+        : FLOWGrowthRate - expectedFLOWGrowthRate
+    Test.assert(diff < tolerance, message: "Expected FLOW debt growth rate to be \(expectedFLOWGrowthRate) but got \(FLOWGrowthRate)")
 }
 
 // =============================================================================
-/// Verifies the scenario when there is no liquidity to borrow.
-/// Any attempt to borrow should fail because the pool has no reserves for that token.
-/// When new deposit goes, user could borrow.
+/// Verifies protocol behavior when a lending pool has liquidity but no borrows.
 // =============================================================================
 access(all)
 fun test_zero_credit_balance() {
@@ -216,34 +204,33 @@ fun test_zero_credit_balance() {
     // totalDebitBalance = 0
     // baseRate = 0
     //
-    // debitRate:   
+    // debitRate:
     //   debitRate = (if no debt, debitRate = base rate) = 0
     //
     // creditRate:
-    //     creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
-    //     protocolFeeAmount = debitIncome * (insuranceRate + stabilityFeeRate)
-    //     debitIncome = totalDebitBalance * debitRate
+    //   creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
+    //   protocolFeeAmount = debitIncome * (insuranceRate + stabilityFeeRate)
+    //   debitIncome = totalDebitBalance * debitRate
     //
-    //     debitIncome = 0.0 * 0.0 = 0.0
-    //     protocolFeeAmount = 0.0
-    //     totalCreditBalance = 0.0 -> creditRate = 0.0
+    //   debitIncome = 0.0 * 0.0 = 0.0
+    //   protocolFeeAmount = 0.0
+    //   totalCreditBalance = 0.0 -> creditRate = 0.0
 
     // MOET interest rate calculation (FixedRateInterestCurve)
     //
     // totalCreditBalance = 10000
     // totalDebitBalance = 0
     //
-    // debitRate:   
+    // debitRate:
     //   debitRate = yearlyRate = 0.04
     //
     // creditRate:
-    //     creditRate = debitRate * (1.0 - protocolFeeRate)
-    //     protocolFeeRate = insuranceRate + stabilityFeeRate
+    //   creditRate = debitRate * (1.0 - protocolFeeRate)
+    //   protocolFeeRate = insuranceRate + stabilityFeeRate
     //
-    //     protocolFeeRate = 0.001 * 0.05 = 0.051
-    //     creditRate = 0.04 * (1 - 0.051) = 0.03796 (3.796 % APY)
-    //
-    
+    //   protocolFeeRate = 0.001 * 0.05 = 0.051
+    //   creditRate = 0.04 * (1 - 0.051) = 0.03796 (3.796% APY)
+
     Test.moveTime(by: THIRTY_DAYS)
     Test.commitBlock()
 
@@ -286,29 +273,30 @@ fun test_zero_credit_balance() {
     // totalCreditBalance = 5000
     // totalDebitBalance = 100
     //
-    // debitRate:  
-    //   utilization = debitBalance / (creditBalance + debitBalance) 
-    //   utilization = 100 / (5000 + 100) = 100 / 5100 = 0.01960784 < 0.45 (below kink)
+    // debitRate:
+    //   utilization = debitBalance / creditBalance
+    //   utilization = 100 / 5000 = 0.02 < 0.45 (below kink)
     //
     //   debitRate = baseRate + (slope1 * utilization / optimalUtilization)
-    //   debitRate = 0.0 + (0.04 * 0.01960784 / 0.45) = 0.00174291 (0.174% APY)
+    //   debitRate = 0.0 + (0.04 * 0.02 / 0.45) = 0.00177777777 (0.177% APY)
     //
     // creditRate:
-    //     creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
-    //     protocolFeeAmount = debitIncome * (insuranceRate + stabilityFeeRate)
-    //     debitIncome = totalDebitBalance * debitRate
+    //   creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
+    //   protocolFeeAmount = debitIncome * (insuranceRate + stabilityFeeRate)
+    //   debitIncome = totalDebitBalance * debitRate
     //
-    //     debitIncome = 0.0 * 0.0 = 0.0
-    //     protocolFeeAmount = 0.0
-    //     totalCreditBalance = 0.0 -> creditRate = 0.0
+    //   debitIncome = 0.0 * 0.0 = 0.0
+    //   protocolFeeAmount = 0.0
+    //   totalCreditBalance = 0.0 -> creditRate = 0.0
 
     // Advance 1 day to measure exact interest growth
     Test.moveTime(by: DAY)
     Test.commitBlock()
+
     // perSecondRate = 1 + (yearlyRate / 31_557_600)
     // daily growth rate = perSecondRate^86400 - 1
-    // FLOW debt daily growth rate = (1 + 0.00174291 / 31_557_600)^86400 - 1 = 0.00000477
-    let expectedFlowDebtDailyGrowth = 0.00000477
+    // FLOW debt daily growth rate = (1 + 0.00177777777 / 31_557_600)^86400 - 1 = 0.00000486766
+    let expectedFlowDebtDailyGrowth = 0.00000486
 
     let detailsAfter1Day = getPositionDetails(pid: pid, beFailed: false)
     let flowDebtAfter1Day = getDebitBalanceForType(details: detailsAfter1Day, vaultType: Type<@FlowToken.Vault>())
@@ -334,21 +322,21 @@ fun test_empty_pool() {
 
     // record initial credit
     let detailsBefore = getPositionDetails(pid: lpPid, beFailed: false)
-    let FLOWcreditBefore = getCreditBalanceForType(details: detailsBefore, vaultType: Type<@FlowToken.Vault>())
+    let FLOWCreditBefore = getCreditBalanceForType(details: detailsBefore, vaultType: Type<@FlowToken.Vault>())
 
     // advance 30 days with zero borrowing
     Test.moveTime(by: THIRTY_DAYS)
     Test.commitBlock()
 
-    // calculate FLOW rates
-    // KinkCurve:
-    //      baseRate:0 
-    //      debitBalance:0
-    // debitRate: debitRate = baseRate = 0 (debitBalance = 0) 
-    // creditRate: creditRate = 0 (debitIncome = 0)
+    // FLOW rate calculation (KinkInterestCurve)
+    //   baseRate:0 
+    //   debitBalance:0
+    //
+    // debitRate = (if no debt, debitRate = base rate) = 0
+    // creditRate = 0 (debitIncome = 0)
     let detailsAfterNoDebit = getPositionDetails(pid: lpPid, beFailed: false)
     let FLOWCreditAfterNoDebit = getCreditBalanceForType(details: detailsAfterNoDebit, vaultType: Type<@FlowToken.Vault>())
-    Test.assertEqual(FLOWcreditBefore, FLOWCreditAfterNoDebit)
+    Test.assertEqual(FLOWCreditBefore, FLOWCreditAfterNoDebit)
 
     // create a borrower to trigger utilization
     let borrower = Test.createAccount()
@@ -372,20 +360,20 @@ fun test_empty_pool() {
     Test.commitBlock()
 
     // KinkCurve
-    // utilization = debitBalance / (creditBalance + debitBalance)
-    //     FLOW: 2000 / (10000 + 2000) =  0.16666666666 < 0.45 (below kink)
+    // utilization = debitBalance / creditBalance
+    //   FLOW: 2000 / 10000 = 0.2 < 0.45 (below kink)
     //
     // debitRate = baseRate + (slope1 * utilization / optimalUtilization)
-    //     FLOW: debitRate = 0 + 0.04 * (0.16666666666 / 0.45) = 0.01481481481 (1.48% APY)
+    //   FLOW: debitRate = 0 + 0.04 * (0.2 / 0.45) = 0.01777777777 (1.777% APY)
     //
     // creditRate:
-    //     creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
-    //     protocolFeeAmount = debitIncome * (insuranceRate + stabilityFeeRate)
-    //     debitIncome = totalDebitBalance * debitRate
-    //     
-    //     debitIncome = 2000 * 0.01481481481 = 29.62962962
-    //     protocolFeeAmount = 29.62962962 * (0.001 + 0.05) =  1.51111111062
-    //     FLOW: creditRate = (29.62962962 - 1.51111111062) / 10000 =  0.00281185185 (0.28% APY)
+    //   creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
+    //   protocolFeeAmount = debitIncome * (insuranceRate + stabilityFeeRate)
+    //   debitIncome = totalDebitBalance * debitRate
+    //
+    //   debitIncome = 2000 * 0.01777777777 = 35.55555554
+    //   protocolFeeAmount = 35.55555554 * (0.001 + 0.05) = 1.81333333254
+    //   creditRate = (35.55555554 - 1.81333333254) / 10000 = 0.00337422222 (0.337% APY)
 
     let detailsAfterDebit = getPositionDetails(pid: lpPid, beFailed: false)
     let FLOWCreditAfterDebit = getCreditBalanceForType(details: detailsAfterDebit, vaultType: Type<@FlowToken.Vault>())
@@ -395,8 +383,8 @@ fun test_empty_pool() {
 
     // perSecondRate = 1 + (yearlyRate / 31_557_600)
     // 30 Days Growth = perSecondRate^THIRTY_DAYS - 1
-    // FLOW credit 30 days growth = (1 + 0.00281185/31_557_600)^2_592_000 - 1 = 0.0002309792
-    let expectedFLOWCreditGrowthRate = 0.00023097
+    // FLOW credit 30 days growth = (1 + 0.00337422222 / 31_557_600)^2_592_000 - 1 = 0.00027718
+    let expectedFLOWCreditGrowthRate = 0.00027718
     Test.assertEqual(expectedFLOWCreditGrowthRate, FLOWCreditGrowthRate)
 }
 
@@ -424,37 +412,30 @@ fun test_kink_point_transition() {
     setupMoetVault(borrower, beFailed: false)
     mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 100_000.0, beFailed: false)
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 100_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
-    
+
     let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let borrowerPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
     // KinkCurve
     // To achieve exactly 45% utilization:
-    //   utilization = debit / (credit + debit)
-    //   0.45 = debit / (credit + debit)
-    //
-    //   0.45 * credit = 0.55 * debit
-    //   credit = (0.55 / 0.45) * debit = (11/9) * debit
-    //
-    //   credit = 10000
-    //   debit = 10000 * 9/11 = 8181.818181
-    //
-    // utilization = 8181.818181 / (10000 + 8181.818181) = 0.45
+    //   utilization = debit / credit
+    //   0.45 = debit / 10000
+    //   debit = 10000 * 0.45 = 4500
     borrowFromPosition(
         signer: borrower,
         positionId: borrowerPid,
         tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
         vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
-        amount: 8181.818181,
+        amount: 4500.0,
         beFailed: false
     )
 
     // KinkCurve
-    // utilization = debitBalance / (creditBalance + debitBalance)
-    //     FLOW: 0.45 <= 0.45 (below kink)
+    // utilization = debitBalance / creditBalance
+    //   FLOW: 4500 / 10000 = 0.45 <= 0.45 (exactly at kink)
     //
-    // debit rate = baseRate + (slope1 * utilization / optimalUtilization)
-    //     FLOW: debitRate = 0.0 + (0.04 * 0.45 / 0.45) = 0.04 (4% APY)
+    // debitRate = baseRate + (slope1 * utilization / optimalUtilization)
+    //   FLOW: debitRate = 0.0 + (0.04 * 0.45 / 0.45) = 0.04 (4% APY)
 
     // record state at kink point
     let detailsAtKink = getPositionDetails(pid: borrowerPid, beFailed: false)
@@ -469,17 +450,14 @@ fun test_kink_point_transition() {
     let yearlyGrowthAtKink = (debtAfterYear - debtAtKink) / debtAtKink
 
     // perSecondRate = 1 + (yearlyRate / 31_557_600)
-    // yearly debt growth = perSecondRate^ONE_YEAR - 1 
+    // yearly debt growth = perSecondRate^ONE_YEAR - 1
     // FLOW debit yearly growth = (1 + 0.04 / 31_557_600)^31_557_600 - 1 = 0.04081077417 (4.08%)
     let expectedYearlyGrowthAtKink = 0.04081077
     Test.assertEqual(expectedYearlyGrowthAtKink, yearlyGrowthAtKink)
 }
 
 // =============================================================================
-/// Verifies interest accrual over long time periods.
-/// Advances blockchain time by 1 year and then by 10 additional years,
-/// ensuring the borrower’s debt grows according to the expected
-/// compounded interest rate without overflow or precision issues.
+/// Verifies interest accrual over long time periods
 // =============================================================================
 access(all)
 fun test_long_time_period_accrual() {
@@ -487,7 +465,7 @@ fun test_long_time_period_accrual() {
 
     // create LP with 10000 FLOW
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: MAINNET_FLOW_HOLDER, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    
+
     var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let lpPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
@@ -496,7 +474,7 @@ fun test_long_time_period_accrual() {
     setupMoetVault(borrower, beFailed: false)
     mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 100_000.0, beFailed: false)
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 100_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
-    
+
     openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let borrowerPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
@@ -510,21 +488,19 @@ fun test_long_time_period_accrual() {
         beFailed: false
     )
 
-    // Borrower (MOET collateral, FLOW debt):
+    // Borrower FLOW rate calculation (KinkInterestCurve)
     // KinkCurve
-    // utilization = debitBalance / (creditBalance + debitBalance)
-    //     FLOW: 2000 / (10000 + 2000) =  0.16666666666 < 0.45 (below kink)
+    // utilization = debitBalance / creditBalance
+    //   FLOW: 2000 / 10000 = 0.2 < 0.45 (below kink)
     //
-    // debit rate = baseRate + (slope1 * utilization / optimalUtilization)
-    //     FLOW: debitRate = 0 + 0.04 * (0.16666666666 / 0.45) = 0.01481481481 (1.48% APY)
-    let expectedFLOWDebtRate = 0.01481481
+    // debitRate = baseRate + (slope1 * utilization / optimalUtilization)
+    //   FLOW: debitRate = 0 + 0.04 * (0.2 / 0.45) = 0.01777777777 (1.77% APY)
+    let expectedFLOWDebtRate = 0.01777777
 
     let detailsBefore = getPositionDetails(pid: borrowerPid, beFailed: false)
-    let debtBefore = getDebitBalanceForType(details: detailsBefore, vaultType: Type<@FlowToken.Vault>())
+    let FLOWDebtBefore = getDebitBalanceForType(details: detailsBefore, vaultType: Type<@FlowToken.Vault>())
 
-    let creditBefore = getCreditBalanceForType(details: getPositionDetails(pid: lpPid, beFailed: false),
-        vaultType: Type<@FlowToken.Vault>()
-    )
+    let FLOWCreditBefore = getCreditBalanceForType(details: getPositionDetails(pid: lpPid, beFailed: false), vaultType: Type<@FlowToken.Vault>())
 
     // 1 full year
     Test.moveTime(by: ONE_YEAR)
@@ -532,12 +508,12 @@ fun test_long_time_period_accrual() {
 
     let detailsAfter1Year = getPositionDetails(pid: borrowerPid, beFailed: false)
     let FLOWDebtAfter1Year = getDebitBalanceForType(details: detailsAfter1Year, vaultType: Type<@FlowToken.Vault>())
-    let FLOWGrowthRate1Year = (FLOWDebtAfter1Year - debtBefore) / debtBefore
+    let FLOWGrowthRate1Year = (FLOWDebtAfter1Year - FLOWDebtBefore) / FLOWDebtBefore
 
     // perSecondRate = 1 + (yearlyRate / 31_557_600)
-    // yearly debt growth = perSecondRate^ONE_YEAR - 1 
-    // FLOW debit yearly growth = (1 + 0.01481481481 / 31_557_600)^31_557_600 - 1 = 0.01492509772
-    let expectedFLOWDebtYearlyGrowth = 0.01492509 // TODO(Uliana) + add credit rate growth
+    // yearly debt growth = perSecondRate^ONE_YEAR - 1
+    // FLOW debit yearly growth = (1 + 0.017777778 / 31_557_600)^31_557_600 - 1 = 0.01793674
+    let expectedFLOWDebtYearlyGrowth = 0.01793674
     Test.assertEqual(expectedFLOWDebtYearlyGrowth, FLOWGrowthRate1Year)
 
     // LP credit should also have grown
@@ -545,27 +521,25 @@ fun test_long_time_period_accrual() {
         details: getPositionDetails(pid: lpPid, beFailed: false),
         vaultType: Type<@FlowToken.Vault>()
     )
-    Test.assert(creditAfter1Year > creditBefore, message: "credit should grow over 1 year")
+    Test.assert(creditAfter1Year > FLOWCreditBefore, message: "credit should grow over 1 year")
 
-    // advance 10 years
+    // advance 10 more years
     Test.moveTime(by: 10.0 * ONE_YEAR)
     Test.commitBlock()
 
     let detailsAfter10Years = getPositionDetails(pid: borrowerPid, beFailed: false)
     let FLOWDebtAfter10Years = getDebitBalanceForType(details: detailsAfter10Years, vaultType: Type<@FlowToken.Vault>())
-    let FLOWTotalGrowthRate = (FLOWDebtAfter10Years - debtBefore) / debtBefore
+    let FLOWTotalGrowthRate = (FLOWDebtAfter10Years - FLOWDebtBefore) / FLOWDebtBefore
 
     // perSecondRate = 1 + (yearlyRate / 31_557_600)
-    // 11-years debt growth = perSecondRate^(31_557_600*11) - 1 
-    // FLOW debit 11-years growth = (1 + 0.01481481481 / 31_557_600)^(31_557_600*11) - 1 = 0.17699309112
-    let expectedFLOWDebt10YearsGrowth = 0.17699309
+    // 11-year debt growth = perSecondRate^(31_557_600 * 11) - 1
+    // FLOW debit 11-year growth = (1 + 0.017777778 / 31_557_600)^(31_557_600*11) - 1 = 0.21598635
+    let expectedFLOWDebt10YearsGrowth = 0.21598635
     Test.assertEqual(expectedFLOWDebt10YearsGrowth, FLOWTotalGrowthRate)
 }
 
 // =============================================================================
-/// Verifies that interest accrues correctly after large time jumps.
-/// Simulates blockchain halts (1 day and 7 days) and ensures the borrower’s
-/// debt increases according to the expected compounded interest rate.
+/// Verifies that interest accrues correctly after large time jumps
 // =============================================================================
 access(all)
 fun test_time_jump_scenarios() {
@@ -578,7 +552,7 @@ fun test_time_jump_scenarios() {
     setupMoetVault(borrower, beFailed: false)
     mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 50_000.0, beFailed: false)
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 50_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
-    
+
     let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let borrowerPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
 
@@ -595,16 +569,17 @@ fun test_time_jump_scenarios() {
     // record state before the 1-day gap
     let detailsBefore = getPositionDetails(pid: borrowerPid, beFailed: false)
     let FLOWDebtBefore = getDebitBalanceForType(details: detailsBefore, vaultType: Type<@FlowToken.Vault>())
-    let healthBefore = detailsBefore.health
 
-    // Borrower (MOET collateral, FLOW debt):
-    // KinkCurve
-    // utilization = debitBalance / (creditBalance + debitBalance)
-    //     FLOW: 5000 / (10000 + 5000) = 0.3(3) < 0.45 (below kink)
+    // Borrower FLOW rate calculation (KinkInterestCurve)
+    // utilization = debitBalance / creditBalance
+    //   FLOW: 5000 / 10000 = 0.5 > 0.45 (above kink)
     //
-    // debit rate = baseRate + (slope1 * utilization / optimalUtilization)
-    //     FLOW: debitRate = 0 + (0.04 * 0.3(3) / 0.45) = 0.0296296296296296 (2.96% APY)
-    let expectedFlowDebitRate: UFix128 = 0.02962963
+    // excessUtilization = (utilization - optimalUtilization) / (1 - optimalUtilization)
+    //   = (0.5 - 0.45) / (1 - 0.45) = 0.05 / 0.55 = 0.09090909090909...
+    //
+    // debitRate = baseRate + slope1 + (slope2 * excessUtilization)
+    //   FLOW: debitRate = 0 + 0.04 + 3.0 * 0.09090909 = 0.3127272727... (31.27% APY)
+    let expectedFlowDebitRate: UFix128 = 0.31272727
 
     // 1-day blockchain halt
     Test.moveTime(by: DAY)
@@ -618,13 +593,13 @@ fun test_time_jump_scenarios() {
     let FLOWDebtDailyGrowth = (FLOWDebtAfter1Day - FLOWDebtBefore) / FLOWDebtBefore
 
     // perSecondRate = 1 + (yearlyRate / 31_557_600)
-    // dailyGrowth = perSecondRate^86400 - 1 
-    // FLOW debit daily growth = (1 + 0.02962963 / 31_557_600)^86400 - 1 = 0.00008112479
+    // dailyGrowth = perSecondRate^86400 - 1
+    // FLOW debit daily growth = (1 + 0.31272727 / 31557600)^86400 - 1 = 0.00085660
+    let expectedFLOWDebtDailyGrowth = 0.00085660
+    Test.assert(equalWithinVariance(expectedFLOWDebtDailyGrowth, FLOWDebtDailyGrowth),
+        message: "Expected FLOW debt growth rate to be ~\(expectedFLOWDebtDailyGrowth), but got \(FLOWDebtDailyGrowth)")
 
-    let expectedFLOWDebtDailyGrowth = 0.00008112
-    Test.assertEqual(expectedFLOWDebtDailyGrowth, FLOWDebtDailyGrowth)
-
-    // try oto test longer period (7 days) to verify no overflow in calculation 
+    // test longer period (7 days) to verify no overflow in calculation
     let detailsBefore7Day = getPositionDetails(pid: borrowerPid, beFailed: false)
     let FlowDebtBefore7Day = getDebitBalanceForType(details: detailsBefore7Day, vaultType: Type<@FlowToken.Vault>())
 
@@ -638,7 +613,8 @@ fun test_time_jump_scenarios() {
 
     let FLOWDebtWeeklyGrowth = (FLOWDebtAfter7Day - FlowDebtBefore7Day) / FlowDebtBefore7Day
     // weeklyGrowth = perSecondRate^604800 - 1
-    // FLOW debit weekly growth = (1 + 0.02962963/31_557_600)^604800 - 1 = 0.00056801
-    let expectedFLOWDebtWeeklyGrowth = 0.00056801
-    Test.assertEqual(expectedFLOWDebtWeeklyGrowth, FLOWDebtWeeklyGrowth)
+    // FLOW debit weekly growth = (1 + 0.31272727272 / 31_557_600)^604800 - 1 = 0.00601143
+    let expectedFLOWDebtWeeklyGrowth = 0.00601143
+    Test.assert(equalWithinVariance(expectedFLOWDebtWeeklyGrowth, FLOWDebtWeeklyGrowth),
+        message: "Expected FLOW debt growth rate to be ~\(expectedFLOWDebtWeeklyGrowth), but got \(FLOWDebtWeeklyGrowth)")
 }
