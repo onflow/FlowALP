@@ -145,7 +145,7 @@ access(all) contract FlowALPEvents {
     ///
     /// @param poolUUID the UUID of the pool containing the token
     /// @param tokenType the type identifier string of the token whose rate changed
-    /// @param insuranceRate the new insurance fee fraction (e.g. 0.001 for 0.1%)
+    /// @param insuranceRate the new insurance fee (e.g. 0.001 for 0.1%)
     access(all) event InsuranceRateUpdated(
         poolUUID: UInt64,
         tokenType: String,
