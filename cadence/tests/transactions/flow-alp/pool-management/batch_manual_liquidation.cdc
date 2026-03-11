@@ -7,36 +7,39 @@ import "FlowALPv0"
 /// Batch liquidate multiple positions in a single transaction
 ///
 /// pids: Array of position IDs to liquidate
-/// debtVaultIdentifier: e.g., Type<@FlowToken.Vault>().identifier
+/// repaymentVaultIdentifier: e.g., Type<@FlowToken.Vault>().identifier
 /// seizeVaultIdentifiers: Array of collateral vault identifiers to seize
 /// seizeAmounts: Array of max seize amounts for each position
 /// repayAmounts: Array of repay amounts for each position
 transaction(
     pids: [UInt64],
-    debtVaultIdentifier: String,
+    repaymentVaultIdentifier: String,
     seizeVaultIdentifiers: [String],
     seizeAmounts: [UFix64],
     repayAmounts: [UFix64]
 ) {
     let pool: &FlowALPv0.Pool
-    let debtType: Type
-    let debtVaultRef: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+    let repaymentType: Type
+    let repaymentVaultRef: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
+    let signerAccount: auth(BorrowValue) &Account
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
+        self.signerAccount = signer
+
         let protocolAddress = Type<@FlowALPv0.Pool>().address!
         self.pool = getAccount(protocolAddress).capabilities.borrow<&FlowALPv0.Pool>(FlowALPv0.PoolPublicPath)
             ?? panic("Could not borrow Pool at \(FlowALPv0.PoolPublicPath)")
 
-        self.debtType = CompositeType(debtVaultIdentifier) ?? panic("Invalid debtVaultIdentifier: \(debtVaultIdentifier)")
+        self.repaymentType = CompositeType(repaymentVaultIdentifier) ?? panic("Invalid repaymentVaultIdentifier: \(repaymentVaultIdentifier)")
 
-        let debtVaultData = MetadataViews.resolveContractViewFromTypeIdentifier(
-            resourceTypeIdentifier: debtVaultIdentifier,
+        let repaymentVaultData = MetadataViews.resolveContractViewFromTypeIdentifier(
+            resourceTypeIdentifier: repaymentVaultIdentifier,
             viewType: Type<FungibleTokenMetadataViews.FTVaultData>()
         ) as? FungibleTokenMetadataViews.FTVaultData
-            ?? panic("Could not construct valid FT type and view from identifier \(debtVaultIdentifier)")
+            ?? panic("Could not construct valid FT type and view from identifier \(repaymentVaultIdentifier)")
 
-        self.debtVaultRef = signer.storage.borrow<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(from: debtVaultData.storagePath)
-            ?? panic("no debt vault in storage at path \(debtVaultData.storagePath)")
+        self.repaymentVaultRef = signer.storage.borrow<auth(FungibleToken.Withdraw) &{FungibleToken.Vault}>(from: repaymentVaultData.storagePath)
+            ?? panic("no repayment vault in storage at path \(repaymentVaultData.storagePath)")
     }
 
     execute {
@@ -56,14 +59,14 @@ transaction(
             let seizeType = CompositeType(seizeVaultIdentifier)
                 ?? panic("Invalid seizeVaultIdentifier: \(seizeVaultIdentifier)")
 
-            assert(self.debtVaultRef.balance >= repayAmount,
-                message: "Insufficient debt token balance for position \(pid)")
+            assert(self.repaymentVaultRef.balance >= repayAmount,
+                message: "Insufficient repayment token balance for position \(pid)")
 
-            let repay <- self.debtVaultRef.withdraw(amount: repayAmount)
+            let repay <- self.repaymentVaultRef.withdraw(amount: repayAmount)
 
             let seizedVault <- self.pool.manualLiquidation(
                 pid: pid,
-                debtType: self.debtType,
+                debtType: self.repaymentType,
                 seizeType: seizeType,
                 seizeAmount: seizeAmount,
                 repayment: <-repay
@@ -72,9 +75,14 @@ transaction(
             totalRepaid = totalRepaid + repayAmount
 
             // Deposit seized collateral back to liquidator
-            // For simplicity, we'll just destroy it in this test transaction
-            // In production, you'd want to properly handle the seized collateral
-            destroy seizedVault
+            let seizeVaultData = MetadataViews.resolveContractViewFromTypeIdentifier(
+                resourceTypeIdentifier: seizeVaultIdentifier,
+                viewType: Type<FungibleTokenMetadataViews.FTVaultData>()
+            ) as? FungibleTokenMetadataViews.FTVaultData
+                ?? panic("Could not resolve FTVaultData for \(seizeVaultIdentifier)")
+            let liquidatorVault = self.signerAccount.storage.borrow<&{FungibleToken.Vault}>(from: seizeVaultData.storagePath)
+                ?? panic("No vault at \(seizeVaultData.storagePath) to deposit seized collateral")
+            liquidatorVault.deposit(from: <-seizedVault)
         }
 
         log("Batch liquidation completed: \(numPositions) positions, total repaid: \(totalRepaid)")

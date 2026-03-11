@@ -386,6 +386,13 @@ fun getLastStabilityCollectionTime(tokenTypeIdentifier: String): UFix64? {
     return res.returnValue as? UFix64
 }
 
+access(all)
+fun getIsLiquidatable(pid: UInt64): Bool {
+    let res = _executeScript("../scripts/flow-alp/get_is_liquidatable.cdc", [pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! Bool
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
@@ -407,7 +414,7 @@ fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String,
 }
 
 access(all)
-fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, price: UFix64) {
+fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, price: UFix64?) {
     let setRes = _executeTransaction(
         "./transactions/mock-oracle/set_price.cdc",
         [forTokenIdentifier, price],
@@ -419,7 +426,7 @@ fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, pri
 access(all)
 fun getOraclePrice(tokenIdentifier: String): UFix64 {
     let result = Test.executeScript(
-        Test.readFile("../scripts/flow-alp/get_oracle_price.cdc"),
+        Test.readFile("./scripts/get_oracle_price.cdc"),
         [tokenIdentifier]
     )
 
@@ -448,6 +455,19 @@ fun setMockDexPriceForPair(
     let addRes = _executeTransaction(
         "./transactions/mock-dex-swapper/set_mock_dex_price_for_pair.cdc",
         [inVaultIdentifier, outVaultIdentifier, vaultSourceStoragePath, priceRatio],
+        signer
+    )
+    Test.expect(addRes, Test.beSucceeded())
+}
+
+access(all)
+fun setDexLiquidationConfig(
+    signer: Test.TestAccount,
+    dexOracleDeviationBps: UInt16,
+) {
+    let addRes = _executeTransaction(
+        "./../transactions/flow-alp/pool-governance/set_dex_liquidation_config.cdc",
+        [dexOracleDeviationBps],
         signer
     )
     Test.expect(addRes, Test.beSucceeded())
