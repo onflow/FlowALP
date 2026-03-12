@@ -15,7 +15,6 @@ access(all) let protocolConsumerAccount = Test.getAccount(0x0000000000000008)
 access(all) let userAccount = Test.createAccount()
 
 access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
-access(all) let moetTokenIdentifier = "A.0000000000000007.MOET.Vault"
 access(all) let flowVaultStoragePath = /storage/flowTokenVault
 
 access(all) let flowBorrowFactor = 1.0
@@ -34,10 +33,10 @@ fun setup() {
 
     // Price setup
     setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: flowTokenIdentifier, price: flowStartPrice)
-    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: moetTokenIdentifier, price: 1.0)
+    setMockOraclePrice(signer: protocolAccount, forTokenIdentifier: MOET_TOKEN_IDENTIFIER, price: 1.0)
 
     // Create the Pool & add FLOW as supported token
-    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: moetTokenIdentifier, beFailed: false)
+    createAndStorePool(signer: protocolAccount, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     addSupportedTokenZeroRateCurve(
         signer: protocolAccount,
         tokenTypeIdentifier: flowTokenIdentifier,
@@ -75,6 +74,7 @@ fun testRecursiveWithdrawSource() {
 
     let initialDeposit1 = 10000.0
     createPosition(
+        admin: PROTOCOL_ACCOUNT,
         signer: user1,
         amount: initialDeposit1,
         vaultStoragePath: /storage/flowTokenVault,

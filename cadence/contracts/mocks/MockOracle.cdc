@@ -65,7 +65,7 @@ access(all) contract MockOracle {
         }
     }
 
-    access(all) fun setPrice(forToken: Type, price: UFix64) {
+    access(all) fun setPrice(forToken: Type, price: UFix64?) {
         self.mockedPrices[forToken] = price
     }
 

@@ -1,4 +1,5 @@
 import "FlowALPv0"
+import "FlowALPPositionResources"
 import "FlowALPModels"
 import "FlowALPRebalancerv1"
 import "FlowTransactionScheduler"
@@ -36,7 +37,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
     /// underlying Rebalancer is stored in this contract and the first run is scheduled. Caller should
     /// register the returned positionID with a Supervisor.
     access(all) fun createPaidRebalancer(
-        positionRebalanceCapability: Capability<auth(FlowALPModels.ERebalance) &FlowALPv0.Position>,
+        positionRebalanceCapability: Capability<auth(FlowALPModels.ERebalance) &FlowALPPositionResources.Position>,
     ): @RebalancerPaid {
         assert(positionRebalanceCapability.check(), message: "Invalid position rebalance capability")
         let positionID = positionRebalanceCapability.borrow()!.id
