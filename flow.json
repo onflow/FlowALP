@@ -63,8 +63,22 @@
 				"mainnet-fork": "6b00ff876c299c61"
 			}
 		},
+		"FlowALPHealth": {
+			"source": "./cadence/contracts/FlowALPHealth.cdc",
+			"aliases": {
+				"testing": "0000000000000007",
+				"mainnet-fork": "6b00ff876c299c61"
+			}
+		},
 		"FlowALPModels": {
 			"source": "./cadence/contracts/FlowALPModels.cdc",
+			"aliases": {
+				"testing": "0000000000000007",
+				"mainnet-fork": "6b00ff876c299c61"
+			}
+		},
+		"FlowALPPositionResources": {
+			"source": "./cadence/contracts/FlowALPPositionResources.cdc",
 			"aliases": {
 				"testing": "0000000000000007",
 				"mainnet-fork": "6b00ff876c299c61"
