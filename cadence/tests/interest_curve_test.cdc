@@ -41,6 +41,11 @@ fun test_FixedCurve_accepts_zero_rate() {
 // ============================================================================
 // KinkCurve Tests
 // ============================================================================
+//
+// For direct KinkCurve calls, `creditBalance` uses the same semantics as the
+// live pool accounting: total supplied, i.e. total creditor claims for the
+// token.
+// It does NOT mean remaining idle liquidity in the pool.
 
 access(all)
 fun test_KinkCurve_at_zero_utilization() {
@@ -75,11 +80,11 @@ fun test_KinkCurve_before_kink() {
         slope2: 0.60
     )
 
-    // At 40% utilization (credit: 60, debit: 40, total: 100)
+    // At 40% utilization (credit: 100 supplied, debit: 40 borrowed)
     // utilization = 40 / 100 = 0.40
     // utilizationFactor = 0.40 / 0.80 = 0.5
     // rate = 0.01 + (0.04 × 0.5) = 0.01 + 0.02 = 0.03
-    let rate = curve.interestRate(creditBalance: 60.0, debitBalance: 40.0)
+    let rate = curve.interestRate(creditBalance: 100.0, debitBalance: 40.0)
     Test.assertEqual(0.03 as UFix128, rate)
 }
 
@@ -93,10 +98,10 @@ fun test_KinkCurve_at_kink() {
         slope2: 0.60
     )
 
-    // At 80% utilization (credit: 20, debit: 80, total: 100)
+    // At 80% utilization (credit: 100 supplied, debit: 80 borrowed)
     // utilization = 80 / 100 = 0.80 (exactly at kink)
     // rate = 0.01 + 0.04 = 0.05
-    let rate = curve.interestRate(creditBalance: 20.0, debitBalance: 80.0)
+    let rate = curve.interestRate(creditBalance: 100.0, debitBalance: 80.0)
     Test.assertEqual(0.05 as UFix128, rate)
 }
 
@@ -110,13 +115,13 @@ fun test_KinkCurve_after_kink() {
         slope2: 0.60
     )
 
-    // At 90% utilization (credit: 10, debit: 90, total: 100)
+    // At 90% utilization (credit: 100 supplied, debit: 90 borrowed)
     // utilization = 90 / 100 = 0.90
     // excessUtilization = 0.90 - 0.80 = 0.10
     // maxExcess = 1.0 - 0.80 = 0.20
     // excessFactor = 0.10 / 0.20 = 0.5
     // rate = 0.01 + 0.04 + (0.60 × 0.5) = 0.01 + 0.04 + 0.30 = 0.35
-    let rate = curve.interestRate(creditBalance: 10.0, debitBalance: 90.0)
+    let rate = curve.interestRate(creditBalance: 100.0, debitBalance: 90.0)
     Test.assertEqual(0.35 as UFix128, rate)
 }
 
@@ -130,12 +135,27 @@ fun test_KinkCurve_at_full_utilization() {
         slope2: 0.60
     )
 
-    // At 100% utilization (credit: 0, debit: 100, total: 100)
+    // At 100% utilization (credit: 100 supplied, debit: 100 borrowed)
     // utilization = 100 / 100 = 1.0
     // excessUtilization = 1.0 - 0.80 = 0.20
     // maxExcess = 1.0 - 0.80 = 0.20
     // excessFactor = 0.20 / 0.20 = 1.0
     // rate = 0.01 + 0.04 + (0.60 × 1.0) = 0.65
+    let rate = curve.interestRate(creditBalance: 100.0, debitBalance: 100.0)
+    Test.assertEqual(0.65 as UFix128, rate)
+}
+
+access(all)
+fun test_KinkCurve_zero_credit_balance_saturates_at_full_utilization() {
+    let curve = FlowALPInterestRates.KinkCurve(
+        optimalUtilization: 0.80,
+        baseRate: 0.01,
+        slope1: 0.04,
+        slope2: 0.60
+    )
+
+    // Defensive edge case: if positive debt is ever observed with zero credit,
+    // the curve should saturate at 100% utilization instead of dividing by zero.
     let rate = curve.interestRate(creditBalance: 0.0, debitBalance: 100.0)
     Test.assertEqual(0.65 as UFix128, rate)
 }
@@ -197,11 +217,11 @@ fun test_TokenState_with_KinkCurve() {
     )
 
     // Set up balances for 60% utilization (below kink)
-    // credit: 40, debit: 60, total: 100
+    // credit: 100 supplied, debit: 60 borrowed
     // utilization = 0.60
     // rate = 0.02 + (0.05 × 0.60 / 0.80) = 0.02 + 0.0375 = 0.0575
     // Note: Balance changes automatically trigger updateInterestRates() via updateForUtilizationChange()
-    tokenState.increaseCreditBalance(by: 40.0)
+    tokenState.increaseCreditBalance(by: 100.0)
     tokenState.increaseDebitBalance(by: 60.0)
 
     // Verify the debit rate
@@ -234,25 +254,25 @@ fun test_KinkCurve_rates_update_automatically_on_balance_change() {
     Test.assertEqual(rateAtZeroUtilization, tokenState.getCurrentDebitRate())
 
     // Step 2: Add debt to create 50% utilization
-    // credit: 100, debit: 100 → total: 200, utilization = 100/200 = 50%
+    // credit: 100 supplied, debit: 50 borrowed → utilization = 50/100 = 50%
     // rate = 0.02 + (0.05 × 0.50 / 0.80) = 0.02 + 0.03125 = 0.05125
-    tokenState.increaseDebitBalance(by: 100.0)
+    tokenState.increaseDebitBalance(by: 50.0)
 
     let rateAt50Utilization = FlowALPMath.perSecondInterestRate(yearlyRate: 0.05125)
     Test.assertEqual(rateAt50Utilization, tokenState.getCurrentDebitRate())
 
     // Step 3: Increase utilization to 90% (above kink)
-    // credit: 100, debit: 900 → total: 1000, utilization = 900/1000 = 90%
+    // credit: 100 supplied, debit: 90 borrowed → utilization = 90/100 = 90%
     // excessUtil = (0.90 - 0.80) / (1 - 0.80) = 0.50
     // rate = 0.02 + 0.05 + (0.50 × 0.50) = 0.32
-    tokenState.increaseDebitBalance(by: 800.0)
+    tokenState.increaseDebitBalance(by: 40.0)
 
     let rateAt90Util = FlowALPMath.perSecondInterestRate(yearlyRate: 0.32)
     Test.assertEqual(rateAt90Util, tokenState.getCurrentDebitRate())
 
     // Step 4: Decrease debt to lower utilization back to 0%
     // credit: 100, debit: 0 → utilization = 0% → rate = baseRate = 2%
-    tokenState.decreaseDebitBalance(by: 900.0)
+    tokenState.decreaseDebitBalance(by: 90.0)
 
     let rateBackToZero = FlowALPMath.perSecondInterestRate(yearlyRate: 0.02)
     Test.assertEqual(rateBackToZero, tokenState.getCurrentDebitRate())
@@ -272,7 +292,7 @@ fun test_KinkCurve_with_very_small_balances() {
     )
 
     // Test with very small balances (fractional tokens)
-    let rate = curve.interestRate(creditBalance: 0.01, debitBalance: 0.01)
+    let rate = curve.interestRate(creditBalance: 0.02, debitBalance: 0.01)
     // At 50% utilization, rate should be: 0.01 + (0.04 × 0.50 / 0.80) = 0.01 + 0.025 = 0.035
     Test.assertEqual(0.035 as UFix128, rate)
 }
@@ -287,7 +307,7 @@ fun test_KinkCurve_with_large_balances() {
     )
 
     // Test with large balances (millions of tokens)
-    let rate = curve.interestRate(creditBalance: 5_000_000.0, debitBalance: 5_000_000.0)
+    let rate = curve.interestRate(creditBalance: 10_000_000.0, debitBalance: 5_000_000.0)
     // At 50% utilization, rate should be: 0.01 + (0.04 × 0.50 / 0.80) = 0.035
     Test.assertEqual(0.035 as UFix128, rate)
 }
