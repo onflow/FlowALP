@@ -26,6 +26,7 @@ access(all)
 fun test_getQueuedDeposits_reportsQueuedBalance() {
     safeReset()
 
+    // Give FLOW a hard 100-token per-deposit limit so overflow is guaranteed to queue.
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
     addSupportedTokenZeroRateCurve(
         signer: PROTOCOL_ACCOUNT,
@@ -41,6 +42,8 @@ fun test_getQueuedDeposits_reportsQueuedBalance() {
         fraction: 1.0
     )
 
+    // Open with 50 FLOW, then deposit 150 more.
+    // With a 100-token limit, the second call accepts 50 and queues 100.
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 10_000.0)
@@ -63,6 +66,7 @@ fun test_getQueuedDeposits_reportsQueuedBalance() {
     let queuedDeposits = getQueuedDeposits(pid: 0, beFailed: false)
     let flowType = CompositeType(FLOW_TOKEN_IDENTIFIER)!
 
+    // The getter should expose exactly one queued entry with the 100 FLOW remainder.
     Test.assertEqual(UInt64(1), UInt64(queuedDeposits.length))
     equalWithinVariance(queuedDeposits[flowType]!, 100.0)
 }
@@ -71,6 +75,8 @@ access(all)
 fun test_getQueuedDeposits_tracksPartialAndFullDrain() {
     safeReset()
 
+    // Keep the same capacity, but lower the per-deposit fraction so async drains happen in chunks.
+    // After the initial 50 FLOW deposit, the next limit is 25 FLOW, so depositing 150 queues all 150.
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
     addSupportedTokenZeroRateCurve(
         signer: PROTOCOL_ACCOUNT,
@@ -110,6 +116,8 @@ fun test_getQueuedDeposits_tracksPartialAndFullDrain() {
     var queuedDeposits = getQueuedDeposits(pid: 0, beFailed: false)
     equalWithinVariance(queuedDeposits[flowType]!, 150.0)
 
+    // Regenerate capacity, then drain one chunk.
+    // Capacity resets to 200 after one hour, so the next async limit is 100 and 50 should remain queued.
     Test.moveTime(by: 3601.0)
     let firstAsyncRes = _executeTransaction(
         "./transactions/flow-alp/pool-management/async_update_position.cdc",
@@ -121,6 +129,7 @@ fun test_getQueuedDeposits_tracksPartialAndFullDrain() {
     queuedDeposits = getQueuedDeposits(pid: 0, beFailed: false)
     equalWithinVariance(queuedDeposits[flowType]!, 50.0)
 
+    // Regenerate again and drain the last chunk; the queued-deposit map should become empty.
     Test.moveTime(by: 3601.0)
     let secondAsyncRes = _executeTransaction(
         "./transactions/flow-alp/pool-management/async_update_position.cdc",
