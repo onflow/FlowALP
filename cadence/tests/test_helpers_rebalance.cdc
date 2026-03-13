@@ -40,6 +40,24 @@ fun addPaidRebalancerToSupervisor(
 }
 
 access(all)
+fun changePaidFunder(
+    adminSigner: Test.TestAccount,
+    newFunderSigner: Test.TestAccount,
+    uuid: UInt64,
+    interval: UInt64,
+    expectFailure: Bool
+) {
+    let txn = Test.Transaction(
+        code: Test.readFile("./transactions/rebalancer/change_paid_funder.cdc"),
+        authorizers: [adminSigner.address, newFunderSigner.address],
+        signers: [adminSigner, newFunderSigner],
+        arguments: [uuid, interval]
+    )
+    let result = Test.executeTransaction(txn)
+    Test.expect(result, expectFailure ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
 fun changePaidInterval(
     signer: Test.TestAccount,
     uuid: UInt64,
