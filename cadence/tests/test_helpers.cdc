@@ -54,7 +54,7 @@ access(all) let MAINNET_PROTOCOL_ACCOUNT_ADDRESS: Address = 0x6b00ff876c299c61
 access(all) let MAINNET_USDF_HOLDER_ADDRESS: Address = 0xf18b50870aed46ad
 access(all) let MAINNET_WETH_HOLDER_ADDRESS: Address = 0xf62e3381a164f993
 access(all) let MAINNET_WBTC_HOLDER_ADDRESS: Address = 0x47f544294e3b7656
-access(all) let MAINNET_FLOW_HOLDER_ADDRESS: Address = 0xe467b9dd11fa00df
+access(all) let MAINNET_FLOW_HOLDER_ADDRESS: Address = 0x92674150c9213fc9
 access(all) let MAINNET_USDC_HOLDER_ADDRESS: Address = 0xec6119051f7adc31
 
 /* --- Test execution helpers --- */
@@ -671,13 +671,13 @@ fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeId
 }
 
 access(all)
-fun withdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, pullFromTopUpSource: Bool) {
+fun withdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, receiverVaultStoragePath: StoragePath, amount: UFix64, pullFromTopUpSource: Bool): Test.TransactionResult{
     let withdrawRes = _executeTransaction(
         "./transactions/position-manager/withdraw_from_position.cdc",
-        [positionId, tokenTypeIdentifier, amount, pullFromTopUpSource],
+        [positionId, tokenTypeIdentifier, receiverVaultStoragePath, amount, pullFromTopUpSource],
         signer
     )
-    Test.expect(withdrawRes, Test.beSucceeded())
+    return withdrawRes
 }
 
 access(all)
@@ -749,12 +749,13 @@ fun setInsuranceRate(
 access(all)
 fun setInsuranceSwapper(
     signer: Test.TestAccount,
-    tokenTypeIdentifier: String,
+    swapperInTypeIdentifier: String,
+    swapperOutTypeIdentifier: String,
     priceRatio: UFix64,
 ): Test.TransactionResult {
     let res = _executeTransaction(
         "./transactions/flow-alp/pool-governance/set_insurance_swapper_mock.cdc",
-        [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, MOET_TOKEN_IDENTIFIER],
+        [ swapperInTypeIdentifier, priceRatio, swapperInTypeIdentifier, swapperOutTypeIdentifier],
         signer
     )
     return res
