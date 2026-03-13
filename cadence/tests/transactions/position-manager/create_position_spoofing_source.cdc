@@ -7,6 +7,7 @@ import "AdversarialTypeSpoofingConnectors"
 import "MOET"
 import "FlowToken"
 import "FlowALPv0"
+import "FlowALPPositionResources"
 import "FlowALPModels"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
@@ -27,7 +28,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
     // this DeFiActions Source that will allow for the repayment of a loan if the position becomes undercollateralized
     let source: {DeFiActions.Source}
     // the position manager in the signer's account where we should store the new position
-    let positionManager: auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager
+    let positionManager: auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager
     // the authorized Pool capability
     let poolCap: Capability<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>
     // reference to signer's account for saving capability back
@@ -67,18 +68,18 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath, pushToDrawDownSink: B
             withdrawVault: withdrawVaultCap,
         )
         // Get or create PositionManager at constant path
-        if signer.storage.borrow<&FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath) == nil {
+        if signer.storage.borrow<&FlowALPPositionResources.PositionManager>(from: FlowALPv0.PositionStoragePath) == nil {
             // Create new PositionManager if it doesn't exist
             let manager <- FlowALPv0.createPositionManager()
             signer.storage.save(<-manager, to: FlowALPv0.PositionStoragePath)
 
             // Issue and publish capabilities for the PositionManager
-            let readCap = signer.capabilities.storage.issue<&FlowALPv0.PositionManager>(FlowALPv0.PositionStoragePath)
+            let readCap = signer.capabilities.storage.issue<&FlowALPPositionResources.PositionManager>(FlowALPv0.PositionStoragePath)
 
             // Publish read-only capability publicly
             signer.capabilities.publish(readCap, at: FlowALPv0.PositionPublicPath)
         }
-        self.positionManager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath)
+        self.positionManager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>(from: FlowALPv0.PositionStoragePath)
             ?? panic("PositionManager not found")
 
         // Load the authorized Pool capability from storage

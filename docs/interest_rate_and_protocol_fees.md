@@ -178,6 +178,7 @@ Returned fields:
 - FixedCurve: `yearlyRate`
 - KinkCurve: `optimalUtilization`, `baseRate`, `slope1`, `slope2`
 
+
 ## Interest Accrual Mechanism
 
 ### Interest Indices
