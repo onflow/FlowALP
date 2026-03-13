@@ -483,8 +483,8 @@ access(all) contract FlowALPv0 {
             let position = self._borrowPosition(pid: pid)
             let queuedBalances: {Type: UFix64} = {}
 
-            for depositType in position.queuedDeposits.keys {
-                queuedBalances[depositType] = position.queuedDeposits[depositType]!.balance
+            for depositType in position.getQueuedDepositKeys() {
+                queuedBalances[depositType] = position.getQueuedDepositBalance(depositType)!
             }
 
             return queuedBalances

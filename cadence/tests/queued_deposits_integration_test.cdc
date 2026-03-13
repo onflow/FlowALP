@@ -49,19 +49,20 @@ fun test_getQueuedDeposits_reportsQueuedBalance() {
     mintFlow(to: user, amount: 10_000.0)
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
 
-    let openRes = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [50.0, FLOW_VAULT_STORAGE_PATH, false],
-        user
+    createPosition(
+        admin: PROTOCOL_ACCOUNT,
+        signer: user,
+        amount: 50.0,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        pushToDrawDownSink: false
     )
-    Test.expect(openRes, Test.beSucceeded())
-
-    let depositRes = _executeTransaction(
-        "./transactions/position/deposit_to_position_by_id.cdc",
-        [UInt64(0), 150.0, FLOW_VAULT_STORAGE_PATH, false],
-        user
+    depositToPosition(
+        signer: user,
+        positionID: 0,
+        amount: 150.0,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        pushToDrawDownSink: false
     )
-    Test.expect(depositRes, Test.beSucceeded())
 
     let queuedDeposits = getQueuedDeposits(pid: 0, beFailed: false)
     let flowType = CompositeType(FLOW_TOKEN_IDENTIFIER)!
@@ -97,19 +98,20 @@ fun test_getQueuedDeposits_tracksPartialAndFullDrain() {
     mintFlow(to: user, amount: 10_000.0)
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
 
-    let openRes = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [50.0, FLOW_VAULT_STORAGE_PATH, false],
-        user
+    createPosition(
+        admin: PROTOCOL_ACCOUNT,
+        signer: user,
+        amount: 50.0,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        pushToDrawDownSink: false
     )
-    Test.expect(openRes, Test.beSucceeded())
-
-    let depositRes = _executeTransaction(
-        "./transactions/position/deposit_to_position_by_id.cdc",
-        [UInt64(0), 150.0, FLOW_VAULT_STORAGE_PATH, false],
-        user
+    depositToPosition(
+        signer: user,
+        positionID: 0,
+        amount: 150.0,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        pushToDrawDownSink: false
     )
-    Test.expect(depositRes, Test.beSucceeded())
 
     let flowType = CompositeType(FLOW_TOKEN_IDENTIFIER)!
 
