@@ -99,9 +99,11 @@ access(all) contract FlowALPMath {
         return diffBps <= maxDeviationBps
     }
 
-    /// Converts a yearly interest rate to a per-second multiplication factor (stored in a UFix128 as a fixed point
-    /// number with 18 decimal places). The input to this function will be just the relative annual interest rate
-    /// (e.g. 0.05 for 5% interest), and the result will be the per-second multiplier (e.g. 1.000000000001).
+    /// Converts a nominal yearly interest rate to a per-second multiplication factor (stored in a UFix128 as a fixed
+    /// point number with 18 decimal places). The input to this function is the relative nominal annual rate
+    /// (e.g. 0.05 for a 5% nominal yearly rate), and the result is the per-second multiplier
+    /// (e.g. 1.000000000001). For positive rates, the effective one-year growth will be slightly higher than the
+    /// nominal rate because interest compounds over time.
     access(all) view fun perSecondInterestRate(yearlyRate: UFix128): UFix128 {
         let perSecondScaledValue = yearlyRate / 31_557_600.0 // 365.25 * 24.0 * 60.0 * 60.0
         assert(
@@ -109,6 +111,19 @@ access(all) contract FlowALPMath {
             message: "Per-second interest rate \(perSecondScaledValue) is too high"
         )
         return perSecondScaledValue + 1.0
+    }
+
+    /// Returns the effective annual yield (EAY) for a given nominal yearly rate, assuming discrete per-second compounding.
+    ///
+    /// Formula: EAY = (1 + nominalRate / secondsPerYear) ^ secondsPerYear - 1
+    ///
+    /// For example, a nominal rate of 100% (1.0) produces an effective rate of about 171.8281776413%
+    /// under discrete per-second compounding: (1 + 1 / 31_557_600) ^ 31_557_600 - 1.
+    /// This is extremely close to the continuous-compounding limit of e - 1.
+    access(all) view fun effectiveYearlyRate(nominalYearlyRate: UFix128): UFix128 {
+        let perSecondRate = FlowALPMath.perSecondInterestRate(yearlyRate: nominalYearlyRate)
+        let compounded = FlowALPMath.powUFix128(perSecondRate, 31_557_600.0)
+        return compounded - 1.0
     }
 
     /// Returns the compounded interest index reflecting the passage of time
