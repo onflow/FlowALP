@@ -1459,7 +1459,13 @@ access(all) contract FlowALPv0 {
                     message:"Cannot set non-zero insurance rate without an insurance swapper configured for \(tokenType.identifier)",
                 )
             }
+            // Collect all insurance fees accrued under the old rate before applying the new one, the new rate applies only to time elapsed from this point forward
+            self.updateInterestRatesAndCollectInsurance(tokenType: tokenType)
+
             tsRef.setInsuranceRate(insuranceRate)
+
+            // Recalculate currentCreditRate for a given token to reflect the new insurance rate
+            tsRef.updateInterestRates()
 
             FlowALPEvents.emitInsuranceRateUpdated(
                 poolUUID: self.uuid,
@@ -1563,7 +1569,14 @@ access(all) contract FlowALPv0 {
             }
             let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
+
+            // Collect all stability fees accrued under the old rate before applying the new one, the new rate applies only to time elapsed from this point forward
+            self.updateInterestRatesAndCollectStability(tokenType: tokenType)
+
             tsRef.setStabilityFeeRate(stabilityFeeRate)
+
+            // Recalculate currentCreditRate for a given token to reflect the new stability rate
+            tsRef.updateInterestRates()
             
             FlowALPEvents.emitStabilityFeeRateUpdated(
                 poolUUID: self.uuid,
