@@ -13,7 +13,7 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
 
 access(all)
 fun addPaidRebalancerToPosition(
-    signer: Test.TestAccount, 
+    signer: Test.TestAccount,
     positionStoragePath: StoragePath,
     paidRebalancerStoragePath: StoragePath
 ) {
@@ -28,12 +28,12 @@ fun addPaidRebalancerToPosition(
 access(all)
 fun addPaidRebalancerToSupervisor(
     signer: Test.TestAccount,
-    uuid: UInt64,
+    positionID: UInt64,
     supervisorStoragePath: StoragePath,
 ) {
     let setRes = _executeTransaction(
         "./transactions/rebalancer/add_rebalancer_to_supervisor.cdc",
-        [uuid, supervisorStoragePath],
+        [positionID, supervisorStoragePath],
         signer
     )
     Test.expect(setRes, Test.beSucceeded())
@@ -42,13 +42,13 @@ fun addPaidRebalancerToSupervisor(
 access(all)
 fun changePaidInterval(
     signer: Test.TestAccount,
-    uuid: UInt64,
+    positionID: UInt64,
     interval: UInt64,
     expectFailure: Bool
 ) {
     let setRes = _executeTransaction(
         "./transactions/rebalancer/change_paid_interval.cdc",
-        [uuid, interval],
+        [positionID, interval],
         signer
     )
     Test.expect(setRes, expectFailure ? Test.beFailed() : Test.beSucceeded())
@@ -100,12 +100,12 @@ fun deletePaidRebalancer(
 access(all)
 fun fixPaidReschedule(
     signer: Test.TestAccount,
-    uuid: UInt64?,
+    positionID: UInt64?,
     paidRebalancerStoragePath: StoragePath
 ) {
     let setRes = _executeTransaction(
         "./transactions/rebalancer/fix_paid_reschedule.cdc",
-        [uuid, paidRebalancerStoragePath],
+        [positionID, paidRebalancerStoragePath],
         signer
     )
     Test.expect(setRes, Test.beSucceeded())
