@@ -442,7 +442,25 @@ access(all) contract FlowALPModels {
         )
     }
 
-    // MAYBE: HealthStatement: derived from balance sheet, only total eff debt/coll + health
+    /// HealthStatement
+    ///
+    /// A lightweight summary of a position's health, containing only aggregate totals.
+    /// Use this when you only need total effective collateral/debt and health,
+    /// without per-token breakdowns.
+    access(all) struct HealthStatement {
+        access(all) let effectiveCollateral: UFix128
+        access(all) let effectiveDebt: UFix128
+        access(all) let health: UFix128
+
+        init(effectiveCollateral: UFix128, effectiveDebt: UFix128) {
+            self.effectiveCollateral = effectiveCollateral
+            self.effectiveDebt = effectiveDebt
+            self.health = FlowALPMath.healthComputation(
+                effectiveCollateral: effectiveCollateral,
+                effectiveDebt: effectiveDebt
+            )
+        }
+    }
 
     /// BalanceSheet
     ///
@@ -450,9 +468,12 @@ access(all) contract FlowALPModels {
     /// as well as its current health.
     access(all) struct BalanceSheet {
 
-        access(self) let effectiveCollateralByToken: {Type: UFix128}
+        access(all) let effectiveCollateralByToken: {Type: UFix128}
 
-        access(self) let effectiveDebtByToken: {Type: UFix128}
+        access(all) let effectiveDebtByToken: {Type: UFix128}
+
+        /// Aggregate summary of the balance sheet (totals + health).
+        access(all) let summary: HealthStatement
 
         /// Effective collateral is a normalized valuation of collateral deposited into this position, denominated in $.
         /// In combination with effective debt, this determines how much additional debt can be taken out by this position.
@@ -470,12 +491,48 @@ access(all) contract FlowALPModels {
             effectiveDebt: {Type: UFix128}
         ) {
             self.effectiveCollateralByToken = effectiveCollateral
-            self.effectiveCollateral = FlowALPMath.sumUFix128(effectiveCollateral.values)
             self.effectiveDebtByToken = effectiveDebt
-            self.effectiveDebt = FlowALPMath.sumUFix128(effectiveDebt)
-            self.health = FlowALPMath.healthComputation(
-                effectiveCollateral: self.effectiveCollateral,
-                effectiveDebt: self.effectiveDebt
+            self.summary = HealthStatement(
+                effectiveCollateral: FlowALPMath.sumUFix128(effectiveCollateral.values),
+                effectiveDebt: FlowALPMath.sumUFix128(effectiveDebt.values)
+            )
+            self.effectiveCollateral = self.summary.effectiveCollateral
+            self.effectiveDebt = self.summary.effectiveDebt
+            self.health = self.summary.health
+        }
+
+        /// Returns the per-token effective collateral map.
+        access(all) view fun getEffectiveCollateralByToken(): {Type: UFix128} {
+            return self.effectiveCollateralByToken
+        }
+
+        /// Returns the per-token effective debt map.
+        access(all) view fun getEffectiveDebtByToken(): {Type: UFix128} {
+            return self.effectiveDebtByToken
+        }
+
+        /// Returns a new BalanceSheet with one token's contributions replaced.
+        /// Pass nil to remove a token's entry from the corresponding map.
+        access(all) fun withUpdatedContributions(
+            tokenType: Type,
+            effectiveCollateral: UFix128?,
+            effectiveDebt: UFix128?
+        ): BalanceSheet {
+            let newCollateral = self.effectiveCollateralByToken
+            let newDebt = self.effectiveDebtByToken
+            if let coll = effectiveCollateral {
+                newCollateral[tokenType] = coll
+            } else {
+                newCollateral.remove(key: tokenType)
+            }
+            if let debt = effectiveDebt {
+                newDebt[tokenType] = debt
+            } else {
+                newDebt.remove(key: tokenType)
+            }
+            return BalanceSheet(
+                effectiveCollateral: newCollateral,
+                effectiveDebt: newDebt
             )
         }
     }
