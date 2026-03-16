@@ -804,22 +804,23 @@ access(all) contract FlowALPv0 {
             depositType: Type,
             depositAmount: UFix64
         ): FlowALPModels.BalanceSheet {
-            let depositBalance = position.getBalance(depositType)
-            var depositDebitInterestIndex: UFix128 = 1.0
-            if depositBalance?.direction == FlowALPModels.BalanceDirection.Debit {
-                depositDebitInterestIndex = self._borrowUpdatedTokenState(type: depositType).getDebitInterestIndex()
-            }
+            let tokenState = self._borrowUpdatedTokenState(type: depositType)
+            let snapshot = FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType))
+                )
+            )
 
             return FlowALPHealth.computeAdjustedBalancesAfterDeposit(
                 balanceSheet: balanceSheet,
-                depositBalance: depositBalance,
+                depositBalance: position.getBalance(depositType),
                 depositType: depositType,
                 depositAmount: depositAmount,
-                depositPrice: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
-                depositBorrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType)),
-                depositCollateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
-                depositDebitInterestIndex: depositDebitInterestIndex,
-                isDebugLogging: self.config.isDebugLogging()
+                tokenSnapshot: snapshot
             )
         }
 

@@ -199,86 +199,99 @@ access(all) contract FlowALPHealth {
 
     /// Computes adjusted effective collateral and debt after a hypothetical deposit.
     ///
-    /// This function determines how a deposit would affect the position's balance sheet,
-    /// accounting for whether the position holds a credit (collateral) or debit (debt) balance
-    /// in the deposited token. If the position has debt in the token, the deposit first pays
-    /// down debt before accumulating as collateral.
+    /// Uses a "remove old contribution, add new contribution" approach:
+    /// 1. Remove the current per-token effective collateral/debt entry
+    /// 2. Compute the new true balance after the deposit
+    /// 3. Compute the new effective contribution from the post-deposit balance
+    /// 4. Return a new BalanceSheet with the updated per-token entry
     ///
     /// @param balanceSheet: The position's current effective collateral and debt (with per-token maps)
     /// @param depositBalance: The position's existing balance for the deposited token, if any
     /// @param depositType: The type of token being deposited
     /// @param depositAmount: The amount of tokens to deposit
-    /// @param depositPrice: The oracle price of the deposited token
-    /// @param depositBorrowFactor: The borrow factor applied to debt in the deposited token
-    /// @param depositCollateralFactor: The collateral factor applied to collateral in the deposited token
-    /// @param depositDebitInterestIndex: The debit interest index for the deposited token
+    /// @param tokenSnapshot: Snapshot of the deposited token's price, interest indices, and risk params
     /// @return A new BalanceSheet reflecting the effective collateral and debt after the deposit
     access(account) fun computeAdjustedBalancesAfterDeposit(
         balanceSheet: FlowALPModels.BalanceSheet,
         depositBalance: FlowALPModels.InternalBalance?,
         depositType: Type,
         depositAmount: UFix64,
-        depositPrice: UFix128,
-        depositBorrowFactor: UFix128,
-        depositCollateralFactor: UFix128,
-        depositDebitInterestIndex: UFix128,
-        isDebugLogging: Bool
+        tokenSnapshot: FlowALPModels.TokenSnapshot
     ): FlowALPModels.BalanceSheet {
         if depositAmount == 0.0 {
             return balanceSheet
         }
 
         let depositAmountU = UFix128(depositAmount)
-        let balance = depositBalance
-        let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Credit
-        let scaledBalance = balance?.scaledBalance ?? 0.0
 
-        // Compute the new per-token effective collateral and debt after the deposit.
-        var newEffectiveCollateral: UFix128? = balanceSheet.effectiveCollateralByToken[depositType]
-        var newEffectiveDebt: UFix128? = balanceSheet.effectiveDebtByToken[depositType]
+        // Compute the post-deposit true balance and direction.
+        let after = self.trueBalanceAfterDeposit(
+            balance: depositBalance,
+            depositAmount: depositAmountU,
+            tokenSnapshot: tokenSnapshot
+        )
 
-        switch direction {
-            case FlowALPModels.BalanceDirection.Credit:
-                // No debt for the deposit token — the deposit creates additional collateral.
-                let additionalCollateral = (depositAmountU * depositPrice) * depositCollateralFactor
-                newEffectiveCollateral = (newEffectiveCollateral ?? 0.0) + additionalCollateral
-
-            case FlowALPModels.BalanceDirection.Debit:
-                // The user has a debt position in the given token.
-                let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
-                    scaledBalance,
-                    interestIndex: depositDebitInterestIndex
-                )
-                if isDebugLogging {
-                    log("    [CONTRACT] trueDebt: \(trueDebt)")
-                }
-
-                if trueDebt >= depositAmountU {
-                    // Deposit pays down some debt without creating collateral.
-                    let debtDecrease = (depositAmountU * depositPrice) / depositBorrowFactor
-                    newEffectiveDebt = (newEffectiveDebt ?? 0.0) - debtDecrease
-                } else {
-                    // Deposit wipes out all debt and creates some collateral.
-                    let existingDebt = (trueDebt * depositPrice) / depositBorrowFactor
-                    newEffectiveDebt = (newEffectiveDebt ?? 0.0) - existingDebt
-                    let additionalCollateral = ((depositAmountU - trueDebt) * depositPrice) * depositCollateralFactor
-                    newEffectiveCollateral = (newEffectiveCollateral ?? 0.0) + additionalCollateral
-                }
+        // Compute new per-token effective values from the post-deposit true balance.
+        var newEffectiveCollateral: UFix128? = nil
+        var newEffectiveDebt: UFix128? = nil
+        if after.quantity > 0.0 {
+            switch after.direction {
+                case FlowALPModels.BalanceDirection.Credit:
+                    newEffectiveCollateral = tokenSnapshot.effectiveCollateral(creditBalance: after.quantity)
+                case FlowALPModels.BalanceDirection.Debit:
+                    newEffectiveDebt = tokenSnapshot.effectiveDebt(debitBalance: after.quantity)
+            }
         }
-        if isDebugLogging {
-            log("    [CONTRACT] effectiveCollateralAfterDeposit: \(newEffectiveCollateral ?? 0.0)")
-            log("    [CONTRACT] effectiveDebtAfterDeposit: \(newEffectiveDebt ?? 0.0)")
-        }
-
-        // Clean up zero/nil entries
-        if newEffectiveCollateral == 0.0 { newEffectiveCollateral = nil }
-        if newEffectiveDebt == 0.0 { newEffectiveDebt = nil }
 
         return balanceSheet.withUpdatedContributions(
             tokenType: depositType,
             effectiveCollateral: newEffectiveCollateral,
             effectiveDebt: newEffectiveDebt
         )
+    }
+
+    /// Computes the true balance (direction + amount) after a deposit.
+    ///
+    /// Starting from the current balance (credit or debit), adds the deposit amount.
+    /// If the position has debt, the deposit pays it down and may flip into credit.
+    /// If the position has credit (or no balance), the deposit increases credit.
+    access(self) fun trueBalanceAfterDeposit(
+        balance: FlowALPModels.InternalBalance?,
+        depositAmount: UFix128,
+        tokenSnapshot: FlowALPModels.TokenSnapshot
+    ): FlowALPModels.SignedQuantity {
+        let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Credit
+        let scaledBalance = balance?.scaledBalance ?? 0.0
+
+        switch direction {
+            case FlowALPModels.BalanceDirection.Credit:
+                // Currently has credit — deposit adds more credit.
+                let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
+                    scaledBalance, interestIndex: tokenSnapshot.creditIndex
+                )
+                return FlowALPModels.SignedQuantity(
+                    direction: FlowALPModels.BalanceDirection.Credit,
+                    quantity: trueCredit + depositAmount
+                )
+
+            case FlowALPModels.BalanceDirection.Debit:
+                // Currently in debt — deposit pays it down, possibly flipping to credit.
+                let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
+                    scaledBalance, interestIndex: tokenSnapshot.debitIndex
+                )
+                if trueDebt >= depositAmount {
+                    return FlowALPModels.SignedQuantity(
+                        direction: FlowALPModels.BalanceDirection.Debit,
+                        quantity: trueDebt - depositAmount
+                    )
+                } else {
+                    return FlowALPModels.SignedQuantity(
+                        direction: FlowALPModels.BalanceDirection.Credit,
+                        quantity: depositAmount - trueDebt
+                    )
+                }
+        }
+        panic("unreachable")
     }
 
     /// Computes the maximum amount of a given token that can be withdrawn while maintaining a target health.
