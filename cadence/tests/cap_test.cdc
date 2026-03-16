@@ -288,12 +288,15 @@ access(all)
 fun testEParticipantPosition_WithdrawAnyPosition() {
     safeReset()
 
+    let balanceBefore = getBalance(address: eParticipantPositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
     let result = _executeTransaction(
         "../tests/transactions/flow-alp/eposition/withdraw_any.cdc",
         [setupPid, 1.0],
         eParticipantPositionUser
     )
     Test.expect(result, Test.beSucceeded())
+    let balanceAfter = getBalance(address: eParticipantPositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
+    Test.assertEqual(balanceAfter, balanceBefore + 1.0)
 }
 
 /// Over-granted beta cap allows Pool.withdrawAndPull on ANY position — including
@@ -302,12 +305,15 @@ access(all)
 fun testEParticipantPosition_WithdrawAndPullAnyPosition() {
     safeReset()
 
+    let balanceBefore = getBalance(address: eParticipantPositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
     let result = _executeTransaction(
         "../tests/transactions/flow-alp/eposition/withdraw_and_pull_any.cdc",
         [setupPid, 1.0],
         eParticipantPositionUser
     )
     Test.expect(result, Test.beSucceeded())
+    let balanceAfter = getBalance(address: eParticipantPositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
+    Test.assertEqual(balanceAfter, balanceBefore + 1.0)
 }
 
 /// Over-granted beta cap allows Pool.depositAndPush on ANY position — including
@@ -344,7 +350,7 @@ fun testEParticipantPosition_RebalancePosition() {
     safeReset()
 
     let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/rebalance_pool.cdc",
+        "../tests/transactions/flow-alp/eposition/rebalance_position_via_cap.cdc",
         [setupPid, true],
         eParticipantPositionUser
     )
@@ -365,12 +371,15 @@ access(all)
 fun testEPosition_WithdrawAnyPosition() {
     safeReset()
 
+    let balanceBefore = getBalance(address: ePositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
     let result = _executeTransaction(
         "../tests/transactions/flow-alp/eposition/withdraw_any.cdc",
         [setupPid, 1.0],
         ePositionUser
     )
     Test.expect(result, Test.beSucceeded())
+    let balanceAfter = getBalance(address: ePositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
+    Test.assertEqual(balanceAfter, balanceBefore + 1.0)
 }
 
 /// EPosition cap allows Pool.withdrawAndPull on ANY position — including positions
@@ -379,12 +388,15 @@ access(all)
 fun testEPosition_WithdrawAndPullAnyPosition() {
     safeReset()
 
+    let balanceBefore = getBalance(address: ePositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
     let result = _executeTransaction(
         "../tests/transactions/flow-alp/eposition/withdraw_and_pull_any.cdc",
         [setupPid, 1.0],
         ePositionUser
     )
     Test.expect(result, Test.beSucceeded())
+    let balanceAfter = getBalance(address: ePositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
+    Test.assertEqual(balanceAfter, balanceBefore + 1.0)
 }
 
 /// EPosition cap allows Pool.depositAndPush on ANY position — including positions
@@ -421,7 +433,7 @@ fun testEPosition_RebalancePosition() {
     safeReset()
 
     let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/rebalance_pool.cdc",
+        "../tests/transactions/flow-alp/eposition/rebalance_position_via_cap.cdc",
         [setupPid, true],
         ePositionUser
     )
@@ -488,7 +500,7 @@ fun testEPositionAdmin_SetTargetHealth() {
     safeReset()
 
     let result = _executeTransaction(
-        "../tests/transactions/flow-alp/epositionadmin/set_target_health.cdc",
+        "../transactions/flow-alp/position/set_target_health.cdc",
         [ePositionAdminPid, TARGET_HEALTH],
         ePositionAdminUser
     )
@@ -501,7 +513,7 @@ fun testEPositionAdmin_SetMinHealth() {
     safeReset()
 
     let result = _executeTransaction(
-        "../tests/transactions/flow-alp/epositionadmin/set_min_health.cdc",
+        "../transactions/flow-alp/position/set_min_health.cdc",
         [ePositionAdminPid, MIN_HEALTH],
         ePositionAdminUser
     )
@@ -514,7 +526,7 @@ fun testEPositionAdmin_SetMaxHealth() {
     safeReset()
 
     let result = _executeTransaction(
-        "../tests/transactions/flow-alp/epositionadmin/set_max_health.cdc",
+        "../transactions/flow-alp/position/set_max_health.cdc",
         [ePositionAdminPid, MAX_HEALTH],
         ePositionAdminUser
     )
