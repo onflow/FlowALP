@@ -453,7 +453,8 @@ fun test_collectInsurance_dexOracleSlippageProtection() {
 
 // -----------------------------------------------------------------------------
 /// Verifies that insurance collection remains correct when the insurance
-/// rate changes between collection periods.
+/// rate changes between collection periods. Rate changes must trigger fee collections,
+/// so that all fees due under the previous rate are collected before the new rate comes into effect.
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_midPeriodRateChange() {

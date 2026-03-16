@@ -314,7 +314,8 @@ fun test_collectStability_zeroRate_returnsNil() {
 
 // -----------------------------------------------------------------------------
 /// Verifies that stability fee collection remains correct when the stability
-/// fee rate changes between collection periods.
+/// fee rate changes between collection periods. Rate changes must trigger fee collections,
+/// so that all fees due under the previous rate are collected before the new rate comes into effect.
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectStability_midPeriodRateChange() {
