@@ -852,100 +852,29 @@ access(all) contract FlowALPv0 {
         access(all) fun healthAfterDeposit(pid: UInt64, type: Type, amount: UFix64): UFix128 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
-            let tokenState = self._borrowUpdatedTokenState(type: type)
-
-            var effectiveCollateralIncrease: UFix128 = 0.0
-            var effectiveDebtDecrease: UFix128 = 0.0
-
-            let amountU = UFix128(amount)
-            let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
-            let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
-            let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
-            let balance = position.getBalance(type)
-            let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Credit
-            let scaledBalance = balance?.scaledBalance ?? 0.0
-            switch direction {
-                case FlowALPModels.BalanceDirection.Credit:
-                    // Since the user has no debt in the given token,
-                    // we can just compute how much additional collateral this deposit will create.
-                    effectiveCollateralIncrease = (amountU * price) * collateralFactor
-
-                case FlowALPModels.BalanceDirection.Debit:
-                    // The user has a debit position in the given token,
-                    // we need to figure out if this deposit will only pay off some of the debt,
-                    // or if it will also create new collateral.
-                    let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
-                        scaledBalance,
-                        interestIndex: tokenState.getDebitInterestIndex()
-                    )
-
-                    if trueDebt >= amountU {
-                        // This deposit will wipe out some or all of the debt, but won't create new collateral,
-                        // we just need to account for the debt decrease.
-                        effectiveDebtDecrease = (amountU * price) / borrowFactor
-                    } else {
-                        // This deposit will wipe out all of the debt, and create new collateral.
-                        effectiveDebtDecrease = (trueDebt * price) / borrowFactor
-                        effectiveCollateralIncrease = (amountU - trueDebt) * price * collateralFactor
-                    }
-            }
-
-            return FlowALPMath.healthComputation(
-                effectiveCollateral: balanceSheet.effectiveCollateral + effectiveCollateralIncrease,
-                effectiveDebt: balanceSheet.effectiveDebt - effectiveDebtDecrease
+            let adjusted = self.computeAdjustedBalancesAfterDeposit(
+                balanceSheet: balanceSheet,
+                position: position,
+                depositType: type,
+                depositAmount: amount
             )
+            return adjusted.health
         }
 
-        // Returns health value of this position if the given amount of the specified token were withdrawn without
-        // using the top up source.
-        // NOTE: This method can return health values below 1.0, which aren't actually allowed. This indicates
-        // that the proposed withdrawal would fail (unless a top up source is available and used).
+        /// Returns health value of this position if the given amount of the specified token were withdrawn
+        /// without using the top up source.
+        /// NOTE: This method can return health values below 1.0, which aren't actually allowed. This indicates
+        /// that the proposed withdrawal would fail (unless a top up source is available and used).
         access(all) fun healthAfterWithdrawal(pid: UInt64, type: Type, amount: UFix64): UFix128 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
-            let tokenState = self._borrowUpdatedTokenState(type: type)
-
-            var effectiveCollateralDecrease: UFix128 = 0.0
-            var effectiveDebtIncrease: UFix128 = 0.0
-
-            let amountU = UFix128(amount)
-            let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
-            let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
-            let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
-            let balance = position.getBalance(type)
-            let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Debit
-            let scaledBalance = balance?.scaledBalance ?? 0.0
-
-            switch direction {
-                case FlowALPModels.BalanceDirection.Debit:
-                    // The user has no credit position in the given token,
-                    // we can just compute how much additional effective debt this withdrawal will create.
-                    effectiveDebtIncrease = (amountU * price) / borrowFactor
-
-                case FlowALPModels.BalanceDirection.Credit:
-                    // The user has a credit position in the given token,
-                    // we need to figure out if this withdrawal will only draw down some of the collateral,
-                    // or if it will also create new debt.
-                    let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
-                        scaledBalance,
-                        interestIndex: tokenState.getCreditInterestIndex()
-                    )
-
-                    if trueCredit >= amountU {
-                        // This withdrawal will draw down some collateral, but won't create new debt,
-                        // we just need to account for the collateral decrease.
-                        effectiveCollateralDecrease = (amountU * price) * collateralFactor
-                    } else {
-                        // The withdrawal will wipe out all of the collateral, and create new debt.
-                        effectiveDebtIncrease = ((amountU - trueCredit) * price) / borrowFactor
-                        effectiveCollateralDecrease = (trueCredit * price) * collateralFactor
-                    }
-            }
-
-            return FlowALPMath.healthComputation(
-                effectiveCollateral: balanceSheet.effectiveCollateral - effectiveCollateralDecrease,
-                effectiveDebt: balanceSheet.effectiveDebt + effectiveDebtIncrease
+            let adjusted = self.computeAdjustedBalancesAfterWithdrawal(
+                balanceSheet: balanceSheet,
+                position: position,
+                withdrawType: type,
+                withdrawAmount: amount
             )
+            return adjusted.health
         }
 
         ///////////////////////////
