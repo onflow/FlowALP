@@ -370,13 +370,15 @@ access(all) contract FlowALPPositionResources {
 
         /// Deposits the funds from the provided Vault reference to the related Position
         access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
-            if let pool = FlowALPPositionResources.poolCap?.borrow() {
-                pool!.depositAndPush(
-                    pid: self.positionID,
-                    from: <-from.withdraw(amount: from.balance),
-                    pushToDrawDownSink: self.pushToDrawDownSink
-                )
+            if FlowALPPositionResources.poolCap?.check() != true {
+                return
             }
+            let pool = FlowALPPositionResources.borrowPool()
+            pool.depositAndPush(
+                pid: self.positionID,
+                from: <-from.withdraw(amount: from.balance),
+                pushToDrawDownSink: self.pushToDrawDownSink
+            )
         }
 
         access(all) fun getComponentInfo(): DeFiActions.ComponentInfo {
