@@ -7,7 +7,7 @@ import "FlowTransactionScheduler"
 
 // Changes the recurring config for a paid rebalancer, using a different account as txFunder.
 // `admin` must hold FlowALPRebalancerPaidv1.Admin; `newFunder` provides the new fee vault.
-transaction(uuid: UInt64, interval: UInt64) {
+transaction(positionID: UInt64, interval: UInt64) {
     let adminCap: Capability<&FlowALPRebalancerPaidv1.Admin>
     let newFunderVaultCap: Capability<auth(FungibleToken.Withdraw) &FlowToken.Vault>
 
@@ -35,6 +35,6 @@ transaction(uuid: UInt64, interval: UInt64) {
             forceRebalance: false,
             txFunder: sinkSource
         )
-        self.adminCap.borrow()!.updateRecurringConfig(uuid: uuid, recurringConfig: config)
+        self.adminCap.borrow()!.updateRecurringConfig(positionID: positionID, recurringConfig: config)
     }
 }

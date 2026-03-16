@@ -18,6 +18,7 @@ access(all) let flowTokenIdentifier = "A.0000000000000003.FlowToken.Vault"
 
 access(all) let positionStoragePath = /storage/position
 access(all) let paidRebalancerStoragePath = /storage/paidRebalancer
+access(all) let paidRebalancer2StoragePath = /storage/paidRebalancer2
 access(all) let supervisorStoragePath = /storage/supervisor
 access(all) let cronHandlerStoragePath = /storage/myRecurringTaskHandler
 
@@ -45,7 +46,7 @@ access(all) fun setup() {
     depositToPositionNotManaged(signer: userAccount, positionStoragePath: positionStoragePath, amount: 100.0, vaultStoragePath: flowVaultStoragePath, pushToDrawDownSink: false)
     addPaidRebalancerToPosition(signer: userAccount, positionStoragePath: positionStoragePath, paidRebalancerStoragePath: paidRebalancerStoragePath)
     let evts = Test.eventsOfType(Type<FlowALPRebalancerv1.CreatedRebalancer>())
-    let paidRebalancerUUID = evts[0] as! FlowALPRebalancerv1.CreatedRebalancer
+    Test.assertEqual(1, evts.length) // one paid rebalancer created for the position
     createSupervisor(
         signer: userAccount,
         cronExpression: "0 * * * *",
@@ -113,19 +114,19 @@ access(all) fun test_fix_reschedule_idempotent() {
     var evts = Test.eventsOfType(Type<FlowALPRebalancerv1.FixedReschedule>())
     Test.assertEqual(1, evts.length)
 
-    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
-    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
+    fixPaidReschedule(signer: userAccount, positionID: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
+    fixPaidReschedule(signer: userAccount, positionID: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
 
     Test.moveTime(by: 10.0)
     Test.commitBlock()
 
-    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
+    fixPaidReschedule(signer: userAccount, positionID: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
 
     Test.moveTime(by: 1000.0)
     Test.commitBlock()
 
-    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
-    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
+    fixPaidReschedule(signer: userAccount, positionID: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
+    fixPaidReschedule(signer: userAccount, positionID: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
 
     evts = Test.eventsOfType(Type<FlowALPRebalancerv1.FixedReschedule>())
     Test.assertEqual(1, evts.length)
@@ -156,7 +157,7 @@ access(all) fun test_fix_reschedule_no_funds() {
 
     // now we fix the missing funds and call fix reschedule
     mintFlow(to: protocolAccount, amount: 1000.0)
-    fixPaidReschedule(signer: userAccount, uuid: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
+    fixPaidReschedule(signer: userAccount, positionID: nil, paidRebalancerStoragePath: paidRebalancerStoragePath)
     Test.moveTime(by: 1.0)
     Test.commitBlock()
 
@@ -188,7 +189,7 @@ access(all) fun test_flo17_refund_goes_to_old_funder_not_new_funder() {
     changePaidFunder(
         adminSigner: protocolAccount,
         newFunderSigner: newFunderAccount,
-        uuid: e.uuid,
+        positionID: e.positionID,
         interval: 100,
         expectFailure: false
     )
@@ -205,12 +206,30 @@ access(all) fun test_flo17_refund_goes_to_old_funder_not_new_funder() {
     Test.assert(newFunderBalanceBefore >= newFunderBalanceAfter)
 }
 
+access(all) fun test_two_paid_rebalancers_same_position() {
+    // One paid rebalancer is created in setup for the position.
+    var evts = Test.eventsOfType(Type<FlowALPRebalancerPaidv1.CreatedRebalancerPaid>())
+    Test.assertEqual(1, evts.length)
+
+    let addRes: Test.TransactionResult = _executeTransaction(
+        "./transactions/rebalancer/add_paid_rebalancer_to_position.cdc",
+        [positionStoragePath, paidRebalancer2StoragePath],
+        userAccount
+    )
+    // creating a second paid rebalancer should fail
+    Test.expect(addRes, Test.beFailed())
+    Test.assertError(addRes, errorMessage: "rebalancer already exists")
+
+    evts = Test.eventsOfType(Type<FlowALPRebalancerPaidv1.CreatedRebalancerPaid>())
+    Test.assertEqual(1, evts.length)
+}
+
 access(all) fun test_change_recurring_config_as_user() {
     var evts = Test.eventsOfType(Type<FlowALPRebalancerv1.CreatedRebalancer>())
     Test.assertEqual(1, evts.length)
     let e = evts[0] as! FlowALPRebalancerv1.CreatedRebalancer
 
-    changePaidInterval(signer: userAccount, uuid: e.uuid, interval: 100, expectFailure: true)
+    changePaidInterval(signer: userAccount, positionID: e.positionID, interval: 100, expectFailure: true)
 }
 
 access(all) fun test_change_recurring_config() {
@@ -221,7 +240,7 @@ access(all) fun test_change_recurring_config() {
     Test.assertEqual(1, evts.length)
     let e = evts[0] as! FlowALPRebalancerv1.Rebalanced
 
-    changePaidInterval(signer: protocolAccount, uuid: e.uuid, interval: 1000, expectFailure: false)
+    changePaidInterval(signer: protocolAccount, positionID: e.positionID, interval: 1000, expectFailure: false)
 
     Test.moveTime(by: 980.0)
     Test.commitBlock()
@@ -235,7 +254,7 @@ access(all) fun test_change_recurring_config() {
     evts = Test.eventsOfType(Type<FlowALPRebalancerv1.Rebalanced>())
     Test.assertEqual(2, evts.length)
 
-    changePaidInterval(signer: protocolAccount, uuid: e.uuid, interval: 50, expectFailure: false)
+    changePaidInterval(signer: protocolAccount, positionID: e.positionID, interval: 50, expectFailure: false)
 
     Test.moveTime(by: 45.0)
     Test.commitBlock()
@@ -275,7 +294,7 @@ access(all) fun test_public_fix_reschedule() {
     let e = evts[0] as! FlowALPRebalancerv1.Rebalanced
 
     let randomAccount = Test.createAccount()
-    fixPaidReschedule(signer: randomAccount, uuid: e.uuid, paidRebalancerStoragePath: paidRebalancerStoragePath)
+    fixPaidReschedule(signer: randomAccount, positionID: e.positionID, paidRebalancerStoragePath: paidRebalancerStoragePath)
 }
 
 access(all) fun test_supervisor_executed() {
@@ -303,7 +322,7 @@ access(all) fun test_supervisor() {
     Test.assertEqual(1, evts.length)
     let e = evts[0] as! FlowALPRebalancerv1.Rebalanced
 
-    addPaidRebalancerToSupervisor(signer: userAccount, uuid: e.uuid, supervisorStoragePath: supervisorStoragePath)
+    addPaidRebalancerToSupervisor(signer: userAccount, positionID: e.positionID, supervisorStoragePath: supervisorStoragePath)
 
     // drain the funding contract so the transaction reverts
     let balance = getBalance(address: protocolAccount.address, vaultPublicPath: /public/flowTokenBalance)!
