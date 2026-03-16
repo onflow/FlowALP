@@ -970,7 +970,7 @@ access(all) contract FlowALPv0 {
         /// Clients are recommended to use the PositionManager collection type to manage their Positions.
         access(FlowALPModels.EParticipant) fun createPosition(
             funds: @{FungibleToken.Vault},
-            issuanceSink: {DeFiActions.Sink},
+            issuanceSink: {DeFiActions.Sink}?,
             repaymentSource: {DeFiActions.Source}?,
             pushToDrawDownSink: Bool
         ): @FlowALPPositionResources.Position {
