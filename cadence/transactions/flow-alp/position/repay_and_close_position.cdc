@@ -49,18 +49,17 @@ transaction(positionId: UInt64) {
             sink.depositCapacity(from: self.moetWithdrawRef)
         }
 
-        // Now withdraw all available Flow collateral without top-up assistance
-        let withdrawAmount = self.position.availableBalance(
-            type: Type<@FlowToken.Vault>(),
-            pullFromTopUpSource: false
-        )
-        let withdrawnVault <- self.position.withdrawAndPull(
-            type: Type<@FlowToken.Vault>(),
-            amount: withdrawAmount,
-            pullFromTopUpSource: false
-        )
-
-        // Deposit withdrawn collateral to user's vault
-        self.receiverRef.deposit(from: <-withdrawnVault)
+        let balances = self.position.getBalances()
+        for balance in balances {
+            if balance.vaultType == Type<@FlowToken.Vault>() {
+                let withdrawAmount = balance.balance
+                let withdrawnVault <- self.position.withdrawAndPull(
+                    type: Type<@FlowToken.Vault>(),
+                    amount: withdrawAmount,
+                    pullFromTopUpSource: false
+                )
+                self.receiverRef.deposit(from: <-withdrawnVault)
+            }
+        }
     }
-} 
+}
