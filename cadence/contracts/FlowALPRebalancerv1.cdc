@@ -284,8 +284,8 @@ access(all) contract FlowALPRebalancerv1 {
 
         /// Update schedule and fee config. Cancels existing scheduled transactions and schedules the next run with the new config.
         access(Configure) fun setRecurringConfig(_ config: {RecurringConfig}) {
-            self.recurringConfig = config
             self.cancelAllScheduledTransactions()
+            self.recurringConfig = config
             let nextScheduledTimestamp = self.scheduleNextRebalance()
             if nextScheduledTimestamp == nil {
                 panic("Failed to schedule next rebalance after setting recurring config")
