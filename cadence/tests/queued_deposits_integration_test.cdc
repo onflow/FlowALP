@@ -143,7 +143,7 @@ fun test_getQueuedDeposits_tracksPartialAndFullDrain() {
     // up to 100 FLOW from the queue and should leave 50 still queued.
     Test.moveTime(by: 3601.0)
     let firstAsyncRes = _executeTransaction(
-        "./transactions/flow-alp/pool-management/async_update_position.cdc",
+        "./transactions/flow-alp/eimplementation/async_update_position.cdc",
         [UInt64(0)],
         PROTOCOL_ACCOUNT
     )
@@ -156,7 +156,7 @@ fun test_getQueuedDeposits_tracksPartialAndFullDrain() {
     // should be deposited, leaving no queued entries behind.
     Test.moveTime(by: 3601.0)
     let secondAsyncRes = _executeTransaction(
-        "./transactions/flow-alp/pool-management/async_update_position.cdc",
+        "./transactions/flow-alp/eimplementation/async_update_position.cdc",
         [UInt64(0)],
         PROTOCOL_ACCOUNT
     )
