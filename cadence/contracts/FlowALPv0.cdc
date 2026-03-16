@@ -51,7 +51,14 @@ access(all) contract FlowALPv0 {
     */
 
     ///
-    /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth
+    /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth.
+    ///
+    /// Callers are responsible for providing a safe targetHealth value; this function does not
+    /// enforce any health > 1 sanity checks.
+    ///
+    /// - If the position's health is ≤ targetHealth, returns 0.
+    /// - The returned amount may reduce the size of a collateral balance, flip a collateral balance
+    ///   to a debt balance, or increase the size of an existing debt balance.
     access(all) view fun maxWithdraw(
         view: FlowALPModels.PositionView,
         withdrawSnap: FlowALPModels.TokenSnapshot,
@@ -103,19 +110,30 @@ access(all) contract FlowALPv0 {
                 : 0.0 as UFix128
             return (deltaDebt * borrowFactor) / withdrawSnap.getPrice()
         } else {
-            // withdrawing reduces collateral
+            // withdrawing reduces collateral (and may flip into debt beyond zero)
             let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                 withdrawBal!.scaledBalance,
                 interestIndex: withdrawSnap.getCreditIndex()
             )
-            let maxPossible = trueBalance
             let requiredCollateral = effectiveDebtTotal * targetHealth
             if effectiveCollateralTotal <= requiredCollateral {
                 return 0.0
             }
             let deltaCollateralEffective = effectiveCollateralTotal - requiredCollateral
             let deltaTokens = (deltaCollateralEffective / collateralFactor) / withdrawSnap.getPrice()
-            return deltaTokens > maxPossible ? maxPossible : deltaTokens
+            if deltaTokens <= trueBalance {
+                // Health target is hit before exhausting credit — collateral-only withdrawal
+                return deltaTokens
+            }
+            // Exhausting all credit still leaves health above target: add debt capacity
+            let collateralEffectiveValue = FlowALPMath.effectiveCollateral(credit: trueBalance, price: withdrawSnap.getPrice(), collateralFactor: collateralFactor)
+            let remainingCollateral = effectiveCollateralTotal - collateralEffectiveValue
+            // From the health formula H=Ce/De we solve for availableDebtIncrease, the additional debt to reach target health:
+            // targetHealth = remainingCollateral / (effectiveDebtTotal + availableDebtIncrease)
+            let availableDebtIncrease = (remainingCollateral / targetHealth) - effectiveDebtTotal
+            let borrowCapacity = availableDebtIncrease * borrowFactor // how much additional value we can borrow ($)
+            let additionalTokens = borrowCapacity / withdrawSnap.getPrice() // how many additional units of the withdrawal token we can borrow
+            return trueBalance + additionalTokens
         }
     }
 
