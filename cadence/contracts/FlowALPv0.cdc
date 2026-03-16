@@ -314,7 +314,7 @@ access(all) contract FlowALPv0 {
             if let tokenState = self.state.getTokenState(tokenType) {
                 return tokenState.getInsuranceRate()
             }
-            
+
             return nil
         }
 
@@ -549,7 +549,7 @@ access(all) contract FlowALPv0 {
             post {
                 !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
-            
+
             self.lockPosition(pid)
 
             let positionView = self.buildPositionView(pid: pid)
@@ -569,7 +569,7 @@ access(all) contract FlowALPv0 {
             let Pc_oracle = self.config.getPriceOracle().price(ofToken: seizeType)! // collateral price given by oracle ($/C)
             // Price of collateral, denominated in debt token, implied by oracle (D/C)
             // Oracle says: "1 unit of collateral is worth `Pcd_oracle` units of debt"
-            let Pcd_oracle = Pc_oracle / Pd_oracle 
+            let Pcd_oracle = Pc_oracle / Pd_oracle
 
             // Compute the health factor which would result if we were to accept this liquidation
             let Ce_pre = balanceSheet.effectiveCollateral // effective collateral pre-liquidation
@@ -580,7 +580,7 @@ access(all) contract FlowALPv0 {
             // Ce_seize = effective value of seized collateral ($)
             let Ce_seize = FlowALPMath.effectiveCollateral(credit: UFix128(seizeAmount), price: UFix128(Pc_oracle), collateralFactor: Fc)
             // De_seize = effective value of repaid debt ($)
-            let De_seize = FlowALPMath.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd) 
+            let De_seize = FlowALPMath.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd)
             let Ce_post = Ce_pre - Ce_seize // position's total effective collateral after liquidation ($)
             let De_post = De_pre - De_seize // position's total effective debt after liquidation ($)
             let postHealth = FlowALPMath.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
@@ -599,9 +599,9 @@ access(all) contract FlowALPv0 {
                 message: "DEX/oracle price deviation too large. Dex price: \(Pcd_dex), Oracle price: \(Pcd_oracle)")
             // Execute the liquidation
             let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
-            
+
             self.unlockPosition(pid)
-            
+
             return <- seizedCollateral
         }
 
@@ -611,7 +611,7 @@ access(all) contract FlowALPv0 {
         access(self) fun _doLiquidation(pid: UInt64, repayment: @{FungibleToken.Vault}, debtType: Type, seizeType: Type, seizeAmount: UFix64): @{FungibleToken.Vault} {
             pre {
                 !self.isPausedOrWarmup(): "Liquidations are paused by governance"
-                // position must have debt and collateral balance 
+                // position must have debt and collateral balance
             }
 
             let repayAmount = repayment.balance
@@ -1455,7 +1455,7 @@ access(all) contract FlowALPv0 {
             // Validate constraint: non-zero rate requires swapper
             if insuranceRate > 0.0 {
                 assert(
-                    tsRef.getInsuranceSwapper() != nil, 
+                    tsRef.getInsuranceSwapper() != nil,
                     message:"Cannot set non-zero insurance rate without an insurance swapper configured for \(tokenType.identifier)",
                 )
             }
@@ -1474,13 +1474,13 @@ access(all) contract FlowALPv0 {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             let tsRef = self.state.borrowTokenState(tokenType)
-                ?? panic("Invariant: token state missing")   
+                ?? panic("Invariant: token state missing")
 
             if let swapper = swapper {
                 // Validate swapper types match
                 assert(swapper.inType() == tokenType, message: "Swapper input type must match token type")
                 assert(swapper.outType() == Type<@MOET.Vault>(), message: "Swapper output type must be MOET")
-            
+
             } else {
                 // cannot remove swapper if insurance rate > 0
                 assert(
@@ -1564,7 +1564,7 @@ access(all) contract FlowALPv0 {
             let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
             tsRef.setStabilityFeeRate(stabilityFeeRate)
-            
+
             FlowALPEvents.emitStabilityFeeRateUpdated(
                 poolUUID: self.uuid,
                 tokenType: tokenType.identifier,
@@ -1585,7 +1585,7 @@ access(all) contract FlowALPv0 {
                 fundRef.balance >= amount,
                 message: "Insufficient stability fund balance. Available: \(fundRef.balance), requested: \(amount)"
             )
-            
+
             let withdrawn <- fundRef.withdraw(amount: amount)
             recipient.deposit(from: <-withdrawn)
 
@@ -1713,6 +1713,10 @@ access(all) contract FlowALPv0 {
                         pid: pid,
                         from: <-pulledVault,
                     )
+
+                    // Post-deposit health check: panic if the position is still liquidatable.
+                    let newBalanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+                    assert(newBalanceSheet.health >= 1.0, message: "topUpSource insufficient to save position from liquidation")
                 }
             } else if balanceSheet.health > position.getTargetHealth() {
                 // The position is overcollateralized,
@@ -2056,7 +2060,7 @@ access(all) contract FlowALPv0 {
         access(self) fun updateInterestRatesAndCollectInsurance(tokenType: Type) {
             let tokenState = self._borrowUpdatedTokenState(type: tokenType)
             tokenState.updateInterestRates()
-            
+
             // Collect insurance if swapper is configured
             // Ensure reserves exist for this token type
             if !self.state.hasReserve(tokenType) {
@@ -2138,7 +2142,7 @@ access(all) contract FlowALPv0 {
         access(all) fun getDefaultToken(): Type {
             return self.state.getDefaultToken()
         }
-        
+
         /// Returns the deposit capacity and deposit capacity cap for a given token type
         access(all) fun getDepositCapacityInfo(type: Type): {String: UFix64} {
             let tokenState = self._borrowUpdatedTokenState(type: type)
