@@ -1,7 +1,7 @@
 import "FlowALPSupervisorv1"
 
 transaction(
-    uuid: UInt64,
+    positionID: UInt64,
     supervisorStoragePath: StoragePath
 ) {
     let signer: auth(BorrowValue, IssueStorageCapabilityController, SaveValue) &Account
@@ -13,6 +13,6 @@ transaction(
     }
 
     execute {
-        self.supervisor.borrow()!.addPaidRebalancer(uuid: uuid)
+        self.supervisor.borrow()!.addPaidRebalancer(positionID: positionID)
     }
 }
