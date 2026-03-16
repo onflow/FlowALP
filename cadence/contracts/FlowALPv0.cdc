@@ -988,7 +988,7 @@ access(all) contract FlowALPv0 {
         /// Clients are recommended to use the PositionManager collection type to manage their Positions.
         access(FlowALPModels.EParticipant) fun createPosition(
             funds: @{FungibleToken.Vault},
-            issuanceSink: {DeFiActions.Sink},
+            issuanceSink: {DeFiActions.Sink}?,
             repaymentSource: {DeFiActions.Source}?,
             pushToDrawDownSink: Bool
         ): @FlowALPPositionResources.Position {
@@ -1731,6 +1731,10 @@ access(all) contract FlowALPv0 {
                         pid: pid,
                         from: <-pulledVault,
                     )
+
+                    // Post-deposit health check: panic if the position is still liquidatable.
+                    let newBalanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+                    assert(newBalanceSheet.health >= 1.0, message: "topUpSource insufficient to save position from liquidation")
                 }
             } else if balanceSheet.health > position.getTargetHealth() {
                 // The position is overcollateralized,
