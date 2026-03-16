@@ -1039,7 +1039,7 @@ access(all) contract FlowALPv0 {
 
             // Create and return the Position resource
 
-            let position <- FlowALPPositionResources.createPosition(id: id, pool: poolCap)
+            let position <- FlowALPPositionResources.createPosition(id: id)
 
             self.unlockPosition(id)
             return <-position
@@ -2211,6 +2211,16 @@ access(all) contract FlowALPv0 {
 
     /* --- INTERNAL METHODS --- */
 
+    /// Returns an authorized reference to the contract-managed Pool resource.
+    /// Used internally by Position, PositionSink, and PositionSource instead of
+    /// issuing per-position storage capabilities.
+    access(self) fun _borrowPool(): Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}> {
+        let poolCap = FlowALPv0.account.capabilities.storage.issue<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>(
+                FlowALPv0.PoolStoragePath
+            )
+        return poolCap
+    }
+
     /// Returns a reference to the contract account's MOET Minter resource
     access(self) view fun _borrowMOETMinter(): &MOET.Minter {
         return self.account.storage.borrow<&MOET.Minter>(from: MOET.AdminStoragePath)
@@ -2232,5 +2242,6 @@ access(all) contract FlowALPv0 {
             to: self.PoolFactoryPath
         )
         let factory = self.account.storage.borrow<&PoolFactory>(from: self.PoolFactoryPath)!
+        FlowALPPositionResources.setPoolCap(cap: self._borrowPool())
     }
 }
