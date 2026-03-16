@@ -1,5 +1,6 @@
 import "FungibleToken"
 import "FlowALPv0"
+import "FlowALPPositionResources"
 import "FlowALPModels"
 
 /// Sets the target health on a position.
@@ -7,10 +8,10 @@ transaction(
     positionId: UInt64,
     targetHealth: UFix64
 ) {
-    let position: auth(FlowALPModels.EPositionAdmin) &FlowALPv0.Position
+    let position: auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.Position
 
     prepare(signer: auth(BorrowValue) &Account) {
-        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(
+        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>(
                 from: FlowALPv0.PositionStoragePath
             )
             ?? panic("Could not find PositionManager in signer's storage")
