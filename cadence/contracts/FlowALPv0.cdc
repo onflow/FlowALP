@@ -51,7 +51,14 @@ access(all) contract FlowALPv0 {
     */
 
     ///
-    /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth
+    /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth.
+    ///
+    /// Callers are responsible for providing a safe targetHealth value; this function does not
+    /// enforce any health > 1 sanity checks.
+    ///
+    /// - If the position's health is ≤ targetHealth, returns 0.
+    /// - The returned amount may reduce the size of a collateral balance, flip a collateral balance
+    ///   to a debt balance, or increase the size of an existing debt balance.
     access(all) view fun maxWithdraw(
         view: FlowALPModels.PositionView,
         withdrawSnap: FlowALPModels.TokenSnapshot,
@@ -103,19 +110,30 @@ access(all) contract FlowALPv0 {
                 : 0.0 as UFix128
             return (deltaDebt * borrowFactor) / withdrawSnap.getPrice()
         } else {
-            // withdrawing reduces collateral
+            // withdrawing reduces collateral (and may flip into debt beyond zero)
             let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                 withdrawBal!.scaledBalance,
                 interestIndex: withdrawSnap.getCreditIndex()
             )
-            let maxPossible = trueBalance
             let requiredCollateral = effectiveDebtTotal * targetHealth
             if effectiveCollateralTotal <= requiredCollateral {
                 return 0.0
             }
             let deltaCollateralEffective = effectiveCollateralTotal - requiredCollateral
             let deltaTokens = (deltaCollateralEffective / collateralFactor) / withdrawSnap.getPrice()
-            return deltaTokens > maxPossible ? maxPossible : deltaTokens
+            if deltaTokens <= trueBalance {
+                // Health target is hit before exhausting credit — collateral-only withdrawal
+                return deltaTokens
+            }
+            // Exhausting all credit still leaves health above target: add debt capacity
+            let collateralEffectiveValue = FlowALPMath.effectiveCollateral(credit: trueBalance, price: withdrawSnap.getPrice(), collateralFactor: collateralFactor)
+            let remainingCollateral = effectiveCollateralTotal - collateralEffectiveValue
+            // From the health formula H=Ce/De we solve for availableDebtIncrease, the additional debt to reach target health:
+            // targetHealth = remainingCollateral / (effectiveDebtTotal + availableDebtIncrease)
+            let availableDebtIncrease = (remainingCollateral / targetHealth) - effectiveDebtTotal
+            let borrowCapacity = availableDebtIncrease * borrowFactor // how much additional value we can borrow ($)
+            let additionalTokens = borrowCapacity / withdrawSnap.getPrice() // how many additional units of the withdrawal token we can borrow
+            return trueBalance + additionalTokens
         }
     }
 
@@ -971,7 +989,7 @@ access(all) contract FlowALPv0 {
         /// Clients are recommended to use the PositionManager collection type to manage their Positions.
         access(FlowALPModels.EParticipant) fun createPosition(
             funds: @{FungibleToken.Vault},
-            issuanceSink: {DeFiActions.Sink},
+            issuanceSink: {DeFiActions.Sink}?,
             repaymentSource: {DeFiActions.Source}?,
             pushToDrawDownSink: Bool
         ): @FlowALPPositionResources.Position {
@@ -1022,7 +1040,7 @@ access(all) contract FlowALPv0 {
 
             // Create and return the Position resource
 
-            let position <- FlowALPPositionResources.createPosition(id: id, pool: poolCap)
+            let position <- FlowALPPositionResources.createPosition(id: id)
 
             self.unlockPosition(id)
             return <-position
@@ -1714,6 +1732,10 @@ access(all) contract FlowALPv0 {
                         pid: pid,
                         from: <-pulledVault,
                     )
+
+                    // Post-deposit health check: panic if the position is still liquidatable.
+                    let newBalanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+                    assert(newBalanceSheet.health >= 1.0, message: "topUpSource insufficient to save position from liquidation")
                 }
             } else if balanceSheet.health > position.getTargetHealth() {
                 // The position is overcollateralized,
@@ -2190,6 +2212,16 @@ access(all) contract FlowALPv0 {
 
     /* --- INTERNAL METHODS --- */
 
+    /// Returns an authorized reference to the contract-managed Pool resource.
+    /// Used internally by Position, PositionSink, and PositionSource instead of
+    /// issuing per-position storage capabilities.
+    access(self) fun _borrowPool(): Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}> {
+        let poolCap = FlowALPv0.account.capabilities.storage.issue<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>(
+                FlowALPv0.PoolStoragePath
+            )
+        return poolCap
+    }
+
     /// Returns a reference to the contract account's MOET Minter resource
     access(self) view fun _borrowMOETMinter(): &MOET.Minter {
         return self.account.storage.borrow<&MOET.Minter>(from: MOET.AdminStoragePath)
@@ -2211,5 +2243,6 @@ access(all) contract FlowALPv0 {
             to: self.PoolFactoryPath
         )
         let factory = self.account.storage.borrow<&PoolFactory>(from: self.PoolFactoryPath)!
+        FlowALPPositionResources.setPoolCap(cap: self._borrowPool())
     }
 }
