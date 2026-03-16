@@ -1,8 +1,8 @@
 # Test Inventory and Coverage Notes (FlowALP; `FlowALPv0` Implementation)
 
-**Last Reviewed:** 2026-02-14  
-**Core Contract:** `cadence/contracts/FlowALPv0.cdc`  
-**Test Files:** Git-tracked tests under `cadence/tests/*_test.cdc`  
+**Last Reviewed:** 2026-02-14
+**Core Contract:** `cadence/contracts/FlowALPv0.cdc`
+**Test Files:** Git-tracked tests under `cadence/tests/*_test.cdc`
 **Coverage:** Coverage artifacts are generated locally (e.g. `coverage.json`, `coverage.lcov`) and are ignored by git.
 
 **Naming:** FlowALP refers to the protocol; the Cadence implementation under test in this repo is deployed as the `FlowALPv0` contract.
