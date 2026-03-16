@@ -1,13 +1,8 @@
 import "FlowALPv0"
 import "FlowALPModels"
 
-/// TEST TRANSACTION - DO NOT USE IN PRODUCTION
-///
-/// Verifies that Capability<auth(EPosition) &Pool> grants access to
-/// Pool.rebalancePosition via the EPosition entitlement.
-///
-/// ePositionUser holds auth(EPosition) &Pool which satisfies the EPosition | ERebalance
-/// requirement of Pool.rebalancePosition.
+/// Rebalances a position via an EPosition capability at PoolCapStoragePath.
+/// EPosition satisfies the EPosition | ERebalance requirement of Pool.rebalancePosition.
 ///
 /// @param pid:   Position to rebalance
 /// @param force: Whether to force rebalance regardless of health bounds

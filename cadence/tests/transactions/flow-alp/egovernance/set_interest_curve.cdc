@@ -2,10 +2,8 @@ import "FlowALPv0"
 import "FlowALPModels"
 import "FlowALPInterestRates"
 
-/// TEST TRANSACTION - DO NOT USE IN PRODUCTION
-///
-/// Verifies that auth(EGovernance) &Pool grants access to Pool.setInterestCurve.
-/// Sets a FixedCurve with the given yearly rate.
+/// Sets a FixedCurve interest curve for the given token type.
+/// Requires an EGovernance capability at PoolCapStoragePath.
 transaction(
     tokenTypeIdentifier: String,
     yearlyRate: UFix128

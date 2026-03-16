@@ -1,11 +1,8 @@
 import "FlowALPv0"
 import "FlowALPModels"
 
-/// TEST TRANSACTION - DO NOT USE IN PRODUCTION
-///
-/// Verifies that auth(ERebalance) &Pool grants access to Pool.rebalancePosition.
-/// ERebalance is the narrower entitlement specifically for rebalancing operations,
-/// distinct from the broader EPosition entitlement.
+/// Rebalances a position via a direct ERebalance borrow from PoolStoragePath.
+/// Uses the narrow ERebalance entitlement — distinct from the broader EPosition.
 ///
 /// @param pid:   The position ID to rebalance
 /// @param force: Whether to force rebalance regardless of health bounds

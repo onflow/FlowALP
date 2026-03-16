@@ -1,9 +1,8 @@
 import "FlowALPv0"
 import "FlowALPModels"
 
-/// TEST TRANSACTION - DO NOT USE IN PRODUCTION
-///
-/// Verifies that auth(EGovernance) &Pool grants access to Pool.collectStability.
+/// Collects accrued stability fees for the given token type.
+/// Requires an EGovernance capability at PoolCapStoragePath.
 transaction(tokenTypeIdentifier: String) {
     let pool: auth(FlowALPModels.EGovernance) &FlowALPv0.Pool
     let tokenType: Type

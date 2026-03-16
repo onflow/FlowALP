@@ -444,7 +444,7 @@ fun testERebalance_RebalancePosition() {
     safeReset()
 
     let result = _executeTransaction(
-        "../tests/transactions/flow-alp/erebalance/rebalance_pool.cdc",
+        "../tests/transactions/flow-alp/erebalance/rebalance_position_via_cap.cdc",
         [setupPid, true],
         eRebalanceUser
     )
@@ -462,7 +462,7 @@ fun testERebalance_PositionRebalance() {
     safeReset()
 
     let result = _executeTransaction(
-        "../tests/transactions/flow-alp/erebalance/rebalance_pool.cdc",
+        "../tests/transactions/flow-alp/erebalance/rebalance_position_via_cap.cdc",
         [setupPid, true],
         eRebalanceUser
     )

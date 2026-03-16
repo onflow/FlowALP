@@ -1,9 +1,8 @@
 import "FlowALPv0"
 import "FlowALPModels"
 
-/// TEST TRANSACTION - DO NOT USE IN PRODUCTION
-///
-/// Verifies that auth(EGovernance) &Pool grants access to Pool.setStabilityFeeRate.
+/// Sets the stability fee rate for the given token type.
+/// Requires an EGovernance capability at PoolCapStoragePath.
 transaction(
     tokenTypeIdentifier: String,
     stabilityFeeRate: UFix64

@@ -3,13 +3,8 @@ import "FlowALPv0"
 import "FlowALPModels"
 import "MOET"
 
-/// TEST TRANSACTION - DO NOT USE IN PRODUCTION
-///
-/// Verifies that Capability<auth(EPosition) &Pool> grants:
-///   Pool.withdrawAndPull — on a position owned by ANOTHER user
-///
-/// EPosition allows pool-level position operations on any position by ID,
-/// regardless of which account owns that position. No EParticipant required.
+/// Withdraws and pulls MOET from any position via an EPosition capability at PoolCapStoragePath.
+/// EPosition allows operations on any position by ID, regardless of ownership.
 ///
 /// @param pid:    Target position ID (owned by a different account)
 /// @param amount: Amount to withdraw

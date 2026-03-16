@@ -1,10 +1,8 @@
 import "FlowALPv0"
 import "FlowALPModels"
 
-/// TEST TRANSACTION - DO NOT USE IN PRODUCTION
-///
-/// Verifies that auth(EGovernance) &Pool grants access to Pool.borrowConfig,
-/// enabling the governance holder to set the liquidation target health factor.
+/// Sets the liquidation target health factor via Pool.borrowConfig.
+/// Requires an EGovernance capability at PoolCapStoragePath.
 ///
 /// @param targetHF: The target health factor for liquidations (must be > 1.0)
 transaction(targetHF: UFix128) {

@@ -1,10 +1,8 @@
 import "FlowALPv0"
 import "FlowALPModels"
 
-/// TEST TRANSACTION - DO NOT USE IN PRODUCTION
-///
-/// Verifies that auth(EGovernance) &Pool grants access to Pool.borrowConfig,
-/// enabling the governance holder to set the warmup period.
+/// Sets the pool pause warmup period via Pool.borrowConfig.
+/// Requires an EGovernance capability at PoolCapStoragePath.
 ///
 /// @param warmupSec: Warm-up period in seconds before pause takes full effect
 transaction(warmupSec: UInt64) {

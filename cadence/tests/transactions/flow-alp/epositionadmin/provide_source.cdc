@@ -1,11 +1,7 @@
 import "FlowALPv0"
 import "FlowALPModels"
 
-/// TEST TRANSACTION - DO NOT USE IN PRODUCTION
-///
-/// Verifies that auth(EPositionAdmin) &Position grants access to Position.provideSource.
-/// Borrows the PositionManager with EPositionAdmin, gets an authorized Position reference,
-/// and clears the top-up source (nil is always a valid argument).
+/// Clears the top-up source for a position (sets it to nil) via EPositionAdmin on the PositionManager.
 ///
 /// @param pid: The position ID whose top-up source should be configured
 transaction(pid: UInt64) {
