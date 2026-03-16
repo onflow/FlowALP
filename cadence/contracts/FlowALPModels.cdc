@@ -72,6 +72,18 @@ access(all) contract FlowALPModels {
         access(all) case Debit
     }
 
+    access(all) struct SignedQuantity {
+        /// The direction (sign) of this quantity.
+        access(all) let direction: BalanceDirection
+        /// The unsigned numeric value.
+        access(all) let quantity: UFix128
+
+        init(direction: BalanceDirection, quantity: UFix128) {
+            self.direction = direction
+            self.quantity = quantity
+        }
+    }
+
     /// InternalBalance
     ///
     /// A structure used internally to track a position's balance for a particular token
@@ -430,11 +442,17 @@ access(all) contract FlowALPModels {
         )
     }
 
+    // MAYBE: HealthStatement: derived from balance sheet, only total eff debt/coll + health
+
     /// BalanceSheet
     ///
     /// A struct containing a position's overview in terms of its effective collateral and debt
     /// as well as its current health.
     access(all) struct BalanceSheet {
+
+        access(self) let effectiveCollateralByToken: {Type: UFix128}
+
+        access(self) let effectiveDebtByToken: {Type: UFix128}
 
         /// Effective collateral is a normalized valuation of collateral deposited into this position, denominated in $.
         /// In combination with effective debt, this determines how much additional debt can be taken out by this position.
@@ -448,14 +466,16 @@ access(all) contract FlowALPModels {
         access(all) let health: UFix128
 
         init(
-            effectiveCollateral: UFix128,
-            effectiveDebt: UFix128
+            effectiveCollateral: {Type: UFix128},
+            effectiveDebt: {Type: UFix128}
         ) {
-            self.effectiveCollateral = effectiveCollateral
-            self.effectiveDebt = effectiveDebt
+            self.effectiveCollateralByToken = effectiveCollateral
+            self.effectiveCollateral = FlowALPMath.sumUFix128(effectiveCollateral.values)
+            self.effectiveDebtByToken = effectiveDebt
+            self.effectiveDebt = FlowALPMath.sumUFix128(effectiveDebt)
             self.health = FlowALPMath.healthComputation(
-                effectiveCollateral: effectiveCollateral,
-                effectiveDebt: effectiveDebt
+                effectiveCollateral: self.effectiveCollateral,
+                effectiveDebt: self.effectiveDebt
             )
         }
     }

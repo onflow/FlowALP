@@ -38,6 +38,15 @@ access(all) contract FlowALPMath {
         return result
     }
 
+    /// Returns the sum of a list of UFix128-typed numeric values.
+    access(all) view fun sumUFix128(_ nums: [UFix128]): UFix128 {
+        var sum: UFix128 = 0.0
+        for num in nums {
+            sum = sum + num
+        }
+        return sum
+    }
+
     access(all) view fun toUFix64(_ value: UFix128, rounding: RoundingMode): UFix64 {
         let truncated = UFix64(value)
         let truncatedAs128 = UFix128(truncated)

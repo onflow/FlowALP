@@ -21,13 +21,13 @@ access(all) contract FlowALPHealth {
     /// @return A new BalanceSheet reflecting the effective collateral and debt after the withdrawal
     access(account) fun computeAdjustedBalancesAfterWithdrawal(
         balanceSheet: FlowALPModels.BalanceSheet,
-        withdrawBalance: FlowALPModels.InternalBalance?,
+        withdrawBalance: FlowALPModels.InternalBalance?, // make this non-optional
         withdrawAmount: UFix64,
         withdrawPrice: UFix128,
-        withdrawBorrowFactor: UFix128,
+        withdrawBorrowFactor: UFix128, // pass tokenstate instead
         withdrawCollateralFactor: UFix128,
         withdrawCreditInterestIndex: UFix128,
-        isDebugLogging: Bool
+        tokenState: &FlowALPModels.TokenSnapshot,
     ): FlowALPModels.BalanceSheet {
         var effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral
         var effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt
@@ -38,14 +38,31 @@ access(all) contract FlowALPHealth {
                 effectiveDebt: effectiveDebtAfterWithdrawal
             )
         }
-        if isDebugLogging {
-            log("    [CONTRACT] effectiveCollateralAfterWithdrawal: \(effectiveCollateralAfterWithdrawal)")
-            log("    [CONTRACT] effectiveDebtAfterWithdrawal: \(effectiveDebtAfterWithdrawal)")
-        }
+
+        // Find the effective collateral/debt attributed to the withdrawal token's balance, before the withdrawal occurs.
+        // Have this already with new BalanceSheet defn
+
+
+        // simple cases are decreasing credit to >0, or increasing existing debt (just add to eff debt or sub from eff coll)
+        // complex case is converting credit to debt. Here we should decompose problem into two withdrawals (one decreasing credit, one increasing debt)
+        //
+        // or alternatively:
+        // - memorize eff debt/credit contribution before withdrawal (B)
+        // - then compute eff debt/credit contribution after withdrawal (A)
+        // subtract B, then add 
+
+        withdrawBalance!.recordWithdrawal(withdrawAmount, tokenState)
+        // get true balance
+        // get effective collateral/debt
+        // set new value in the per-token map (BalanceSheet)
+        // re-compute total effective col/debt -> health
+        // return
+
+        // if credit:
+        //  overwite withdrawType: withdrawBalance.
+        
 
         let withdrawAmountU = UFix128(withdrawAmount)
-        let withdrawPrice2 = withdrawPrice
-        let withdrawBorrowFactor2 = withdrawBorrowFactor
         let balance = withdrawBalance
         let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Debit
         let scaledBalance = balance?.scaledBalance ?? 0.0
@@ -55,7 +72,7 @@ access(all) contract FlowALPHealth {
                 // If the position doesn't have any collateral for the withdrawn token,
                 // we can just compute how much additional effective debt the withdrawal will create.
                 effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt +
-                    (withdrawAmountU * withdrawPrice2) / withdrawBorrowFactor2
+                    (withdrawAmountU * withdrawPrice) / withdrawBorrowFactor
 
             case FlowALPModels.BalanceDirection.Credit:
                 // The user has a collateral position in the given token, we need to figure out if this withdrawal
@@ -69,13 +86,13 @@ access(all) contract FlowALPHealth {
                     // This withdrawal will draw down collateral, but won't create debt, we just need to account
                     // for the collateral decrease.
                     effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral -
-                        (withdrawAmountU * withdrawPrice2) * collateralFactor
+                        (withdrawAmountU * withdrawPrice) * collateralFactor
                 } else {
                     // The withdrawal will wipe out all of the collateral, and create some debt.
                     effectiveDebtAfterWithdrawal = balanceSheet.effectiveDebt +
-                        ((withdrawAmountU - trueCollateral) * withdrawPrice2) / withdrawBorrowFactor2
+                        ((withdrawAmountU - trueCollateral) * withdrawPrice) / withdrawBorrowFactor
                     effectiveCollateralAfterWithdrawal = balanceSheet.effectiveCollateral -
-                        (trueCollateral * withdrawPrice2) * collateralFactor
+                        (trueCollateral * withdrawPrice) * collateralFactor
                 }
         }
 
