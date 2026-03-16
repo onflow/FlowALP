@@ -2,6 +2,8 @@ import Test
 import BlockchainHelpers
 
 import "MOET"
+import "FlowALPEvents"
+import "FlowALPModels"
 import "test_helpers.cdc"
 
 // =============================================================================
@@ -229,6 +231,7 @@ fun testPublishClaimCap() {
         PROTOCOL_ACCOUNT
     )
     Test.expect(createPositionResult, Test.beSucceeded())
+    Test.assert(getLastPositionId() > ePositionAdminPid, message: "Expected a new position to be created")
 }
 
 // =============================================================================
@@ -249,6 +252,15 @@ fun testEParticipant_CreateAndDeposit() {
         eParticipantUser
     )
     Test.expect(result, Test.beSucceeded())
+
+    // Verify position was created and funded: create_and_deposit_via_cap.cdc deposits
+    // 5.0 MOET (createPosition) + 1.0 MOET (depositToPosition) = 6.0 MOET credit.
+    let newPid = getLastPositionId()
+    let creditBalance = getCreditBalanceForType(
+        details: getPositionDetails(pid: newPid, beFailed: false),
+        vaultType: Type<@MOET.Vault>()
+    )
+    Test.assertEqual(6.0, creditBalance)
 }
 
 // =============================================================================
@@ -280,6 +292,15 @@ fun testEParticipantPosition_CreateAndDeposit() {
         eParticipantPositionUser
     )
     Test.expect(result, Test.beSucceeded())
+
+    // Verify position was created and funded: create_and_deposit_via_cap.cdc deposits
+    // 5.0 MOET (createPosition) + 1.0 MOET (depositToPosition) = 6.0 MOET credit.
+    let newPid = getLastPositionId()
+    let creditBalance = getCreditBalanceForType(
+        details: getPositionDetails(pid: newPid, beFailed: false),
+        vaultType: Type<@MOET.Vault>()
+    )
+    Test.assertEqual(6.0, creditBalance)
 }
 
 /// Over-granted beta cap allows Pool.withdraw on ANY position — including
@@ -322,12 +343,21 @@ access(all)
 fun testEParticipantPosition_DepositAndPushAnyPosition() {
     safeReset()
 
+    let creditBefore = getCreditBalanceForType(
+        details: getPositionDetails(pid: setupPid, beFailed: false),
+        vaultType: Type<@MOET.Vault>()
+    )
     let result = _executeTransaction(
         "../tests/transactions/flow-alp/eposition/deposit_and_push_any.cdc",
         [setupPid, 1.0],
         eParticipantPositionUser
     )
     Test.expect(result, Test.beSucceeded())
+    let creditAfter = getCreditBalanceForType(
+        details: getPositionDetails(pid: setupPid, beFailed: false),
+        vaultType: Type<@MOET.Vault>()
+    )
+    Test.assertEqual(creditBefore + 1.0, creditAfter)
 }
 
 /// Over-granted beta cap allows Pool.lockPosition and Pool.unlockPosition on ANY position —
@@ -405,12 +435,21 @@ access(all)
 fun testEPosition_DepositAndPushAnyPosition() {
     safeReset()
 
+    let creditBefore = getCreditBalanceForType(
+        details: getPositionDetails(pid: setupPid, beFailed: false),
+        vaultType: Type<@MOET.Vault>()
+    )
     let result = _executeTransaction(
         "../tests/transactions/flow-alp/eposition/deposit_and_push_any.cdc",
         [setupPid, 1.0],
         ePositionUser
     )
     Test.expect(result, Test.beSucceeded())
+    let creditAfter = getCreditBalanceForType(
+        details: getPositionDetails(pid: setupPid, beFailed: false),
+        vaultType: Type<@MOET.Vault>()
+    )
+    Test.assertEqual(creditBefore + 1.0, creditAfter)
 }
 
 /// EPosition cap allows Pool.lockPosition and Pool.unlockPosition on ANY position —
@@ -505,6 +544,10 @@ fun testEPositionAdmin_SetTargetHealth() {
         ePositionAdminUser
     )
     Test.expect(result, Test.beSucceeded())
+    Test.assertEqual(
+        getPositionTargetHealth(positionOwner: ePositionAdminUser.address, pid: ePositionAdminPid),
+        TARGET_HEALTH
+    )
 }
 
 /// EPositionAdmin allows Position.setMinHealth (via PositionManager.borrowAuthorizedPosition).
@@ -518,6 +561,10 @@ fun testEPositionAdmin_SetMinHealth() {
         ePositionAdminUser
     )
     Test.expect(result, Test.beSucceeded())
+    Test.assertEqual(
+        getPositionMinHealth(positionOwner: ePositionAdminUser.address, pid: ePositionAdminPid),
+        MIN_HEALTH
+    )
 }
 
 /// EPositionAdmin allows Position.setMaxHealth (via PositionManager.borrowAuthorizedPosition).
@@ -531,6 +578,10 @@ fun testEPositionAdmin_SetMaxHealth() {
         ePositionAdminUser
     )
     Test.expect(result, Test.beSucceeded())
+    Test.assertEqual(
+        getPositionMaxHealth(positionOwner: ePositionAdminUser.address, pid: ePositionAdminPid),
+        MAX_HEALTH
+    )
 }
 
 /// EPositionAdmin allows Position.provideSink.
@@ -630,6 +681,7 @@ fun testEGovernance_PauseUnpause() {
         eGovernanceUser
     )
     Test.expect(pauseResult, Test.beSucceeded())
+    Test.assertEqual(1, Test.eventsOfType(Type<FlowALPEvents.PoolPaused>()).length)
 
     let unpauseResult = _executeTransaction(
         "../tests/transactions/flow-alp/egovernance/set_pool_paused.cdc",
@@ -637,6 +689,7 @@ fun testEGovernance_PauseUnpause() {
         eGovernanceUser
     )
     Test.expect(unpauseResult, Test.beSucceeded())
+    Test.assertEqual(1, Test.eventsOfType(Type<FlowALPEvents.PoolUnpaused>()).length)
 }
 
 /// EGovernance cap allows Pool.addSupportedToken.
@@ -653,6 +706,9 @@ fun testEGovernance_AddSupportedToken() {
         eGovernanceUser
     )
     Test.expect(result, Test.beSucceeded())
+    // Verify the token was added: deposit capacity cap should match the value passed in.
+    let info = getDepositCapacityInfo(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
+    Test.assertEqual(1_000_000.0, info["depositCapacityCap"]!)
 }
 
 /// EGovernance cap allows Pool.setInterestCurve.
@@ -666,6 +722,13 @@ fun testEGovernance_SetInterestCurve() {
         eGovernanceUser
     )
     Test.expect(result, Test.beSucceeded())
+    // Verify the curve was stored: read back yearlyRate for the FixedCurve.
+    let curveRes = _executeScript("../scripts/flow-alp/get_interest_curve_params.cdc", [MOET_TOKEN_IDENTIFIER])
+    Test.expect(curveRes, Test.beSucceeded())
+    let curveParams = curveRes.returnValue as! {String: AnyStruct}?
+    Test.assert(curveParams != nil, message: "Expected interest curve params to be set")
+    let yearlyRate = curveParams!["yearlyRate"] as! UFix128
+    Test.assertEqual(0.05 as UFix128, yearlyRate)
 }
 
 /// EGovernance cap allows Pool.setInsuranceRate.
@@ -681,6 +744,8 @@ fun testEGovernance_SetInsuranceRate() {
         eGovernanceUser
     )
     Test.expect(result, Test.beSucceeded())
+    // Verify the rate was stored (0.0 is valid without a swapper; confirms the setter ran).
+    Test.assertEqual(0.0, getInsuranceRate(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)!)
 }
 
 /// EGovernance cap allows Pool.setStabilityFeeRate.
@@ -694,6 +759,8 @@ fun testEGovernance_SetStabilityFeeRate() {
         eGovernanceUser
     )
     Test.expect(result, Test.beSucceeded())
+    // Verify the new rate was stored (changed from default 0.0).
+    Test.assertEqual(0.05, getStabilityFeeRate(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)!)
 }
 
 /// EGovernance cap allows Pool.setLiquidationParams (via borrowConfig).
@@ -707,6 +774,11 @@ fun testEGovernance_SetLiquidationParams() {
         eGovernanceUser
     )
     Test.expect(result, Test.beSucceeded())
+    // Verify the target health factor was stored.
+    let liqRes = _executeScript("../scripts/flow-alp/get_liquidation_params.cdc", [])
+    Test.expect(liqRes, Test.beSucceeded())
+    let liqParams = liqRes.returnValue as! FlowALPModels.LiquidationParamsView
+    Test.assertEqual(1.05 as UFix128, liqParams.targetHF)
 }
 
 /// EGovernance cap allows Pool.setPauseParams (via borrowConfig).
@@ -733,6 +805,7 @@ fun testEGovernance_SetDepositLimitFraction() {
         eGovernanceUser
     )
     Test.expect(result, Test.beSucceeded())
+    Test.assertEqual(getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)["depositLimitFraction"]!, 0.10)
 }
 
 /// EGovernance cap allows Pool.collectInsurance.
@@ -747,6 +820,11 @@ fun testEGovernance_CollectInsurance() {
         eGovernanceUser
     )
     Test.expect(result, Test.beSucceeded())
+    // Verify the collection timestamp was updated (nil → Some after first collect).
+    Test.assert(
+        getLastInsuranceCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER) != nil,
+        message: "Expected insurance collection time to be set after collect"
+    )
 }
 
 /// EGovernance cap allows Pool.collectStability.
@@ -761,6 +839,11 @@ fun testEGovernance_CollectStability() {
         eGovernanceUser
     )
     Test.expect(result, Test.beSucceeded())
+    // Verify the collection timestamp was updated (nil → Some after first collect).
+    Test.assert(
+        getLastStabilityCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER) != nil,
+        message: "Expected stability collection time to be set after collect"
+    )
 }
 
 /// EGovernance cap allows Pool.setDEX (via borrowConfig).

@@ -393,6 +393,27 @@ fun getIsLiquidatable(pid: UInt64): Bool {
     return res.returnValue as! Bool
 }
 
+access(all)
+fun getPositionMinHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_min_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun getPositionMaxHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_max_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun getPositionTargetHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_target_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
