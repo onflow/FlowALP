@@ -699,21 +699,23 @@ access(all) contract FlowALPv0 {
             withdrawType: Type,
             withdrawAmount: UFix64
         ): FlowALPModels.BalanceSheet {
-            let balance = position.getBalance(withdrawType)
-            var withdrawCreditInterestIndex: UFix128 = 1.0
-            if balance?.direction == FlowALPModels.BalanceDirection.Credit {
-                withdrawCreditInterestIndex = self._borrowUpdatedTokenState(type: withdrawType).getCreditInterestIndex()
-            }
+            let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
+            let snapshot = FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
+                )
+            )
 
             return FlowALPHealth.computeAdjustedBalancesAfterWithdrawal(
                 balanceSheet: balanceSheet,
-                withdrawBalance: balance,
+                withdrawBalance: position.getBalance(withdrawType),
                 withdrawType: withdrawType,
                 withdrawAmount: withdrawAmount,
-                withdrawPrice: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
-                withdrawBorrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType)),
-                withdrawCollateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
-                withdrawCreditInterestIndex: withdrawCreditInterestIndex
+                tokenSnapshot: snapshot
             )
         }
 

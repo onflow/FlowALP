@@ -5,77 +5,99 @@ access(all) contract FlowALPHealth {
 
     /// Computes adjusted effective collateral and debt after a hypothetical withdrawal.
     ///
-    /// This function determines how a withdrawal would affect the position's balance sheet,
-    /// accounting for whether the position holds a credit (collateral) or debit (debt) balance
-    /// in the withdrawn token. If the position has collateral in the token, the withdrawal may
-    /// either draw down collateral, or exhaust it entirely and create new debt.
+    /// Uses a "remove old contribution, add new contribution" approach:
+    /// 1. Remove the current per-token effective collateral/debt entry
+    /// 2. Compute the new true balance after the withdrawal
+    /// 3. Compute the new effective contribution from the post-withdrawal balance
+    /// 4. Return a new BalanceSheet with the updated per-token entry
     ///
     /// @param balanceSheet: The position's current effective collateral and debt (with per-token maps)
     /// @param withdrawBalance: The position's existing balance for the withdrawn token, if any
     /// @param withdrawType: The type of token being withdrawn
     /// @param withdrawAmount: The amount of tokens to withdraw
-    /// @param withdrawPrice: The oracle price of the withdrawn token
-    /// @param withdrawBorrowFactor: The borrow factor applied to debt in the withdrawn token
-    /// @param withdrawCollateralFactor: The collateral factor applied to collateral in the withdrawn token
-    /// @param withdrawCreditInterestIndex: The credit interest index for the withdrawn token
+    /// @param tokenSnapshot: Snapshot of the withdrawn token's price, interest indices, and risk params
     /// @return A new BalanceSheet reflecting the effective collateral and debt after the withdrawal
     access(account) fun computeAdjustedBalancesAfterWithdrawal(
         balanceSheet: FlowALPModels.BalanceSheet,
         withdrawBalance: FlowALPModels.InternalBalance?,
         withdrawType: Type,
         withdrawAmount: UFix64,
-        withdrawPrice: UFix128,
-        withdrawBorrowFactor: UFix128,
-        withdrawCollateralFactor: UFix128,
-        withdrawCreditInterestIndex: UFix128
+        tokenSnapshot: FlowALPModels.TokenSnapshot
     ): FlowALPModels.BalanceSheet {
         if withdrawAmount == 0.0 {
             return balanceSheet
         }
 
         let withdrawAmountU = UFix128(withdrawAmount)
-        let balance = withdrawBalance
-        let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Debit
-        let scaledBalance = balance?.scaledBalance ?? 0.0
 
-        // Compute the new per-token effective collateral and debt after the withdrawal.
-        var newEffectiveCollateral: UFix128? = balanceSheet.effectiveCollateralByToken[withdrawType]
-        var newEffectiveDebt: UFix128? = balanceSheet.effectiveDebtByToken[withdrawType]
+        // Compute the post-withdrawal true balance and direction.
+        let after = self.trueBalanceAfterWithdrawal(
+            balance: withdrawBalance,
+            withdrawAmount: withdrawAmountU,
+            tokenSnapshot: tokenSnapshot
+        )
 
-        switch direction {
-            case FlowALPModels.BalanceDirection.Debit:
-                // No collateral for the withdrawn token — the withdrawal creates additional debt.
-                let additionalDebt = (withdrawAmountU * withdrawPrice) / withdrawBorrowFactor
-                newEffectiveDebt = (newEffectiveDebt ?? 0.0) + additionalDebt
-
-            case FlowALPModels.BalanceDirection.Credit:
-                // The user has a collateral position in the given token.
-                let trueCollateral = FlowALPMath.scaledBalanceToTrueBalance(
-                    scaledBalance,
-                    interestIndex: withdrawCreditInterestIndex
-                )
-                if trueCollateral >= withdrawAmountU {
-                    // Withdrawal draws down collateral without creating debt.
-                    let collateralDecrease = (withdrawAmountU * withdrawPrice) * withdrawCollateralFactor
-                    newEffectiveCollateral = (newEffectiveCollateral ?? 0.0) - collateralDecrease
-                } else {
-                    // Withdrawal wipes out all collateral and creates some debt.
-                    let existingCollateral = (trueCollateral * withdrawPrice) * withdrawCollateralFactor
-                    newEffectiveCollateral = (newEffectiveCollateral ?? 0.0) - existingCollateral
-                    let additionalDebt = ((withdrawAmountU - trueCollateral) * withdrawPrice) / withdrawBorrowFactor
-                    newEffectiveDebt = (newEffectiveDebt ?? 0.0) + additionalDebt
-                }
+        // Compute new per-token effective values from the post-withdrawal true balance.
+        var newEffectiveCollateral: UFix128? = nil
+        var newEffectiveDebt: UFix128? = nil
+        if after.quantity > 0.0 {
+            switch after.direction {
+                case FlowALPModels.BalanceDirection.Credit:
+                    newEffectiveCollateral = tokenSnapshot.effectiveCollateral(creditBalance: after.quantity)
+                case FlowALPModels.BalanceDirection.Debit:
+                    newEffectiveDebt = tokenSnapshot.effectiveDebt(debitBalance: after.quantity)
+            }
         }
-
-        // Clean up zero/nil entries
-        if newEffectiveCollateral == 0.0 { newEffectiveCollateral = nil }
-        if newEffectiveDebt == 0.0 { newEffectiveDebt = nil }
 
         return balanceSheet.withUpdatedContributions(
             tokenType: withdrawType,
             effectiveCollateral: newEffectiveCollateral,
             effectiveDebt: newEffectiveDebt
         )
+    }
+
+    /// Computes the true balance (direction + amount) after a withdrawal.
+    ///
+    /// Starting from the current balance (credit or debit), subtracts the withdrawal amount.
+    /// If the position has credit, the withdrawal draws it down and may flip into debt.
+    /// If the position has debt (or no balance), the withdrawal increases debt.
+    access(self) fun trueBalanceAfterWithdrawal(
+        balance: FlowALPModels.InternalBalance?,
+        withdrawAmount: UFix128,
+        tokenSnapshot: FlowALPModels.TokenSnapshot
+    ): FlowALPModels.SignedQuantity {
+        let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Debit
+        let scaledBalance = balance?.scaledBalance ?? 0.0
+
+        switch direction {
+            case FlowALPModels.BalanceDirection.Debit:
+                // Currently in debt — withdrawal adds more debt.
+                let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
+                    scaledBalance, interestIndex: tokenSnapshot.debitIndex
+                )
+                return FlowALPModels.SignedQuantity(
+                    direction: FlowALPModels.BalanceDirection.Debit,
+                    quantity: trueDebt + withdrawAmount
+                )
+
+            case FlowALPModels.BalanceDirection.Credit:
+                // Currently has credit — withdrawal draws it down, possibly flipping to debt.
+                let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
+                    scaledBalance, interestIndex: tokenSnapshot.creditIndex
+                )
+                if trueCredit >= withdrawAmount {
+                    return FlowALPModels.SignedQuantity(
+                        direction: FlowALPModels.BalanceDirection.Credit,
+                        quantity: trueCredit - withdrawAmount
+                    )
+                } else {
+                    return FlowALPModels.SignedQuantity(
+                        direction: FlowALPModels.BalanceDirection.Debit,
+                        quantity: withdrawAmount - trueCredit
+                    )
+                }
+        }
+        panic("unreachable")
     }
 
     /// Computes the amount of a given token that must be deposited to bring a position to a target health.
