@@ -692,6 +692,22 @@ fun testEGovernance_PauseUnpause() {
     Test.assertEqual(1, Test.eventsOfType(Type<FlowALPEvents.PoolUnpaused>()).length)
 }
 
+/// Negative: no non-governance entitlement can call Pool.pausePool / unpausePool.
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_PauseUnpause_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_set_pool_paused.cdc",
+            [true],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    }
+}
+
 /// EGovernance cap allows Pool.addSupportedToken.
 /// FlowToken is not added in setup, so this exercises a fresh token addition.
 access(all)
@@ -709,6 +725,22 @@ fun testEGovernance_AddSupportedToken() {
     // Verify the token was added: deposit capacity cap should match the value passed in.
     let info = getDepositCapacityInfo(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
     Test.assertEqual(1_000_000.0, info["depositCapacityCap"]!)
+}
+
+/// Negative: no non-governance entitlement can call Pool.addSupportedToken.
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_AddSupportedToken_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_add_supported_token.cdc",
+            [FLOW_TOKEN_IDENTIFIER, 0.8, 0.8, 1_000_000.0, 1_000_000.0],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    }
 }
 
 /// EGovernance cap allows Pool.setInterestCurve.
@@ -731,6 +763,22 @@ fun testEGovernance_SetInterestCurve() {
     Test.assertEqual(0.05 as UFix128, yearlyRate)
 }
 
+/// Negative: no non-governance entitlement can call Pool.setInterestCurve.
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_SetInterestCurve_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_set_interest_curve.cdc",
+            [MOET_TOKEN_IDENTIFIER, 0.05 as UFix128],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    }
+}
+
 /// EGovernance cap allows Pool.setInsuranceRate.
 /// Uses rate=0.0 because a non-zero rate requires an insurance swapper to be configured;
 /// a zero rate still exercises the EGovernance entitlement check without that prerequisite.
@@ -748,6 +796,23 @@ fun testEGovernance_SetInsuranceRate() {
     Test.assertEqual(0.0, getInsuranceRate(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)!)
 }
 
+/// Negative: ERebalance cap cannot call Pool.setInsuranceRate (EGovernance required).
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_SetInsuranceRate_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser,ePositionAdminUser,eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_set_insurance_rate.cdc",
+            [MOET_TOKEN_IDENTIFIER, 0.0],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    } 
+    
+}
+
 /// EGovernance cap allows Pool.setStabilityFeeRate.
 access(all)
 fun testEGovernance_SetStabilityFeeRate() {
@@ -761,6 +826,22 @@ fun testEGovernance_SetStabilityFeeRate() {
     Test.expect(result, Test.beSucceeded())
     // Verify the new rate was stored (changed from default 0.0).
     Test.assertEqual(0.05, getStabilityFeeRate(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)!)
+}
+
+/// Negative: no non-governance entitlement can call Pool.setStabilityFeeRate.
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_SetStabilityFeeRate_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_set_stability_fee_rate.cdc",
+            [MOET_TOKEN_IDENTIFIER, 0.05],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    }
 }
 
 /// EGovernance cap allows Pool.setLiquidationParams (via borrowConfig).
@@ -781,6 +862,22 @@ fun testEGovernance_SetLiquidationParams() {
     Test.assertEqual(1.05 as UFix128, liqParams.targetHF)
 }
 
+/// Negative: no non-governance entitlement can call Pool.borrowConfig / setLiquidationTargetHF.
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_SetLiquidationParams_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_set_liquidation_params.cdc",
+            [1.05 as UFix128],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    }
+}
+
 /// EGovernance cap allows Pool.setPauseParams (via borrowConfig).
 access(all)
 fun testEGovernance_SetPauseParams() {
@@ -792,6 +889,22 @@ fun testEGovernance_SetPauseParams() {
         eGovernanceUser
     )
     Test.expect(result, Test.beSucceeded())
+}
+
+/// Negative: no non-governance entitlement can call Pool.borrowConfig / setWarmupSec.
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_SetPauseParams_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_set_pause_params.cdc",
+            [300 as UInt64],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    }
 }
 
 /// EGovernance cap allows Pool.setDepositLimitFraction.
@@ -806,6 +919,22 @@ fun testEGovernance_SetDepositLimitFraction() {
     )
     Test.expect(result, Test.beSucceeded())
     Test.assertEqual(getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)["depositLimitFraction"]!, 0.10)
+}
+
+/// Negative: no non-governance entitlement can call Pool.setDepositLimitFraction.
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_SetDepositLimitFraction_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_set_deposit_limit_fraction.cdc",
+            [MOET_TOKEN_IDENTIFIER, 0.10],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    }
 }
 
 /// EGovernance cap allows Pool.collectInsurance.
@@ -827,6 +956,22 @@ fun testEGovernance_CollectInsurance() {
     )
 }
 
+/// Negative: no non-governance entitlement can call Pool.collectInsurance.
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_CollectInsurance_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_collect_insurance.cdc",
+            [MOET_TOKEN_IDENTIFIER],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    }
+}
+
 /// EGovernance cap allows Pool.collectStability.
 /// No stability fees have accrued (zero stability rate), but the call itself is valid.
 access(all)
@@ -846,6 +991,22 @@ fun testEGovernance_CollectStability() {
     )
 }
 
+/// Negative: no non-governance entitlement can call Pool.collectStability.
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_CollectStability_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_collect_stability.cdc",
+            [MOET_TOKEN_IDENTIFIER],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    }
+}
+
 /// EGovernance cap allows Pool.setDEX (via borrowConfig).
 /// Uses MockDexSwapper.SwapperProvider as the DEX implementation.
 access(all)
@@ -860,6 +1021,22 @@ fun testEGovernance_SetDEX() {
     Test.expect(result, Test.beSucceeded())
 }
 
+/// Negative: no non-governance entitlement can call Pool.borrowConfig / setDex.
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_SetDEX_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_set_dex.cdc",
+            [],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    }
+}
+
 /// EGovernance cap allows Pool.setPriceOracle.
 /// Uses MockOracle.PriceOracle whose unitOfAccount matches the pool's default token (MOET).
 access(all)
@@ -872,6 +1049,22 @@ fun testEGovernance_SetPriceOracle() {
         eGovernanceUser
     )
     Test.expect(result, Test.beSucceeded())
+}
+
+/// Negative: no non-governance entitlement can call Pool.setPriceOracle.
+/// The transaction fails at Cadence check time (type error).
+access(all)
+fun testEGovernance_SetPriceOracle_NonGovernanceUserFails() {
+    safeReset()
+
+    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+        let result = _executeTransaction(
+            "../tests/transactions/flow-alp/egovernance/neg_set_oracle.cdc",
+            [],
+            user
+        )
+        Test.expect(result, Test.beFailed())
+    }
 }
 
 // =============================================================================
