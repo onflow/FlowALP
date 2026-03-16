@@ -562,6 +562,7 @@ access(all) contract FlowALPv0 {
                 self.isTokenSupported(tokenType: debtType): "Debt token type unsupported: \(debtType.identifier)"
                 self.isTokenSupported(tokenType: seizeType): "Collateral token type unsupported: \(seizeType.identifier)"
                 debtType == repayment.getType(): "Repayment vault does not match debt type: \(debtType.identifier)!=\(repayment.getType().identifier)"
+                debtType != seizeType: "Debt and seize types must be different"
                 // TODO(jord): liquidation paused / post-pause warm
             }
             post {
