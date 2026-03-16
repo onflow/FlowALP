@@ -11,44 +11,46 @@ import "DummyConnectors"
 ///   Pool.depositToPosition
 ///
 /// Uses the cap stored at FlowALPv0.PoolCapStoragePath.
-///
-/// NOTE: All logic is in prepare because @Position resources cannot be stored as
-/// transaction fields, and execute has no storage access. The prepare-only pattern
-/// is correct by necessity for resource-creating transactions.
 transaction {
+    let pool: auth(FlowALPModels.EParticipant) &FlowALPv0.Pool
+    let vault: auth(FungibleToken.Withdraw) &MOET.Vault
+    let manager: auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager
+
     prepare(signer: auth(BorrowValue, Storage) &Account) {
         let cap = signer.storage.borrow<&Capability<auth(FlowALPModels.EParticipant) &FlowALPv0.Pool>>(
             from: FlowALPv0.PoolCapStoragePath
         ) ?? panic("EParticipant-only capability not found")
 
-        let pool = cap.borrow() ?? panic("Could not borrow Pool with EParticipant")
+        self.pool = cap.borrow() ?? panic("Could not borrow Pool with EParticipant")
 
-        let vault = signer.storage.borrow<auth(FungibleToken.Withdraw) &MOET.Vault>(from: MOET.VaultStoragePath)
+        self.vault = signer.storage.borrow<auth(FungibleToken.Withdraw) &MOET.Vault>(from: MOET.VaultStoragePath)
             ?? panic("No MOET vault")
 
-        // Ensure PositionManager exists (plain borrow is sufficient for addPosition)
+        // Ensure PositionManager exists
         if signer.storage.borrow<&FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath) == nil {
             let manager <- FlowALPv0.createPositionManager()
             signer.storage.save(<-manager, to: FlowALPv0.PositionStoragePath)
         }
-        let manager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(
+        self.manager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(
             from: FlowALPv0.PositionStoragePath
         ) ?? panic("No PositionManager")
+    }
 
-        let funds <- vault.withdraw(amount: 5.0)
+    execute {
+        let funds <- self.vault.withdraw(amount: 5.0)
 
         // createPosition — requires EParticipant
-        let position <- pool.createPosition(
+        let position <- self.pool.createPosition(
             funds: <-funds,
             issuanceSink: DummyConnectors.DummySink(),
             repaymentSource: nil,
             pushToDrawDownSink: false
         )
         let pid = position.id
-        manager.addPosition(position: <-position)
+        self.manager.addPosition(position: <-position)
 
         // depositToPosition — requires EParticipant
-        let moreFunds <- vault.withdraw(amount: 1.0)
-        pool.depositToPosition(pid: pid, from: <-moreFunds)
+        let moreFunds <- self.vault.withdraw(amount: 1.0)
+        self.pool.depositToPosition(pid: pid, from: <-moreFunds)
     }
 }

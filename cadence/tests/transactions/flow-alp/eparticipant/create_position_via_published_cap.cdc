@@ -9,16 +9,16 @@ import "DummyConnectors"
 /// Verifies that a Pool borrow with auth(EParticipant, EPosition) allows
 /// Pool.createPosition and Pool.depositToPosition, creating a PositionManager
 /// if one does not already exist. Used after the publish→claim beta cap flow.
-///
-/// NOTE: All logic is in prepare because @Position resources cannot be stored as
-/// transaction fields, and execute has no storage access. The prepare-only pattern
-/// is correct by necessity for resource-creating transactions.
 transaction {
+    let pool: auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool
+    let moetVault: auth(FungibleToken.Withdraw) &MOET.Vault
+    let manager: auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager
+
     prepare(admin: auth(BorrowValue, Storage) &Account) {
-        let pool = admin.storage.borrow<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
+        self.pool = admin.storage.borrow<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
             ?? panic("Could not borrow Pool with EParticipant+EPosition entitlement")
 
-        let moetVault = admin.storage.borrow<auth(FungibleToken.Withdraw) &MOET.Vault>(from: MOET.VaultStoragePath)
+        self.moetVault = admin.storage.borrow<auth(FungibleToken.Withdraw) &MOET.Vault>(from: MOET.VaultStoragePath)
             ?? panic("Could not borrow MOET vault")
 
         // Ensure PositionManager exists
@@ -26,24 +26,25 @@ transaction {
             let manager <- FlowALPv0.createPositionManager()
             admin.storage.save(<-manager, to: FlowALPv0.PositionStoragePath)
         }
+        self.manager = admin.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath)!
+    }
 
+    execute {
         // Pool.createPosition — requires EParticipant
-        let funds <- moetVault.withdraw(amount: 1.0)
-        let position <- pool.createPosition(
+        let funds <- self.moetVault.withdraw(amount: 1.0)
+        let position <- self.pool.createPosition(
             funds: <-funds,
             issuanceSink: DummyConnectors.DummySink(),
             repaymentSource: nil,
             pushToDrawDownSink: false
         )
-
         let pid = position.id
 
         // Add position to manager
-        let manager = admin.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath)!
-        manager.addPosition(position: <-position)
+        self.manager.addPosition(position: <-position)
 
         // Pool.depositToPosition — requires EParticipant
-        let moreFunds <- moetVault.withdraw(amount: 1.0)
-        pool.depositToPosition(pid: pid, from: <-moreFunds)
+        let moreFunds <- self.moetVault.withdraw(amount: 1.0)
+        self.pool.depositToPosition(pid: pid, from: <-moreFunds)
     }
 }

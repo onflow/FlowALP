@@ -4,7 +4,7 @@ import "MetadataViews"
 
 import "FlowALPv0"
 
-/// Attempt to liquidation a position by repaying `repayAmount`.
+/// Attempt to liquidate a position by repaying `repayAmount`.
 /// This TESTING-ONLY transaction allows specifying a different repayment vault type.
 ///
 /// debtVaultIdentifier: e.g., Type<@MOET.Vault>().identifier
