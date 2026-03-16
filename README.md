@@ -36,7 +36,7 @@
 
 ## 🏦 About FlowALP
 
-FlowALP is a decentralized lending and borrowing protocol built on the Flow blockchain. This repository contains the v1 Cadence implementation deployed as the `FlowALPv0` contract. It is token-agnostic (operates over any `FungibleToken.Vault`) and integrates with DeFi Actions for composability.
+FlowALP is a decentralized lending and borrowing protocol built on the Flow blockchain. This repository contains the current Cadence implementation deployed as the `FlowALPv0` contract. It is token-agnostic (operates over any `FungibleToken.Vault`) and integrates with DeFi Actions for composability.
 
 ### Key Features
 

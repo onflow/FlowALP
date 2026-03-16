@@ -1,5 +1,6 @@
 import "FungibleToken"
 import "FlowALPv0"
+import "FlowALPPositionResources"
 import "FlowALPModels"
 import "MOET"
 import "DummyConnectors"
@@ -12,7 +13,7 @@ import "DummyConnectors"
 transaction {
     let pool: auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool
     let moetVault: auth(FungibleToken.Withdraw) &MOET.Vault
-    let manager: auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager
+    let manager: auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager
 
     prepare(admin: auth(BorrowValue, Storage) &Account) {
         self.pool = admin.storage.borrow<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
@@ -22,11 +23,11 @@ transaction {
             ?? panic("Could not borrow MOET vault")
 
         // Ensure PositionManager exists
-        if admin.storage.borrow<&FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath) == nil {
+        if admin.storage.borrow<&FlowALPPositionResources.PositionManager>(from: FlowALPv0.PositionStoragePath) == nil {
             let manager <- FlowALPv0.createPositionManager()
             admin.storage.save(<-manager, to: FlowALPv0.PositionStoragePath)
         }
-        self.manager = admin.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(from: FlowALPv0.PositionStoragePath)!
+        self.manager = admin.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>(from: FlowALPv0.PositionStoragePath)!
     }
 
     execute {

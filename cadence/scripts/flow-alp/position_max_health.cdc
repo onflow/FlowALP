@@ -1,4 +1,5 @@
 import "FlowALPv0"
+import "FlowALPPositionResources"
 
 /// Returns the maximum health for the given position.
 ///
@@ -7,7 +8,7 @@ import "FlowALPv0"
 access(all)
 fun main(positionOwner: Address, pid: UInt64): UFix64 {
     let manager = getAccount(positionOwner).capabilities
-        .borrow<&FlowALPv0.PositionManager>(FlowALPv0.PositionPublicPath)
+        .borrow<&FlowALPPositionResources.PositionManager>(FlowALPv0.PositionPublicPath)
         ?? panic("Could not borrow PositionManager from \(positionOwner) at \(FlowALPv0.PositionPublicPath)")
     return manager.borrowPosition(pid: pid).getMaxHealth()
 }

@@ -1,5 +1,6 @@
 import "FungibleToken"
 import "FlowALPv0"
+import "FlowALPPositionResources"
 import "FlowALPModels"
 import "MOET"
 import "DummyConnectors"
@@ -16,7 +17,7 @@ import "DummyConnectors"
 transaction {
     let pool: auth(FlowALPModels.EParticipant) &FlowALPv0.Pool
     let moetVault: auth(FungibleToken.Withdraw) &MOET.Vault
-    let manager: auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager
+    let manager: auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager
 
     prepare(signer: auth(BorrowValue, Storage) &Account) {
         // Direct borrow since signer owns the pool
@@ -26,7 +27,7 @@ transaction {
         self.moetVault = signer.storage.borrow<auth(FungibleToken.Withdraw) &MOET.Vault>(from: MOET.VaultStoragePath)
             ?? panic("Could not borrow MOET vault")
 
-        self.manager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(
+        self.manager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>(
             from: FlowALPv0.PositionStoragePath
         ) ?? panic("Could not borrow PositionManager with EPositionAdmin entitlement")
     }

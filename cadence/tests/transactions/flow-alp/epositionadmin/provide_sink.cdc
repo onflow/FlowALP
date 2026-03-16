@@ -1,5 +1,6 @@
-import "DeFiActions"
 import "FlowALPv0"
+import "DeFiActions"
+import "FlowALPPositionResources"
 import "FlowALPModels"
 import "DummyConnectors"
 
@@ -11,10 +12,10 @@ import "DummyConnectors"
 ///
 /// @param pid: The position ID whose sink should be configured
 transaction(pid: UInt64) {
-    let position: auth(FlowALPModels.EPositionAdmin) &FlowALPv0.Position
+    let position: auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.Position
 
     prepare(signer: auth(BorrowValue) &Account) {
-        let manager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPv0.PositionManager>(
+        let manager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>(
             from: FlowALPv0.PositionStoragePath
         ) ?? panic("Could not borrow PositionManager with EPositionAdmin entitlement")
 

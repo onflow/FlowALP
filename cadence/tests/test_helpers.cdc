@@ -144,6 +144,20 @@ fun deployContracts() {
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
+        name: "FlowALPHealth",
+        path: "../contracts/FlowALPHealth.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowALPPositionResources",
+        path: "../contracts/FlowALPPositionResources.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
         name: "FlowALPv0",
         path: "../contracts/FlowALPv0.cdc",
         arguments: []
@@ -154,6 +168,20 @@ fun deployContracts() {
         name: "MockOracle",
         path: "../contracts/mocks/MockOracle.cdc",
         arguments: [Type<@MOET.Vault>().identifier]
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "MultiMockOracle",
+        path: "./contracts/MultiMockOracle.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "PriceOracleAggregatorv1",
+        path: "../contracts/PriceOracleAggregatorv1.cdc",
+        arguments: []
     )
     Test.expect(err, Test.beNil())
 
@@ -235,6 +263,34 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "PriceOracleRouterv1",
+        path: "../contracts/PriceOracleRouterv1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "OracleStorage",
+        path: "./contracts/OracleStorage.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "ExampleToken1",
+        path: "./contracts/ExampleToken1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "ExampleToken2",
+        path: "./contracts/ExampleToken2.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 }
 
 /* --- Script Helpers --- */
@@ -278,6 +334,15 @@ fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALPModels.PositionDetai
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
     return res.returnValue as! FlowALPModels.PositionDetails
+}
+
+access(all)
+fun getQueuedDeposits(pid: UInt64, beFailed: Bool): {Type: UFix64} {
+    let res = _executeScript("../scripts/flow-alp/get_queued_deposits.cdc",
+            [pid]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! {Type: UFix64}
 }
 
 access(all)
@@ -778,7 +843,7 @@ fun collectStability(
         [ tokenTypeIdentifier ],
         signer
     )
-    
+
     return res
 }
 
@@ -795,7 +860,7 @@ fun withdrawStabilityFund(
         [tokenTypeIdentifier, amount, recipient, recipientPath],
         signer
     )
-    
+
     return res
 }
 
