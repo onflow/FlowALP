@@ -102,6 +102,7 @@ access(all) contract FlowALPHealth {
 
     /// Computes the amount of a given token that must be deposited to bring a position to a target health.
     ///
+    // TODO(jord): ~100-line function - consider refactoring
     /// This function handles the case where the deposit token may have an existing debit (debt) balance.
     /// If so, the deposit first pays down debt before accumulating as collateral. The computation
     /// determines the minimum deposit required to reach the target health, accounting for both
@@ -184,6 +185,7 @@ access(all) contract FlowALPHealth {
         }
 
         let healthChangeU = targetHealth - healthAfterWithdrawal
+        // TODO: apply the same logic as below to the early return blocks above
         let requiredEffectiveCollateral = (healthChangeU * effectiveDebtAfterWithdrawal) / depositCollateralFactor
 
         let collateralTokenCount = requiredEffectiveCollateral / depositPrice
@@ -294,6 +296,7 @@ access(all) contract FlowALPHealth {
         panic("unreachable")
     }
 
+    // TODO(jord): ~100-line function - consider refactoring
     /// Computes the maximum amount of a given token that can be withdrawn while maintaining a target health.
     ///
     /// @param withdrawBalance: The position's existing balance for the withdrawn token, if any

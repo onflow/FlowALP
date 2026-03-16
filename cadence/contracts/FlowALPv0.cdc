@@ -693,6 +693,7 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        // TODO: documentation
         access(self) fun computeAdjustedBalancesAfterWithdrawal(
             balanceSheet: FlowALPModels.BalanceSheet,
             position: &{FlowALPModels.InternalPosition},
@@ -719,6 +720,8 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        // TODO(jord): ~100-line function - consider refactoring
+        // TODO: documentation
         access(self) fun computeRequiredDepositForHealth(
             position: &{FlowALPModels.InternalPosition},
             depositType: Type,
@@ -798,6 +801,7 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        // Helper function to compute balances after deposit
         access(self) fun computeAdjustedBalancesAfterDeposit(
             balanceSheet: FlowALPModels.BalanceSheet,
             position: &{FlowALPModels.InternalPosition},
@@ -824,6 +828,8 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        // Helper function to compute available withdrawal
+        // TODO(jord): ~100-line function - consider refactoring
         access(self) fun computeAvailableWithdrawal(
             position: &{FlowALPModels.InternalPosition},
             withdrawType: Type,
@@ -1919,6 +1925,7 @@ access(all) contract FlowALPv0 {
         access(self) fun _getUpdatedBalanceSheet(pid: UInt64): FlowALPModels.BalanceSheet {
             let position = self._borrowPosition(pid: pid)
 
+            // Get the position's collateral and debt values in terms of the default token.
             var effectiveCollateralByToken: {Type: UFix128} = {}
             var effectiveDebtByToken: {Type: UFix128} = {}
 
