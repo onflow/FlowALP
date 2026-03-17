@@ -2115,16 +2115,8 @@ access(all) contract FlowALPv0 {
                 return nil
             }
 
-            let reserveVaultBalance = reserveVault.balance
-            if reserveVaultBalance == 0.0 {
-                tokenState.setLastInsuranceCollectionTime(currentTime)
-                return nil
-            }
-
-
-            if insuranceAmountUFix64 > reserveVaultBalance {
+            if insuranceAmountUFix64 > reserveVault.balance {
                 // do not collect the insurance fee if the reserve doesn't have enough tokens to cover the full amount 
-                tokenState.setLastInsuranceCollectionTime(currentTime)
                 return nil
             } else {    
                 let insuranceVault <- reserveVault.withdraw(amount: insuranceAmountUFix64)
@@ -2171,18 +2163,12 @@ access(all) contract FlowALPv0 {
                 return nil
             }
 
-            let reserveVaultBalance = reserveVault.balance
-            if reserveVaultBalance == 0.0 {
-                tokenState.setLastStabilityFeeCollectionTime(currentTime)
-                return nil
-            }
-
-            tokenState.setLastStabilityFeeCollectionTime(currentTime)
-            if stabilityAmountUFix64 > reserveVaultBalance {
+            if stabilityAmountUFix64 > reserveVault.balance {
                 // do not collect the stability fee if the reserve doesn't have enough tokens to cover the full amount 
                 return nil
             } else {    
                 let stabilityVault <- reserveVault.withdraw(amount: stabilityAmountUFix64)
+                tokenState.setLastStabilityFeeCollectionTime(currentTime)
                 return <-stabilityVault
             }
         }
