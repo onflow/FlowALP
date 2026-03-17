@@ -98,13 +98,12 @@ fun test_collectInsurance_zeroDebitBalance_returnsNil() {
 }
 
 // -----------------------------------------------------------------------------
-// Test: collectInsurance only collects up to available reserve balance
-// When calculated insurance amount exceeds reserve balance, it collects
-// only what is available. Verify exact amount withdrawn from reserves.
-// Note: Insurance is calculated on debit income (interest accrued on debit balance)
+// Test: collectInsurance does not collect when reserves are insufficient
+// If the calculated insurance fee exceeds the reserve balance,
+// no insurance fee should be collected and reserves remain unchanged.
 // -----------------------------------------------------------------------------
 access(all)
-fun test_collectInsurance_partialReserves_collectsAvailable() {
+fun test_collectInsurance_insufficientReserves() {
     // setup LP to provide MOET liquidity for borrowing (small amount to create limited reserves)
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
@@ -143,20 +142,24 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     let initialInsuranceBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialInsuranceBalance)
 
+    let reserveBalanceBefore = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    let lastCollectionTimeBefore = getLastInsuranceCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
+
     Test.moveTime(by: ONE_YEAR + DAY * 30.0) // year + month
 
-    // collect insurance - should collect up to available reserve balance
+    // should not collect because reserves are insufficient
     collectInsurance(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     let finalInsuranceBalance = getInsuranceFundBalance()
     let reserveBalanceAfter = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    let lastCollectionTimeAfter = getLastStabilityCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
 
-    // with 1:1 swap ratio, insurance fund balance should equal amount withdrawn from reserves
-    Test.assertEqual(0.0, reserveBalanceAfter)
+    Test.assertEqual(0.0, finalInsuranceBalance)
+    Test.assertEqual(reserveBalanceBefore, reserveBalanceAfter)
 
-    // verify collection was limited by reserves
-    // Formula: 90% debit income -> 90% insurance rate -> large insurance amount, but limited by available reserves
-    Test.assertEqual(1000.0, finalInsuranceBalance)
+    // time should not change
+    Test.assertEqual(lastCollectionTimeBefore, lastCollectionTimeAfter)
+
 }
 
 // -----------------------------------------------------------------------------
