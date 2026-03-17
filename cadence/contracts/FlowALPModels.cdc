@@ -1514,6 +1514,14 @@ access(all) contract FlowALPModels {
             }
         }
 
+        /// NOTE: For all {decrease,increase}{Credit,Debit}Balance functions below:
+        /// If a deposit flips a position direction from debit to credit, the debt removal and credit addition must be applied as separate operations.
+        /// (The same requirement holds in reverse for a withdrawal flipping a credit balance to a debit balance.)
+        ///
+        /// For example, if a position has a debit balance of 100FLOW, then deposits 150FLOW, we MUST do:
+        ///  - decreaseDebitBalance(by: 100)
+        ///  - increaseCreditBalance(by: 50)
+
         /// Increases total non-interest-adjusted credit balance and recalculates interest rates.
         /// This function MUST be called each time a creditor's balance increases (deposit).
         /// The amount parameter must be equal to the amount of the deposit.
