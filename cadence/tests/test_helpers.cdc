@@ -458,6 +458,13 @@ fun getIsLiquidatable(pid: UInt64): Bool {
     return res.returnValue as! Bool
 }
 
+access(all)
+fun getTotalCreditBalance(vaultIdentifier: String): UFix128 {
+    let res = _executeScript("../scripts/flow-alp/get_total_credit_balance.cdc", [vaultIdentifier])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix128
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)

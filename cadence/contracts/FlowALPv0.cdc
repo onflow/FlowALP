@@ -327,6 +327,24 @@ access(all) contract FlowALPv0 {
             return self.state.getInsuranceFundBalance()
         }
 
+        /// Returns the total credit balance for a given token type.
+        /// Returns nil if the token type is not supported.
+        access(all) view fun getTotalCreditBalance(tokenType: Type): UFix128? {
+            if let tokenState = self.state.getTokenState(tokenType) {
+                return tokenState.getTotalCreditBalance()
+            }
+            return nil
+        }
+
+        /// Returns the total debit balance for a given token type.
+        /// Returns nil if the token type is not supported.
+        access(all) view fun getTotalDebitBalance(tokenType: Type): UFix128? {
+            if let tokenState = self.state.getTokenState(tokenType) {
+                return tokenState.getTotalDebitBalance()
+            }
+            return nil
+        }
+
         /// Returns the insurance rate for a given token type
         access(all) view fun getInsuranceRate(tokenType: Type): UFix64? {
             if let tokenState = self.state.getTokenState(tokenType) {
