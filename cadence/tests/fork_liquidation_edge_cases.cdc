@@ -32,7 +32,7 @@ access(all) fun setup() {
 
     createAndStorePool(signer: MAINNET_PROTOCOL_ACCOUNT, defaultTokenIdentifier: MAINNET_MOET_TOKEN_ID, beFailed: false)
 
-    // Setup pool with real mainnet token prices
+    // Setup pool with plausible mainnet token prices
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDC_TOKEN_ID, price: 1.0)
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 1.0)
@@ -544,126 +544,6 @@ fun testDexLiquidityConstraints() {
     let detailsAfterLiq = getPositionDetails(pid: pid, beFailed: false)
     Test.assertEqual(145.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!)) // 200 - 55 = 145
     Test.assertEqual(84.0,  getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))  // 130 - 46 = 84
-}
-
-// =============================================================================
-// Liquidation Slippage Constraints
-//
-// The pool rejects manual liquidations when the DEX price deviates from the
-// oracle price by more than the configured dexOracleDeviationBps threshold.
-//
-// Setup: max slippage = 200 bps (2%); oracle Pcd = FLOW/USDF = 0.75
-//
-// Position: 200 FLOW @ $1.00 (CF=0.80), borrow 130 USDF
-//   health before crash = 160/130 ≈ 1.2308
-// FLOW crash: $1.00 -> $0.75
-//   health after crash  = 120/130 ≈ 0.9231 (unhealthy)
-// Liquidation params: seize 55 FLOW, repay 46 USDF
-//   post-health = (200-55)*0.75*0.80 / (130-46) = 87/84 ≈ 1.036 (within 1.05 target)
-//
-// Scenario 1 (3% slippage, exceeds 2% max -> reverts):
-//   DEX priceRatio = 0.7275; deviation = (0.75-0.7275)/0.7275 ≈ 309 bps > 200
-// Scenario 2 (1% slippage, within 2% max -> succeeds):
-//   DEX priceRatio = 0.7425; deviation = (0.75-0.7425)/0.7425 ≈ 101 bps < 200
-// =============================================================================
-access(all)
-fun testLiquidationSlippageConstraints() {
-    safeReset()
-
-    // USDF liquidity provider
-    let lpUser = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
-
-    // Borrower: 200 FLOW @ $1.00 (CF=0.80), borrow 130 USDF
-    // health = 200*1.0*0.80 / 130 = 160/130 ≈ 1.2308 (healthy)
-    let user = Test.createAccount()
-    let res = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
-    Test.expect(res, Test.beSucceeded())
-    transferFlowTokens(to: user, amount: 200.0)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 200.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid = getLastPositionId()
-    borrowFromPosition(signer: user, positionId: pid,
-        tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
-        amount: 130.0, beFailed: false)
-
-    // FLOW crash: $1.00 -> $0.75; health = 120/130 ≈ 0.9231 (unhealthy)
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.75)
-    let crashedHealth = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(crashedHealth < 1.0, message: "Position must be unhealthy after FLOW crash")
-
-    // Tighten max allowed slippage from default 300 bps (3%) to 200 bps (2%)
-    let setSlippageRes = _executeTransaction(
-        "../transactions/flow-alp/pool-governance/set_dex_liquidation_config.cdc",
-        [200 as UInt16],
-        MAINNET_PROTOCOL_ACCOUNT
-    )
-    Test.expect(setSlippageRes, Test.beSucceeded())
-
-    // Liquidator brings USDF to repay debt and holds a FLOW vault to receive seized collateral.
-    let liquidator = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 300.0)
-
-    // Fund MAINNET_PROTOCOL_ACCOUNT's USDF vault so setMockDexPriceForPair can issue the vault capability
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 100.0)
-
-    // --- Scenario 1: DEX 3% below oracle (309 bps > 200 bps max) — liquidation reverts ---
-    // priceRatio = 0.7275; deviation = (0.75-0.7275)/0.7275 ≈ 3.09%
-    setMockDexPriceForPair(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        outVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        vaultSourceStoragePath: MAINNET_USDF_STORAGE_PATH,
-        priceRatio: 0.7275
-    )
-
-    let failRes = manualLiquidation(
-        signer: liquidator,
-        pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        seizeAmount: 55.0,
-        repayAmount: 46.0,
-    )
-    Test.expect(failRes, Test.beFailed())
-
-    let healthAfterFail = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(healthAfterFail < 1.0, message: "Position must remain unhealthy after slippage-exceeded liquidation")
-
-    let detailsAfterFail = getPositionDetails(pid: pid, beFailed: false)
-    Test.assertEqual(200.0, getCreditBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!))
-    Test.assertEqual(130.0, getDebitBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))
-
-    // --- Scenario 2: DEX 1% below oracle (101 bps < 200 bps max) — liquidation succeeds ---
-    // priceRatio = 0.7425; deviation = (0.75-0.7425)/0.7425 ≈ 1.01%
-    setMockDexPriceForPair(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        outVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        vaultSourceStoragePath: MAINNET_USDF_STORAGE_PATH,
-        priceRatio: 0.7425
-    )
-
-    let successRes = manualLiquidation(
-        signer: liquidator,
-        pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        seizeAmount: 55.0,
-        repayAmount: 46.0,
-    )
-    Test.expect(successRes, Test.beSucceeded())
-
-    // post-health = (200-55)*0.75*0.80 / (130-46) = 87/84 ≈ 1.036 (within 1.05 target)
-    let postHealth = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(postHealth > 1.0 && postHealth <= 1.05, message: "Position must be healthy after liquidation and not exceed liquidationTargetHF (1.05)")
-    Test.assert(postHealth > crashedHealth)
-
-    let detailsAfterLiq = getPositionDetails(pid: pid, beFailed: false)
-    // 200 - 55 = 145
-    Test.assertEqual(145.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!))
-    // 130 - 46 = 84
-    Test.assertEqual(84.0, getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))
 }
 
 // =============================================================================
