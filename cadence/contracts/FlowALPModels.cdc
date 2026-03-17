@@ -1327,7 +1327,7 @@ access(all) contract FlowALPModels {
             self.minimumTokenBalancePerPosition = minimum
         }
 
-        /// Sets the stability fee rate. See getStabilityFeeRate for additional details.
+        /// Sets the stability fee rate. See TokenState.setStabilityFeeRate.
         access(EImplementation) fun setStabilityFeeRate(_ rate: UFix64) {
             self.stabilityFeeRate = rate
         }
