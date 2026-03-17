@@ -37,22 +37,10 @@ access(all) contract FlowALPHealth {
             tokenSnapshot: tokenSnapshot
         )
 
-        // Compute new per-token effective values from the post-withdrawal true balance.
-        var newEffectiveCollateral: UFix128? = nil
-        var newEffectiveDebt: UFix128? = nil
-        if after.quantity > 0.0 {
-            switch after.direction {
-                case FlowALPModels.BalanceDirection.Credit:
-                    newEffectiveCollateral = tokenSnapshot.effectiveCollateral(creditBalance: after.quantity)
-                case FlowALPModels.BalanceDirection.Debit:
-                    newEffectiveDebt = tokenSnapshot.effectiveDebt(debitBalance: after.quantity)
-            }
-        }
-
-        return balanceSheet.withUpdatedContributions(
+        let effectiveBalance = tokenSnapshot.effectiveBalance(balance: after)
+        return balanceSheet.withReplacedTokenBalance(
             tokenType: withdrawType,
-            effectiveCollateral: newEffectiveCollateral,
-            effectiveDebt: newEffectiveDebt
+            effectiveBalance: effectiveBalance
         )
     }
 
@@ -261,22 +249,10 @@ access(all) contract FlowALPHealth {
             tokenSnapshot: tokenSnapshot
         )
 
-        // Compute new per-token effective values from the post-deposit true balance.
-        var newEffectiveCollateral: UFix128? = nil
-        var newEffectiveDebt: UFix128? = nil
-        if after.quantity > 0.0 {
-            switch after.direction {
-                case FlowALPModels.BalanceDirection.Credit:
-                    newEffectiveCollateral = tokenSnapshot.effectiveCollateral(creditBalance: after.quantity)
-                case FlowALPModels.BalanceDirection.Debit:
-                    newEffectiveDebt = tokenSnapshot.effectiveDebt(debitBalance: after.quantity)
-            }
-        }
-
-        return balanceSheet.withUpdatedContributions(
+        let effectiveBalance = tokenSnapshot.effectiveBalance(balance: after)
+        return balanceSheet.withReplacedTokenBalance(
             tokenType: depositType,
-            effectiveCollateral: newEffectiveCollateral,
-            effectiveDebt: newEffectiveDebt
+            effectiveBalance: effectiveBalance
         )
     }
 

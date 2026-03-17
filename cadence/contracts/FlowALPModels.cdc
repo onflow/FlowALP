@@ -370,6 +370,26 @@ access(all) contract FlowALPModels {
         access(all) view fun effectiveCollateral(creditBalance: UFix128): UFix128 {
             return FlowALPMath.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.getCollateralFactor())
         }
+
+        /// Returns the effective value (collateral or debt) for the given balance, based on its direction.
+        access(all) fun effectiveBalance(balance: Balance): Balance {
+            if balance.quantity == 0.0 {
+                return balance
+            }
+            switch balance.direction {
+                case BalanceDirection.Credit:
+                    return Balance(
+                        direction: BalanceDirection.Credit,
+                        quantity: self.effectiveCollateral(creditBalance: balance.quantity)
+                    )
+                case BalanceDirection.Debit:
+                    return Balance(
+                        direction: BalanceDirection.Debit,
+                        quantity: self.effectiveDebt(debitBalance: balance.quantity)
+                    )
+            }
+            panic("unreachable")
+        }
     }
 
     /// Copy-only representation of a position used by pure math (no storage refs)
@@ -524,25 +544,30 @@ access(all) contract FlowALPModels {
             return self.effectiveDebtByToken
         }
 
-        /// Returns a new BalanceSheet with one token's contributions replaced.
-        /// Pass nil to remove a token's entry from the corresponding map.
-        access(all) fun withUpdatedContributions(
+        /// Returns a new BalanceSheet with one token's effective balance replaced.
+        /// The balance direction determines whether the value goes into the collateral or debt map.
+        /// A zero-quantity balance removes the token from both maps.
+        access(all) fun withReplacedTokenBalance(
             tokenType: Type,
-            effectiveCollateral: UFix128?,
-            effectiveDebt: UFix128?
+            effectiveBalance: Balance
         ): BalanceSheet {
             let newCollateral = self.effectiveCollateralByToken
             let newDebt = self.effectiveDebtByToken
-            if let coll = effectiveCollateral {
-                newCollateral[tokenType] = coll
-            } else {
-                newCollateral.remove(key: tokenType)
+
+            // Remove old entries for this token from both maps
+            newCollateral.remove(key: tokenType)
+            newDebt.remove(key: tokenType)
+
+            // Add new entry based on direction (only if non-zero)
+            if effectiveBalance.quantity > 0.0 {
+                switch effectiveBalance.direction {
+                    case BalanceDirection.Credit:
+                        newCollateral[tokenType] = effectiveBalance.quantity
+                    case BalanceDirection.Debit:
+                        newDebt[tokenType] = effectiveBalance.quantity
+                }
             }
-            if let debt = effectiveDebt {
-                newDebt[tokenType] = debt
-            } else {
-                newDebt.remove(key: tokenType)
-            }
+
             return BalanceSheet(
                 effectiveCollateral: newCollateral,
                 effectiveDebt: newDebt
