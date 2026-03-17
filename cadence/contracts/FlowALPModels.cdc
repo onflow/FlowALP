@@ -1883,6 +1883,9 @@ access(all) contract FlowALPModels {
         /// Returns whether a queued deposit exists for the given token type
         access(all) view fun hasQueuedDeposit(_ type: Type): Bool
 
+        /// Returns the queued deposit balance for the given token type, or nil if none exists
+        access(all) view fun getQueuedDepositBalance(_ type: Type): UFix64?
+
         // --- Draw Down Sink ---
 
         /// Returns an authorized reference to the draw-down sink, or nil if none is configured.
@@ -2042,6 +2045,14 @@ access(all) contract FlowALPModels {
             return self.queuedDeposits[type] != nil
         }
 
+        /// Returns the queued deposit balance for the given token type, or nil if none exists.
+        access(all) view fun getQueuedDepositBalance(_ type: Type): UFix64? {
+            if let queued = &self.queuedDeposits[type] as &{FungibleToken.Vault}? {
+                return queued.balance
+            }
+            return nil
+        }
+
         // --- Draw Down Sink ---
 
         /// Returns an authorized reference to the draw-down sink, or nil if none is configured.
@@ -2071,6 +2082,49 @@ access(all) contract FlowALPModels {
         access(EImplementation) fun setTopUpSource(_ source: {DeFiActions.Source}?) {
             self.topUpSource = source
         }
+    }
+
+    /* --- POSITION POOL API --- */
+
+    /// PositionPool defines the subset of Pool functionality required by user-held Position wrappers.
+    /// This interface is intentionally narrow so Position resources can live outside the main ALP contract.
+    access(all) resource interface PositionPool {
+
+        /// Locks a position for mutation.
+        access(EPosition) fun lockPosition(_ pid: UInt64)
+
+        /// Unlocks a position after mutation.
+        access(EPosition) fun unlockPosition(_ pid: UInt64)
+
+        /// Returns details for a position.
+        access(all) fun getPositionDetails(pid: UInt64): PositionDetails
+
+        /// Returns currently available withdrawal capacity for a position/token pair.
+        access(all) fun availableBalance(pid: UInt64, type: Type, pullFromTopUpSource: Bool): UFix64
+
+        /// Returns current position health.
+        access(all) fun positionHealth(pid: UInt64): UFix128
+
+        /// Borrows an authorized internal position reference.
+        access(EPosition) view fun borrowPosition(pid: UInt64): auth(EImplementation) &{InternalPosition}
+
+        /// Deposits funds to a position and optionally pushes excess to draw-down sink.
+        access(EPosition) fun depositAndPush(
+            pid: UInt64,
+            from: @{FungibleToken.Vault},
+            pushToDrawDownSink: Bool
+        )
+
+        /// Withdraws funds from a position and optionally pulls deficit from top-up source.
+        access(EPosition) fun withdrawAndPull(
+            pid: UInt64,
+            type: Type,
+            amount: UFix64,
+            pullFromTopUpSource: Bool
+        ): @{FungibleToken.Vault}
+
+        /// Rebalances the specified position.
+        access(EPosition | ERebalance) fun rebalancePosition(pid: UInt64, force: Bool)
     }
 
     /// Factory function to create a new InternalPositionImplv1 resource.
