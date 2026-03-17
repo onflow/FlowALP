@@ -72,7 +72,7 @@ access(all) contract FlowALPModels {
         access(all) case Debit
     }
 
-    access(all) struct SignedQuantity {
+    access(all) struct Balance {
         /// The direction (sign) of this quantity.
         access(all) let direction: BalanceDirection
         /// The unsigned numeric value.
@@ -89,9 +89,6 @@ access(all) contract FlowALPModels {
     /// A structure used internally to track a position's balance for a particular token
     access(all) struct InternalBalance {
 
-        /// The current direction of the balance - Credit (owed to borrower) or Debit (owed to protocol)
-        access(all) var direction: BalanceDirection
-
         /// Internally, position balances are tracked using a "scaled balance".
         /// The "scaled balance" is the actual balance divided by the current interest index for the associated token.
         /// This means we don't need to update the balance of a position as time passes, even as interest rates change.
@@ -100,15 +97,15 @@ access(all) contract FlowALPModels {
         /// so the scaled balance will be roughly of the same order of magnitude as the actual balance.
         /// We store the scaled balance as UFix128 to align with UFix128 interest indices
         /// and to reduce rounding during true ↔ scaled conversions.
-        access(all) var scaledBalance: UFix128
+        /// The Balance includes the direction (Credit or Debit) and the unsigned scaled quantity.
+        access(all) var scaledBalance: Balance
 
         // Single initializer that can handle both cases
         init(
             direction: BalanceDirection,
             scaledBalance: UFix128
         ) {
-            self.direction = direction
-            self.scaledBalance = scaledBalance
+            self.scaledBalance = Balance(direction: direction, quantity: scaledBalance)
         }
 
         /// Records a deposit of the defined amount, updating the inner scaledBalance as well as relevant values
@@ -122,7 +119,7 @@ access(all) contract FlowALPModels {
         /// public deposit APIs accept UFix64 and are converted at the boundary.
         ///
         access(all) fun recordDeposit(amount: UFix128, tokenState: auth(EImplementation) &{TokenState}) {
-            switch self.direction {
+            switch self.scaledBalance.direction {
                 case BalanceDirection.Credit:
                     // Depositing into a credit position just increases the balance.
                     //
@@ -138,7 +135,10 @@ access(all) contract FlowALPModels {
                         interestIndex: tokenState.getCreditInterestIndex()
                     )
 
-                    self.scaledBalance = self.scaledBalance + scaledDeposit
+                    self.scaledBalance = Balance(
+                        direction: BalanceDirection.Credit,
+                        quantity: self.scaledBalance.quantity + scaledDeposit
+                    )
 
                     // Increase the total credit balance for the token
                     tokenState.increaseCreditBalance(by: amount)
@@ -148,7 +148,7 @@ access(all) contract FlowALPModels {
                     // to see if this deposit will flip the position from debit to credit.
 
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                        self.scaledBalance,
+                        self.scaledBalance.quantity,
                         interestIndex: tokenState.getDebitInterestIndex()
                     )
 
@@ -158,9 +158,12 @@ access(all) contract FlowALPModels {
                         // so we just decrement the debt.
                         let updatedBalance = trueBalance - amount
 
-                        self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
-                            updatedBalance,
-                            interestIndex: tokenState.getDebitInterestIndex()
+                        self.scaledBalance = Balance(
+                            direction: BalanceDirection.Debit,
+                            quantity: FlowALPMath.trueBalanceToScaledBalance(
+                                updatedBalance,
+                                interestIndex: tokenState.getDebitInterestIndex()
+                            )
                         )
 
                         // Decrease the total debit balance for the token
@@ -171,10 +174,12 @@ access(all) contract FlowALPModels {
                         // so we switch to a credit position.
                         let updatedBalance = amount - trueBalance
 
-                        self.direction = BalanceDirection.Credit
-                        self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
-                            updatedBalance,
-                            interestIndex: tokenState.getCreditInterestIndex()
+                        self.scaledBalance = Balance(
+                            direction: BalanceDirection.Credit,
+                            quantity: FlowALPMath.trueBalanceToScaledBalance(
+                                updatedBalance,
+                                interestIndex: tokenState.getCreditInterestIndex()
+                            )
                         )
 
                         // Increase the credit balance AND decrease the debit balance
@@ -195,7 +200,7 @@ access(all) contract FlowALPModels {
         /// public withdraw APIs are UFix64 and are converted at the boundary.
         ///
         access(all) fun recordWithdrawal(amount: UFix128, tokenState: auth(EImplementation) &{TokenState}) {
-            switch self.direction {
+            switch self.scaledBalance.direction {
                 case BalanceDirection.Debit:
                     // Withdrawing from a debit position just increases the debt amount.
                     //
@@ -211,7 +216,10 @@ access(all) contract FlowALPModels {
                         interestIndex: tokenState.getDebitInterestIndex()
                     )
 
-                    self.scaledBalance = self.scaledBalance + scaledWithdrawal
+                    self.scaledBalance = Balance(
+                        direction: BalanceDirection.Debit,
+                        quantity: self.scaledBalance.quantity + scaledWithdrawal
+                    )
 
                     // Increase the total debit balance for the token
                     tokenState.increaseDebitBalance(by: amount)
@@ -221,7 +229,7 @@ access(all) contract FlowALPModels {
                     // we first need to compute the true balance
                     // to see if this withdrawal will flip the position from credit to debit.
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                        self.scaledBalance,
+                        self.scaledBalance.quantity,
                         interestIndex: tokenState.getCreditInterestIndex()
                     )
 
@@ -230,9 +238,12 @@ access(all) contract FlowALPModels {
                         // so we just decrement the credit balance.
                         let updatedBalance = trueBalance - amount
 
-                        self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
-                            updatedBalance,
-                            interestIndex: tokenState.getCreditInterestIndex()
+                        self.scaledBalance = Balance(
+                            direction: BalanceDirection.Credit,
+                            quantity: FlowALPMath.trueBalanceToScaledBalance(
+                                updatedBalance,
+                                interestIndex: tokenState.getCreditInterestIndex()
+                            )
                         )
 
                         // Decrease the total credit balance for the token
@@ -242,10 +253,12 @@ access(all) contract FlowALPModels {
                         // so we switch to a debit position.
                         let updatedBalance = amount - trueBalance
 
-                        self.direction = BalanceDirection.Debit
-                        self.scaledBalance = FlowALPMath.trueBalanceToScaledBalance(
-                            updatedBalance,
-                            interestIndex: tokenState.getDebitInterestIndex()
+                        self.scaledBalance = Balance(
+                            direction: BalanceDirection.Debit,
+                            quantity: FlowALPMath.trueBalanceToScaledBalance(
+                                updatedBalance,
+                                interestIndex: tokenState.getDebitInterestIndex()
+                            )
                         )
 
                         // Decrease the credit balance AND increase the debit balance
@@ -393,13 +406,13 @@ access(all) contract FlowALPModels {
         access(all) view fun trueBalance(ofToken: Type): UFix128 {
             if let balance = self.balances[ofToken] {
                 if let tokenSnapshot = self.snapshots[ofToken] {
-                    switch balance.direction {
+                    switch balance.scaledBalance.direction {
                     case BalanceDirection.Debit:
                         return FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance, interestIndex: tokenSnapshot.getDebitIndex())
+                            balance.scaledBalance.quantity, interestIndex: tokenSnapshot.getDebitIndex())
                     case BalanceDirection.Credit:
                         return FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance, interestIndex: tokenSnapshot.getCreditIndex())
+                            balance.scaledBalance.quantity, interestIndex: tokenSnapshot.getCreditIndex())
                     }
                     panic("unreachable")
                 }
@@ -418,10 +431,10 @@ access(all) contract FlowALPModels {
             let balance = view.balances[tokenType]!
             let snap = view.snapshots[tokenType]!
 
-            switch balance.direction {
+            switch balance.scaledBalance.direction {
                 case BalanceDirection.Credit:
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                        balance.scaledBalance,
+                        balance.scaledBalance.quantity,
                         interestIndex: snap.getCreditIndex()
                     )
                     effectiveCollateralTotal = effectiveCollateralTotal
@@ -429,7 +442,7 @@ access(all) contract FlowALPModels {
 
                 case BalanceDirection.Debit:
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                        balance.scaledBalance,
+                        balance.scaledBalance.quantity,
                         interestIndex: snap.getDebitIndex()
                     )
                     effectiveDebtTotal = effectiveDebtTotal

@@ -65,9 +65,9 @@ access(all) contract FlowALPHealth {
         balance: FlowALPModels.InternalBalance?,
         withdrawAmount: UFix128,
         tokenSnapshot: FlowALPModels.TokenSnapshot
-    ): FlowALPModels.SignedQuantity {
-        let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Debit
-        let scaledBalance = balance?.scaledBalance ?? 0.0
+    ): FlowALPModels.Balance {
+        let direction = balance?.scaledBalance?.direction ?? FlowALPModels.BalanceDirection.Debit
+        let scaledBalance = balance?.scaledBalance?.quantity ?? 0.0
 
         switch direction {
             case FlowALPModels.BalanceDirection.Debit:
@@ -75,7 +75,7 @@ access(all) contract FlowALPHealth {
                 let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
                     scaledBalance, interestIndex: tokenSnapshot.debitIndex
                 )
-                return FlowALPModels.SignedQuantity(
+                return FlowALPModels.Balance(
                     direction: FlowALPModels.BalanceDirection.Debit,
                     quantity: trueDebt + withdrawAmount
                 )
@@ -86,12 +86,12 @@ access(all) contract FlowALPHealth {
                     scaledBalance, interestIndex: tokenSnapshot.creditIndex
                 )
                 if trueCredit >= withdrawAmount {
-                    return FlowALPModels.SignedQuantity(
+                    return FlowALPModels.Balance(
                         direction: FlowALPModels.BalanceDirection.Credit,
                         quantity: trueCredit - withdrawAmount
                     )
                 } else {
-                    return FlowALPModels.SignedQuantity(
+                    return FlowALPModels.Balance(
                         direction: FlowALPModels.BalanceDirection.Debit,
                         quantity: withdrawAmount - trueCredit
                     )
@@ -151,10 +151,10 @@ access(all) contract FlowALPHealth {
         // track of the number of tokens that went towards paying off debt.
         var debtTokenCount: UFix128 = 0.0
         let maybeBalance = depositBalance
-        if maybeBalance?.direction == FlowALPModels.BalanceDirection.Debit {
+        if maybeBalance?.scaledBalance?.direction == FlowALPModels.BalanceDirection.Debit {
             // The user has a debt position in the given token, we start by looking at the health impact of paying off
             // the entire debt.
-            let debtBalance = maybeBalance!.scaledBalance
+            let debtBalance = maybeBalance!.scaledBalance.quantity
             let trueDebtTokenCount = FlowALPMath.scaledBalanceToTrueBalance(
                 debtBalance,
                 interestIndex: depositDebitInterestIndex
@@ -289,9 +289,9 @@ access(all) contract FlowALPHealth {
         balance: FlowALPModels.InternalBalance?,
         depositAmount: UFix128,
         tokenSnapshot: FlowALPModels.TokenSnapshot
-    ): FlowALPModels.SignedQuantity {
-        let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Credit
-        let scaledBalance = balance?.scaledBalance ?? 0.0
+    ): FlowALPModels.Balance {
+        let direction = balance?.scaledBalance?.direction ?? FlowALPModels.BalanceDirection.Credit
+        let scaledBalance = balance?.scaledBalance?.quantity ?? 0.0
 
         switch direction {
             case FlowALPModels.BalanceDirection.Credit:
@@ -299,7 +299,7 @@ access(all) contract FlowALPHealth {
                 let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
                     scaledBalance, interestIndex: tokenSnapshot.creditIndex
                 )
-                return FlowALPModels.SignedQuantity(
+                return FlowALPModels.Balance(
                     direction: FlowALPModels.BalanceDirection.Credit,
                     quantity: trueCredit + depositAmount
                 )
@@ -310,12 +310,12 @@ access(all) contract FlowALPHealth {
                     scaledBalance, interestIndex: tokenSnapshot.debitIndex
                 )
                 if trueDebt >= depositAmount {
-                    return FlowALPModels.SignedQuantity(
+                    return FlowALPModels.Balance(
                         direction: FlowALPModels.BalanceDirection.Debit,
                         quantity: trueDebt - depositAmount
                     )
                 } else {
-                    return FlowALPModels.SignedQuantity(
+                    return FlowALPModels.Balance(
                         direction: FlowALPModels.BalanceDirection.Credit,
                         quantity: depositAmount - trueDebt
                     )
@@ -364,10 +364,10 @@ access(all) contract FlowALPHealth {
         var collateralTokenCount: UFix128 = 0.0
 
         let maybeBalance = withdrawBalance
-        if maybeBalance?.direction == FlowALPModels.BalanceDirection.Credit {
+        if maybeBalance?.scaledBalance?.direction == FlowALPModels.BalanceDirection.Credit {
             // The user has a credit position in the withdraw token, we start by looking at the health impact of pulling out all
             // of that collateral
-            let creditBalance = maybeBalance!.scaledBalance
+            let creditBalance = maybeBalance!.scaledBalance.quantity
             let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
                 creditBalance,
                 interestIndex: withdrawCreditInterestIndex
