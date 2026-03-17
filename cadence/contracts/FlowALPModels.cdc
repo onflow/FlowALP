@@ -1883,6 +1883,9 @@ access(all) contract FlowALPModels {
         /// Returns whether a queued deposit exists for the given token type
         access(all) view fun hasQueuedDeposit(_ type: Type): Bool
 
+        /// Returns the queued deposit balance for the given token type, or nil if none exists
+        access(all) view fun getQueuedDepositBalance(_ type: Type): UFix64?
+
         // --- Draw Down Sink ---
 
         /// Returns an authorized reference to the draw-down sink, or nil if none is configured.
@@ -2040,6 +2043,14 @@ access(all) contract FlowALPModels {
         /// Returns whether a queued deposit exists for the given token type.
         access(all) view fun hasQueuedDeposit(_ type: Type): Bool {
             return self.queuedDeposits[type] != nil
+        }
+
+        /// Returns the queued deposit balance for the given token type, or nil if none exists.
+        access(all) view fun getQueuedDepositBalance(_ type: Type): UFix64? {
+            if let queued = &self.queuedDeposits[type] as &{FungibleToken.Vault}? {
+                return queued.balance
+            }
+            return nil
         }
 
         // --- Draw Down Sink ---
