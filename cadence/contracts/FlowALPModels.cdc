@@ -1068,15 +1068,29 @@ access(all) contract FlowALPModels {
         /// When capacity regenerates, all user deposit usage is reset for this token type
         access(EImplementation) fun regenerateDepositCapacity()
 
+        /// NOTE: For all {decrease,increase}{Credit,Debit}Balance functions below:
+        /// If a deposit flips a position direction from debit to credit, the debt removal and credit addition must be applied as separate operations.
+        /// (The same requirement holds in reverse for a withdrawal flipping a credit balance to a debit balance.)
+        ///
+        /// For example, if a position has a debit balance of 100FLOW, then deposits 150FLOW, we MUST do:
+        ///  - decreaseDebitBalance(by: 100)
+        ///  - increaseCreditBalance(by: 50)
+
         /// Increases total non-interest-adjusted credit balance and recalculates interest rates.
         /// This function MUST be called each time a creditor's balance increases (deposit).
         /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun increaseCreditBalance(by amount: UFix128)
-        /// Decreases total credit balance (floored at 0) and recalculates interest rates.
+        /// Decreases total non-interest-adjusted credit balance (floored at 0) and recalculates interest rates.
+        /// This function MUST be called each time a credit balance decreases (withdrawal).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun decreaseCreditBalance(by amount: UFix128)
-        /// Increases total debit balance and recalculates interest rates.
+        /// Increases total non-interest-adjusted debit balance and recalculates interest rates.
+        /// This function MUST be called each time a debt balance increases (withdrawal).
+        /// The amount parameter must be equal to the amount of the withdrawal.
         access(EImplementation) fun increaseDebitBalance(by amount: UFix128)
-        /// Decreases total debit balance (floored at 0) and recalculates interest rates.
+        /// Decreases total non-interest-adjusted debit balance (floored at 0) and recalculates interest rates.
+        /// This function MUST be called each time a debt balance decreases (deposit).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun decreaseDebitBalance(by amount: UFix128)
     }
 
@@ -1500,15 +1514,17 @@ access(all) contract FlowALPModels {
             }
         }
 
-        /// Increases the non-interest-adjusted credit balance by the given amount and recalculates interest rates.
-        /// Called when a position makes a net deposit.
+        /// Increases total non-interest-adjusted credit balance and recalculates interest rates.
+        /// This function MUST be called each time a creditor's balance increases (deposit).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun increaseCreditBalance(by amount: UFix128) {
             self.totalCreditBalance = self.totalCreditBalance + amount
             self.updateForUtilizationChange()
         }
 
-        /// Decreases the non-interest-adjusted credit balance by the given amount (floored at 0) and recalculates interest rates.
-        /// Called when a position makes a net withdrawal.
+        /// Decreases total non-interest-adjusted credit balance (floored at 0) and recalculates interest rates.
+        /// This function MUST be called each time a credit balance decreases (withdrawal).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun decreaseCreditBalance(by amount: UFix128) {
             if amount >= self.totalCreditBalance {
                 self.totalCreditBalance = 0.0
@@ -1518,15 +1534,18 @@ access(all) contract FlowALPModels {
             self.updateForUtilizationChange()
         }
 
-        /// Increases the non-interest-adjusted debit balance by the given amount and recalculates interest rates.
-        /// Called when a position borrows.
+        /// Increases total non-interest-adjusted credit balance and recalculates interest rates.
+        /// This function MUST be called each time a creditor's balance increases (deposit).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun increaseDebitBalance(by amount: UFix128) {
             self.totalDebitBalance = self.totalDebitBalance + amount
             self.updateForUtilizationChange()
         }
 
-        /// Decreases the non-interest-adjusted debit balance by the given amount (floored at 0) and recalculates interest rates.
-        /// Called when a position repays.
+        
+        /// Decreases total non-interest-adjusted debit balance (floored at 0) and recalculates interest rates.
+        /// This function MUST be called each time a debt balance decreases (deposit).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun decreaseDebitBalance(by amount: UFix128) {
             if amount >= self.totalDebitBalance {
                 self.totalDebitBalance = 0.0
