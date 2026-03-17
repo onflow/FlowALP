@@ -2088,6 +2088,13 @@ access(all) contract FlowALPv0 {
         }
 
         /// Collects insurance by withdrawing from reserves and swapping to MOET.
+        ///
+        /// NOTE: If reserves are insufficient to cover the full calculated fee, collection is skipped
+        /// entirely and the timestamp is not updated. This interacts with the rate-change
+        /// collection: if a rate change occurs while reserves are insufficient, the pre-change
+        /// fees will not be settled under the old rate. When reserves eventually recover, the entire
+        /// elapsed window — including the period before the rate change — will be collected under the
+        /// new rate, causing over- or under-collection for that period.
         access(self) fun _collectInsurance(
             tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
@@ -2137,6 +2144,13 @@ access(all) contract FlowALPv0 {
         }
 
         /// Collects stability funds by withdrawing from reserves.
+        ///
+        /// NOTE: If reserves are insufficient to cover the full calculated fee, collection is skipped
+        /// entirely and the timestamp is not updated. This interacts with the rate-change
+        /// collection: if a rate change occurs while reserves are insufficient, the pre-change
+        /// fees will not be settled under the old rate. When reserves eventually recover, the entire
+        /// elapsed window — including the period before the rate change — will be collected under the
+        /// new rate, causing over- or under-collection for that period.
         access(self) fun _collectStability(
             tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
