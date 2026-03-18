@@ -519,12 +519,16 @@ access(all) contract FlowALPModels {
 
     /// BalanceSheet
     ///
-    /// A struct containing a position's overview in terms of its effective collateral and debt
+    /// A struct containing a position's overview in terms of its per-token effective collateral and debt
     /// as well as its current health.
     access(all) struct BalanceSheet {
 
+        /// Tracks effective collateral on a per-token basis.
+        /// A token either has a balance here, or in effectiveDebtByToken, but not both.
         access(all) let effectiveCollateralByToken: {Type: UFix128}
 
+        /// Tracks effective debt on a per-token basis.
+        /// A token either has a balance here, or in effectiveCollateralByToken, but not both.
         access(all) let effectiveDebtByToken: {Type: UFix128}
 
         /// Aggregate summary of the balance sheet (totals + health).
@@ -532,10 +536,12 @@ access(all) contract FlowALPModels {
 
         /// Effective collateral is a normalized valuation of collateral deposited into this position, denominated in $.
         /// In combination with effective debt, this determines how much additional debt can be taken out by this position.
+        /// This field is the sum of values in effectiveCollateralByToken.
         access(all) let effectiveCollateral: UFix128
 
         /// Effective debt is a normalized valuation of debt withdrawn against this position, denominated in $.
         /// In combination with effective collateral, this determines how much additional debt can be taken out by this position.
+        /// This field is the sum of values in effectiveDebtByToken.
         access(all) let effectiveDebt: UFix128
 
         /// The health of the related position
@@ -545,6 +551,11 @@ access(all) contract FlowALPModels {
             effectiveCollateral: {Type: UFix128},
             effectiveDebt: {Type: UFix128}
         ) {
+            // Enforce single balance per token invariant: if a type appears in one map, it must not appear in the other.
+            for collateralType in effectiveCollateral.keys {
+                assert(effectiveDebt[collateralType] == nil)
+            }
+
             self.effectiveCollateralByToken = effectiveCollateral
             self.effectiveDebtByToken = effectiveDebt
             self.summary = HealthStatement(
@@ -554,16 +565,6 @@ access(all) contract FlowALPModels {
             self.effectiveCollateral = self.summary.effectiveCollateral
             self.effectiveDebt = self.summary.effectiveDebt
             self.health = self.summary.health
-        }
-
-        /// Returns the per-token effective collateral map.
-        access(all) view fun getEffectiveCollateralByToken(): {Type: UFix128} {
-            return self.effectiveCollateralByToken
-        }
-
-        /// Returns the per-token effective debt map.
-        access(all) view fun getEffectiveDebtByToken(): {Type: UFix128} {
-            return self.effectiveDebtByToken
         }
 
         /// Returns a new BalanceSheet with one token's effective balance replaced.
