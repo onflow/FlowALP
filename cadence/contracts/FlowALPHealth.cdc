@@ -39,7 +39,7 @@ access(all) contract FlowALPHealth {
             tokenSnapshot: tokenSnapshot
         )
 
-        // Compute the effective collateral or debt
+        // Compute the effective collateral or debt, and return the updated balance sheet.
         let effectiveBalance = tokenSnapshot.effectiveBalance(balance: trueBalanceAfterWithdrawal)
         return balanceSheet.withReplacedTokenBalance(
             tokenType: withdrawType,
@@ -229,11 +229,10 @@ access(all) contract FlowALPHealth {
 
     /// Computes adjusted effective collateral and debt after a hypothetical deposit.
     ///
-    /// Uses a "remove old contribution, add new contribution" approach:
-    /// 1. Remove the current per-token effective collateral/debt entry
-    /// 2. Compute the new true balance after the deposit
-    /// 3. Compute the new effective contribution from the post-deposit balance
-    /// 4. Return a new BalanceSheet with the updated per-token entry
+    /// This function determines how a deposit would affect the position's balance sheet,
+    /// accounting for whether the position holds a credit (collateral) or debit (debt) balance
+    /// in the deposited token. If the position has debt in the token, the deposit may
+    /// either pay down debt, or pay it off entirely and create new collateral.
     ///
     /// @param balanceSheet: The position's current effective collateral and debt (with per-token maps)
     /// @param depositBalance: The position's existing balance for the deposited token, if any
@@ -264,6 +263,7 @@ access(all) contract FlowALPHealth {
             tokenSnapshot: tokenSnapshot
         )
 
+        // Compute the effective collateral or debt, and return the updated balance sheet.
         let effectiveBalance = tokenSnapshot.effectiveBalance(balance: after)
         return balanceSheet.withReplacedTokenBalance(
             tokenType: depositType,
