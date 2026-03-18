@@ -2125,6 +2125,9 @@ access(all) contract FlowALPModels {
 
         /// Rebalances the specified position.
         access(EPosition | ERebalance) fun rebalancePosition(pid: UInt64, force: Bool)
+
+        /// Queues the position for rebalance/update if its health bounds have changed.
+        access(EPosition) fun queuePositionForUpdateIfNecessary(pid: UInt64)
     }
 
     /// Factory function to create a new InternalPositionImplv1 resource.

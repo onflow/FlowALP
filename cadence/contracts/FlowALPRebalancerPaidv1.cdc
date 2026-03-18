@@ -108,17 +108,21 @@ access(all) contract FlowALPRebalancerPaidv1 {
 
         /// Idempotent: if no next run is scheduled, try to schedule it (e.g. after a transient failure).
         access(all) fun fixReschedule() {
-            FlowALPRebalancerPaidv1.fixReschedule(positionID: self.positionID)
+            let _ = FlowALPRebalancerPaidv1.fixReschedule(positionID: self.positionID)
         }
     }
 
     /// Idempotent: for the given paid rebalancer, if there is no scheduled transaction, schedule the next run.
     /// Callable by anyone (e.g. the Supervisor or the RebalancerPaid owner).
+    /// Returns true if the rebalancer was found and processed, false if the UUID is stale (rebalancer no longer exists).
     access(all) fun fixReschedule(
         positionID: UInt64,
-    ) {
-        let rebalancer = FlowALPRebalancerPaidv1.borrowRebalancer(positionID: positionID)!
-        rebalancer.fixReschedule()
+    ): Bool {
+        if let rebalancer = FlowALPRebalancerPaidv1.borrowRebalancer(positionID: positionID) {
+            rebalancer.fixReschedule()
+            return true
+        }
+        return false
     }
 
     /// Storage path where a user would store their RebalancerPaid for the given position (convention for discovery).
