@@ -2125,22 +2125,22 @@ access(all) contract FlowALPv0 {
             if insuranceAmountUFix64 > reserveVault.balance {
                 // do not collect the insurance fee if the reserve doesn't have enough tokens to cover the full amount 
                 return nil
-            } else {    
-                let insuranceVault <- reserveVault.withdraw(amount: insuranceAmountUFix64)
-                let insuranceSwapper = tokenState.getInsuranceSwapper() ?? panic("missing insurance swapper")
-
-                assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
-                assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
-
-                let quote = insuranceSwapper.quoteOut(forProvided: insuranceAmountUFix64, reverse: false)
-                let dexPrice = quote.outAmount / quote.inAmount
-                assert(
-                    FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
-                    message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
-                var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
-                tokenState.setLastInsuranceCollectionTime(currentTime)
-                return <-moetVault
             }
+
+            let insuranceVault <- reserveVault.withdraw(amount: insuranceAmountUFix64)
+            let insuranceSwapper = tokenState.getInsuranceSwapper() ?? panic("missing insurance swapper")
+
+            assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
+            assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
+
+            let quote = insuranceSwapper.quoteOut(forProvided: insuranceAmountUFix64, reverse: false)
+            let dexPrice = quote.outAmount / quote.inAmount
+            assert(
+                FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
+                message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
+            var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
+            tokenState.setLastInsuranceCollectionTime(currentTime)
+            return <-moetVault
         }
 
         /// Collects stability funds by withdrawing from reserves.
@@ -2180,11 +2180,11 @@ access(all) contract FlowALPv0 {
             if stabilityAmountUFix64 > reserveVault.balance {
                 // do not collect the stability fee if the reserve doesn't have enough tokens to cover the full amount 
                 return nil
-            } else {    
-                let stabilityVault <- reserveVault.withdraw(amount: stabilityAmountUFix64)
-                tokenState.setLastStabilityFeeCollectionTime(currentTime)
-                return <-stabilityVault
             }
+
+            let stabilityVault <- reserveVault.withdraw(amount: stabilityAmountUFix64)  
+            tokenState.setLastStabilityFeeCollectionTime(currentTime)
+            return <-stabilityVault
         }
 
         ////////////////
