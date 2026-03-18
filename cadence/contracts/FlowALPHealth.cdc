@@ -5,11 +5,10 @@ access(all) contract FlowALPHealth {
 
     /// Computes adjusted effective collateral and debt after a hypothetical withdrawal.
     ///
-    /// Uses a "remove old contribution, add new contribution" approach:
-    /// 1. Remove the current per-token effective collateral/debt entry
-    /// 2. Compute the new true balance after the withdrawal
-    /// 3. Compute the new effective contribution from the post-withdrawal balance
-    /// 4. Return a new BalanceSheet with the updated per-token entry
+    /// This function determines how a withdrawal would affect the position's balance sheet,
+    /// accounting for whether the position holds a credit (collateral) or debit (debt) balance
+    /// in the withdrawn token. If the position has collateral in the token, the withdrawal may
+    /// either draw down collateral, or exhaust it entirely and create new debt.
     ///
     /// @param balanceSheet: The position's current effective collateral and debt (with per-token maps)
     /// @param withdrawBalance: The position's existing balance for the withdrawn token, if any
@@ -31,61 +30,62 @@ access(all) contract FlowALPHealth {
         let withdrawAmountU = UFix128(withdrawAmount)
 
         // Compute the post-withdrawal true balance and direction.
-        let after = self.trueBalanceAfterWithdrawal(
+        let balanceAfterWithdrawal = self.trueBalanceAfterDelta(
             balance: withdrawBalance,
-            withdrawAmount: withdrawAmountU,
+            delta: FlowALPModels.Balance(
+                direction: FlowALPModels.BalanceDirection.Debit,
+                quantity: withdrawAmountU
+            ),
             tokenSnapshot: tokenSnapshot
         )
 
-        let effectiveBalance = tokenSnapshot.effectiveBalance(balance: after)
+        let effectiveBalance = tokenSnapshot.effectiveBalance(balance: balanceAfterWithdrawal)
         return balanceSheet.withReplacedTokenBalance(
             tokenType: withdrawType,
             effectiveBalance: effectiveBalance
         )
     }
 
-    /// Computes the true balance (direction + amount) after a withdrawal.
+    /// Computes the true balance after applying a signed delta.
     ///
-    /// Starting from the current balance (credit or debit), subtracts the withdrawal amount.
-    /// If the position has credit, the withdrawal draws it down and may flip into debt.
-    /// If the position has debt (or no balance), the withdrawal increases debt.
-    access(self) fun trueBalanceAfterWithdrawal(
+    /// Starting from the current balance (credit or debit), applies the delta.
+    /// A Credit delta increases credit / pays down debt; a Debit delta increases debt / draws down credit.
+    /// The result may flip direction if the delta exceeds the current balance.
+    access(self) fun trueBalanceAfterDelta(
         balance: FlowALPModels.InternalBalance?,
-        withdrawAmount: UFix128,
+        delta: FlowALPModels.Balance,
         tokenSnapshot: FlowALPModels.TokenSnapshot
     ): FlowALPModels.Balance {
-        let direction = balance?.scaledBalance?.direction ?? FlowALPModels.BalanceDirection.Debit
+        let currentDirection = balance?.scaledBalance?.direction ?? delta.direction
         let scaledBalance = balance?.scaledBalance?.quantity ?? 0.0
 
-        switch direction {
-            case FlowALPModels.BalanceDirection.Debit:
-                // Currently in debt — withdrawal adds more debt.
-                let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
-                    scaledBalance, interestIndex: tokenSnapshot.debitIndex
-                )
-                return FlowALPModels.Balance(
-                    direction: FlowALPModels.BalanceDirection.Debit,
-                    quantity: trueDebt + withdrawAmount
-                )
+        let interestIndex = currentDirection == FlowALPModels.BalanceDirection.Credit
+            ? tokenSnapshot.creditIndex
+            : tokenSnapshot.debitIndex
+        let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
+            scaledBalance, interestIndex: interestIndex
+        )
 
-            case FlowALPModels.BalanceDirection.Credit:
-                // Currently has credit — withdrawal draws it down, possibly flipping to debt.
-                let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
-                    scaledBalance, interestIndex: tokenSnapshot.creditIndex
-                )
-                if trueCredit >= withdrawAmount {
-                    return FlowALPModels.Balance(
-                        direction: FlowALPModels.BalanceDirection.Credit,
-                        quantity: trueCredit - withdrawAmount
-                    )
-                } else {
-                    return FlowALPModels.Balance(
-                        direction: FlowALPModels.BalanceDirection.Debit,
-                        quantity: withdrawAmount - trueCredit
-                    )
-                }
+        if currentDirection == delta.direction {
+            // Same direction — delta reinforces the current balance.
+            return FlowALPModels.Balance(
+                direction: currentDirection,
+                quantity: trueBalance + delta.quantity
+            )
         }
-        panic("unreachable")
+
+        // Opposite direction — delta offsets the current balance, possibly flipping.
+        if trueBalance >= delta.quantity {
+            return FlowALPModels.Balance(
+                direction: currentDirection,
+                quantity: trueBalance - delta.quantity
+            )
+        } else {
+            return FlowALPModels.Balance(
+                direction: delta.direction,
+                quantity: delta.quantity - trueBalance
+            )
+        }
     }
 
     /// Computes the amount of a given token that must be deposited to bring a position to a target health.
@@ -243,9 +243,12 @@ access(all) contract FlowALPHealth {
         let depositAmountU = UFix128(depositAmount)
 
         // Compute the post-deposit true balance and direction.
-        let after = self.trueBalanceAfterDeposit(
+        let after = self.trueBalanceAfterDelta(
             balance: depositBalance,
-            depositAmount: depositAmountU,
+            delta: FlowALPModels.Balance(
+                direction: FlowALPModels.BalanceDirection.Credit,
+                quantity: depositAmountU
+            ),
             tokenSnapshot: tokenSnapshot
         )
 
@@ -254,50 +257,6 @@ access(all) contract FlowALPHealth {
             tokenType: depositType,
             effectiveBalance: effectiveBalance
         )
-    }
-
-    /// Computes the true balance (direction + amount) after a deposit.
-    ///
-    /// Starting from the current balance (credit or debit), adds the deposit amount.
-    /// If the position has debt, the deposit pays it down and may flip into credit.
-    /// If the position has credit (or no balance), the deposit increases credit.
-    access(self) fun trueBalanceAfterDeposit(
-        balance: FlowALPModels.InternalBalance?,
-        depositAmount: UFix128,
-        tokenSnapshot: FlowALPModels.TokenSnapshot
-    ): FlowALPModels.Balance {
-        let direction = balance?.scaledBalance?.direction ?? FlowALPModels.BalanceDirection.Credit
-        let scaledBalance = balance?.scaledBalance?.quantity ?? 0.0
-
-        switch direction {
-            case FlowALPModels.BalanceDirection.Credit:
-                // Currently has credit — deposit adds more credit.
-                let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
-                    scaledBalance, interestIndex: tokenSnapshot.creditIndex
-                )
-                return FlowALPModels.Balance(
-                    direction: FlowALPModels.BalanceDirection.Credit,
-                    quantity: trueCredit + depositAmount
-                )
-
-            case FlowALPModels.BalanceDirection.Debit:
-                // Currently in debt — deposit pays it down, possibly flipping to credit.
-                let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
-                    scaledBalance, interestIndex: tokenSnapshot.debitIndex
-                )
-                if trueDebt >= depositAmount {
-                    return FlowALPModels.Balance(
-                        direction: FlowALPModels.BalanceDirection.Debit,
-                        quantity: trueDebt - depositAmount
-                    )
-                } else {
-                    return FlowALPModels.Balance(
-                        direction: FlowALPModels.BalanceDirection.Credit,
-                        quantity: depositAmount - trueDebt
-                    )
-                }
-        }
-        panic("unreachable")
     }
 
     // TODO(jord): ~100-line function - consider refactoring

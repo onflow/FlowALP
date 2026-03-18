@@ -720,7 +720,6 @@ access(all) contract FlowALPv0 {
             )
         }
 
-        // TODO(jord): ~100-line function - consider refactoring
         // TODO: documentation
         access(self) fun computeRequiredDepositForHealth(
             position: &{FlowALPModels.InternalPosition},
