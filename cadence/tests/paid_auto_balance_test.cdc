@@ -311,6 +311,45 @@ access(all) fun test_supervisor_executed() {
     Test.assertEqual(2, evts.length)
 }
 
+/// Regression test for FLO-27: if a paid rebalancer is deleted without removing its UUID from
+/// the Supervisor's set, the next Supervisor tick must NOT panic. Before the fix,
+/// fixReschedule(uuid:) force-unwrapped borrowRebalancer(uuid)! which panicked on a stale UUID,
+/// reverting the whole executeTransaction and blocking recovery for all other rebalancers.
+access(all) fun test_supervisor_stale_uuid_does_not_panic() {
+    // Get the UUID of the paid rebalancer created during setup.
+    let createdEvts = Test.eventsOfType(Type<FlowALPRebalancerv1.CreatedRebalancer>())
+    Test.assertEqual(1, createdEvts.length)
+    let created = createdEvts[0] as! FlowALPRebalancerv1.CreatedRebalancer
+
+    // Register the UUID with the Supervisor so it will call fixReschedule on it each tick.
+    addPaidRebalancerToSupervisor(signer: userAccount, positionID: created.positionID, supervisorStoragePath: supervisorStoragePath)
+
+    // Delete the paid rebalancer WITHOUT removing its UUID from the Supervisor — this leaves a
+    // stale UUID in the Supervisor's paidRebalancers set, simulating the FLO-27 bug scenario.
+    deletePaidRebalancer(signer: userAccount, paidRebalancerStoragePath: paidRebalancerStoragePath)
+
+    // Advance time to trigger the Supervisor's scheduled tick.
+    Test.moveTime(by: 60.0 * 60.0)
+    Test.commitBlock()
+
+    // The Supervisor must have executed without panicking. If fixReschedule force-unwrapped
+    // the missing rebalancer the entire transaction would revert and Executed would not be emitted.
+    let executedEvts = Test.eventsOfType(Type<FlowALPSupervisorv1.Executed>())
+    Test.assert(executedEvts.length >= 1, message: "Supervisor should have executed at least 1 time")
+
+    // The stale UUID must have been pruned from the Supervisor's set.
+    let removedEvts = Test.eventsOfType(Type<FlowALPSupervisorv1.RemovedPaidRebalancer>())
+    Test.assertEqual(1, removedEvts.length)
+    let removed = removedEvts[0] as! FlowALPSupervisorv1.RemovedPaidRebalancer
+    Test.assertEqual(created.positionID, removed.positionID)
+
+    // A second tick should not emit another RemovedPaidRebalancer — the UUID was already cleaned up.
+    Test.moveTime(by: 60.0 * 60.0)
+    Test.commitBlock()
+    let removedEvts2 = Test.eventsOfType(Type<FlowALPSupervisorv1.RemovedPaidRebalancer>())
+    Test.assertEqual(1, removedEvts2.length)
+}
+
 access(all) fun test_supervisor() {
     Test.moveTime(by: 100.0)
     Test.commitBlock()

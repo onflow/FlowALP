@@ -496,6 +496,18 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        /// Returns the queued deposit balances for a given position.
+        access(all) fun getQueuedDeposits(pid: UInt64): {Type: UFix64} {
+            let position = self._borrowPosition(pid: pid)
+            let queuedBalances: {Type: UFix64} = {}
+
+            for depositType in position.getQueuedDepositKeys() {
+                queuedBalances[depositType] = position.getQueuedDepositBalance(depositType)!
+            }
+
+            return queuedBalances
+        }
+
         /// Returns the details of a given position as a FlowALPModels.PositionDetails external struct
         access(all) fun getPositionDetails(pid: UInt64): FlowALPModels.PositionDetails {
             if self.config.isDebugLogging() {
@@ -1985,6 +1997,12 @@ access(all) contract FlowALPv0 {
 
             tokenState.setLastStabilityFeeCollectionTime(currentTime)
             return <-stabilityVault
+        }
+
+        /// Queues a position for asynchronous updates if its health is outside the configured bounds.
+        /// Exposed via EPosition so Position setters can trigger rebalance eligibility checks.
+        access(FlowALPModels.EPosition) fun queuePositionForUpdateIfNecessary(pid: UInt64) {
+            self._queuePositionForUpdateIfNecessary(pid: pid)
         }
 
         ////////////////

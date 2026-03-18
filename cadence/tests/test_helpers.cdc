@@ -337,6 +337,15 @@ fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALPModels.PositionDetai
 }
 
 access(all)
+fun getQueuedDeposits(pid: UInt64, beFailed: Bool): {Type: UFix64} {
+    let res = _executeScript("../scripts/flow-alp/get_queued_deposits.cdc",
+            [pid]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! {Type: UFix64}
+}
+
+access(all)
 fun getPositionBalance(pid: UInt64, vaultID: String): FlowALPModels.PositionBalance {
     let positionDetails = getPositionDetails(pid: pid, beFailed: false)
     for bal in positionDetails.balances {
