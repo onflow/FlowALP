@@ -65,7 +65,7 @@ Under pure mint/burn, every deposit is burned and every withdrawal is minted on 
 
 ### Why not the four-method interface?
 
-A four-method interface with asymmetric MOET behaviour (vault for collateral, burn for repayments) was rejected because it re-introduces the same accounting divergence — burning repayments without vault-side deposits means accrued interest can never be covered from reserves.
+A four-method interface with asymmetric MOET behaviour (vault for collateral, burn for repayments) was rejected because with the chosen mint-and-burn strategy, we do not treat deposits of collateral/repayment differently with MOET.
 
 ### Why hold insurance fees rather than burn them?
 
