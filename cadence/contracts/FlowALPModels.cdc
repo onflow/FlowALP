@@ -72,14 +72,22 @@ access(all) contract FlowALPModels {
         access(all) case Debit
     }
 
+    /// Balance 
+    ///
+    /// A structure used to represent a signed numeric value.
     access(all) struct Balance {
-        /// The direction (sign) of this quantity.
+        /// The direction (sign) of this quantity. The sign is always Credit for 0 balances, by convention.
         access(all) let direction: BalanceDirection
         /// The unsigned numeric value.
         access(all) let quantity: UFix128
 
         init(direction: BalanceDirection, quantity: UFix128) {
-            self.direction = direction
+            // Enforce 0-balance convention
+            if quantity == 0.0 {
+                self.direction = BalanceDirection.Credit
+            } else {
+                self.direction = direction
+            }
             self.quantity = quantity
         }
     }
@@ -267,6 +275,12 @@ access(all) contract FlowALPModels {
                     }
             }
         }
+    }
+
+    /// Returns a zero Balance instance.
+    /// By convention, zero balances have BalanceDirection.Credit.
+    access(all) fun makeZeroBalance(): Balance {
+        return FlowALPModels.Balance(direction: BalanceDirection.Credit, quantity: 0.0)
     }
 
     /// Risk parameters for a token used in effective collateral/debt computations.

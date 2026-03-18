@@ -30,7 +30,7 @@ access(all) contract FlowALPHealth {
         let withdrawAmountU = UFix128(withdrawAmount)
 
         // Compute the post-withdrawal true balance and direction.
-        let balanceAfterWithdrawal = self.trueBalanceAfterDelta(
+        let trueBalanceAfterWithdrawal = self.trueBalanceAfterDelta(
             balance: withdrawBalance,
             delta: FlowALPModels.Balance(
                 direction: FlowALPModels.BalanceDirection.Debit,
@@ -39,26 +39,36 @@ access(all) contract FlowALPHealth {
             tokenSnapshot: tokenSnapshot
         )
 
-        let effectiveBalance = tokenSnapshot.effectiveBalance(balance: balanceAfterWithdrawal)
+        // Compute the effective collateral or debt
+        let effectiveBalance = tokenSnapshot.effectiveBalance(balance: trueBalanceAfterWithdrawal)
         return balanceSheet.withReplacedTokenBalance(
             tokenType: withdrawType,
             effectiveBalance: effectiveBalance
         )
     }
 
-    /// Computes the true balance after applying a signed delta.
+    /// Computes the resulting true balance after applying a signed delta to an InternalBalance.
     ///
-    /// Starting from the current balance (credit or debit), applies the delta.
-    /// A Credit delta increases credit / pays down debt; a Debit delta increases debt / draws down credit.
+    /// The input balance and delta may have either credit or debit direction. They each may have different directions.
+    /// A credit-direction delta increases credit / pays down debt. A debit-direction delta increases debt / draws down credit.
     /// The result may flip direction if the delta exceeds the current balance.
+    ///
+    /// @param balance: The initial balance, represented as an InternalBalance (hence, scaled). If nil, considered as zero.
+    /// @param delta: The deposit or withdrawal to apply to the balance.
+    /// @param tokenSnapshot: The TokenSnapshot for the token type denominating the balance and delta parameters.
+    /// @return The true balance after applying the delta.
     access(self) fun trueBalanceAfterDelta(
-        balance: FlowALPModels.InternalBalance?,
+        balance maybeInitialBalance: FlowALPModels.InternalBalance?,
         delta: FlowALPModels.Balance,
         tokenSnapshot: FlowALPModels.TokenSnapshot
     ): FlowALPModels.Balance {
-        let currentDirection = balance?.scaledBalance?.direction ?? delta.direction
-        let scaledBalance = balance?.scaledBalance?.quantity ?? 0.0
+        // A nil input balance means the initial balance is zero.
+        let initialBalance = maybeInitialBalance ?? FlowALPModels.makeZeroInternalBalance()
 
+        let currentDirection = initialBalance.scaledBalance.direction
+        let scaledBalance = initialBalance.scaledBalance.quantity
+
+        // Since the initial balance is the internal representation, we scale to true balance first
         let interestIndex = currentDirection == FlowALPModels.BalanceDirection.Credit
             ? tokenSnapshot.creditIndex
             : tokenSnapshot.debitIndex
@@ -66,8 +76,8 @@ access(all) contract FlowALPHealth {
             scaledBalance, interestIndex: interestIndex
         )
 
+        // Same direction — delta reinforces the current balance.
         if currentDirection == delta.direction {
-            // Same direction — delta reinforces the current balance.
             return FlowALPModels.Balance(
                 direction: currentDirection,
                 quantity: trueBalance + delta.quantity
@@ -76,11 +86,13 @@ access(all) contract FlowALPHealth {
 
         // Opposite direction — delta offsets the current balance, possibly flipping.
         if trueBalance >= delta.quantity {
+            // delta decreases balance but does not flip sign
             return FlowALPModels.Balance(
                 direction: currentDirection,
                 quantity: trueBalance - delta.quantity
             )
         } else {
+            // delta flips sign of balance
             return FlowALPModels.Balance(
                 direction: delta.direction,
                 quantity: delta.quantity - trueBalance
