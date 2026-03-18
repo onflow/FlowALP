@@ -72,7 +72,7 @@ A four-method interface with asymmetric MOET behaviour (vault for collateral, bu
 
 ### Why hold insurance fees rather than burn them?
 
-Insurance fees are a buffer against bad debt and must remain accessible as deployable capital. Burning them would destroy the insurance fund. Minting into a segregated vault on collection is the cleanest approach under a pure mint/burn reserve model.
+MOET is minted only when collateral of greater value is deposited into FlowALP. Conceptually mint-and-burn insurance funds would work similarly (the contract would burn collected insurance funds, track how much it collected, and only allow itself to mint that amount in the future). However, since insurance collection and use occur at substantially different times, it is more difficult to demonstrate and audit this. With insurance funds stored in a vault, we can simply rely on the vault's balance semantics to demonstrate the limitations of insurance.
 
 ---
 
