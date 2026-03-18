@@ -65,8 +65,8 @@ access(all) contract FlowALPHealth {
         // A nil input balance means the initial balance is zero.
         let initialBalance = maybeInitialBalance ?? FlowALPModels.makeZeroInternalBalance()
 
-        let currentDirection = initialBalance.scaledBalance.direction
-        let scaledBalance = initialBalance.scaledBalance.quantity
+        let currentDirection = initialBalance.getScaledBalance().direction
+        let scaledBalance = initialBalance.getScaledBalance().quantity
 
         // Since the initial balance is the internal representation, we scale to true balance first
         let interestIndex = currentDirection == FlowALPModels.BalanceDirection.Credit
@@ -151,10 +151,10 @@ access(all) contract FlowALPHealth {
         // track of the number of tokens that went towards paying off debt.
         var debtTokenCount: UFix128 = 0.0
         let maybeBalance = depositBalance
-        if maybeBalance?.scaledBalance?.direction == FlowALPModels.BalanceDirection.Debit {
+        if maybeBalance?.getScaledBalance()?.direction == FlowALPModels.BalanceDirection.Debit {
             // The user has a debt position in the given token, we start by looking at the health impact of paying off
             // the entire debt.
-            let debtBalance = maybeBalance!.scaledBalance.quantity
+            let debtBalance = maybeBalance!.getScaledBalance().quantity
             let trueDebtTokenCount = FlowALPMath.scaledBalanceToTrueBalance(
                 debtBalance,
                 interestIndex: depositDebitInterestIndex
@@ -311,10 +311,10 @@ access(all) contract FlowALPHealth {
         var collateralTokenCount: UFix128 = 0.0
 
         let maybeBalance = withdrawBalance
-        if maybeBalance?.scaledBalance?.direction == FlowALPModels.BalanceDirection.Credit {
+        if maybeBalance?.getScaledBalance()?.direction == FlowALPModels.BalanceDirection.Credit {
             // The user has a credit position in the withdraw token, we start by looking at the health impact of pulling out all
             // of that collateral
-            let creditBalance = maybeBalance!.scaledBalance.quantity
+            let creditBalance = maybeBalance!.getScaledBalance().quantity
             let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
                 creditBalance,
                 interestIndex: withdrawCreditInterestIndex

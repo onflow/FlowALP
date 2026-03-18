@@ -106,7 +106,7 @@ access(all) contract FlowALPModels {
         /// We store the scaled balance as UFix128 to align with UFix128 interest indices
         /// and to reduce rounding during true ↔ scaled conversions.
         /// The Balance includes the direction (Credit or Debit) and the unsigned scaled quantity.
-        access(all) var scaledBalance: Balance
+        access(self) var scaledBalance: Balance
 
         // Single initializer that can handle both cases
         init(
@@ -114,6 +114,10 @@ access(all) contract FlowALPModels {
             scaledBalance: UFix128
         ) {
             self.scaledBalance = Balance(direction: direction, quantity: scaledBalance)
+        }
+
+        access(all) view fun getScaledBalance(): Balance {
+            return self.scaledBalance
         }
 
         /// Records a deposit of the defined amount, updating the inner scaledBalance as well as relevant values
@@ -283,6 +287,10 @@ access(all) contract FlowALPModels {
         return FlowALPModels.Balance(direction: BalanceDirection.Credit, quantity: 0.0)
     }
 
+    access(all) fun makeZeroInternalBalance(): InternalBalance {
+        return FlowALPModels.InternalBalance(direction: BalanceDirection.Credit, scaledBalance: 0.0)
+    }
+
     /// Risk parameters for a token used in effective collateral/debt computations.
     /// The collateral and borrow factors are fractional values which represent a discount to the "true/market" value of the token.
     /// The size of this discount indicates a subjective assessment of risk for the token.
@@ -440,13 +448,13 @@ access(all) contract FlowALPModels {
         access(all) view fun trueBalance(ofToken: Type): UFix128 {
             if let balance = self.balances[ofToken] {
                 if let tokenSnapshot = self.snapshots[ofToken] {
-                    switch balance.scaledBalance.direction {
+                    switch balance.getScaledBalance().direction {
                     case BalanceDirection.Debit:
                         return FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance.quantity, interestIndex: tokenSnapshot.getDebitIndex())
+                            balance.getScaledBalance().quantity, interestIndex: tokenSnapshot.getDebitIndex())
                     case BalanceDirection.Credit:
                         return FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance.quantity, interestIndex: tokenSnapshot.getCreditIndex())
+                            balance.getScaledBalance().quantity, interestIndex: tokenSnapshot.getCreditIndex())
                     }
                     panic("unreachable")
                 }
@@ -465,10 +473,10 @@ access(all) contract FlowALPModels {
             let balance = view.balances[tokenType]!
             let snap = view.snapshots[tokenType]!
 
-            switch balance.scaledBalance.direction {
+            switch balance.getScaledBalance().direction {
                 case BalanceDirection.Credit:
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                        balance.scaledBalance.quantity,
+                        balance.getScaledBalance().quantity,
                         interestIndex: snap.getCreditIndex()
                     )
                     effectiveCollateralTotal = effectiveCollateralTotal
@@ -476,7 +484,7 @@ access(all) contract FlowALPModels {
 
                 case BalanceDirection.Debit:
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                        balance.scaledBalance.quantity,
+                        balance.getScaledBalance().quantity,
                         interestIndex: snap.getDebitIndex()
                     )
                     effectiveDebtTotal = effectiveDebtTotal
