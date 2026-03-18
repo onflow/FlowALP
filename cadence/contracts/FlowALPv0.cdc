@@ -1999,6 +1999,12 @@ access(all) contract FlowALPv0 {
             return <-stabilityVault
         }
 
+        /// Queues a position for asynchronous updates if its health is outside the configured bounds.
+        /// Exposed via EPosition so Position setters can trigger rebalance eligibility checks.
+        access(FlowALPModels.EPosition) fun queuePositionForUpdateIfNecessary(pid: UInt64) {
+            self._queuePositionForUpdateIfNecessary(pid: pid)
+        }
+
         ////////////////
         // INTERNAL
         ////////////////
