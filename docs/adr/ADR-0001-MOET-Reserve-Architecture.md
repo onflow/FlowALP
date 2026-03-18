@@ -81,7 +81,6 @@ Insurance fees are a buffer against bad debt and must remain accessible as deplo
 
 **3. Hybrid model** — Rejected. Produces accounting invariant violations where reserve balance and outstanding debt diverge. No production DeFi protocol uses this for an endogenous synthetic.
 
-**4. Keep scattered `isMOET` guard clauses** — Rejected. Creates maintenance debt and bug surface area throughout token-agnostic code.
 
 ---
 
