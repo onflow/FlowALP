@@ -1953,15 +1953,15 @@ access(all) contract FlowALPv0 {
             assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
             assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
 
-                let quote = insuranceSwapper.quoteOut(forProvided: insuranceAmountUFix64, reverse: false)
-                let dexPrice = quote.outAmount / quote.inAmount
-                assert(
-                    FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
-                    message: "DEX/oracle price deviation exceeds \(maxDeviationBps)bps. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
-                var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
-                tokenState.setLastInsuranceCollectionTime(currentTime)
-                return <-moetVault
-            }
+            let quote = insuranceSwapper.quoteOut(forProvided: insuranceAmountUFix64, reverse: false)
+            let dexPrice = quote.outAmount / quote.inAmount
+            assert(
+                FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
+                message: "DEX/oracle price deviation exceeds \(maxDeviationBps)bps. Dex price: \(dexPrice), Oracle price: \(oraclePrice)",
+            )
+            var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
+            tokenState.setLastInsuranceCollectionTime(currentTime)
+            return <-moetVault
         }
 
         /// Collects stability funds by withdrawing from reserves.
