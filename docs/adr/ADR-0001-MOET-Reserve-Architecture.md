@@ -1,4 +1,4 @@
-# ADR: MOET Reserve Architecture — Pure Mint/Burn Model
+# MOET Reserve Architecture — Pure Mint/Burn Model
 
 **Status**: Accepted
 **Date**: 2026-03-05
