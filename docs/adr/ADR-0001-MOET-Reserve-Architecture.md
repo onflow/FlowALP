@@ -46,7 +46,7 @@ The token reserve for MOET is implemented as an object satisfying `FungibleToken
 
 This applies uniformly to both collateral and debt operations — all four paths (`depositCollateral`, `depositRepayment`, `withdrawDebt`, `withdrawCollateral`) route through the same two-method interface.
 
-**Insurance fees** are the one explicit exception: collected and held in a **separate, dedicated MOET vault** (minted at collection time, never routed through the burn path, never used for lending).
+**Insurance fees** are the one explicit exception: collected and held in a **separate, dedicated MOET vault** (obtained through AMM swap at collection time, never routed through the burn path, never used for lending).
 
 ---
 
