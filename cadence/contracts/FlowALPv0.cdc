@@ -678,7 +678,7 @@ access(all) contract FlowALPv0 {
             let position = self._borrowPosition(pid: pid)
 
             let adjusted = self.computeAdjustedBalancesAfterWithdrawal(
-                balanceSheet: balanceSheet,
+                initialBalanceSheet: balanceSheet,
                 position: position,
                 withdrawType: withdrawType,
                 withdrawAmount: withdrawAmount
@@ -687,15 +687,14 @@ access(all) contract FlowALPv0 {
             return self.computeRequiredDepositForHealth(
                 position: position,
                 depositType: depositType,
-                withdrawType: withdrawType,
-                adjusted: adjusted.summary,
+                initialHealthStatement: adjusted.summary,
                 targetHealth: targetHealth
             )
         }
 
         // TODO: documentation
         access(self) fun computeAdjustedBalancesAfterWithdrawal(
-            balanceSheet: FlowALPModels.BalanceSheet,
+            initialBalanceSheet: FlowALPModels.BalanceSheet,
             position: &{FlowALPModels.InternalPosition},
             withdrawType: Type,
             withdrawAmount: UFix64
@@ -712,7 +711,7 @@ access(all) contract FlowALPv0 {
             )
 
             return FlowALPHealth.computeAdjustedBalancesAfterWithdrawal(
-                balanceSheet: balanceSheet,
+                initialBalanceSheet: initialBalanceSheet,
                 withdrawBalance: position.getBalance(withdrawType),
                 withdrawType: withdrawType,
                 withdrawAmount: withdrawAmount,
@@ -724,25 +723,25 @@ access(all) contract FlowALPv0 {
         access(self) fun computeRequiredDepositForHealth(
             position: &{FlowALPModels.InternalPosition},
             depositType: Type,
-            withdrawType: Type,
-            adjusted: FlowALPModels.HealthStatement,
+            initialHealthStatement: FlowALPModels.HealthStatement,
             targetHealth: UFix128
         ): UFix64 {
-            let depositBalance = position.getBalance(depositType)
-            var depositDebitInterestIndex: UFix128 = 1.0
-            if depositBalance?.getScaledBalance()?.direction == FlowALPModels.BalanceDirection.Debit {
-                depositDebitInterestIndex = self._borrowUpdatedTokenState(type: depositType).getDebitInterestIndex()
-            }
+            let tokenState = self._borrowUpdatedTokenState(type: depositType)
+            let depositSnapshot = FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType))
+                )
+            )
 
             return FlowALPHealth.computeRequiredDepositForHealth(
-                depositBalance: depositBalance,
-                depositDebitInterestIndex: depositDebitInterestIndex,
-                depositPrice: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
-                depositBorrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType)),
-                depositCollateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
-                adjusted: adjusted,
-                targetHealth: targetHealth,
-                isDebugLogging: self.config.isDebugLogging()
+                depositBalance: position.getBalance(depositType),
+                depositSnapshot: depositSnapshot,
+                initialHealthStatement: initialHealthStatement,
+                targetHealth: targetHealth
             )
         }
 
@@ -786,7 +785,7 @@ access(all) contract FlowALPv0 {
             let position = self._borrowPosition(pid: pid)
 
             let adjusted = self.computeAdjustedBalancesAfterDeposit(
-                balanceSheet: balanceSheet,
+                initialBalanceSheet: balanceSheet,
                 position: position,
                 depositType: depositType,
                 depositAmount: depositAmount
@@ -795,14 +794,14 @@ access(all) contract FlowALPv0 {
             return self.computeAvailableWithdrawal(
                 position: position,
                 withdrawType: withdrawType,
-                adjusted: adjusted.summary,
+                initialHealthStatement: adjusted.summary,
                 targetHealth: targetHealth
             )
         }
 
         // Helper function to compute balances after deposit
         access(self) fun computeAdjustedBalancesAfterDeposit(
-            balanceSheet: FlowALPModels.BalanceSheet,
+            initialBalanceSheet: FlowALPModels.BalanceSheet,
             position: &{FlowALPModels.InternalPosition},
             depositType: Type,
             depositAmount: UFix64
@@ -819,7 +818,7 @@ access(all) contract FlowALPv0 {
             )
 
             return FlowALPHealth.computeAdjustedBalancesAfterDeposit(
-                balanceSheet: balanceSheet,
+                initialBalanceSheet: initialBalanceSheet,
                 depositBalance: position.getBalance(depositType),
                 depositType: depositType,
                 depositAmount: depositAmount,
@@ -828,28 +827,28 @@ access(all) contract FlowALPv0 {
         }
 
         // Helper function to compute available withdrawal
-        // TODO(jord): ~100-line function - consider refactoring
         access(self) fun computeAvailableWithdrawal(
             position: &{FlowALPModels.InternalPosition},
             withdrawType: Type,
-            adjusted: FlowALPModels.HealthStatement,
+            initialHealthStatement: FlowALPModels.HealthStatement,
             targetHealth: UFix128
         ): UFix64 {
-            let withdrawBalance = position.getBalance(withdrawType)
-            var withdrawCreditInterestIndex: UFix128 = 1.0
-            if withdrawBalance?.getScaledBalance()?.direction == FlowALPModels.BalanceDirection.Credit {
-                withdrawCreditInterestIndex = self._borrowUpdatedTokenState(type: withdrawType).getCreditInterestIndex()
-            }
+            let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
+            let withdrawSnapshot = FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
+                )
+            )
 
             return FlowALPHealth.computeAvailableWithdrawal(
-                withdrawBalance: withdrawBalance,
-                withdrawCreditInterestIndex: withdrawCreditInterestIndex,
-                withdrawPrice: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
-                withdrawCollateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
-                withdrawBorrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType)),
-                adjusted: adjusted,
-                targetHealth: targetHealth,
-                isDebugLogging: self.config.isDebugLogging()
+                withdrawBalance: position.getBalance(withdrawType),
+                withdrawSnapshot: withdrawSnapshot,
+                initialHealthStatement: initialHealthStatement,
+                targetHealth: targetHealth
             )
         }
 
@@ -858,7 +857,7 @@ access(all) contract FlowALPv0 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
             let adjusted = self.computeAdjustedBalancesAfterDeposit(
-                balanceSheet: balanceSheet,
+                initialBalanceSheet: balanceSheet,
                 position: position,
                 depositType: type,
                 depositAmount: amount
@@ -874,7 +873,7 @@ access(all) contract FlowALPv0 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
             let adjusted = self.computeAdjustedBalancesAfterWithdrawal(
-                balanceSheet: balanceSheet,
+                initialBalanceSheet: balanceSheet,
                 position: position,
                 withdrawType: type,
                 withdrawAmount: amount

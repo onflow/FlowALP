@@ -393,6 +393,16 @@ access(all) contract FlowALPModels {
             return FlowALPMath.effectiveCollateral(credit: creditBalance, price: self.price, collateralFactor: self.risk.getCollateralFactor())
         }
 
+        /// Returns the true balance for the given internal (scaled) balance, accounting for accrued interest.
+        access(all) fun trueBalance(balance: InternalBalance): Balance {
+            let scaled = balance.getScaledBalance()
+            let interestIndex = scaled.direction == BalanceDirection.Credit
+                ? self.creditIndex
+                : self.debitIndex
+            let trueQty = FlowALPMath.scaledBalanceToTrueBalance(scaled.quantity, interestIndex: interestIndex)
+            return Balance(direction: scaled.direction, quantity: trueQty)
+        }
+
         /// Returns the effective value (collateral or debt) for the given balance, based on its direction.
         access(all) fun effectiveBalance(balance: Balance): Balance {
             if balance.quantity == 0.0 {
@@ -445,21 +455,12 @@ access(all) contract FlowALPModels {
 
         /// Returns the true balance of the given token in this position, accounting for interest.
         /// Returns balance 0.0 if the position has no balance stored for the given token.
-        access(all) view fun trueBalance(ofToken: Type): UFix128 {
+        access(all) fun trueBalance(ofToken: Type): UFix128 {
             if let balance = self.balances[ofToken] {
                 if let tokenSnapshot = self.snapshots[ofToken] {
-                    switch balance.getScaledBalance().direction {
-                    case BalanceDirection.Debit:
-                        return FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.getScaledBalance().quantity, interestIndex: tokenSnapshot.getDebitIndex())
-                    case BalanceDirection.Credit:
-                        return FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.getScaledBalance().quantity, interestIndex: tokenSnapshot.getCreditIndex())
-                    }
-                    panic("unreachable")
+                    return tokenSnapshot.trueBalance(balance: balance).quantity
                 }
             }
-            // If the token doesn't exist in the position, the balance is 0
             return 0.0
         }
     }
