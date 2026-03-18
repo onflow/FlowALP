@@ -1956,7 +1956,7 @@ access(all) contract FlowALPv0 {
                 let dexPrice = quote.outAmount / quote.inAmount
                 assert(
                     FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
-                    message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
+                    message: "DEX/oracle price deviation exceeds \(maxDeviationBps)bps. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
                 var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
                 tokenState.setLastInsuranceCollectionTime(currentTime)
                 return <-moetVault
