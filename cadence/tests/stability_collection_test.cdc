@@ -74,10 +74,10 @@ fun test_collectStability_insufficientReserves() {
     // setup LP to provide MOET liquidity for borrowing (small amount to create limited reserves)
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 1000.0, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 500.0, beFailed: false)
 
-    // LP deposits 1000 MOET (creates credit balance, provides borrowing liquidity)
-    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // LP deposits 500 MOET (creates credit balance, provides borrowing liquidity)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with large FLOW collateral to borrow most of the MOET
     let borrower = Test.createAccount()
@@ -86,9 +86,12 @@ fun test_collectStability_insufficientReserves() {
 
     // borrower deposits 10000 FLOW and auto-borrows MOET
     // With CF(0.8) and targetHealth(1.3): 10000 FLOW * 0.8 / 1.3 ≈ 6153 MOET borrowable
-    // but pool only has 1000 MOET, so borrower gets ~1000 MOET (limited by liquidity)
+    // but pool only has 500 MOET, so borrower gets ~500 MOET (limited by liquidity)
     // this leaves reserves very close to 0
     createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+
+    // set 90% annual debit rate
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.9)
 
     let initialStabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assertEqual(nil, initialStabilityBalance)

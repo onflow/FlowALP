@@ -166,7 +166,6 @@ fun test_collectInsurance_insufficientReserves() {
 
     // time should not change
     Test.assertEqual(lastCollectionTimeBefore, lastCollectionTimeAfter)
-
 }
 
 // -----------------------------------------------------------------------------
