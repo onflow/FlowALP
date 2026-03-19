@@ -169,7 +169,7 @@ access(all) contract FlowALPMath {
 
     /// Returns the effective debt (denominated in $) for the given debit balance of some token T.
     /// Effective Debt is defined:
-    ///   De = (Nd)(Pd)(Fd)
+    ///   De = (Nd)(Pd)/(Fd)
     /// Where:
     /// De = Effective Debt 
     /// Nd = Number of Debt Tokens

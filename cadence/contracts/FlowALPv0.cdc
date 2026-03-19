@@ -687,7 +687,7 @@ access(all) contract FlowALPv0 {
             return self.computeRequiredDepositForHealth(
                 position: position,
                 depositType: depositType,
-                initialHealthStatement: adjusted.summary,
+                initialBalanceSheet: adjusted,
                 targetHealth: targetHealth
             )
         }
@@ -723,7 +723,7 @@ access(all) contract FlowALPv0 {
         access(self) fun computeRequiredDepositForHealth(
             position: &{FlowALPModels.InternalPosition},
             depositType: Type,
-            initialHealthStatement: FlowALPModels.HealthStatement,
+            initialBalanceSheet: FlowALPModels.BalanceSheet,
             targetHealth: UFix128
         ): UFix64 {
             let tokenState = self._borrowUpdatedTokenState(type: depositType)
@@ -738,9 +738,10 @@ access(all) contract FlowALPv0 {
             )
 
             return FlowALPHealth.computeRequiredDepositForHealth(
-                depositBalance: position.getBalance(depositType),
+                initialBalance: position.getBalance(depositType),
+                depositType: depositType,
                 depositSnapshot: depositSnapshot,
-                initialHealthStatement: initialHealthStatement,
+                initialBalanceSheet: initialBalanceSheet,
                 targetHealth: targetHealth
             )
         }
@@ -794,7 +795,7 @@ access(all) contract FlowALPv0 {
             return self.computeAvailableWithdrawal(
                 position: position,
                 withdrawType: withdrawType,
-                initialHealthStatement: adjusted.summary,
+                initialBalanceSheet: adjusted,
                 targetHealth: targetHealth
             )
         }
@@ -830,7 +831,7 @@ access(all) contract FlowALPv0 {
         access(self) fun computeAvailableWithdrawal(
             position: &{FlowALPModels.InternalPosition},
             withdrawType: Type,
-            initialHealthStatement: FlowALPModels.HealthStatement,
+            initialBalanceSheet: FlowALPModels.BalanceSheet,
             targetHealth: UFix128
         ): UFix64 {
             let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
@@ -846,8 +847,9 @@ access(all) contract FlowALPv0 {
 
             return FlowALPHealth.computeAvailableWithdrawal(
                 withdrawBalance: position.getBalance(withdrawType),
+                withdrawType: withdrawType,
                 withdrawSnapshot: withdrawSnapshot,
-                initialHealthStatement: initialHealthStatement,
+                initialBalanceSheet: initialBalanceSheet,
                 targetHealth: targetHealth
             )
         }
