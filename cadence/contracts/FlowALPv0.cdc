@@ -144,6 +144,11 @@ access(all) contract FlowALPv0 {
         remainingCapacity: UFix64
     )
 
+    access(all) event PositionHealthUpdated(
+        pid: UInt64,
+        health: UFix128
+    )
+
     //// Emitted each time the insurance rate is updated for a specific token in a specific pool.
     //// The insurance rate is an annual percentage; for example a value of 0.001 indicates 0.1%.
     access(all) event InsuranceRateUpdated(
@@ -3958,6 +3963,7 @@ access(all) contract FlowALPv0 {
             }
 
             let positionHealth = self.positionHealth(pid: pid)
+            emit PositionHealthUpdated(pid: pid, health: positionHealth)
 
             if positionHealth < position.minHealth || positionHealth > position.maxHealth {
                 // This position is outside the configured health bounds, we queue it for an update
