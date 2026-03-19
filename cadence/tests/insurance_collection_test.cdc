@@ -7,21 +7,12 @@ import "FlowALPEvents"
 import "test_helpers.cdc"
 
 access(all) var snapshot: UInt64 = 0
+access(all) var snapshotTimestamp = 0.0
 
 access(all)
 fun setup() {
     deployContracts()
-    // take snapshot first, then advance time so reset() target is always lower than current height
-    snapshot = getCurrentBlockHeight()
-    // move time by 1 second so Test.reset() works properly before each test
-    Test.moveTime(by: 1.0)
-}
 
-access(all)
-fun beforeEach() {
-    Test.reset(to: snapshot)
-    
-    // Recreate pool and supported tokens fresh for each test
     createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
     addSupportedTokenZeroRateCurve(
@@ -32,6 +23,23 @@ fun beforeEach() {
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
     )
+
+    snapshot = getCurrentBlockHeight()
+    snapshotTimestamp = getCurrentBlockTimestamp()
+}
+
+access(all)
+fun beforeEach() {
+    if snapshot != getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
+    // Test reset moves the timestamp but it will jump back to the previous timestamp on the next block.
+    Test.commitBlock()
+    let currentTimestamp = getCurrentBlockTimestamp()
+    if currentTimestamp > snapshotTimestamp {
+        let diff = currentTimestamp - snapshotTimestamp
+        Test.moveTime(by: -Fix64(diff))
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -515,7 +523,7 @@ fun test_collectInsurance_midPeriodRateChange() {
     //   perSecondRate = 1 + (0.1 / 31557600) = 1.00000000317
     //   debitIncome_1 = 500 * (1.00000000317^31557600 - 1) = 52.58545895 FLOW
     //   insuranceAmount = debitIncome_1 * insurRate1 = 52.58545895 * 0.1 = 5.25854589
-    let expectedCollectedInsuranceAmountAfterPhase1 = 5.25854589 
+    let expectedCollectedInsuranceAmountAfterPhase1 = 5.25854589
 
    // change the insurance rate to 20% for phase 2
     rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.2)
@@ -531,7 +539,7 @@ fun test_collectInsurance_midPeriodRateChange() {
     // depends on block timestamps, which can differ slightly between test runs.
     // A larger, time-aware tolerance is required.
     let tolerance = 0.00001
-    var diff = expectedCollectedInsuranceAmountAfterPhase1 > insuranceAfterPhase1 
+    var diff = expectedCollectedInsuranceAmountAfterPhase1 > insuranceAfterPhase1
         ? expectedCollectedInsuranceAmountAfterPhase1 - insuranceAfterPhase1
         : insuranceAfterPhase1 - expectedCollectedInsuranceAmountAfterPhase1
     Test.assert(diff < tolerance, message: "Insurance collected should be around \(expectedCollectedInsuranceAmountAfterPhase1) but current \(insuranceAfterPhase1)")
@@ -560,14 +568,14 @@ fun test_collectInsurance_midPeriodRateChange() {
 
     let insuranceAfterPhase2 = getInsuranceFundBalance()
     let reservesAfterPhase2 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
-    
+
     // NOTE:
     // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
     // The default variance is designed for deterministic math, but insurance collection
     // depends on block timestamps, which can differ slightly between test runs.
     // A larger, time-aware tolerance is required.
     let expectedCollectedInsuranceAmount= expectedCollectedInsuranceAmountAfterPhase1 + expectedCollectedInsuranceAmountAfterPhase2 // 5.25854589 + 10.51709179
-    diff = expectedCollectedInsuranceAmount > insuranceAfterPhase2 
+    diff = expectedCollectedInsuranceAmount > insuranceAfterPhase2
         ? expectedCollectedInsuranceAmount - insuranceAfterPhase2
         : insuranceAfterPhase2 - expectedCollectedInsuranceAmount
 

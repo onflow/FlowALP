@@ -855,11 +855,11 @@ fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFail
 
 access(all)
 fun manualLiquidation(
-    signer: Test.TestAccount, 
-    pid: UInt64, 
-    debtVaultIdentifier: String, 
-    seizeVaultIdentifier: String, 
-    seizeAmount: UFix64, 
+    signer: Test.TestAccount,
+    pid: UInt64,
+    debtVaultIdentifier: String,
+    seizeVaultIdentifier: String,
+    seizeAmount: UFix64,
     repayAmount: UFix64,
 ): Test.TransactionResult {
     return _executeTransaction(
@@ -1083,4 +1083,11 @@ access(all) fun getLastPositionId(): UInt64  {
     var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     return pid
+}
+
+access(all)
+fun getCurrentBlockTimestamp(): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/get_block_timestamp.cdc", [])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
 }
