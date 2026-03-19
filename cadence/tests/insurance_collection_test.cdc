@@ -111,6 +111,18 @@ fun test_collectInsurance_zeroDebitBalance_returnsNil() {
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_insufficientReserves() {
+    // configure insurance swapper (1:1 ratio)
+    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    Test.expect(swapperResult, Test.beSucceeded())
+
+    // set 90% annual debit rate
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.9)
+
+    // set a high insurance rate (90% of debit income goes to insurance)
+    // Note: default stabilityFeeRate is 0.05, so insuranceRate + stabilityFeeRate = 0.9 + 0.05 = 0.95 < 1.0
+    let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, insuranceRate: 0.9)
+    Test.expect(rateResult, Test.beSucceeded())
+
     // setup LP to provide MOET liquidity for borrowing (small amount to create limited reserves)
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
@@ -134,17 +146,6 @@ fun test_collectInsurance_insufficientReserves() {
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
 
-    // configure insurance swapper (1:1 ratio)
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
-    Test.expect(swapperResult, Test.beSucceeded())
-
-    // set 90% annual debit rate
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.9)
-
-    // set a high insurance rate (90% of debit income goes to insurance)
-    // Note: default stabilityFeeRate is 0.05, so insuranceRate + stabilityFeeRate = 0.9 + 0.05 = 0.95 < 1.0
-    let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, insuranceRate: 0.9)
-    Test.expect(rateResult, Test.beSucceeded())
 
     let initialInsuranceBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialInsuranceBalance)
