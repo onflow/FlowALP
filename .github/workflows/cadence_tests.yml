@@ -34,7 +34,7 @@ jobs:
           key: flow-deps-${{ hashFiles('flow.json') }}
       - name: Install Flow CLI
         env:
-          FLOW_CLI_VERSION: v2.7.2
+          FLOW_CLI_VERSION: v2.15.1
         run: sh -ci "$(curl -fsSL https://raw.githubusercontent.com/onflow/flow-cli/master/install.sh)"
       - name: Update PATH and show Flow version
         run: |
