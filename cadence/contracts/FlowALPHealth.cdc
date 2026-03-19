@@ -120,12 +120,6 @@ access(all) contract FlowALPHealth {
         let CF = tokenSnapshot.risk.getCollateralFactor()
         let BF = tokenSnapshot.risk.getBorrowFactor()
 
-        // Determine whether the token needs to be collateral or can carry debt.
-        // H = Ce/De
-        // H = (Ce_others + Ce_token)/De
-        // Required credit = (H * edOther - ecOther) / (P * CF)
-        // If this is negative (or edOther == 0), the token can carry a debit balance instead.
-
         // Given the health formula H = Ce/De, we find the value for Ce needed for the target health,
         // given the effective debt without T's contribution.
         let requiredEffectiveCollateral = targetHealth * De_others
