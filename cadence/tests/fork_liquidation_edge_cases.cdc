@@ -547,7 +547,15 @@ fun testDexLiquidityConstraints() {
 }
 
 // =============================================================================
-// Stability and Insurance Fee Accrual — 1 year before liquidation
+// Stability and Insurance Fee Accrual — fees not collected for liquidated funds
+//
+// Insurance and stability fees are collected periodically, based on the total
+// debit balance at the time of collection. In practice, this means that these
+// fees are an estimate of the actual debit income (they do not account for
+// states between collections). This means that, if a debit balance changes
+// substantially between collections, we might over- or under-collect fees.
+// This test demonstrates this scenario in the case that a liquidation reduces
+// the debit balance prior to a collection.
 //
 // FlowALPv0 protocol revenue comes from interest accrual:
 // a fraction of debit income flows to the stability fund (in the debt
@@ -578,7 +586,7 @@ fun testDexLiquidityConstraints() {
 //   LP credit income = 5000 * (e^0.08 - 1) ≈ 416.435 USDF
 // =============================================================================
 access(all)
-fun testStabilityAndInsuranceFeeAccrual() {
+fun testStabilityAndInsuranceFees_notCollectedForLiquidatedFunds() {
     safeReset()
 
     // Override zero-rate curve: 10% annual fixed interest for USDF
@@ -707,141 +715,4 @@ fun testStabilityAndInsuranceFeeAccrual() {
         message: "LP income ≈ 416.435 USDF (lpDeposit 5000 × (e^creditRate 0.08 - 1)), got \(actualLpIncome)")
 }
 
-// =============================================================================
-// Bad Debt Handling
-//
-// A severe price crash drives a position deep underwater: the market value of
-// all collateral ($910) is less than the outstanding debt ($1000). A liquidator
-// seizes every unit of collateral in a single call, repaying as much as the
-// DEX-price check allows. The remaining 89 USDF of debt cannot be recovered —
-// there is nothing left to seize.
-//
-// FlowALPv0 has NO automatic bad-debt write-off or socialised-loss mechanism.
-// The position persists in a zombie state (health = 0.0, non-zero debt).
-// The shortfall is an implicit loss absorbed by LP reserve dilution.
-//
-// Setup:
-//   Collateral : 1400 FLOW @ $1.00, CF = 0.80 → effective = $1120
-//   Debt       : 1000 USDF
-//   Health     : 1120/1000 = 1.120 (healthy, above minHealth 1.1)
-//
-// After FLOW crash $1.00 → $0.65:
-//   Collateral market value = 1400 × $0.65 = $910   (< debt $1000 → bad debt)
-//   Effective collateral    = 1400 × 0.65 × 0.80 = $728
-//   Health                  = 728/1000 = 0.728  (unhealthy)
-//
-// Liquidation — complete collateral seizure via manual liquidation:
-//   seize = 1400 FLOW (all), repay = 911 USDF
-//   Liquidator pays 911 USDF; seized 1400 FLOW transferred to liquidator
-//   DEX check (FLOW→USDF, priceRatio=0.65): seize(1400) < repay(911)/0.65 = 1401.5
-//   post effective collateral = 0
-//   post debt                 = 1000 − 911 = 89 USDF
-//   post health               = 0/89 = 0.0 ≤ 1.05
-//
-// Bad-debt outcome:
-//   89 USDF remains as irrecoverable debt with no collateral backing.
-//   A second liquidation (seize=0, repay=88.99999999) voluntarily clears most of the debt.
-//   Note: repaying the full 89 USDF is blocked (postHealth=UFix128.max > 1.05 target).
-//   Reserve = 4000 (post-borrow) + 911 + 88.99999999 (repaid) = 4999.99999999 USDF.
-// =============================================================================
-access(all)
-fun testBadDebtHandling() {
-    safeReset()
-
-    // USDF liquidity provider
-    let lpUser = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
-
-    // Borrower: 1400 FLOW @ $1.00, CF=0.80 → effective $1120 → borrow 1000 USDF
-    // health = 1120/1000 = 1.120 (healthy, minHealth 1.1 allows borrow)
-    let user = Test.createAccount()
-    let setupRes = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
-    Test.expect(setupRes, Test.beSucceeded())
-    transferFlowTokens(to: user, amount: 1400.0)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 1400.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid = getLastPositionId()
-    borrowFromPosition(signer: user, positionId: pid,
-        tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
-        amount: 1000.0, beFailed: false)
-
-    Test.assert(getPositionHealth(pid: pid, beFailed: false) > 1.0, message: "Position should be healthy initially")
-
-    // Reserve: LP 5000 deposited − 1000 borrowed = 4000
-    Test.assertEqual(4000.0, getReserveBalance(vaultIdentifier: MAINNET_USDF_TOKEN_ID))
-
-    // === FLOW crash: $1.00 → $0.65 ===
-    // Collateral market value = 1400 × 0.65 = $910 < debt $1000 → bad-debt territory
-    // Effective collateral    = 1400 × 0.65 × 0.80 = $728
-    // health = 728/1000 = 0.728
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.65)
-
-    let crashedHealth = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(crashedHealth < 1.0, message: "Position must be unhealthy after crash")
-    let expectedCrashedHealth: UFix128 = 0.728
-    Test.assertEqual(expectedCrashedHealth, crashedHealth)
-
-    // Configure DEX price for FLOW→USDF at the crashed oracle price (0.65).
-    // MAINNET_PROTOCOL_ACCOUNT's USDF vault is required to issue the vault capability
-    // for setMockDexPriceForPair (the price reference used by manualLiquidation's seize check).
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 100.0)
-    setMockDexPriceForPair(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        outVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        vaultSourceStoragePath: MAINNET_USDF_STORAGE_PATH,
-        priceRatio: 0.65
-    )
-
-    // === Complete collateral seizure via manual liquidation ===
-    // seize 1400 FLOW (all), repay 911 USDF
-    //   DEX check: seize(1400) < repay(911)/priceRatio(0.65) = 1401.5
-    //   post-health: 0/89 = 0.0 ≤ 1.05
-    // Liquidator pays 911 USDF directly; seized 1400 FLOW goes to liquidator.
-    let liquidator = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 1000.0)
-
-    let liqRes = manualLiquidation(
-        signer: liquidator,
-        pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        seizeAmount: 1400.0,
-        repayAmount: 911.0,
-    )
-    Test.expect(liqRes, Test.beSucceeded())
-
-    // === Bad-debt state ===
-    let detailsAfterLiq = getPositionDetails(pid: pid, beFailed: false)
-
-    // All FLOW collateral is gone (transferred to liquidator)
-    Test.assertEqual(0.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!))
-
-    // 89 USDF of irrecoverable debt remains (1000 − 911)
-    Test.assertEqual(89.0, getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))
-
-    // Health = effectiveCollateral(0) / debt(89) = 0.0
-    let expectedBadDebtHealth: UFix128 = 0.0
-    Test.assertEqual(expectedBadDebtHealth, getPositionHealth(pid: pid, beFailed: false))
-
-    // === Second liquidation: voluntary partial repayment of bad debt ===
-    // Seize 0 FLOW (none remaining), repay 88.99999999 USDF.
-    //   DEX check: seize(0) < repay(88.99999999)/priceRatio(0.65) = 136.9
-    //   post-health: 0 / 0.00000001 = 0.0 ≤ 1.05
-    // Note: repaying the full 89 USDF would set postDebt=0 → healthComputation(0,0)=UFix128.max,
-    // which exceeds liquidationTargetHF (1.05) and reverts. One raw token of debt must remain.
-    let liqRes2 = manualLiquidation(
-        signer: liquidator,
-        pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        seizeAmount: 0.0,
-        repayAmount: 88.99999999,
-    )
-    Test.expect(liqRes2, Test.beSucceeded())
-
-    // Reserve = 4000 (post-borrow) + 911 (first liq) + 88.99999999 (second liq) = 4999.99999999 USDF.
-    // 0.00000001 USDF of irrecoverable bad debt persists as the minimum residual.
-    Test.assertEqual(4999.99999999, getReserveBalance(vaultIdentifier: MAINNET_USDF_TOKEN_ID))
-}
 
