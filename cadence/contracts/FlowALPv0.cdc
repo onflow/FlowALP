@@ -394,16 +394,7 @@ access(all) contract FlowALPv0 {
             let view = self.buildPositionView(pid: pid)
 
             // Build a TokenSnapshot for the requested withdraw type (may not exist in view.snapshots)
-            let tokenState = self._borrowUpdatedTokenState(type: type)
-            let snap = FlowALPModels.TokenSnapshot(
-                price: UFix128(self.config.getPriceOracle().price(ofToken: type)!),
-                credit: tokenState.getCreditInterestIndex(),
-                debit: tokenState.getDebitInterestIndex(),
-                risk: FlowALPModels.RiskParamsImplv1(
-                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: type)),
-                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: type)),
-                )
-            )
+            let snap = self.buildTokenSnapshot(type: type)
 
             let withdrawBal = view.balances[type]
             let uintMax = FlowALPv0.maxWithdraw(
@@ -699,16 +690,7 @@ access(all) contract FlowALPv0 {
             withdrawType: Type,
             withdrawAmount: UFix64
         ): FlowALPModels.BalanceSheet {
-            let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
-            let snapshot = FlowALPModels.TokenSnapshot(
-                price: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
-                credit: tokenState.getCreditInterestIndex(),
-                debit: tokenState.getDebitInterestIndex(),
-                risk: FlowALPModels.RiskParamsImplv1(
-                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
-                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
-                )
-            )
+            let snapshot = self.buildTokenSnapshot(type: withdrawType)
 
             return FlowALPHealth.computeAdjustedBalancesAfterWithdrawal(
                 initialBalanceSheet: initialBalanceSheet,
@@ -726,21 +708,10 @@ access(all) contract FlowALPv0 {
             initialBalanceSheet: FlowALPModels.BalanceSheet,
             targetHealth: UFix128
         ): UFix64 {
-            let tokenState = self._borrowUpdatedTokenState(type: depositType)
-            let depositSnapshot = FlowALPModels.TokenSnapshot(
-                price: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
-                credit: tokenState.getCreditInterestIndex(),
-                debit: tokenState.getDebitInterestIndex(),
-                risk: FlowALPModels.RiskParamsImplv1(
-                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
-                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType))
-                )
-            )
-
             return FlowALPHealth.computeRequiredDepositForHealth(
                 initialBalance: position.getBalance(depositType),
                 depositType: depositType,
-                depositSnapshot: depositSnapshot,
+                depositSnapshot: self.buildTokenSnapshot(type: depositType),
                 initialBalanceSheet: initialBalanceSheet,
                 targetHealth: targetHealth
             )
@@ -771,32 +742,51 @@ access(all) contract FlowALPv0 {
             if self.config.isDebugLogging() {
                 log("    [CONTRACT] fundsAvailableAboveTargetHealthAfterDepositing(pid: \(pid), withdrawType: \(withdrawType.contractName!), targetHealth: \(targetHealth), depositType: \(depositType.contractName!), depositAmount: \(depositAmount))")
             }
-            if depositType == withdrawType && depositAmount > 0.0 {
-                // If the deposit and withdrawal types are the same, we compute the available funds assuming
-                // no deposit (which is less work) and increase that by the deposit amount at the end
-                let fundsAvailable = self.fundsAvailableAboveTargetHealth(
-                    pid: pid,
-                    type: withdrawType,
-                    targetHealth: targetHealth
-                )
-                return fundsAvailable + depositAmount
-            }
 
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
 
-            let adjusted = self.computeAdjustedBalancesAfterDeposit(
+            let balanceSheetAfterDeposit = self.computeAdjustedBalancesAfterDeposit(
                 initialBalanceSheet: balanceSheet,
                 position: position,
                 depositType: depositType,
                 depositAmount: depositAmount
             )
 
-            return self.computeAvailableWithdrawal(
-                position: position,
+            // Compute the post-deposit true balance for the withdraw type.
+            // When depositType == withdrawType, trueBalanceAfterDelta accounts for the deposit's effect.
+            // When they differ, the zero delta leaves the balance unchanged.
+            let withdrawSnapshot = self.buildTokenSnapshot(type: withdrawType)
+            let withdrawDepositAmount = depositType == withdrawType ? depositAmount : 0.0
+            let withdrawTrueBalance = FlowALPHealth.trueBalanceAfterDelta(
+                balance: position.getBalance(withdrawType),
+                delta: FlowALPModels.Balance(
+                    direction: FlowALPModels.BalanceDirection.Credit,
+                    quantity: UFix128(withdrawDepositAmount)
+                ),
+                tokenSnapshot: withdrawSnapshot
+            )
+
+            return FlowALPHealth.computeAvailableWithdrawal(
+                withdrawTrueBalance: withdrawTrueBalance,
                 withdrawType: withdrawType,
-                initialBalanceSheet: adjusted,
+                withdrawSnapshot: withdrawSnapshot,
+                initialBalanceSheet: balanceSheetAfterDeposit,
                 targetHealth: targetHealth
+            )
+        }
+
+        // Builds a up-to-date TokenSnapshot instance for the given type.
+        access(self) fun buildTokenSnapshot(type: Type): FlowALPModels.TokenSnapshot {
+            let tokenState = self._borrowUpdatedTokenState(type: type)
+            return FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: type)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: type)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: type))
+                )
             )
         }
 
@@ -807,50 +797,12 @@ access(all) contract FlowALPv0 {
             depositType: Type,
             depositAmount: UFix64
         ): FlowALPModels.BalanceSheet {
-            let tokenState = self._borrowUpdatedTokenState(type: depositType)
-            let snapshot = FlowALPModels.TokenSnapshot(
-                price: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
-                credit: tokenState.getCreditInterestIndex(),
-                debit: tokenState.getDebitInterestIndex(),
-                risk: FlowALPModels.RiskParamsImplv1(
-                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
-                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType))
-                )
-            )
-
             return FlowALPHealth.computeAdjustedBalancesAfterDeposit(
                 initialBalanceSheet: initialBalanceSheet,
                 depositBalance: position.getBalance(depositType),
                 depositType: depositType,
                 depositAmount: depositAmount,
-                tokenSnapshot: snapshot
-            )
-        }
-
-        // Helper function to compute available withdrawal
-        access(self) fun computeAvailableWithdrawal(
-            position: &{FlowALPModels.InternalPosition},
-            withdrawType: Type,
-            initialBalanceSheet: FlowALPModels.BalanceSheet,
-            targetHealth: UFix128
-        ): UFix64 {
-            let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
-            let withdrawSnapshot = FlowALPModels.TokenSnapshot(
-                price: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
-                credit: tokenState.getCreditInterestIndex(),
-                debit: tokenState.getDebitInterestIndex(),
-                risk: FlowALPModels.RiskParamsImplv1(
-                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
-                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
-                )
-            )
-
-            return FlowALPHealth.computeAvailableWithdrawal(
-                withdrawBalance: position.getBalance(withdrawType),
-                withdrawType: withdrawType,
-                withdrawSnapshot: withdrawSnapshot,
-                initialBalanceSheet: initialBalanceSheet,
-                targetHealth: targetHealth
+                tokenSnapshot: self.buildTokenSnapshot(type: depositType)
             )
         }
 
@@ -2024,16 +1976,7 @@ access(all) contract FlowALPv0 {
             let snaps: {Type: FlowALPModels.TokenSnapshot} = {}
             let balancesCopy = position.copyBalances()
             for t in position.getBalanceKeys() {
-                let tokenState = self._borrowUpdatedTokenState(type: t)
-                snaps[t] = FlowALPModels.TokenSnapshot(
-                    price: UFix128(self.config.getPriceOracle().price(ofToken: t)!),
-                    credit: tokenState.getCreditInterestIndex(),
-                    debit: tokenState.getDebitInterestIndex(),
-                    risk: FlowALPModels.RiskParamsImplv1(
-                        collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: t)),
-                        borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: t)),
-                    )
-                )
+                snaps[t] = self.buildTokenSnapshot(type: t)
             }
             return FlowALPModels.PositionView(
                 balances: balancesCopy,
