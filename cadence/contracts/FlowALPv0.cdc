@@ -1934,7 +1934,11 @@ access(all) contract FlowALPv0 {
             }
 
             let debitIncome = tokenState.getTotalDebitBalance() * (FlowALPMath.powUFix128(tokenState.getCurrentDebitRate(), timeElapsed) - 1.0)
-            let insuranceAmount = debitIncome * UFix128(tokenState.getInsuranceRate())
+            let creditIncome = tokenState.getTotalCreditBalance() * (FlowALPMath.powUFix128(tokenState.getCurrentCreditRate(), timeElapsed) - 1.0)
+            assert(debitIncome >= creditIncome)
+            let protocolFeeIncome = debitIncome - creditIncome
+            let totalProtocolFeeRate = UFix128(tokenState.getInsuranceRate() + tokenState.getStabilityFeeRate())
+            let insuranceAmount = protocolFeeIncome * UFix128(tokenState.getInsuranceRate()) / totalProtocolFeeRate
             let insuranceAmountUFix64 = FlowALPMath.toUFix64RoundDown(insuranceAmount)
 
             if insuranceAmountUFix64 == 0.0 {
@@ -1988,9 +1992,11 @@ access(all) contract FlowALPv0 {
                 return nil
             }
 
-            let stabilityFeeRate = UFix128(tokenState.getStabilityFeeRate())
-            let interestIncome = tokenState.getTotalDebitBalance() * (FlowALPMath.powUFix128(tokenState.getCurrentDebitRate(), timeElapsed) - 1.0)
-            let stabilityAmount = interestIncome * stabilityFeeRate
+            let debitIncome = tokenState.getTotalDebitBalance() * (FlowALPMath.powUFix128(tokenState.getCurrentDebitRate(), timeElapsed) - 1.0)
+            let creditIncome = tokenState.getTotalCreditBalance() * (FlowALPMath.powUFix128(tokenState.getCurrentCreditRate(), timeElapsed) - 1.0)
+            let protocolFee: UFix128 = debitIncome > creditIncome ? debitIncome - creditIncome : 0.0
+            let totalProtocolFeeRate = UFix128(tokenState.getInsuranceRate()) + UFix128(tokenState.getStabilityFeeRate())
+            let stabilityAmount = protocolFee * UFix128(tokenState.getStabilityFeeRate()) / totalProtocolFeeRate
             let stabilityAmountUFix64 = FlowALPMath.toUFix64RoundDown(stabilityAmount)
 
             if stabilityAmountUFix64 == 0.0 {

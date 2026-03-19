@@ -1401,33 +1401,28 @@ access(all) contract FlowALPModels {
             let insuranceRate = UFix128(self.insuranceRate)
             let stabilityFeeRate = UFix128(self.stabilityFeeRate)
 
-            var creditRate: UFix128 = 0.0
             // Total protocol cut as a percentage of debit interest income
             let protocolFeeRate = insuranceRate + stabilityFeeRate
+            self.currentDebitRate = FlowALPMath.perSecondInterestRate(yearlyRate: debitRate)
+            let debitRatePerSecond = self.currentDebitRate - 1.0
 
             // Two calculation paths based on curve type:
-            // 1. FixedCurve: simple spread model (creditRate = debitRate * (1 - protocolFeeRate))
+            // 1. FixedCurve: simple spread model
             //    Used for stable assets like MOET where rates are governance-controlled
             // 2. KinkCurve (and others): reserve factor model
             //    Insurance and stability are percentages of interest income, not a fixed spread
             if self.interestCurve.getType() == Type<FlowALPInterestRates.FixedCurve>() {
-                // FixedRate path: creditRate = debitRate * (1 - protocolFeeRate))
-                // This provides a fixed, predictable spread between borrower and lender rates
-                creditRate = debitRate * (1.0 - protocolFeeRate)
+                // FixedRate path: creditRatePerSec = debitRatePerSec * (1 - protocolFeeRate)
+                self.currentCreditRate = 1.0 + debitRatePerSecond * (1.0 - protocolFeeRate)
             } else {
                 // KinkCurve path (and any other curves): reserve factor model
-                // protocolFeeAmount = debitIncome * protocolFeeRate (percentage of income)
-                // creditRate = (debitIncome - protocolFeeAmount) / totalCreditBalance
-                let debitIncome = self.totalDebitBalance * debitRate
-                let protocolFeeAmount = debitIncome * protocolFeeRate
-
+                // creditRatePerSec = debitRatePerSec * (1 - protocolFeeRate) * totalDebit / totalCredit
                 if self.totalCreditBalance > 0.0 {
-                    creditRate = (debitIncome - protocolFeeAmount) / self.totalCreditBalance
+                    self.currentCreditRate = 1.0 + debitRatePerSecond * (1.0 - protocolFeeRate) * self.totalDebitBalance / self.totalCreditBalance
+                } else {
+                    self.currentCreditRate = 1.0
                 }
             }
-
-            self.currentCreditRate = FlowALPMath.perSecondInterestRate(yearlyRate: creditRate)
-            self.currentDebitRate = FlowALPMath.perSecondInterestRate(yearlyRate: debitRate)
         }
 
         /// Updates the credit and debit interest indices for elapsed time since last update.
