@@ -67,12 +67,12 @@ fun test_collectStability_zeroDebitBalance_returnsNil() {
 }
 
 // -----------------------------------------------------------------------------
-// Test: collectStability only collects up to available reserve balance
-// When calculated stability amount exceeds reserve balance, it collects
-// only what is available. Verify exact amount withdrawn from reserves.
+// Test: collectStability does not collect when reserves are insufficient
+// If the calculated stability fee exceeds the reserve balance,
+// no stability fee should be collected and reserves remain unchanged.
 // -----------------------------------------------------------------------------
 access(all)
-fun test_collectStability_partialReserves_collectsAvailable() {
+fun test_collectStability_insufficientReserves() {
     // setup LP to provide MOET liquidity for borrowing (small amount to create limited reserves)
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
@@ -106,21 +106,24 @@ fun test_collectStability_partialReserves_collectsAvailable() {
     let initialStabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assertEqual(nil, initialStabilityBalance)
 
+    let reserveBalanceBefore = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    let lastCollectionTimeBefore = getLastStabilityCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
+
     Test.moveTime(by: ONE_YEAR + DAY * 30.0) // 1 year + 1 month
 
-    // collect stability - should collect up to available reserve balance
+    // should not collect because reserves are insufficient
     let res = collectStability(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.expect(res, Test.beSucceeded())
 
     let finalStabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
     let reserveBalanceAfter = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    let lastCollectionTimeAfter = getLastStabilityCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
 
-    // stability fund balance should equal amount withdrawn from reserves
-    Test.assertEqual(0.0, reserveBalanceAfter)
+    Test.assertEqual(nil, finalStabilityBalance)
+    Test.assertEqual(reserveBalanceBefore, reserveBalanceAfter)
 
-    // verify collection was limited by reserves
-    // Formula: 90% debit income -> 90% stability rate -> large amount, but limited by available reserves
-    Test.assertEqual(1000.0, finalStabilityBalance!)
+    // time should not change
+    Test.assertEqual(lastCollectionTimeBefore, lastCollectionTimeAfter)
 }
 
 // -----------------------------------------------------------------------------
