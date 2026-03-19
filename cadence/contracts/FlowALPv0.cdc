@@ -1921,6 +1921,13 @@ access(all) contract FlowALPv0 {
         }
 
         /// Collects insurance by withdrawing from reserves and swapping to MOET.
+        ///
+        /// NOTE: If reserves are insufficient to cover the full calculated fee, collection is skipped
+        /// entirely and the timestamp is not updated. This interacts with the rate-change
+        /// collection: if a rate change occurs while reserves are insufficient, the pre-change
+        /// fees will not be settled under the old rate. When reserves eventually recover, the entire
+        /// elapsed window — including the period before the rate change — will be collected under the
+        /// new rate, causing over- or under-collection for that period.
         access(self) fun _collectInsurance(
             tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
@@ -1948,31 +1955,36 @@ access(all) contract FlowALPv0 {
                 return nil
             }
 
-            if reserveVault.balance == 0.0 {
-                tokenState.setLastInsuranceCollectionTime(currentTime)
+            if insuranceAmountUFix64 > reserveVault.balance {
+                // do not collect the insurance fee if the reserve doesn't have enough tokens to cover the full amount 
                 return nil
             }
 
-            let amountToCollect = insuranceAmountUFix64 > reserveVault.balance ? reserveVault.balance : insuranceAmountUFix64
-            var insuranceVault <- reserveVault.withdraw(amount: amountToCollect)
-
+            let insuranceVault <- reserveVault.withdraw(amount: insuranceAmountUFix64)
             let insuranceSwapper = tokenState.getInsuranceSwapper() ?? panic("missing insurance swapper")
 
             assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
             assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
 
-            let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
+            let quote = insuranceSwapper.quoteOut(forProvided: insuranceAmountUFix64, reverse: false)
             let dexPrice = quote.outAmount / quote.inAmount
             assert(
                 FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
-                message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
+                message: "DEX/oracle price deviation exceeds \(maxDeviationBps)bps. Dex price: \(dexPrice), Oracle price: \(oraclePrice)",
+            )
             var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
-
             tokenState.setLastInsuranceCollectionTime(currentTime)
             return <-moetVault
         }
 
         /// Collects stability funds by withdrawing from reserves.
+        ///
+        /// NOTE: If reserves are insufficient to cover the full calculated fee, collection is skipped
+        /// entirely and the timestamp is not updated. This interacts with the rate-change
+        /// collection: if a rate change occurs while reserves are insufficient, the pre-change
+        /// fees will not be settled under the old rate. When reserves eventually recover, the entire
+        /// elapsed window — including the period before the rate change — will be collected under the
+        /// new rate, causing over- or under-collection for that period.
         access(self) fun _collectStability(
             tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
@@ -1999,15 +2011,12 @@ access(all) contract FlowALPv0 {
                 return nil
             }
 
-            if reserveVault.balance == 0.0 {
-                tokenState.setLastStabilityFeeCollectionTime(currentTime)
+            if stabilityAmountUFix64 > reserveVault.balance {
+                // do not collect the stability fee if the reserve doesn't have enough tokens to cover the full amount 
                 return nil
             }
 
-            let reserveVaultBalance = reserveVault.balance
-            let amountToCollect = stabilityAmountUFix64 > reserveVaultBalance ? reserveVaultBalance : stabilityAmountUFix64
-            let stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
-
+            let stabilityVault <- reserveVault.withdraw(amount: stabilityAmountUFix64)  
             tokenState.setLastStabilityFeeCollectionTime(currentTime)
             return <-stabilityVault
         }
