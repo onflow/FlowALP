@@ -4,7 +4,9 @@ import BlockchainHelpers
 import "test_helpers.cdc"
 
 import "MOET"
-import "FlowCreditMarket"
+import "FlowALPv0"
+import "FlowALPEvents"
+import "FlowALPModels"
 
 access(all) let userAccount = Test.createAccount()
 
@@ -82,7 +84,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, true],
         userAccount
     )
@@ -93,20 +95,26 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     Test.assert(equalWithinVariance(expectedBorrowAmount, balanceAfterBorrow),
         message: "Expected MOET balance to be ~\(expectedBorrowAmount), but got \(balanceAfterBorrow)")
 
-    let evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
+    let evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
-    let moetBalance = positionDetails.balances[1]
-    let flowPositionBalance = positionDetails.balances[0]
-    Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
+    // Find balances by direction rather than relying on array ordering
+    var flowPositionBalance: FlowALPModels.PositionBalance? = nil
+    var moetBalance: FlowALPModels.PositionBalance? = nil
+    for b in positionDetails.balances {
+        if b.direction == FlowALPModels.BalanceDirection.Credit {
+            flowPositionBalance = b
+        } else {
+            moetBalance = b
+        }
+    }
+    Test.assertEqual(positionFundingAmount, flowPositionBalance!.balance)
 
-    Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance.balance),
-        message: "Expected borrow amount to be \(expectedBorrowAmount), but got \(moetBalance.balance)")
-    Test.assertEqual(FlowCreditMarket.BalanceDirection.Credit, flowPositionBalance.direction)
-    Test.assertEqual(FlowCreditMarket.BalanceDirection.Debit, moetBalance.direction)
+    Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance!.balance),
+        message: "Expected borrow amount to be \(expectedBorrowAmount), but got \(moetBalance!.balance)")
 
     Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)")
@@ -159,7 +167,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     }
 
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
@@ -170,15 +178,15 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromHealthy() {
     let expectedBorrowAmount = 0.0
     Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
-    let evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
+    let evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
     let flowPositionBalance = positionDetails.balances[0]
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
-    Test.assertEqual(FlowCreditMarket.BalanceDirection.Credit, flowPositionBalance.direction)
+    Test.assertEqual(FlowALPModels.BalanceDirection.Credit, flowPositionBalance.direction)
 
     Test.assertEqual(CEILING_HEALTH, health)
 
@@ -231,7 +239,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     }
 
     let openRes = executeTransaction(
-        "../transactions/flow-credit-market/position/create_position.cdc",
+        "../transactions/flow-alp/position/create_position.cdc",
         [positionFundingAmount, FLOW_VAULT_STORAGE_PATH, false],
         userAccount
     )
@@ -241,15 +249,15 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     let expectedBorrowAmount = 0.0
     Test.assertEqual(expectedBorrowAmount, balanceAfterBorrow)
 
-    let evts = Test.eventsOfType(Type<FlowCreditMarket.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowCreditMarket.Opened
+    let evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     let positionDetails = getPositionDetails(pid: positionID, beFailed: false)
     let health = positionDetails.health
     let flowPositionBalance = positionDetails.balances[0]
     Test.assertEqual(positionFundingAmount, flowPositionBalance.balance)
-    Test.assertEqual(FlowCreditMarket.BalanceDirection.Credit, flowPositionBalance.direction)
+    Test.assertEqual(FlowALPModels.BalanceDirection.Credit, flowPositionBalance.direction)
 
     let priceIncrease = 0.25
     let newPrice = flowStartPrice * (1.0 + priceIncrease)

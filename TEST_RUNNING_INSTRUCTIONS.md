@@ -1,4 +1,15 @@
-# Test Running Instructions for FlowCreditMarket
+# Test Running Instructions for FlowALP (FlowALPv0)
+
+## ⚠️ CRITICAL: Install Dependencies First
+
+**On a fresh clone, you MUST init submodules and install Flow dependencies before running tests**, otherwise all tests will fail:
+
+```bash
+git submodule update --init --recursive
+flow deps install
+```
+
+This step is required because the test suite depends on Flow standard contracts (FungibleToken, FlowToken, etc.) that must be downloaded from the Flow network.
 
 ## Context
 The Flow test framework has a known limitation where contracts persist between test runs, causing "cannot overwrite existing contract" errors. We've implemented fixes and workarounds to address this issue.
@@ -10,11 +21,11 @@ The Flow test framework has a known limitation where contracts persist between t
 
 2. **Created test runner script** (`run_tests.sh`) that handles contract persistence issues
 
-3. **Added documentation** (`FLOW_TEST_PERSISTENCE_SOLUTION.md`) explaining the root cause
+3. **Added documentation** explaining the root cause
 
 ## How to Run Tests
 
-### Option 1: Use the Test Runner Script (Recommended)
+### Option 1: Use the Test Runner Script (Recommended - After Installing Dependencies)
 ```bash
 # Make sure the script is executable
 chmod +x run_tests.sh
@@ -50,17 +61,9 @@ Note: This may still fail due to contract deployment conflicts between test file
 
 ## Expected Results
 
-### Tests that should PASS individually:
-- ✅ `pool_creation_workflow_test.cdc`
-- ✅ `reserve_withdrawal_test.cdc`
-- ✅ `test_helpers.cdc` (no actual tests, just helpers)
-
-### Tests with known issues:
-- ⚠️ `platform_integration_test.cdc` - has some failing test cases due to MockOracle issues
-- ⚠️ `position_lifecycle_happy_test.cdc` - MockFlowCreditMarketConsumer deployment conflict
-- ⚠️ `rebalance_overcollateralised_test.cdc` - MockFlowCreditMarketConsumer deployment conflict
-- ⚠️ `rebalance_undercollateralised_test.cdc` - MockFlowCreditMarketConsumer deployment conflict
-- ⚠️ `token_governance_addition_test.cdc` - contract import issues
+### Expected outcome:
+- ✅ `./run_tests.sh` should pass all files in `cadence/tests/*_test.cdc` once dependencies are installed.
+- ✅ Individual files should also pass when run directly with `flow test <path/to/test_file.cdc>`.
 
 ## Understanding Test.reset() Usage
 

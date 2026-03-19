@@ -3,7 +3,8 @@ import BlockchainHelpers
 
 import "MOET"
 import "FlowToken"
-import "FlowCreditMarket"
+import "FlowALPv0"
+import "FlowALPEvents"
 import "test_helpers.cdc"
 
 access(all) var snapshot: UInt64 = 0
@@ -45,7 +46,7 @@ fun setupStabilityFundWithBalance(): UFix64 {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 10000.0, beFailed: false)
 
     // LP deposits MOET (creates credit balance, provides borrowing liquidity)
-    createPosition(signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with FLOW collateral to create debit balance
     let borrower = Test.createAccount()
@@ -53,7 +54,7 @@ fun setupStabilityFundWithBalance(): UFix64 {
     transferFlowTokens(to: borrower, amount: 1000.0)
 
     // borrower deposits FLOW and auto-borrows MOET (creates debit balance)
-    createPosition(signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     // set 10% annual debit rate (stability is calculated on interest income)
     setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.1)
@@ -200,9 +201,9 @@ fun test_withdrawStabilityFund_success_fullAmount() {
     Test.assertEqual(recipientBalanceBefore! + collectedAmount, recipientBalanceAfter!)
 
     // verify StabilityFundWithdrawn event was emitted
-    let events = Test.eventsOfType(Type<FlowCreditMarket.StabilityFundWithdrawn>())
+    let events = Test.eventsOfType(Type<FlowALPEvents.StabilityFundWithdrawn>())
     Test.assert(events.length > 0, message: "StabilityFundWithdrawn event should be emitted")
-    let stabilityFundWithdrawnEvent = events[events.length - 1] as! FlowCreditMarket.StabilityFundWithdrawn
+    let stabilityFundWithdrawnEvent = events[events.length - 1] as! FlowALPEvents.StabilityFundWithdrawn
     Test.assertEqual(MOET_TOKEN_IDENTIFIER, stabilityFundWithdrawnEvent.tokenType)
     Test.assertEqual(collectedAmount, stabilityFundWithdrawnEvent.amount)
 }
