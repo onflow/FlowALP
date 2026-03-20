@@ -1101,3 +1101,10 @@ access(all) fun getLastPositionId(): UInt64  {
     let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     return pid
 }
+
+access(all)
+fun getCurrentBlockTimestamp(): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/get_block_timestamp.cdc", [])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
