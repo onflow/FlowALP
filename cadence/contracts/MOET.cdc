@@ -25,11 +25,11 @@ access(all) contract MOET : FungibleToken {
     /// and store the returned Vault in their storage in order to allow their
     /// account to be able to receive deposits of this token type.
     ///
-    access(all) fun createEmptyVault(vaultType: Type): @MOET.Vault {
+    access(all) fun createEmptyVault(vaultType _: Type): @MOET.Vault {
         return <- create Vault(balance: 0.0)
     }
 
-    access(all) view fun getContractViews(resourceType: Type?): [Type] {
+    access(all) view fun getContractViews(resourceType _: Type?): [Type] {
         return [
             Type<FungibleTokenMetadataViews.FTView>(),
             Type<FungibleTokenMetadataViews.FTDisplay>(),
@@ -38,7 +38,7 @@ access(all) contract MOET : FungibleToken {
         ]
     }
 
-    access(all) fun resolveContractView(resourceType: Type?, viewType: Type): AnyStruct? {
+    access(all) fun resolveContractView(resourceType _: Type?, viewType: Type): AnyStruct? {
         switch viewType {
             case Type<FungibleTokenMetadataViews.FTView>():
                 return FungibleTokenMetadataViews.FTView(

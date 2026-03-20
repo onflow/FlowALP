@@ -106,7 +106,7 @@ access(all) contract FlowALPPositionResources {
         }
 
         /// Returns the maximum amount of the given token type that could be deposited into this position
-        access(all) fun getDepositCapacity(type: Type): UFix64 {
+        access(all) fun getDepositCapacity(type _: Type): UFix64 {
             // There's no limit on deposits from the position's perspective
             return UFix64.max
         }
