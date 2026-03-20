@@ -65,9 +65,6 @@ grep "fun test" cadence/tests/interest_accrual_integration_test.cdc
 Always use string templating instead of concatenation. Do not use `.concat(..)`.
 
 ```cadence
-// Wrong
-let msg = "Hello ".concat(name)
-
 // Correct
 let msg = "Hello \(name)"
 ```
@@ -77,9 +74,6 @@ let msg = "Hello \(name)"
 When asserting equality where rounding errors are possible, always use `equalWithinVariance` from `test_helpers.cdc` instead of direct equality checks.
 
 ```cadence
-// Wrong (may fail due to rounding)
-assert(actual == expected)
-
 // Correct
 equalWithinVariance(actual, expected, variance)
 ```
