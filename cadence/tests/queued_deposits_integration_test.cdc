@@ -81,7 +81,7 @@ fun test_getQueuedDeposits_reportsQueuedBalance() {
 
     // We expect exactly one queued token type, and its balance should be the
     // 100 FLOW remainder that could not be accepted immediately.
-    Test.assertEqual(1, UInt64(queuedDeposits.length))
+    Test.assertEqual(UInt64(1), UInt64(queuedDeposits.length))
     Test.assert(equalWithinVariance(100.0, queuedDeposits[flowType]!, DEFAULT_UFIX_VARIANCE))
 }
 
@@ -144,7 +144,7 @@ fun test_getQueuedDeposits_tracksPartialAndFullDrain() {
     Test.moveTime(by: 3601.0)
     let firstAsyncRes = _executeTransaction(
         "./transactions/flow-alp/pool-management/async_update_position.cdc",
-        [0],
+        [UInt64(0)],
         PROTOCOL_ACCOUNT
     )
     Test.expect(firstAsyncRes, Test.beSucceeded())
@@ -157,11 +157,11 @@ fun test_getQueuedDeposits_tracksPartialAndFullDrain() {
     Test.moveTime(by: 3601.0)
     let secondAsyncRes = _executeTransaction(
         "./transactions/flow-alp/pool-management/async_update_position.cdc",
-        [0],
+        [UInt64(0)],
         PROTOCOL_ACCOUNT
     )
     Test.expect(secondAsyncRes, Test.beSucceeded())
 
     queuedDeposits = getQueuedDeposits(pid: 0, beFailed: false)
-    Test.assertEqual(0, UInt64(queuedDeposits.length))
+    Test.assertEqual(UInt64(0), UInt64(queuedDeposits.length))
 }
