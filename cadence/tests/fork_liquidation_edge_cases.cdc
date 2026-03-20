@@ -464,87 +464,14 @@ fun testLiquidateMultiCollateralChooseUSDC() {
 // Scenario 1: DEX vault funded with 23 USDF (50% of 46 needed) -> liquidation reverts
 // Scenario 2: top up to 53 USDF (>=46) -> liquidation succeeds
 // =============================================================================
-access(all)
-fun testDexLiquidityConstraints() {
-    safeReset()
-
-    // USDF liquidity provider
-    let lpUser = Test.createAccount()
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: lpUser, amount: 5000.0)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: lpUser, amount: 5000.0, vaultStoragePath: MAINNET_USDF_STORAGE_PATH, pushToDrawDownSink: false)
-
-    // Borrower: 200 FLOW @ $1.00 (CF=0.80), borrow 130 USDF
-    // health = 200*1.0*0.80 / 130 = 160/130 ≈ 1.2308 (healthy)
-    let user = Test.createAccount()
-    var res = setupGenericVault(user, vaultIdentifier: MAINNET_USDF_TOKEN_ID)
-    Test.expect(res, Test.beSucceeded())
-    transferFlowTokens(to: user, amount: 200.0)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: 200.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    let pid = getLastPositionId()
-    borrowFromPosition(signer: user, positionId: pid,
-        tokenTypeIdentifier: MAINNET_USDF_TOKEN_ID, vaultStoragePath: MAINNET_USDF_STORAGE_PATH,
-        amount: 130.0, beFailed: false)
-
-    let initialHealth = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(initialHealth > 1.0, message: "Position should start healthy")
-
-    // FLOW crash: $1.00 -> $0.75; health = 120/130 ≈ 0.9231 (unhealthy)
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 0.75)
-    let crashedHealth = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(crashedHealth < 1.0, message: "Position must be unhealthy after FLOW crash")
-
-    // Configure MockDexSwapper for FLOW -> USDF at price ratio 0.75.
-    // DEX vault 23 USDF — 50% of the 46 required for repayment.
-    transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 23.0)
-    setMockDexPriceForPair(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        outVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        vaultSourceStoragePath: MAINNET_USDF_STORAGE_PATH,
-        priceRatio: 0.75
-    )
-
-    // Scenario 1: DEX has only 23 USDF, needs 46 — liquidation must revert atomically
-    let failRes = liquidateViaMockDex(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        seizeAmount: 55.0,
-        repayAmount: 46.0,
-    )
-    Test.expect(failRes, Test.beFailed())
-
-    let healthAfterFail = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(healthAfterFail < 1.0, message: "Position must remain unhealthy after failed DEX liquidation")
-
-    let detailsAfterFail = getPositionDetails(pid: pid, beFailed: false)
-    Test.assertEqual(200.0, getCreditBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!))
-    Test.assertEqual(130.0, getDebitBalanceForType(details: detailsAfterFail, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))
-
-    // Scenario 2: top up DEX vault (+30 USDF, total 53 >= 46) — liquidation succeeds
-    transferFungibleTokens(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: MAINNET_PROTOCOL_ACCOUNT, amount: 30.0)
-
-    let successRes = liquidateViaMockDex(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        pid: pid,
-        debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
-        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
-        seizeAmount: 55.0,
-        repayAmount: 46.0,
-    )
-    Test.expect(successRes, Test.beSucceeded())
-
-    // post-health = (200-55)*0.75*0.80 / (130-46) = 87/84 ≈ 1.036 (within 1.05 target)
-    let postHealth = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(postHealth > 1.0 && postHealth <= 1.05, message: "Position must be healthy after liquidation and not exceed liquidationTargetHF (1.05)")
-    Test.assert(postHealth > crashedHealth)
-
-    // Verify seizure: 55 FLOW seized, 46 USDF repaid
-    let detailsAfterLiq = getPositionDetails(pid: pid, beFailed: false)
-    Test.assertEqual(145.0, getCreditBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_FLOW_TOKEN_ID)!)) // 200 - 55 = 145
-    Test.assertEqual(84.0,  getDebitBalanceForType(details: detailsAfterLiq, vaultType: CompositeType(MAINNET_USDF_TOKEN_ID)!))  // 130 - 46 = 84
-}
+// access(all) fun testDexLiquidityConstraints()
+//
+// TODO: DEX Liquidity Constraints test should be implemented once automated liquidation
+// is in place. The relevant scenario is: a DEX vault is underfunded relative to the
+// debt repayment required, causing an automated liquidation to fail atomically, after
+// which topping up the DEX vault allows the same liquidation to succeed. This can only
+// be meaningfully tested when FlowALP itself invokes the DEX as part of its liquidation
+// code path, rather than the caller supplying pre-swapped funds via manualLiquidation.
 
 // =============================================================================
 // Stability and Insurance Fee Accrual — fees not collected for liquidated funds
