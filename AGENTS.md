@@ -60,7 +60,5 @@ grep "fun test" cadence/tests/interest_accrual_integration_test.cdc
 
 # Cadence Coding Guidelines
 
-Always use string templating instead of concatenation. Do not use `.concat(..)`.
-```cadence
-// Correct
-let msg = "Hello \(name)"
+- Use string templating, not concatenation: `"Hello \(name)"` not `"Hello ".concat(name)`
+- Use `equalWithinVariance` from `test_helpers.cdc` for equality assertions where rounding errors are possible
