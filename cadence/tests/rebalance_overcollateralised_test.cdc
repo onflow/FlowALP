@@ -93,4 +93,68 @@ fun testRebalanceOvercollateralised() {
     let userMoetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assert(userMoetBalance >= expectedDebt - tolerance && userMoetBalance <= expectedDebt + tolerance,
         message: "User MOET balance should reflect new debt (~".concat(expectedDebt.toString()).concat(") but was ").concat(userMoetBalance.toString()))
-} 
+}
+
+/// Verifies that depositAndPush with pushToDrawDownSink=true rebalances
+/// the position back to targetHealth by pushing excess value to the sink.
+/// This is the overcollateralised counterpart to
+/// testWithdrawAndPull_rebalancesToTargetHealth.
+access(all)
+fun testDepositAndPush_rebalancesToTargetHealth() {
+    Test.reset(to: snapshot)
+
+    let initialPrice = 1.0
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: initialPrice)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: MOET_TOKEN_IDENTIFIER, price: initialPrice)
+
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
+    addSupportedTokenZeroRateCurve(
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        collateralFactor: 0.8,
+        borrowFactor: 1.0,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
+
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    mintFlow(to: user, amount: 1_100.0)
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
+
+    // Open position with auto-borrow: deposits 1000 FLOW, borrows ~615.38 MOET.
+    // Health starts at targetHealth (1.3).
+    let openRes = executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [1_000.0, FLOW_VAULT_STORAGE_PATH, true],
+        user
+    )
+    Test.expect(openRes, Test.beSucceeded())
+
+    let healthBefore = getPositionHealth(pid: 0, beFailed: false)
+    let tolerance128: UFix128 = 0.01
+    Test.assert(
+        healthBefore >= INT_TARGET_HEALTH - tolerance128 && healthBefore <= INT_TARGET_HEALTH + tolerance128,
+        message: "Position should start at target health (~1.3) but was ".concat(healthBefore.toString())
+    )
+
+    // Deposit 100 more FLOW with pushToDrawDownSink=true.
+    // This pushes health above targetHealth, so the protocol should rebalance
+    // by pushing excess value to the drawdown sink, restoring health to targetHealth.
+    depositToPosition(
+        signer: user,
+        positionID: 0,
+        amount: 100.0,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        pushToDrawDownSink: true
+    )
+
+    let healthAfter = getPositionHealth(pid: 0, beFailed: false)
+
+    // The position health should be restored to targetHealth (1.3),
+    // NOT left above targetHealth.
+    Test.assert(
+        healthAfter >= INT_TARGET_HEALTH - tolerance128 && healthAfter <= INT_TARGET_HEALTH + tolerance128,
+        message: "With pushToDrawDownSink=true, position should be rebalanced to target health (~1.3) but health was ".concat(healthAfter.toString())
+    )
+}
