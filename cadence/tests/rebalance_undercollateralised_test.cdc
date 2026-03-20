@@ -175,9 +175,9 @@ fun testRebalanceUndercollateralised_InsufficientTopUpSource() {
     Test.assertError(rebalanceRes, errorMessage: "topUpSource insufficient to save position from liquidation")
 }
 
-/// Verifies that withdrawAndPull with pullFromTopUpSource=true rebalances
-/// the position back to targetHealth, not just minHealth.
-/// This ensures symmetry with depositAndPush(pushToDrawDownSink=true).
+/// Verifies that withdrawAndPull with pullFromTopUpSource=true always
+/// rebalances the position back to targetHealth at withdrawal time,
+/// not just when breaching minHealth.
 access(all)
 fun testWithdrawAndPull_rebalancesToTargetHealth() {
     Test.reset(to: snapshot)
@@ -210,16 +210,11 @@ fun testWithdrawAndPull_rebalancesToTargetHealth() {
     Test.expect(openRes, Test.beSucceeded())
 
     let healthBefore = getPositionHealth(pid: 0, beFailed: false)
-    let tolerance: UFix128 = 0.01
-    Test.assert(
-        healthBefore >= INT_TARGET_HEALTH - tolerance && healthBefore <= INT_TARGET_HEALTH + tolerance,
-        message: "Position should start at target health (~1.3) but was ".concat(healthBefore.toString())
-    )
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, healthBefore),
+        message: "Position should start at target health (~1.3) but was ".concat(healthBefore.toString()))
 
     // Withdraw 50 FLOW with pullFromTopUpSource=true.
-    // Without the fix: health drops below targetHealth but stays above minHealth,
-    // so pullFromTopUpSource is ignored and the position is NOT rebalanced.
-    // With the fix: the protocol pulls from topUpSource to restore targetHealth.
+    // The pull always triggers at withdrawal time, restoring targetHealth.
     withdrawFromPosition(
         signer: user,
         positionId: 0,
@@ -229,11 +224,6 @@ fun testWithdrawAndPull_rebalancesToTargetHealth() {
     )
 
     let healthAfter = getPositionHealth(pid: 0, beFailed: false)
-
-    // The position health should be restored to targetHealth (1.3),
-    // NOT left between minHealth and targetHealth.
-    Test.assert(
-        healthAfter >= INT_TARGET_HEALTH - tolerance,
-        message: "With pullFromTopUpSource=true, position should be rebalanced to target health (~1.3) but health was ".concat(healthAfter.toString())
-    )
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, healthAfter),
+        message: "With pullFromTopUpSource=true, position should be rebalanced to target health (~1.3) but health was ".concat(healthAfter.toString()))
 }

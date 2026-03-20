@@ -1183,8 +1183,8 @@ access(all) contract FlowALPv0 {
         }
 
         /// Deposits the provided funds to the specified position with the configurable `pushToDrawDownSink` option.
-        /// If `pushToDrawDownSink` is true, excess value putting the position above its max health
-        /// is pushed to the position's configured `drawDownSink`.
+        /// If `pushToDrawDownSink` is true, a rebalance is always triggered at deposit time,
+        /// pushing excess value to the position's configured `drawDownSink` to restore targetHealth.
         access(FlowALPModels.EPosition) fun depositAndPush(
             pid: UInt64,
             from: @{FungibleToken.Vault},
@@ -1237,8 +1237,8 @@ access(all) contract FlowALPv0 {
         /// Withdraws the requested funds from the specified position
         /// with the configurable `pullFromTopUpSource` option.
         ///
-        /// If `pullFromTopUpSource` is true, any deficiency below the position's target health
-        /// is pulled from the position's configured `topUpSource` (consistent with depositAndPush).
+        /// If `pullFromTopUpSource` is true, a rebalance is always triggered at withdrawal time,
+        /// pulling value from the position's configured `topUpSource` to restore targetHealth.
         /// TODO(jord): ~150-line function - consider refactoring.
         access(FlowALPModels.EPosition) fun withdrawAndPull(
             pid: UInt64,

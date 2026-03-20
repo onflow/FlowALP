@@ -95,10 +95,9 @@ fun testRebalanceOvercollateralised() {
         message: "User MOET balance should reflect new debt (~".concat(expectedDebt.toString()).concat(") but was ").concat(userMoetBalance.toString()))
 }
 
-/// Verifies that depositAndPush with pushToDrawDownSink=true rebalances
-/// the position back to targetHealth by pushing excess value to the sink.
-/// This is the overcollateralised counterpart to
-/// testWithdrawAndPull_rebalancesToTargetHealth.
+/// Verifies that depositAndPush with pushToDrawDownSink=true always
+/// rebalances the position back to targetHealth at deposit time by
+/// pushing excess value to the sink.
 access(all)
 fun testDepositAndPush_rebalancesToTargetHealth() {
     Test.reset(to: snapshot)
@@ -132,15 +131,11 @@ fun testDepositAndPush_rebalancesToTargetHealth() {
     Test.expect(openRes, Test.beSucceeded())
 
     let healthBefore = getPositionHealth(pid: 0, beFailed: false)
-    let tolerance128: UFix128 = 0.01
-    Test.assert(
-        healthBefore >= INT_TARGET_HEALTH - tolerance128 && healthBefore <= INT_TARGET_HEALTH + tolerance128,
-        message: "Position should start at target health (~1.3) but was ".concat(healthBefore.toString())
-    )
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, healthBefore),
+        message: "Position should start at target health (~1.3) but was ".concat(healthBefore.toString()))
 
     // Deposit 100 more FLOW with pushToDrawDownSink=true.
-    // This pushes health above targetHealth, so the protocol should rebalance
-    // by pushing excess value to the drawdown sink, restoring health to targetHealth.
+    // The push always triggers at deposit time, restoring targetHealth.
     depositToPosition(
         signer: user,
         positionID: 0,
@@ -150,11 +145,6 @@ fun testDepositAndPush_rebalancesToTargetHealth() {
     )
 
     let healthAfter = getPositionHealth(pid: 0, beFailed: false)
-
-    // The position health should be restored to targetHealth (1.3),
-    // NOT left above targetHealth.
-    Test.assert(
-        healthAfter >= INT_TARGET_HEALTH - tolerance128 && healthAfter <= INT_TARGET_HEALTH + tolerance128,
-        message: "With pushToDrawDownSink=true, position should be rebalanced to target health (~1.3) but health was ".concat(healthAfter.toString())
-    )
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, healthAfter),
+        message: "With pushToDrawDownSink=true, position should be rebalanced to target health (~1.3) but health was ".concat(healthAfter.toString()))
 }
