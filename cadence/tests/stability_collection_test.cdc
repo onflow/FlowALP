@@ -65,27 +65,19 @@ fun test_collectStability_zeroDebitBalance_returnsNil() {
 }
 
 // -----------------------------------------------------------------------------
-// Test: collectStability only collects up to available reserve balance
-// When calculated stability amount exceeds reserve balance, it collects
-// only what is available. Verify exact amount withdrawn from reserves.
+// Test: collectStability does not collect when reserves are insufficient
+// If the calculated stability fee exceeds the reserve balance,
+// no stability fee should be collected and reserves remain unchanged.
 // -----------------------------------------------------------------------------
 access(all)
-fun test_collectStability_partialReserves_collectsAvailable() {
-    // set 90% annual debit rate for MOET
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.9)
-
-    // set a high stability fee rate so calculated amount would exceed reserves
-    // Note: stabilityFeeRate must be < 1.0, using 0.9 which combined with default insuranceRate (0.0) = 0.9 < 1.0
-    let rateResult = setStabilityFeeRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, stabilityFeeRate: 0.9)
-    Test.expect(rateResult, Test.beSucceeded())
-
-    // setup LP to provide MOET liquidity (small amount to create limited reserves)
+fun test_collectStability_insufficientReserves() {
+    // setup LP to provide MOET liquidity for borrowing (small amount to create limited reserves)
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 1000.0, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: lp.address, amount: 500.0, beFailed: false)
 
-    // LP deposits 1000 MOET (creates credit balance, provides borrowing liquidity)
-    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // LP deposits 500 MOET (creates credit balance, provides borrowing liquidity)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 500.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with large FLOW collateral to borrow most of the MOET
     let borrower = Test.createAccount()
@@ -94,28 +86,34 @@ fun test_collectStability_partialReserves_collectsAvailable() {
 
     // borrower deposits 10000 FLOW and auto-borrows MOET
     // With CF(0.8) and targetHealth(1.3): 10000 FLOW * 0.8 / 1.3 ≈ 6153 MOET borrowable
-    // but pool only has 1000 MOET, so borrower gets ~1000 MOET (limited by liquidity)
+    // but pool only has 500 MOET, so borrower gets ~500 MOET (limited by liquidity)
     // this leaves reserves very close to 0
     createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+
+    // set 90% annual debit rate
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.9)
 
     let initialStabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assertEqual(nil, initialStabilityBalance)
 
+    let reserveBalanceBefore = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    let lastCollectionTimeBefore = getLastStabilityCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
+
     Test.moveTime(by: ONE_YEAR + DAY * 30.0) // 1 year + 1 month
 
-    // collect stability - should collect up to available reserve balance
+    // should not collect because reserves are insufficient
     let res = collectStability(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.expect(res, Test.beSucceeded())
 
     let finalStabilityBalance = getStabilityFundBalance(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
     let reserveBalanceAfter = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    let lastCollectionTimeAfter = getLastStabilityCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
 
-    // reserves should be fully drained
-    Test.assertEqual(0.0, reserveBalanceAfter)
+    Test.assertEqual(nil, finalStabilityBalance)
+    Test.assertEqual(reserveBalanceBefore, reserveBalanceAfter)
 
-    // verify collection was limited by reserves
-    // Formula: 90% debit income -> 90% stability rate -> large amount, but limited by available reserves
-    Test.assertEqual(1000.0, finalStabilityBalance!)
+    // time should not change
+    Test.assertEqual(lastCollectionTimeBefore, lastCollectionTimeAfter)
 }
 
 // -----------------------------------------------------------------------------
@@ -314,7 +312,8 @@ fun test_collectStability_zeroRate_returnsNil() {
 
 // -----------------------------------------------------------------------------
 /// Verifies that stability fee collection remains correct when the stability
-/// fee rate changes between collection periods.
+/// fee rate changes between collection periods. Rate changes must trigger fee collections,
+/// so that all fees due under the previous rate are collected before the new rate comes into effect.
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectStability_midPeriodRateChange() {

@@ -108,8 +108,9 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     let t = Type<@MOET.Vault>()
     let tColl = Type<@MockYieldToken.Vault>()
     let snapshots: {Type: FlowALPModels.TokenSnapshot} = {}
-    snapshots[t] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.8, bf: 1.0)
-    snapshots[tColl] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.8, bf: 1.0)
+    // bf=0.8 (non-1.0) to verify borrow factor is included in the formula
+    snapshots[t] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.8, bf: 0.8)
+    snapshots[tColl] = snap(price: 1.0, creditIdx: 1.0, debitIdx: 1.0, cf: 0.8, bf: 0.8)
 
     // Balances: +100 collateral units on tColl, no entry for t (debt token)
     let balances: {Type: FlowALPModels.InternalBalance} = {}
@@ -132,10 +133,14 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
         withdrawBal: view.balances[t],
         targetHealth: 1.3
     )
-    // Expected tokens = effColl / targetHealth (bf=1, price=1)
-    // effColl = 100 * 1 * 0.8 = 80
+    // withdrawing increases debt: deltaDebt = effColl / targetHealth
+    // then tokens = deltaDebt * bf / price
+    // effColl = 100 * 1.0 * 0.8 = 80
+    // deltaDebt = 80 / 1.3
+    // tokens = (80 / 1.3) * 0.8 / 1.0
     let effColl: UFix128 = 80.0
-    let expected = effColl / 1.3
+    let deltaDebt = effColl / 1.3
+    let expected = deltaDebt * 0.8
     Test.assert(
         ufix128EqualWithinVariance(expected, max, DEFAULT_UFIX128_VARIANCE),
         message: "maxWithdraw debt increase mismatch"

@@ -7,21 +7,12 @@ import "FlowALPEvents"
 import "test_helpers.cdc"
 
 access(all) var snapshot: UInt64 = 0
+access(all) var snapshotTimestamp = 0.0
 
 access(all)
 fun setup() {
     deployContracts()
-    // take snapshot first, then advance time so reset() target is always lower than current height
-    snapshot = getCurrentBlockHeight()
-    // move time by 1 second so Test.reset() works properly before each test
-    Test.moveTime(by: 1.0)
-}
 
-access(all)
-fun beforeEach() {
-    Test.reset(to: snapshot)
-    
-    // Recreate pool and supported tokens fresh for each test
     createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
     addSupportedTokenZeroRateCurve(
@@ -32,6 +23,23 @@ fun beforeEach() {
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
     )
+
+    snapshot = getCurrentBlockHeight()
+    snapshotTimestamp = getCurrentBlockTimestamp()
+}
+
+access(all)
+fun beforeEach() {
+    if snapshot != getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
+    // Test reset moves the timestamp but it will jump back to the previous timestamp on the next block.
+    Test.commitBlock()
+    let currentTimestamp = getCurrentBlockTimestamp()
+    if currentTimestamp > snapshotTimestamp {
+        let diff = currentTimestamp - snapshotTimestamp
+        Test.moveTime(by: -Fix64(diff))
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -97,13 +105,24 @@ fun test_collectInsurance_zeroDebitBalance_returnsNil() {
 }
 
 // -----------------------------------------------------------------------------
-// Test: collectInsurance only collects up to available reserve balance
-// When calculated insurance amount exceeds reserve balance, it collects
-// only what is available. Verify exact amount withdrawn from reserves.
-// Note: Insurance is calculated on debit income (interest accrued on debit balance)
+// Test: collectInsurance does not collect when reserves are insufficient
+// If the calculated insurance fee exceeds the reserve balance,
+// no insurance fee should be collected and reserves remain unchanged.
 // -----------------------------------------------------------------------------
 access(all)
-fun test_collectInsurance_partialReserves_collectsAvailable() {
+fun test_collectInsurance_insufficientReserves() {
+    // configure insurance swapper (1:1 ratio)
+    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    Test.expect(swapperResult, Test.beSucceeded())
+
+    // set 90% annual debit rate
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.9)
+
+    // set a high insurance rate (90% of debit income goes to insurance)
+    // Note: default stabilityFeeRate is 0.05, so insuranceRate + stabilityFeeRate = 0.9 + 0.05 = 0.95 < 1.0
+    let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, insuranceRate: 0.9)
+    Test.expect(rateResult, Test.beSucceeded())
+
     // setup LP to provide MOET liquidity for borrowing (small amount to create limited reserves)
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
@@ -127,35 +146,27 @@ fun test_collectInsurance_partialReserves_collectsAvailable() {
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
 
-    // configure insurance swapper (1:1 ratio)
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
-    Test.expect(swapperResult, Test.beSucceeded())
-
-    // set 90% annual debit rate
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.9)
-
-    // set a high insurance rate (90% of debit income goes to insurance)
-    // Note: default stabilityFeeRate is 0.05, so insuranceRate + stabilityFeeRate = 0.9 + 0.05 = 0.95 < 1.0
-    let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, insuranceRate: 0.9)
-    Test.expect(rateResult, Test.beSucceeded())
 
     let initialInsuranceBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialInsuranceBalance)
 
+    let reserveBalanceBefore = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    let lastCollectionTimeBefore = getLastInsuranceCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
+
     Test.moveTime(by: ONE_YEAR + DAY * 30.0) // year + month
 
-    // collect insurance - should collect up to available reserve balance
+    // should not collect because reserves are insufficient
     collectInsurance(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
     let finalInsuranceBalance = getInsuranceFundBalance()
     let reserveBalanceAfter = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    let lastCollectionTimeAfter = getLastInsuranceCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
 
-    // with 1:1 swap ratio, insurance fund balance should equal amount withdrawn from reserves
-    Test.assertEqual(0.0, reserveBalanceAfter)
+    Test.assertEqual(0.0, finalInsuranceBalance)
+    Test.assertEqual(reserveBalanceBefore, reserveBalanceAfter)
 
-    // verify collection was limited by reserves
-    // Formula: 90% debit income -> 90% insurance rate -> large insurance amount, but limited by available reserves
-    Test.assertEqual(1000.0, finalInsuranceBalance)
+    // time should not change
+    Test.assertEqual(lastCollectionTimeBefore, lastCollectionTimeAfter)
 }
 
 // -----------------------------------------------------------------------------
@@ -453,7 +464,8 @@ fun test_collectInsurance_dexOracleSlippageProtection() {
 
 // -----------------------------------------------------------------------------
 /// Verifies that insurance collection remains correct when the insurance
-/// rate changes between collection periods.
+/// rate changes between collection periods. Rate changes must trigger fee collections,
+/// so that all fees due under the previous rate are collected before the new rate comes into effect.
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_midPeriodRateChange() {
@@ -514,7 +526,7 @@ fun test_collectInsurance_midPeriodRateChange() {
     //   perSecondRate = 1 + (0.1 / 31557600) = 1.00000000317
     //   debitIncome_1 = 500 * (1.00000000317^31557600 - 1) = 52.58545895 FLOW
     //   insuranceAmount = debitIncome_1 * insurRate1 = 52.58545895 * 0.1 = 5.25854589
-    let expectedCollectedInsuranceAmountAfterPhase1 = 5.25854589 
+    let expectedCollectedInsuranceAmountAfterPhase1 = 5.25854589
 
    // change the insurance rate to 20% for phase 2
     rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.2)
