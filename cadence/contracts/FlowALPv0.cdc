@@ -1302,9 +1302,8 @@ access(all) contract FlowALPv0 {
                 // No top-up needed: position stays above targetHealth (or minHealth when not pulling)
                 canWithdraw = true
             } else if pullFromTopUpSource {
-                // We need more funds to service this withdrawal, see if they are available from the top up source
+                // Try to pull from topUpSource to restore targetHealth (best-effort).
                 if let topUpSource = topUpSource {
-                    // Try to rebalance to target health
                     let idealDeposit = targetHealthDeposit > 0.0 ? targetHealthDeposit : minHealthDeposit
 
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
@@ -1315,7 +1314,6 @@ access(all) contract FlowALPv0 {
                     // is minHealth. The top up source may not have enough to reach targetHealth,
                     // but the withdrawal can proceed as long as we stay above minHealth.
                     if pulledAmount >= minHealthDeposit {
-                        // We can service this withdrawal if we deposit funds from our top up source
                         self._depositEffectsOnly(
                             pid: pid,
                             from: <-pulledVault
@@ -1328,6 +1326,11 @@ access(all) contract FlowALPv0 {
                             from: <-pulledVault
                         )
                     }
+                }
+                // If no source is configured (or pull was insufficient), the withdrawal
+                // can still proceed as long as the position stays above minHealth.
+                if !canWithdraw && minHealthDeposit == 0.0 {
+                    canWithdraw = true
                 }
             }
 
