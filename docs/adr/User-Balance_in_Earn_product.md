@@ -7,11 +7,11 @@
 
 ### References
 [Slack discussion](https://flow-foundation.slack.com/archives/C08QF29F7TK/p1771567751505249?thread_ts=1771355840.068079&cid=C08QF29F7TK) and 
-[Q&A meeting notes from Feb 19, 2026](https://docs.google.com/document/d/1npAwIq1W-EU7S7c2sX17zMdZffu5mr06DD6krBkvTFo/edit?usp=sharing)
+[Q&A meeting notes from Feb 19, 2026](https://docs.google.com/document/d/1jGj-ypjLO1Uo2ZPL4xtRyRlMAdbW4THozGc2i3z6TAc/edit?tab=t.buc00sqsnehk)
 
 ## Context
 
-Flow's Automated Lending Protocol [ALP] and Flow EARN (the yield-source management component built on top of ALP) need to display position balances to users. At maturity, ALP will support positions with **multiple collateral types and multiple borrowed assets**. However, the current Flow EARN implementation only supports a **single collateral type and single yield type per position**.
+Flow's Automated Lending Protocol [ALP] and Flow EARN (the yield-source management component built on top of ALP) need to display position balances to users. At maturity, ALP will support positions with **multiple collateral types and multiple borrowed assets**. However, a single EARN position only supports a **single collateral type and single yield type** for the time being. Users can still utilize EARN with different supported collaterals by opening independent positions, each of which is managed separately.
 
 The question is: what balance should EARN display to the user, and how should the underlying price be determined?
 
