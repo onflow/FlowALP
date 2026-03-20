@@ -1237,8 +1237,8 @@ access(all) contract FlowALPv0 {
         /// Withdraws the requested funds from the specified position
         /// with the configurable `pullFromTopUpSource` option.
         ///
-        /// If `pullFromTopUpSource` is true, deficient value putting the position below its min health
-        /// is pulled from the position's configured `topUpSource`.
+        /// If `pullFromTopUpSource` is true, any deficiency below the position's target health
+        /// is pulled from the position's configured `topUpSource` (consistent with depositAndPush).
         /// TODO(jord): ~150-line function - consider refactoring.
         access(FlowALPModels.EPosition) fun withdrawAndPull(
             pid: UInt64,
@@ -1275,7 +1275,8 @@ access(all) contract FlowALPv0 {
             let topUpSource = position.borrowTopUpSource()
             let topUpType = topUpSource?.getSourceType() ?? self.state.getDefaultToken()
 
-            let requiredDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
+            // Compute the deposit required to maintain minHealth — the hard requirement.
+            let minHealthDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
                 pid: pid,
                 depositType: topUpType,
                 targetHealth: position.getMinHealth(),
@@ -1283,32 +1284,37 @@ access(all) contract FlowALPv0 {
                 withdrawAmount: amount
             )
 
+            // When pullFromTopUpSource is true, also check whether a deposit is needed
+            // to maintain targetHealth (consistent with depositAndPush behaviour).
+            let targetHealthDeposit = pullFromTopUpSource
+                ? self.fundsRequiredForTargetHealthAfterWithdrawing(
+                    pid: pid,
+                    depositType: topUpType,
+                    targetHealth: position.getTargetHealth(),
+                    withdrawType: type,
+                    withdrawAmount: amount
+                )
+                : 0.0
+
             var canWithdraw = false
 
-            if requiredDeposit == 0.0 {
-                // We can service this withdrawal without any top up
+            if minHealthDeposit == 0.0 && targetHealthDeposit == 0.0 {
+                // No top-up needed: position stays above targetHealth (or minHealth when not pulling)
                 canWithdraw = true
             } else if pullFromTopUpSource {
                 // We need more funds to service this withdrawal, see if they are available from the top up source
                 if let topUpSource = topUpSource {
-                    // If we have to rebalance, let's try to rebalance to the target health, not just the minimum
-                    let idealDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
-                        pid: pid,
-                        depositType: topUpType,
-                        targetHealth: position.getTargetHealth(),
-                        withdrawType: type,
-                        withdrawAmount: amount
-                    )
+                    // Try to rebalance to target health
+                    let idealDeposit = targetHealthDeposit > 0.0 ? targetHealthDeposit : minHealthDeposit
 
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
                     assert(pulledVault.getType() == topUpType, message: "topUpSource returned unexpected token type")
                     let pulledAmount = pulledVault.balance
 
-
-                    // NOTE: We requested the "ideal" deposit, but we compare against the required deposit here.
-                    // The top up source may not have enough funds get us to the target health, but could have
-                    // enough to keep us over the minimum.
-                    if pulledAmount >= requiredDeposit {
+                    // NOTE: We requested the "ideal" deposit (targetHealth), but the hard requirement
+                    // is minHealth. The top up source may not have enough to reach targetHealth,
+                    // but the withdrawal can proceed as long as we stay above minHealth.
+                    if pulledAmount >= minHealthDeposit {
                         // We can service this withdrawal if we deposit funds from our top up source
                         self._depositEffectsOnly(
                             pid: pid,
@@ -1334,7 +1340,7 @@ access(all) contract FlowALPv0 {
                     log("    [CONTRACT] Token type: \(type.identifier)")
                     log("    [CONTRACT] Requested amount: \(amount)")
                     log("    [CONTRACT] Available balance (without topUp): \(availableBalance)")
-                    log("    [CONTRACT] Required deposit for minHealth: \(requiredDeposit)")
+                    log("    [CONTRACT] Required deposit for minHealth: \(minHealthDeposit)")
                     log("    [CONTRACT] Pull from topUpSource: \(pullFromTopUpSource)")
                 }
                 // We can't service this withdrawal, so we just abort
