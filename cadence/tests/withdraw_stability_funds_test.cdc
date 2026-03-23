@@ -56,8 +56,10 @@ fun setupStabilityFundWithBalance(): UFix64 {
     // borrower deposits FLOW and auto-borrows MOET (creates debit balance)
     createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
-    // set 10% annual debit rate (stability is calculated on interest income)
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    // set 10% annual debit rate using KinkCurve with slope1=0/slope2=0 so the rate is
+    // constant at baseRate=0.1 regardless of utilization, ensuring protocolFeeIncome > 0
+    // even at the ~6% utilization created by this test setup.
+    setInterestCurveKink(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, optimalUtilization: 0.9, baseRate: 0.1, slope1: 0.0, slope2: 0.0)
 
     // set stability fee rate (10% of interest income)
     let rateResult = setStabilityFeeRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, stabilityFeeRate: 0.1)
