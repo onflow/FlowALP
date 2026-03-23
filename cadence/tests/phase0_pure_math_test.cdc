@@ -142,7 +142,7 @@ fun test_maxWithdraw_increasesDebtWhenNoCredit() {
     let deltaDebt = effColl / 1.3
     let expected = deltaDebt * 0.8
     Test.assert(
-        ufix128EqualWithinVariance(expected, max),
+        ufix128EqualWithinVariance(expected, max, DEFAULT_UFIX128_VARIANCE),
         message: "maxWithdraw debt increase mismatch"
     )
 }
