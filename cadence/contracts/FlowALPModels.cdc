@@ -947,17 +947,30 @@ access(all) contract FlowALPModels {
         /// The annual insurance rate applied to total debit when computing credit interest (default 0.1%)
         access(all) view fun getInsuranceRate(): UFix64
 
-        /// Timestamp of the last insurance collection for this token.
-        access(all) view fun getLastInsuranceCollectionTime(): UFix64
-
         /// Swapper used to convert this token to MOET for insurance collection.
         access(all) view fun getInsuranceSwapper(): {DeFiActions.Swapper}?
 
         /// The stability fee rate to calculate stability (default 0.05, 5%).
         access(all) view fun getStabilityFeeRate(): UFix64
 
-        /// Timestamp of the last stability collection for this token.
-        access(all) view fun getLastStabilityFeeCollectionTime(): UFix64
+        /// Timestamp of the last protocol fee collection for this token.
+        access(all) view fun getLastProtocolFeeCollectionTime(): UFix64
+
+        /// Returns the accumulated insurance fee income as UFix64, ready for collection.
+        access(all) view fun getCollectInsuranceAmount(): UFix64
+
+        /// Resets the accumulated insurance fee income to zero after successful collection.
+        access(EImplementation) fun resetCollectInsuranceAmount()
+
+        /// Returns the accumulated stability fee income as UFix64, ready for collection.
+        access(all) view fun getCollectStabilityAmount(): UFix64
+
+        /// Resets the accumulated stability fee income to zero after successful collection.
+        access(EImplementation) fun resetCollectStabilityAmount()
+
+        /// Accumulates protocol fees (insurance + stability) for elapsed time since last collection.
+        /// Called before any balance or rate change to capture fees at the current rates and balances.
+        access(EImplementation) fun collectProtocolFees()
 
         /// Per-position limit fraction of capacity (default 0.05 i.e., 5%)
         access(all) view fun getDepositLimitFraction(): UFix64
@@ -993,9 +1006,6 @@ access(all) contract FlowALPModels {
         /// Sets the insurance rate. See getInsuranceRate for additional details.
         access(EImplementation) fun setInsuranceRate(_ rate: UFix64)
 
-        /// Sets the last insurance collection timestamp. See getLastInsuranceCollectionTime for additional details.
-        access(EImplementation) fun setLastInsuranceCollectionTime(_ lastInsuranceCollectionTime: UFix64)
-
         /// Sets the insurance swapper. See getInsuranceSwapper for additional details.
         /// If non-nil, the swapper must accept this token type as input and output MOET.
         access(EImplementation) fun setInsuranceSwapper(_ swapper: {DeFiActions.Swapper}?)
@@ -1017,9 +1027,6 @@ access(all) contract FlowALPModels {
 
         /// Sets the stability fee rate. See getStabilityFeeRate for additional details.
         access(EImplementation) fun setStabilityFeeRate(_ rate: UFix64)
-
-        /// Sets the last stability fee collection timestamp. See getLastStabilityFeeCollectionTime for additional details.
-        access(EImplementation) fun setLastStabilityFeeCollectionTime(_ lastStabilityFeeCollectionTime: UFix64)
 
         /// Sets the deposit capacity. See getDepositCapacity for additional details.
         access(EImplementation) fun setDepositCapacity(_ capacity: UFix64)
@@ -1112,14 +1119,16 @@ access(all) contract FlowALPModels {
         access(self) var interestCurve: {FlowALPInterestRates.InterestCurve}
         /// The annual insurance rate applied to total debit when computing credit interest (default 0.1%)
         access(self) var insuranceRate: UFix64
-        /// Timestamp of the last insurance collection for this token.
-        access(self) var lastInsuranceCollectionTime: UFix64
         /// Swapper used to convert this token to MOET for insurance collection.
         access(self) var insuranceSwapper: {DeFiActions.Swapper}?
         /// The stability fee rate to calculate stability (default 0.05, 5%).
         access(self) var stabilityFeeRate: UFix64
-        /// Timestamp of the last stability collection for this token.
-        access(self) var lastStabilityFeeCollectionTime: UFix64
+        /// Timestamp of the last protocol fee accumulation (shared by insurance and stability).
+        access(self) var lastProtocolFeeCollectionTime: UFix64
+        /// Accrued stability fee income not yet withdrawn from reserves.
+        access(self) var accumulatedStabilityFeeIncome: UFix128
+        /// Accrued insurance fee income not yet withdrawn from reserves.
+        access(self) var accumulatedInsuranceFeeIncome: UFix128
         /// Per-position limit fraction of capacity (default 0.05 i.e., 5%)
         access(self) var depositLimitFraction: UFix64
         /// The rate at which depositCapacity can increase over time. This is a tokens per hour rate,
@@ -1158,10 +1167,11 @@ access(all) contract FlowALPModels {
             self.currentDebitRate = 1.0
             self.interestCurve = interestCurve
             self.insuranceRate = 0.0
-            self.lastInsuranceCollectionTime = getCurrentBlock().timestamp
             self.insuranceSwapper = nil
             self.stabilityFeeRate = 0.05
-            self.lastStabilityFeeCollectionTime = getCurrentBlock().timestamp
+            self.lastProtocolFeeCollectionTime = getCurrentBlock().timestamp
+            self.accumulatedStabilityFeeIncome = 0.0
+            self.accumulatedInsuranceFeeIncome = 0.0
             self.depositLimitFraction = 0.05
             self.depositRate = depositRate
             self.depositCapacity = depositCapacityCap
@@ -1223,11 +1233,6 @@ access(all) contract FlowALPModels {
             return self.insuranceRate
         }
 
-        /// Returns the timestamp of the last insurance collection for this token.
-        access(all) view fun getLastInsuranceCollectionTime(): UFix64 {
-            return self.lastInsuranceCollectionTime
-        }
-
         /// Returns the swapper used to convert this token to MOET for insurance collection.
         access(all) view fun getInsuranceSwapper(): {DeFiActions.Swapper}? {
             return self.insuranceSwapper
@@ -1238,9 +1243,29 @@ access(all) contract FlowALPModels {
             return self.stabilityFeeRate
         }
 
-        /// Returns the timestamp of the last stability fee collection for this token.
-        access(all) view fun getLastStabilityFeeCollectionTime(): UFix64 {
-            return self.lastStabilityFeeCollectionTime
+        /// Returns the timestamp of the last protocol fee collection for this token.
+        access(all) view fun getLastProtocolFeeCollectionTime(): UFix64 {
+            return self.lastProtocolFeeCollectionTime
+        }
+
+        /// Returns the accumulated insurance fee income as UFix64, ready for collection.
+        access(all) view fun getCollectInsuranceAmount(): UFix64 {
+            return FlowALPMath.toUFix64RoundDown(self.accumulatedInsuranceFeeIncome)
+        }
+
+        /// Resets the accumulated insurance fee income to zero after successful collection.
+        access(EImplementation) fun resetCollectInsuranceAmount() {
+            self.accumulatedInsuranceFeeIncome = 0.0
+        }
+
+        /// Returns the accumulated stability fee income as UFix64, ready for collection.
+        access(all) view fun getCollectStabilityAmount(): UFix64 {
+            return FlowALPMath.toUFix64RoundDown(self.accumulatedStabilityFeeIncome)
+        }
+
+        /// Resets the accumulated stability fee income to zero after successful collection.
+        access(EImplementation) fun resetCollectStabilityAmount() {
+            self.accumulatedStabilityFeeIncome = 0.0
         }
 
         /// Returns the per-position limit fraction of capacity (default 0.05 i.e., 5%).
@@ -1282,12 +1307,9 @@ access(all) contract FlowALPModels {
 
         /// Sets the insurance rate. See TokenState.setInsuranceRate.
         access(EImplementation) fun setInsuranceRate(_ rate: UFix64) {
+            self.collectProtocolFees()
             self.insuranceRate = rate
-        }
-
-        /// Sets the last insurance collection timestamp. See TokenState.setLastInsuranceCollectionTime.
-        access(EImplementation) fun setLastInsuranceCollectionTime(_ lastInsuranceCollectionTime: UFix64) {
-            self.lastInsuranceCollectionTime = lastInsuranceCollectionTime
+            self.updateForUtilizationChange()
         }
 
         /// Sets the insurance swapper. See TokenState.setInsuranceSwapper.
@@ -1329,12 +1351,9 @@ access(all) contract FlowALPModels {
 
         /// Sets the stability fee rate. See TokenState.setStabilityFeeRate.
         access(EImplementation) fun setStabilityFeeRate(_ rate: UFix64) {
+            self.collectProtocolFees()
             self.stabilityFeeRate = rate
-        }
-
-        /// Sets the last stability fee collection timestamp. See TokenState.setLastStabilityFeeCollectionTime.
-        access(EImplementation) fun setLastStabilityFeeCollectionTime(_ lastStabilityFeeCollectionTime: UFix64) {
-            self.lastStabilityFeeCollectionTime = lastStabilityFeeCollectionTime
+            self.updateForUtilizationChange()
         }
 
         /// Sets the deposit capacity. See TokenState.setDepositCapacity.
@@ -1344,6 +1363,7 @@ access(all) contract FlowALPModels {
 
         /// Sets the interest curve. Recalculates interest rates immediately. See TokenState.setInterestCurve.
         access(EImplementation) fun setInterestCurve(_ curve: {FlowALPInterestRates.InterestCurve}) {
+            self.collectProtocolFees()
             self.interestCurve = curve
             // Update rates immediately to reflect the new curve
             self.updateInterestRates()
@@ -1481,12 +1501,14 @@ access(all) contract FlowALPModels {
 
         /// Increases total credit balance by the given amount and recalculates interest rates.
         access(EImplementation) fun increaseCreditBalance(by amount: UFix128) {
+            self.collectProtocolFees()
             self.totalCreditBalance = self.totalCreditBalance + amount
             self.updateForUtilizationChange()
         }
 
         /// Decreases total credit balance by the given amount (floored at 0) and recalculates interest rates.
         access(EImplementation) fun decreaseCreditBalance(by amount: UFix128) {
+            self.collectProtocolFees()
             if amount >= self.totalCreditBalance {
                 self.totalCreditBalance = 0.0
             } else {
@@ -1497,18 +1519,49 @@ access(all) contract FlowALPModels {
 
         /// Increases total debit balance by the given amount and recalculates interest rates.
         access(EImplementation) fun increaseDebitBalance(by amount: UFix128) {
+            self.collectProtocolFees()
             self.totalDebitBalance = self.totalDebitBalance + amount
             self.updateForUtilizationChange()
         }
 
         /// Decreases total debit balance by the given amount (floored at 0) and recalculates interest rates.
         access(EImplementation) fun decreaseDebitBalance(by amount: UFix128) {
+            self.collectProtocolFees()
             if amount >= self.totalDebitBalance {
                 self.totalDebitBalance = 0.0
             } else {
                 self.totalDebitBalance = self.totalDebitBalance - amount
             }
             self.updateForUtilizationChange()
+        }
+
+        /// Accumulates insurance and stability fee income for the elapsed time since the last call.
+        /// Updates lastProtocolFeeCollectionTime to the current block timestamp.
+        /// Must be called before any balance or rate change to settle fees at current rates.
+        access(EImplementation) fun collectProtocolFees() {
+            let currentTime = getCurrentBlock().timestamp
+            
+            let totalProtocolFeeRate = self.insuranceRate + self.stabilityFeeRate
+            if totalProtocolFeeRate == 0.0 {
+                self.lastProtocolFeeCollectionTime = currentTime
+                return 
+            }
+
+            let timeElapsed = currentTime - self.lastProtocolFeeCollectionTime
+            if timeElapsed <= 0.0 {
+                return
+            }
+
+            let debitIncome = self.totalDebitBalance * (FlowALPMath.powUFix128(self.currentDebitRate, timeElapsed) - 1.0)
+            let creditIncome = self.totalCreditBalance * (FlowALPMath.powUFix128(self.currentCreditRate, timeElapsed) - 1.0)
+            let protocolFeeIncome: UFix128 = debitIncome > creditIncome ? debitIncome - creditIncome : 0.0
+
+            let insuranceFeeAmount = protocolFeeIncome * UFix128(self.insuranceRate) / UFix128(totalProtocolFeeRate)
+            let stabilityFeeAmount = protocolFeeIncome - insuranceFeeAmount
+
+            self.accumulatedInsuranceFeeIncome = self.accumulatedInsuranceFeeIncome + insuranceFeeAmount
+            self.accumulatedStabilityFeeIncome = self.accumulatedStabilityFeeIncome + stabilityFeeAmount
+            self.lastProtocolFeeCollectionTime = currentTime
         }
     }
 

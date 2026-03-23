@@ -157,8 +157,9 @@ fun test_collectInsurance_insufficientReserves() {
     Test.assertEqual(0.0, finalInsuranceBalance)
     Test.assertEqual(reserveBalanceBefore, reserveBalanceAfter)
 
-    // time should not change
-    Test.assertEqual(lastCollectionTimeBefore, lastCollectionTimeAfter)
+    // In the accumulator model, collectProtocolFees() is always called and updates the timestamp
+    // even when reserves are insufficient. Fees accumulate in the accumulator until reserves recover.
+    Test.assert(lastCollectionTimeAfter! > lastCollectionTimeBefore!, message: "Timestamp should be updated even on failed collection")
 
 }
 
@@ -238,8 +239,7 @@ fun test_collectInsurance_success_fullAmount() {
     let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set 10% annual debit rate
-    // Insurance is calculated on debit income, not debit balance directly
+    // set 10% annual debit rate; credit rate = 0.1 × (1 − 0.15) = 0.085
     setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.1)
 
     // set insurance rate (10% of debit income)
@@ -262,9 +262,12 @@ fun test_collectInsurance_success_fullAmount() {
     let reserveBalanceAfter = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assert(reserveBalanceAfter < reserveBalanceBefore, message: "Reserves should have decreased after collection")
 
-    // verify the amount withdrawn from reserves equals the insurance fund balance (1:1 swap ratio)
+    // verify the total amount withdrawn from reserves equals insurance collected (1:1 swap ratio).
+    // collectInsurance only drains the insurance accumulator; stability remains in its accumulator
+    // until collectStability is called separately.
+    let stabilityFundBalance = getStabilityFundBalance(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER) ?? 0.0
     let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
-    Test.assertEqual(amountWithdrawnFromReserves, finalInsuranceBalance)
+    Test.assertEqual(amountWithdrawnFromReserves, finalInsuranceBalance + stabilityFundBalance)
 
     // verify last insurance collection time was updated to current block timestamp
     let currentTimestamp = getBlockTimestamp()
@@ -427,7 +430,7 @@ fun test_collectInsurance_dexOracleSlippageProtection() {
     let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, priceRatio: 0.5)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set 10% annual debit rate and 10% insurance rate
+    // set 10% annual debit rate; credit rate = debitRate × (1 − protocolFeeRate) = 0.1 × 0.85
     setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, yearlyRate: 0.1)
     let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.1)
     Test.expect(rateResult, Test.beSucceeded())

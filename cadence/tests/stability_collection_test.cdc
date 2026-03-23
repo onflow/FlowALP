@@ -122,8 +122,9 @@ fun test_collectStability_insufficientReserves() {
     Test.assertEqual(nil, finalStabilityBalance)
     Test.assertEqual(reserveBalanceBefore, reserveBalanceAfter)
 
-    // time should not change
-    Test.assertEqual(lastCollectionTimeBefore, lastCollectionTimeAfter)
+    // In the accumulator model, collectProtocolFees() is always called and updates the timestamp
+    // even when reserves are insufficient. Fees accumulate in the accumulator until reserves recover.
+    Test.assert(lastCollectionTimeAfter! > lastCollectionTimeBefore!, message: "Timestamp should be updated even on failed collection")
 }
 
 // -----------------------------------------------------------------------------
@@ -211,10 +212,13 @@ fun test_collectStability_multipleTokens() {
     // Then borrow FLOW (creates FLOW debit balance)
     borrowFromPosition(signer: flowBorrower, positionId: 3, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 500.0, beFailed: false)
 
-    // set 10% annual debit rates
-    // Stability is calculated on interest income, not debit balance directly
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.1)
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    // set interest rates using KinkCurve (baseRate=10% annual).
+    // KinkCurve guarantees protocolFee > 0 at any utilization because creditRate scales
+    // with debit/credit ratio: protocolFee ≈ debitIncome × protocolFeeRate, always positive.
+    // FixedCurve would require debit/credit > (1 - feeRate) — impossible here because
+    // moetBorrower's FLOW collateral deposit inflates FLOW credit balance.
+    setInterestCurveKink(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, optimalUtilization: 0.8, baseRate: 0.1, slope1: 0.1, slope2: 0.5)
+    setInterestCurveKink(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, optimalUtilization: 0.8, baseRate: 0.1, slope1: 0.1, slope2: 0.5)
 
     // set different stability fee rates for each token type (percentage of interest income)
     let moetRateResult = setStabilityFeeRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, stabilityFeeRate: 0.1) // 10%
