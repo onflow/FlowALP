@@ -166,10 +166,12 @@ fun test_collectStability_tinyAmount_roundsToZero_returnsNil() {
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectStability_multipleTokens() {
-    // set 10% annual debit rates
-    // Stability is calculated on interest income, not debit balance directly
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.1)
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    // set 10% annual debit rates using KinkCurve with slope1=0/slope2=0 so the rate is
+    // constant at baseRate=0.1 regardless of utilization. This guarantees
+    // creditIncome = debitIncome * (1 - protocolFeeRate) and therefore
+    // protocolFeeIncome > 0 even at low utilization.
+    setInterestCurveKink(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, optimalUtilization: 0.9, baseRate: 0.1, slope1: 0.0, slope2: 0.0)
+    setInterestCurveKink(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, optimalUtilization: 0.9, baseRate: 0.1, slope1: 0.0, slope2: 0.0)
 
     let moetRateResult = setStabilityFeeRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, stabilityFeeRate: 0.1)
     Test.expect(moetRateResult, Test.beSucceeded())
@@ -318,8 +320,10 @@ fun test_collectStability_zeroRate_returnsNil() {
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectStability_midPeriodRateChange() {
-    // set interest curve
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    // set interest curve — KinkCurve with slope1=0/slope2=0 gives constant 10% debit rate,
+    // which ensures creditIncome = debitIncome * (1 - protocolFeeRate) at any utilization
+    // so the formula stabilityAmount = debitIncome * stabilityFeeRate holds exactly.
+    setInterestCurveKink(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, optimalUtilization: 0.9, baseRate: 0.1, slope1: 0.0, slope2: 0.0)
 
     // provide FLOW liquidity so the borrower can actually borrow
     let lp = Test.createAccount()
@@ -355,18 +359,18 @@ fun test_collectStability_midPeriodRateChange() {
     // Advance ONE_YEAR
     Test.moveTime(by: ONE_YEAR)
 
-    // Phase 1 expected stability calculation:
-    //   yearly rate        = 0.1   (yearly debit rate, FixedCurve)
-    //   stabilityFeeRate1  = 0.05  (default)
+    // Phase 1 expected stability calculation (KinkCurve compound formula):
+    //   stabilityFeeRate1  = 0.05  (default), insuranceRate = 0.0
+    //   protocolFeeRate    = 0.05
+    //   U = totalDebit/totalCredit = 500/10000 = 0.05
     //
-    //   stabilityIncome_1 = totalDebitBalance * (pow(perSecondDebitRate, timeElapsed) - 1.0)
-    //   perSecondRate = 1 + (yearlyRate / 31_557_600)
-    //   stabilityAmount = stabilityIncome * stabilityFeeRate
-    //
-    //   perSecondRate     = 1 + (0.1 / 31557600) = 1.00000000317
-    //   stabilityIncome_1 = 500 * (1.00000000317^31557600 - 1) = 52.58545895 FLOW
-    //   stabilityAmount_1 = stabilityIncome_1 * stabilityFeeRate1 = 52.58545895 * 0.05 = 2.62927294
-    let expectedStabilityAmountAfterPhase1 = 2.62927294
+    //   debitRatePerSec  = 0.1 / 31557600
+    //   debitIncome      = 500  * (pow(1 + debitRatePerSec, ONE_YEAR) - 1)        ≈ 52.58545895
+    //   creditIncome     = 10000 * (pow(1 + debitRatePerSec * (1-0.05) * 0.05, ONE_YEAR) - 1)
+    //                    ≈ 10000 * (e^0.00475 - 1)                                 ≈ 47.61283
+    //   protocolFeeIncome = debitIncome - creditIncome                             ≈  4.97263
+    //   stabilityAmount_1 = protocolFeeIncome  (insuranceRate=0, so 100% to stability)
+    let expectedStabilityAmountAfterPhase1 = 4.97246762
 
     // change the stability fee rate to 20% for phase 2
     var rateResult = setStabilityFeeRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, stabilityFeeRate: 0.2)
@@ -388,14 +392,17 @@ fun test_collectStability_midPeriodRateChange() {
     // Advance another ONE_YEAR
     Test.moveTime(by: ONE_YEAR)
 
-    // Phase 2 expected stability calculation:
-    //   yearly rate        = 0.1   (yearly debit rate, FixedCurve)
-    //   stabilityFeeRate2  = 0.2   (fraction of debit income)
+    // Phase 2 expected stability calculation (KinkCurve compound formula):
+    //   stabilityFeeRate2  = 0.2, insuranceRate = 0.0
+    //   protocolFeeRate    = 0.2
+    //   U = 500/10000 = 0.05  (unchanged)
     //
-    //   totalDebitBalance = 500 FLOW  (scaled balance — does not compound, index does)
-    //   stabilityIncome_2 = 500 * (1.00000000317^31557600 - 1) = 52.58545895 FLOW
-    //   stabilityAmount_2 = stabilityIncome_2 * stabilityFeeRate2 = 52.58545895 * 0.2 = 10.51709179
-    let expectedStabilityAmountAfterPhase2 = 10.51709179
+    //   debitIncome      = 500  * (pow(1 + debitRatePerSec, ONE_YEAR) - 1)        ≈ 52.58545895
+    //   creditIncome     = 10000 * (pow(1 + debitRatePerSec * (1-0.2) * 0.05, ONE_YEAR) - 1)
+    //                    ≈ 10000 * (e^0.004 - 1)                                   ≈ 40.08011
+    //   protocolFeeIncome = debitIncome - creditIncome                             ≈ 12.50535
+    //   stabilityAmount_2 = protocolFeeIncome  (insuranceRate=0, so 100% to stability)
+    let expectedStabilityAmountAfterPhase2 = 12.50535218
 
     // change the stability rate to 25%
     rateResult = setStabilityFeeRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, stabilityFeeRate: 0.25)

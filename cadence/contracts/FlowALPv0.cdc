@@ -1491,7 +1491,7 @@ access(all) contract FlowALPv0 {
                 )
             }
             // Collect all insurance fees accrued under the old rate before applying the new one, the new rate applies only to time elapsed from this point forward
-            self.updateInterestRatesAndCollectInsurance(tokenType: tokenType)
+            self._collectInsurance(tokenType: tokenType)
 
             tsRef.setInsuranceRate(insuranceRate)
 
@@ -1602,7 +1602,7 @@ access(all) contract FlowALPv0 {
                 ?? panic("Invariant: token state missing")
 
             // Collect all stability fees accrued under the old rate before applying the new one, the new rate applies only to time elapsed from this point forward
-            self.updateInterestRatesAndCollectStability(tokenType: tokenType)
+            self._collectStability(tokenType: tokenType)
 
             tsRef.setStabilityFeeRate(stabilityFeeRate)
 
