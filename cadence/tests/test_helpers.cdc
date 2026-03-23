@@ -1029,7 +1029,7 @@ fun withdrawReserve(
 access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct, _ variance: AnyStruct): Bool {
     let expectedType = expected.getType()
     let actualType = actual.getType()
-    let varianceType = actual.getType()
+    let varianceType = variance.getType()
     if expectedType == Type<UFix64>() && actualType == Type<UFix64>() && varianceType == Type<UFix64>() {
         return ufixEqualWithinVariance(expected as! UFix64, actual as! UFix64, variance as! UFix64)
     } else if expectedType == Type<UFix128>() && actualType == Type<UFix128>() && varianceType == Type<UFix128>(){
