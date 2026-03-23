@@ -142,11 +142,11 @@ fun test_withdraw_pull_belowTarget_sourcePartial_bestEffort() {
     withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 50.0, pullFromTopUpSource: true)
 
     let health = getPositionHealth(pid: 0, beFailed: false)
-    Test.assert(health >= INT_MIN_HEALTH, message: "Should be >= minHealth but was ".concat(health.toString()))
+    Test.assert(health > INT_MIN_HEALTH, message: "Should be > minHealth but was ".concat(health.toString()))
     Test.assert(health < INT_TARGET_HEALTH, message: "Should be < targetHealth (best-effort) but was ".concat(health.toString()))
 }
 
-/// Scenario 6 (RED): pull=true, health between min and target, no source → succeed (above minHealth).
+/// Scenario 6: pull=true, health between min and target, no source → succeed (above minHealth).
 access(all)
 fun test_withdraw_pull_belowTarget_noSource_succeeds() {
     Test.reset(to: snapshot)
@@ -242,11 +242,11 @@ fun test_deposit_push_aboveTarget_sinkLimited_bestEffort() {
     Test.reset(to: snapshot)
     let user = setupUserWithPosition(1_000.0)
 
-    // Deposit a very large amount — pool reserves may not have enough MOET to fully rebalance.
+    // Deposit a very large amount — pool reserves will not have enough MOET to fully rebalance.
     mintFlow(to: user, amount: 50_000.0)
     depositToPosition(signer: user, positionID: 0, amount: 50_000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
-    Test.assert(getPositionHealth(pid: 0, beFailed: false) >= INT_TARGET_HEALTH)
+    Test.assert(getPositionHealth(pid: 0, beFailed: false) > INT_TARGET_HEALTH)
 }
 
 /// Scenario 13: push=true, health above targetHealth, no sink → succeed (deposit always works).
