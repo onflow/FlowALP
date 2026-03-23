@@ -89,6 +89,6 @@ fun test_regression_TokenState_90_borrow_of_100_supply_should_price_at_90_percen
     Test.assert(
         actualYearlyRate == 0.35,
         message:
-            "Regression: 100 supplied / 90 borrowed should price at 90% utilization (0.35 APY), but current accounting passed creditBalance=\(tokenState.getTotalCreditBalance()) and debitBalance=\(tokenState.getTotalDebitBalance()), producing \(actualYearlyRate) instead"
+            "Regression: 100 supplied / 90 borrowed should price at 90% utilization (0.35 nominal yearly rate), but current accounting passed creditBalance=\(tokenState.getTotalCreditBalance()) and debitBalance=\(tokenState.getTotalDebitBalance()), producing \(actualYearlyRate) instead"
     )
 }

@@ -2022,6 +2022,9 @@ access(all) contract FlowALPModels {
         /// Returns whether a queued deposit exists for the given token type
         access(all) view fun hasQueuedDeposit(_ type: Type): Bool
 
+        /// Returns the queued deposit balance for the given token type, or nil if none exists
+        access(all) view fun getQueuedDepositBalance(_ type: Type): UFix64?
+
         // --- Draw Down Sink ---
 
         /// Returns an authorized reference to the draw-down sink, or nil if none is configured.
@@ -2181,6 +2184,14 @@ access(all) contract FlowALPModels {
             return self.queuedDeposits[type] != nil
         }
 
+        /// Returns the queued deposit balance for the given token type, or nil if none exists.
+        access(all) view fun getQueuedDepositBalance(_ type: Type): UFix64? {
+            if let queued = &self.queuedDeposits[type] as &{FungibleToken.Vault}? {
+                return queued.balance
+            }
+            return nil
+        }
+
         // --- Draw Down Sink ---
 
         /// Returns an authorized reference to the draw-down sink, or nil if none is configured.
@@ -2253,6 +2264,9 @@ access(all) contract FlowALPModels {
 
         /// Rebalances the specified position.
         access(EPosition | ERebalance) fun rebalancePosition(pid: UInt64, force: Bool)
+
+        /// Queues the position for rebalance/update if its health bounds have changed.
+        access(EPosition) fun queuePositionForUpdateIfNecessary(pid: UInt64)
     }
 
     /// Factory function to create a new InternalPositionImplv1 resource.
