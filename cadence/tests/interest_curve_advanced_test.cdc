@@ -192,8 +192,10 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // Expected: 6153.84615384 * (factor - 1) ≈ 8.42992491 MOET
     let expectedGrowth1: UFix64 = 8.42992491
     let tolerance: UFix64 = 0.0001  // Precision to 0.0001 MOET
-    let diff1 = growth1 > expectedGrowth1 ? growth1 - expectedGrowth1 : expectedGrowth1 - growth1
-    Test.assert(diff1 <= tolerance, message: "Phase 1 growth should be ~8.42992491. Actual: \(growth1)")
+    Test.assert(
+        equalWithinVariance(expectedGrowth1, growth1, tolerance),
+        message: "Phase 1 growth should be ~\(expectedGrowth1). Actual: \(growth1)",
+    )
 
     // -------------------------------------------------------------------------
     // STEP 7: Change Interest Rate to a 15% Nominal Yearly Rate (Phase 2 Configuration)
@@ -230,8 +232,10 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // Formula: perSecondRate = 1 + 0.15/31_557_600, factor = perSecondRate^864000
     // Expected: 6162.27607875 * (factor - 1) ≈ 25.35912505 MOET
     let expectedGrowth2: UFix64 = 25.35912505
-    let diff2 = growth2 > expectedGrowth2 ? growth2 - expectedGrowth2 : expectedGrowth2 - growth2
-    Test.assert(diff2 <= tolerance, message: "Phase 2 growth should be ~25.35912505. Actual: \(growth2)")
+    Test.assert(
+        equalWithinVariance(expectedGrowth2, growth2, tolerance),
+        message: "Phase 2 growth should be ~\(expectedGrowth2). Actual: \(growth2)",
+    )
 
     // -------------------------------------------------------------------------
     // STEP 8: Change Interest Rate to a 10% Nominal Yearly Rate (Phase 3 Configuration)
@@ -265,8 +269,10 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // Formula: perSecondRate = 1 + 0.10/31_557_600, factor = perSecondRate^864000
     // Expected: 6187.63520380 * (factor - 1) ≈ 16.96403378 MOET
     let expectedGrowth3: UFix64 = 16.96403378
-    let diff3 = growth3 > expectedGrowth3 ? growth3 - expectedGrowth3 : expectedGrowth3 - growth3
-    Test.assert(diff3 <= tolerance, message: "Phase 3 growth should be ~16.96403378. Actual: \(growth3)")
+    Test.assert(
+        equalWithinVariance(expectedGrowth3, growth3, tolerance),
+        message: "Phase 3 growth should be ~/(expectedGrowth3). Actual: \(growth3)",
+    )
 
     // =========================================================================
     // ASSERTIONS: Verify Rate Ratios Match Growth Ratios
@@ -440,13 +446,13 @@ fun test_exact_compounding_verification_one_year() {
     log("Expected growth rate: \(expectedGrowthRate.toString())")
 
     Test.assert(
-        rateDiff <= tolerance,
-        message: "Growth rate should be ~0.105170918 (10.52% effective). Actual: \(actualGrowthRate)"
+        equalWithinVariance(expectedGrowthRate, actualGrowthRate, tolerance),
+        message: "Growth rate should be ~\(expectedGrowthRate) (10.52% effective). Actual: \(actualGrowthRate)"
     )
     
-     Test.assert(
-        growthDiff <= tolerance,
-        message: "Growth should be ~652.54340074. Actual: \(actualGrowth)"
+    Test.assert(
+        equalWithinVariance(expectedGrowth, actualGrowth, tolerance),
+        message: "Growth should be ~\(expectedGrowth). Actual: \(actualGrowth)"
     )
 
     log("=== TEST PASSED ===")
@@ -654,7 +660,6 @@ fun test_credit_rate_changes_with_curve() {
     // Expected credit growth = creditBefore * 0.00625950922 ≈ 346.58 MOET
     let expectedCreditGrowthRate: UFix64 = 0.0062552
     let expectedCreditGrowth: UFix64 = 346.58
-    let tolerance: UFix64 = 0.0001
 
     let rateDiff = creditGrowthRate > expectedCreditGrowthRate
         ? creditGrowthRate - expectedCreditGrowthRate
@@ -671,13 +676,13 @@ fun test_credit_rate_changes_with_curve() {
     log("Rate difference: \(rateDiff.toString())")
 
     Test.assert(
-        growthDiff <= 0.01,
-        message: "Credit growth should be ~346.58. Actual: \(creditGrowth)"
+        equalWithinVariance(expectedCreditGrowth, creditGrowth, 0.01),
+        message: "Credit growth should be ~\(expectedCreditGrowth). Actual: \(creditGrowth)"
     )
 
     Test.assert(
-        rateDiff <= tolerance,
-        message: "Credit growth rate should be ~0.0062552. Actual: \(creditGrowthRate)"
+        equalWithinVariance(expectedCreditGrowthRate, creditGrowthRate, 0.0001),
+        message: "Credit growth rate should be ~\(expectedCreditGrowthRate). Actual: \(creditGrowthRate)"
     )
 
     log("=== TEST PASSED ===")

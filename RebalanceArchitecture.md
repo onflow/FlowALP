@@ -1,6 +1,8 @@
 ## Updated Rebalance Architecture
 
-This system **rebalances Flow Credit Market (FCM) positions on a schedule**: at a configurable interval, a rebalancer triggers the position’s `rebalance` function. **FCM** holds positions and exposes `rebalance`.
+This system **rebalances FlowALP positions on a schedule**: at a configurable interval, a rebalancer triggers the position’s `rebalance` function. **FlowALP** holds positions and exposes `rebalance`.
+
+**Implementation note:** In the current implementation, the FlowALP pool is `FlowALPv0.Pool`.
 
 A **Rebalancer** when invoked, calls `rebalance` on the position and tries to schedules the next run.
 
@@ -8,7 +10,7 @@ A **Supervisor** runs on its own schedule (cron) and calls `fixReschedule()` on 
 
 ### Key Principles
 
-* **Isolation:** FCM, Rebalancer, and Supervisor are fully independent.
+* **Isolation:** FlowALP, Rebalancer, and Supervisor are fully independent.
 * **Least Privilege:** The Rebalancer can *only* trigger the `rebalance` function.
 * **Resilience:** The `fixReschedule()` call is idempotent and permissionless, ensuring the system can recover without complex auth (see below).
 
@@ -39,7 +41,7 @@ There are two rebalancer types; they behave the same for triggering rebalances; 
 | **User’s control** | Full: config, fixReschedule, withdraw/destroy | Only: fixReschedule by UUID, or delete their RebalancerPaid (stops and removes the rebalancer) |
 | **Use case** | User wants full autonomy and to pay their own fees | Admin retains autonomy and pays fees for users (us only) |
 
-**Note:** The Supervisor and the Paid Rebalancer are only intended for use by us; the Standard Rebalancer is for users who self-custody. The bundled `FlowALPSupervisorV1` only tracks **paid** rebalancers (`addPaidRebalancer` / `removePaidRebalancer`). For standard rebalancers, users can call `fixReschedule()` themselves when needed.
+**Note:** The Supervisor and the Paid Rebalancer are only intended for use by us; the Standard Rebalancer is for users who self-custody. The bundled `FlowALPSupervisorv1` only tracks **paid** rebalancers (`addPaidRebalancer` / `removePaidRebalancer`). For standard rebalancers, users can call `fixReschedule()` themselves when needed.
 
 ### Why calls `fixReschedule()` are necessary
 
@@ -57,12 +59,12 @@ User creates a position, then creates a **paid** rebalancer (which lives in the 
 sequenceDiagram
     actor admin
     actor User
-    participant FCM
+    participant FlowALP
     participant Paid as Paid Rebalancer Contract
     participant Supervisor
     Note over admin,Paid: One-time: admin sets defaultRecurringConfig (incl. txFunder)
     admin->>Paid: updateDefaultRecurringConfig(config)
-    User->>FCM: createPosition()
+    User->>FlowALP: createPosition()
     User->>Paid: createPaidRebalancer(positionRebalanceCapability)
     Paid-->>User: RebalancerPaid(uuid)
     User->>User: save RebalancerPaid
@@ -87,14 +89,14 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant AB1 as AutoRebalancer1
-    participant FCM
+    participant FlowALP
     participant AB2 as AutoRebalancer2
     participant SUP as Supervisor
     loop every x min
-    AB1->>FCM: rebalance()
+    AB1->>FlowALP: rebalance()
     end
     loop every y min
-    AB2->>FCM: rebalance()
+    AB2->>FlowALP: rebalance()
     end
     loop every z min
     SUP->>AB2: fixReschedule()

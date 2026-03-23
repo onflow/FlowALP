@@ -337,6 +337,15 @@ fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALPModels.PositionDetai
 }
 
 access(all)
+fun getQueuedDeposits(pid: UInt64, beFailed: Bool): {Type: UFix64} {
+    let res = _executeScript("../scripts/flow-alp/get_queued_deposits.cdc",
+            [pid]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! {Type: UFix64}
+}
+
+access(all)
 fun getPositionBalance(pid: UInt64, vaultID: String): FlowALPModels.PositionBalance {
     let positionDetails = getPositionDetails(pid: pid, beFailed: false)
     for bal in positionDetails.balances {
@@ -846,11 +855,11 @@ fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFail
 
 access(all)
 fun manualLiquidation(
-    signer: Test.TestAccount, 
-    pid: UInt64, 
-    debtVaultIdentifier: String, 
-    seizeVaultIdentifier: String, 
-    seizeAmount: UFix64, 
+    signer: Test.TestAccount,
+    pid: UInt64,
+    debtVaultIdentifier: String,
+    seizeVaultIdentifier: String,
+    seizeAmount: UFix64,
     repayAmount: UFix64,
 ): Test.TransactionResult {
     return _executeTransaction(
@@ -1017,28 +1026,29 @@ fun withdrawReserve(
 
 /* --- Assertion Helpers --- */
 
-access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct): Bool {
+access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct, _ variance: AnyStruct): Bool {
     let expectedType = expected.getType()
     let actualType = actual.getType()
-    if expectedType == Type<UFix64>() && actualType == Type<UFix64>() {
-        return ufixEqualWithinVariance(expected as! UFix64, actual as! UFix64)
-    } else if expectedType == Type<UFix128>() && actualType == Type<UFix128>() {
-        return ufix128EqualWithinVariance(expected as! UFix128, actual as! UFix128)
+    let varianceType = variance.getType()
+    if expectedType == Type<UFix64>() && actualType == Type<UFix64>() && varianceType == Type<UFix64>() {
+        return ufixEqualWithinVariance(expected as! UFix64, actual as! UFix64, variance as! UFix64)
+    } else if expectedType == Type<UFix128>() && actualType == Type<UFix128>() && varianceType == Type<UFix128>(){
+        return ufix128EqualWithinVariance(expected as! UFix128, actual as! UFix128, variance as! UFix128)
     }
     panic("Expected and actual types do not match - expected: \(expectedType.identifier), actual: \(actualType.identifier)")
 }
 
-access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64): Bool {
+access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64, _ variance: UFix64): Bool {
     // return true if expected is within DEFAULT_UFIX_VARIANCE of actual, false otherwise and protect for underflow`
     let diff = Fix64(expected) - Fix64(actual)
     // take the absolute value of the difference without relying on .abs()
     let absDiff: UFix64 = diff < 0.0 ? UFix64(-1.0 * diff) : UFix64(diff)
-    return absDiff <= DEFAULT_UFIX_VARIANCE
+    return absDiff <= variance
 }
 
-access(all) fun ufix128EqualWithinVariance(_ expected: UFix128, _ actual: UFix128): Bool {
+access(all) fun ufix128EqualWithinVariance(_ expected: UFix128, _ actual: UFix128, _ variance: UFix128): Bool {
     let absDiff: UFix128 = expected >= actual ? expected - actual : actual - expected
-    return absDiff <= DEFAULT_UFIX128_VARIANCE
+    return absDiff <= variance
 }
 
 /* --- Balance & Timestamp Helpers --- */
@@ -1074,4 +1084,11 @@ access(all) fun getLastPositionId(): UInt64  {
     var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
     let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
     return pid
+}
+
+access(all)
+fun getCurrentBlockTimestamp(): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/get_block_timestamp.cdc", [])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
 }
