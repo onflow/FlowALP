@@ -43,9 +43,9 @@ fun test_collectStability_success_fullAmount() {
     // LP deposits MOET (creates credit balance, provides borrowing liquidity)
     createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
-    // setup borrower with enough FLOW so MOET debit > MOET credit × (1 − pFeeRate).
-    // MOET credit = 10000, stabilityFeeRate = 0.1 → pFeeRate = 0.1, threshold = 9000.
-    // 15000 FLOW × 0.8 CF / 1.3 target health ≈ 9231 MOET debit. 9231 > 9000
+    // setup borrower with FLOW collateral
+    // With 0.8 CF and 1.3 target health: 15000 FLOW collateral allows borrowing ~9231 MOET
+    // borrow = (collateral * price * CF) / targetHealth = (15000 * 1.0 * 0.8) / 1.3 ≈ 9230.77
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
     transferFlowTokens(to: borrower, amount: 15000.0)
@@ -109,12 +109,6 @@ fun test_collectStability_success_fullAmount() {
     //   protocolFee   ≈ 29.0656 MOET
     //   stabilityAmt  = 29.0656 × 0.1 / 0.1 = 29.065637485 MOET  (all to stability since insuranceRate=0)
     //
-    // NOTE: block timestamps vary slightly between runs, so we use a 0.5 MOET tolerance.
-    let tolerance = 0.001
     let expectedCollectedAmount = 29.065
-    let diff = expectedCollectedAmount > collectedAmount
-        ? expectedCollectedAmount - collectedAmount
-        : collectedAmount - expectedCollectedAmount
-
-    Test.assert(diff < tolerance, message: "Stability collected should be around \(expectedCollectedAmount) but current \(collectedAmount)")
+    Test.assert(equalWithinVariance(expectedCollectedAmount, collectedAmount, 0.001), message: "Stability collected should be around \(expectedCollectedAmount) but current \(collectedAmount)")
 }

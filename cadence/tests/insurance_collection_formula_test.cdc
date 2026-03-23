@@ -43,9 +43,9 @@ fun test_collectInsurance_success_fullAmount() {
     // LP deposits MOET (creates credit balance, provides borrowing liquidity)
     createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
-    // setup borrower with enough FLOW so MOET debit > MOET credit × (1 − pFeeRate).
-    // MOET credit = 10000, pFeeRate = 0.15 → threshold = 8500.
-    // 15000 FLOW × 0.8 CF / 1.3 target health ≈ 9231 MOET debit. 9231 > 8500
+    // setup borrower with FLOW collateral
+    // With 0.8 CF and 1.3 target health: 15000 FLOW collateral allows borrowing ~9231 MOET
+    // borrow = (collateral * price * CF) / targetHealth = (15000 * 1.0 * 0.8) / 1.3 ≈ 9230.77
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
     transferFlowTokens(to: borrower, amount: 15000.0)
@@ -116,16 +116,7 @@ fun test_collectInsurance_success_fullAmount() {
     //   protocolFee   = 970.808555393 - 887.170667 = 83.637888393 MOET
     //   insuranceAmt  = 83.637888393 × 0.1 / 0.15 ≈ 55.758 MOET
     //
-    // NOTE:
-    // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
-    // The default variance is designed for deterministic math, but insurance collection
-    // depends on block timestamps, which can differ slightly between test runs.
-    // A larger, time-aware tolerance is required.
-    let tolerance = 0.001
     let expectedCollectedAmount = 55.758
-    let diff = expectedCollectedAmount > collectedInsuranceAmount
-        ? expectedCollectedAmount - collectedInsuranceAmount
-        : collectedInsuranceAmount - expectedCollectedAmount
 
-    Test.assert(diff < tolerance, message: "Insurance collected should be around \(expectedCollectedAmount) but current \(collectedInsuranceAmount)")
+    Test.assert(equalWithinVariance(expectedCollectedAmount, collectedInsuranceAmount, 0.001), message: "Insurance collected should be around \(expectedCollectedAmount) but current \(collectedInsuranceAmount)")
 }
