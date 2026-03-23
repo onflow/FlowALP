@@ -20,7 +20,7 @@ Both fees are deducted from interest income to protect the protocol and fund ope
 
 #### Insurance Fund
 
-The insurance fund serves as the protocol's **reserve for covering bad debt**, acting as the liquidator of last resort. A percentage of lender interest income is continuously collected and swapped to MOET, building a safety buffer that grows over time. When there are liquidations that aren't able to be covered and would normally create bad debt in the protocol, the MOET is swapped for that specific asset to cover that delta of bad debt.  These funds are  **never withdrawable** by governance and exist solely to protect lenders from losses.
+The insurance fund serves as the protocol's **reserve for covering bad debt**, acting as the liquidator of last resort. A percentage of lender interest income is collected as interest accrues and swapped to MOET, building a safety buffer that grows over time. When there are liquidations that aren't able to be covered and would normally create bad debt in the protocol, the MOET is swapped for that specific asset to cover that delta of bad debt. These funds are **never withdrawable** by governance and exist solely to protect lenders from losses.
 
 #### Stability Fund
 
@@ -34,7 +34,7 @@ Both fees are deducted from the interest income that would otherwise go to lende
 
 ### 1. Debit Rate Calculation
 
-For each token, the protocol stores one interest curve. The debit rate (borrow APY) is computed from that curve and the current pool utilization:
+For each token, the protocol stores one interest curve. The debit rate (borrow nominal yearly rate) is computed from that curve and the current pool utilization:
 
 ```text
 if totalDebitBalance == 0:
@@ -64,21 +64,21 @@ Utilization in this model is:
 - `100%` when debit and credit balances are equal
 - capped at `100%` in defensive edge cases where debt exceeds supply or supply is zero while debt remains positive
 
-### FixedCurve (constant APY)
+### FixedCurve (constant nominal yearly rate)
 
-For `FixedCurve`, debit APY is constant regardless of utilization:
+For `FixedCurve`, the debit nominal yearly rate is constant regardless of utilization:
 
 ```
 debitRate = yearlyRate
 ```
 
 Example:
-- `yearlyRate = 0.05` (5% APY)
-- debit APY stays at 5% whether utilization is 10% or 95%
+- `yearlyRate = 0.05` (5% nominal yearly rate)
+- the debit nominal yearly rate stays at 5% whether utilization is 10% or 95%
 
-### KinkCurve (utilization-based APY)
+### KinkCurve (utilization-based nominal yearly rate)
 
-For `KinkCurve`, debit APY follows a two-segment curve:
+For `KinkCurve`, the debit nominal yearly rate follows a two-segment curve:
 - below `optimalUtilization` ("before the kink"), rates rise gently
 - above `optimalUtilization` ("after the kink"), rates rise steeply
 
@@ -117,15 +117,15 @@ Reference values discussed for volatile assets:
 - `slope2 = 300%` (`3.0`)
 
 Interpretation:
-- at or below 45% utilization, borrowers see relatively low/gradual APY increases
-- above 45%, APY increases very aggressively to push utilization back down
-- theoretical max debit APY at 100% utilization is `304%` (`0% + 4% + 300%`)
+- at or below 45% utilization, borrowers see relatively low/gradual nominal-rate increases
+- above 45%, the nominal yearly rate increases very aggressively to push utilization back down
+- theoretical max debit nominal yearly rate at 100% utilization is `304%` (`0% + 4% + 300%`)
 
 This is the mechanism that helps protect withdrawal liquidity under stress.
 
 ### 2. Credit Rate Calculation
 
-The credit rate (deposit APY) is derived from debit-side income after protocol fees.
+The credit rate (deposit nominal yearly rate) is derived from debit-side income after protocol fees.
 
 Shared definitions:
 
@@ -140,7 +140,7 @@ For **FixedCurve** (used for stable assets like MOET):
 creditRate = debitRate * (1 - protocolFeeRate)
 ```
 
-This gives a simple spread model between borrow APY and lend APY.
+This gives a simple spread model between borrow and lend nominal yearly rates.
 
 For **KinkCurve** and other non-fixed curves:
 ```
@@ -156,7 +156,7 @@ This computes lender yield from actual debit-side income, after reserve deductio
 
 ### 3. Per-Second Rate Conversion
 
-Both credit and debit rates are converted from annual rates to per-second compounding rates:
+Both credit and debit rates are converted from nominal annual rates to per-second compounding rates:
 
 ```
 perSecondRate = (yearlyRate / secondsInYear) + 1.0
@@ -164,7 +164,9 @@ perSecondRate = (yearlyRate / secondsInYear) + 1.0
 
 Where `secondsInYear = 31_557_600` (365.25 days × 24 hours × 60 minutes × 60 seconds).
 
-This conversion allows for continuous compounding of interest over time.
+This conversion allows for discrete per-second compounding of interest over time.
+
+Important terminology: the configured `yearlyRate` is a **nominal yearly rate**, not a promise that a balance will grow by exactly that percentage over one calendar year. For positive fixed rates, the effective one-year growth is slightly higher because of compounding. For variable curves, realized growth also depends on when utilization changes and the rate is recomputed.
 
 ### 4. Querying Curve Parameters On-Chain
 
@@ -187,7 +189,7 @@ The protocol uses **interest indices** to track how interest accrues over time. 
 
 ### Compounding Interest
 
-Interest compounds continuously using the formula:
+Interest compounds via discrete per-second updates using the formula:
 
 ```
 newIndex = oldIndex * (perSecondRate ^ elapsedSeconds)
@@ -220,7 +222,7 @@ Interest indices are updated whenever:
 2. `updateForTimeChange()` is called explicitly
 3. `updateInterestRatesAndCollectInsurance()` or `updateInterestRatesAndCollectStability()` is called
 
-The update calculates the time elapsed since `lastUpdate` and compounds the interest indices accordingly.
+The update calculates the time elapsed since `lastUpdate` and compounds the interest indices accordingly. When rates are variable, realized growth over a period depends on the sequence of utilization changes and the rate recomputations they trigger, so the displayed yearly rate should not be interpreted as an exact promised one-year payoff.
 
 ## Insurance Collection Mechanism
 
@@ -230,7 +232,7 @@ The insurance mechanism collects a percentage of interest income over time, swap
 
 ### Insurance Rate
 
-Each token has a configurable `insuranceRate` (default: 0.0) that represents the annual percentage of interest income that should be collected as insurance.
+Each token has a configurable `insuranceRate` (default: 0.0) that represents the fraction of accrued interest income that should be collected as insurance when fees are settled.
 
 ### Collection Process
 
@@ -254,7 +256,7 @@ Insurance is collected through the `collectInsurance()` function on `TokenState`
 
 4. **Deposits to Insurance Fund**:
    - The collected MOET is deposited into the protocol's insurance fund
-   - This fund grows continuously and is never withdrawable
+   - This fund grows as insurance is collected and is never withdrawable
 
 ### Integration with Rate Updates
 
@@ -314,7 +316,7 @@ The stability fee mechanism collects a percentage of interest income over time a
 
 ### Stability Fee Rate
 
-Each token has a configurable `stabilityFeeRate` (default: 0.05 or 5%) that represents the percentage of interest income that should be collected as stability fees.
+Each token has a configurable `stabilityFeeRate` (default: 0.05 or 5%) that represents the fraction of accrued interest income that should be collected as stability fees when they are settled.
 
 ### Collection Process
 
@@ -365,7 +367,7 @@ This emits a `StabilityFundWithdrawn` event for transparency and accountability.
 1. **Initial State**:
    - Total credit balance (lender deposits): 10,000 FLOW
    - Total debit balance (borrower debt): 8,000 FLOW
-   - Debit rate: 10% APY
+   - Debit rate: 10% nominal yearly rate
    - Insurance rate: 0.1% (of interest income)
    - Stability fee rate: 5% (of interest income)
 
@@ -375,7 +377,7 @@ This emits a `StabilityFundWithdrawn` event for transparency and accountability.
    - Insurance collection: 841.37 × 0.001 = 0.841 FLOW → converted to MOET
    - Stability collection: 841.37 × 0.05 = 42.07 FLOW → kept as FLOW
    - Net to lenders: 841.37 - 0.841 - 42.07 = 798.46 FLOW
-   - Effective lender APY: 798.46 / 10,000 = 7.98%
+   - Effective lender yield over the year: 798.46 / 10,000 = 7.98%
 
 3. **Fund Accumulation**:
    - Insurance fund: +0.841 FLOW worth of MOET (permanent, for bad debt coverage)
@@ -383,7 +385,7 @@ This emits a `StabilityFundWithdrawn` event for transparency and accountability.
 
 ## Key Design Decisions
 
-1. **Continuous Compounding**: Interest compounds continuously using per-second rates, providing fair and accurate interest accrual.
+1. **Discrete Per-Second Compounding**: Interest compounds via per-second updates, providing fair and accurate interest accrual.
 
 2. **Scaled vs True Balances**: Storing scaled balances (principal) separately from interest indices allows efficient storage while maintaining precision.
 

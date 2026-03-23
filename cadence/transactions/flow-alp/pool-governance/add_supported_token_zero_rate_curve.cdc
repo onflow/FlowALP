@@ -2,7 +2,7 @@ import "FlowALPv0"
 import "FlowALPModels"
 import "FlowALPInterestRates"
 
-/// Adds a token type as supported to the stored pool with a zero-rate interest curve (0% APY).
+/// Adds a token type as supported to the stored pool with a zero-rate interest curve (0% nominal yearly rate).
 /// This uses FixedCurve with yearlyRate: 0.0, suitable for testing or
 /// scenarios where no interest should accrue.
 ///
