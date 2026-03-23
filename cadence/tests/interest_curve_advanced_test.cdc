@@ -39,9 +39,9 @@ fun setup() {
 // 4. Rate change ratios are mathematically correct
 //
 // Scenario using a single pool that evolves over time:
-// - Phase 1: 10 days at 5% APY
-// - Phase 2: 10 days at 15% APY (3x rate)
-// - Phase 3: 10 days at 10% APY (2x original rate)
+// - Phase 1: 10 days at a 5% nominal yearly rate
+// - Phase 2: 10 days at a 15% nominal yearly rate (3x rate)
+// - Phase 3: 10 days at a 10% nominal yearly rate (2x original rate)
 // =============================================================================
 access(all)
 fun test_curve_change_mid_accrual_and_rate_segmentation() {
@@ -105,7 +105,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     // -------------------------------------------------------------------------
     // STEP 4: Set Initial Interest Rate (Phase 1 Configuration)
     // -------------------------------------------------------------------------
-    // Configure MOET with a fixed 5% APY interest rate.
+    // Configure MOET with a fixed 5% nominal yearly interest rate.
     // This is the baseline rate we'll compare other phases against.
     // Using FixedCurve means rate doesn't depend on utilization.
     let rate1: UFix128 = 0.05
@@ -114,7 +114,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: rate1
     )
-    log("Set MOET interest rate to 5% APY (Phase 1)")
+    log("Set MOET interest rate to 5% nominal yearly rate (Phase 1)")
 
      // set insurance swapper
     let res = setInsuranceSwapper(
@@ -169,7 +169,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     log("Initial debt: \(debtT0.toString())") // 6153.84615384 MOET
 
     // =========================================================================
-    // PHASE 1: 10 Days at 5% APY
+    // PHASE 1: 10 Days at a 5% Nominal Yearly Rate
     // =========================================================================
     // Advance blockchain time by 10 days and observe interest accrual.
     // Formula: perSecondRate = 1 + 0.05/31_557_600, factor = perSecondRate^864000
@@ -198,9 +198,9 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     )
 
     // -------------------------------------------------------------------------
-    // STEP 7: Change Interest Rate to 15% APY (Phase 2 Configuration)
+    // STEP 7: Change Interest Rate to a 15% Nominal Yearly Rate (Phase 2 Configuration)
     // -------------------------------------------------------------------------
-    // Triple the interest rate to 15% APY. This tests that:
+    // Triple the nominal yearly rate to 15%. This tests that:
     // 1. Interest accrued at old rate (5%) is finalized before curve change
     // 2. New rate (15%) is applied correctly for subsequent accrual
     // 3. The ratio of growth reflects the ratio of rates (15%/5% = 3x)
@@ -211,10 +211,10 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
         yearlyRate: rate2
     )
 
-    log("Changed MOET interest rate to 15% APY (Phase 2)")
+    log("Changed MOET interest rate to 15% nominal yearly rate (Phase 2)")
 
     // =========================================================================
-    // PHASE 2: 10 Days at 15% APY
+    // PHASE 2: 10 Days at a 15% Nominal Yearly Rate
     // =========================================================================
     // Advance another 10 days at the higher rate.
     // Expected: growth2 should be approximately 3x growth1 (since 15%/5% = 3).
@@ -238,7 +238,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
     )
 
     // -------------------------------------------------------------------------
-    // STEP 8: Change Interest Rate to 10% APY (Phase 3 Configuration)
+    // STEP 8: Change Interest Rate to a 10% Nominal Yearly Rate (Phase 3 Configuration)
     // -------------------------------------------------------------------------
     // Set rate to 10% (2x the original 5%, 0.67x Phase 2's 15%).
     // This validates that multiple consecutive rate changes work correctly.
@@ -248,12 +248,12 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: rate3
     )
-    log("Changed MOET interest rate to 10% APY (Phase 3)")
+    log("Changed MOET interest rate to 10% nominal yearly rate (Phase 3)")
 
     // =========================================================================
-    // PHASE 3: 10 Days at 10% APY
+    // PHASE 3: 10 Days at a 10% Nominal Yearly Rate
     // =========================================================================
-    // Final 10-day period at 10% APY.
+    // Final 10-day period at a 10% nominal yearly rate.
     // Expected: growth3 should be approximately 2x growth1 (since 10%/5% = 2).
     Test.moveTime(by: TEN_DAYS)
     Test.commitBlock()
@@ -344,7 +344,7 @@ fun test_curve_change_mid_accrual_and_rate_segmentation() {
 // Formula: FinalBalance = InitialBalance × (1 + r/n)^(n×t) for per-second compounding
 // The protocol uses discrete per-second compounding with exponentiation by squaring.
 //
-// Expected: 10% APY should yield ~10.52% effective rate ((1 + 0.10/31_557_600)^31_557_600 ≈ 1.10517)
+// Expected: a 10% nominal yearly rate should yield ~10.52% effective one-year growth ((1 + 0.10/31_557_600)^31_557_600 ≈ 1.10517)
 // =============================================================================
 access(all)
 fun test_exact_compounding_verification_one_year() {
@@ -360,16 +360,16 @@ fun test_exact_compounding_verification_one_year() {
     // -------------------------------------------------------------------------
     // STEP 1: Configure a Known Interest Rate for Mathematical Verification
     // -------------------------------------------------------------------------
-    // Set MOET to exactly 10% APY. This round number makes it easy to verify
+    // Set MOET to exactly a 10% nominal yearly rate. This round number makes it easy to verify
     // that the compounding formula is working correctly.
-    // 10% APY with per-second compounding yields: (1 + 0.10/31_557_600)^31_557_600 - 1 ≈ 10.517% effective rate
+    // A 10% nominal yearly rate with per-second compounding yields: (1 + 0.10/31_557_600)^31_557_600 - 1 ≈ 10.517% effective rate
     let yearlyRate: UFix128 = 0.10
     setInterestCurveFixed(
         signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: yearlyRate
     )
-    log("Set MOET interest rate to 10% APY for compounding verification")
+    log("Set MOET interest rate to 10% nominal yearly rate for compounding verification")
 
     // -------------------------------------------------------------------------
     // STEP 2: Record Starting Debt Before Time Advancement
@@ -414,7 +414,7 @@ fun test_exact_compounding_verification_one_year() {
     // MATHEMATICAL BACKGROUND: Per-Second Compounding
     // =========================================================================
     // Formula: factor = (1 + r/31_557_600)^31_557_600
-    // At 10% APY: factor = (1 + 0.10/31_557_600)^31_557_600 ≈ 1.10517092
+    // At a 10% nominal yearly rate: factor = (1 + 0.10/31_557_600)^31_557_600 ≈ 1.10517092
     // This is discrete per-second compounding with exponentiation by squaring.
     // Note: Using 31557600 seconds/year (365.25 days)
     // =========================================================================
@@ -428,7 +428,7 @@ fun test_exact_compounding_verification_one_year() {
     // Expected growth = debtBefore * (factor - 1) = 6204.59926707 * 0.105170918 ≈ 652.54340074 MOET
     // Note: Tests run sequentially with accumulated interest, so exact values depend on debtBefore
 
-    // Verify growth rate is approximately 10.52% (the effective rate from 10% APY compounded per-second)
+    // Verify growth rate is approximately 10.52% (the effective yield from a 10% nominal yearly rate compounded per second)
     let expectedGrowthRate: UFix64 = 0.10517091
     let expectedGrowth: UFix64 = 652.54340074
     let tolerance: UFix64 = 0.001
@@ -595,15 +595,15 @@ fun test_credit_rate_changes_with_curve() {
     // -------------------------------------------------------------------------
     // STEP 1: Set a Known Interest Rate for Credit Verification
     // -------------------------------------------------------------------------
-    // Configure MOET with 8% APY. This will be the debit rate.
+    // Configure MOET with an 8% nominal yearly rate. This will be the debit rate.
     // The LP should earn slightly less (approximately 7.9% after insurance).
-    let testRate: UFix128 = 0.08 // 8% APY
+    let testRate: UFix128 = 0.08 // 8% nominal yearly rate
     setInterestCurveFixed(
         signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: testRate
     )
-    log("Set MOET interest rate to 8% APY")
+    log("Set MOET interest rate to 8% nominal yearly rate")
 
     // -------------------------------------------------------------------------
     // STEP 2: Record LP's Credit Balance Before Time Advancement
@@ -654,7 +654,7 @@ fun test_credit_rate_changes_with_curve() {
     // Verify credit growth rate equals expected value
     // Formula: creditRate = debitRate * (1 - protocolFeeRate)
     // where protocolFeeRate = insuranceRate + stabilityFeeRate = 0.001 + 0.05 = 0.051
-    // creditRate = 0.08 * (1 - 0.051) = 0.08 * 0.949 = 0.07592 APY (7.592%)
+    // creditRate = 0.08 * (1 - 0.051) = 0.08 * 0.949 = 0.07592 nominal yearly credit rate (7.592%)
     // perSecondRate = 1 + (0.07592/31557600), factor = perSecondRate^2592000
     // Expected 30-day growth rate = factor - 1 ≈ 0.00625521141
     // Expected credit growth = creditBefore * 0.00625950922 ≈ 346.58 MOET
