@@ -82,7 +82,7 @@ fun test_getQueuedDeposits_reportsQueuedBalance() {
     // We expect exactly one queued token type, and its balance should be the
     // 100 FLOW remainder that could not be accepted immediately.
     Test.assertEqual(UInt64(1), UInt64(queuedDeposits.length))
-    equalWithinVariance(queuedDeposits[flowType]!, 100.0)
+    Test.assert(equalWithinVariance(100.0, queuedDeposits[flowType]!, DEFAULT_UFIX_VARIANCE))
 }
 
 access(all)
@@ -136,7 +136,7 @@ fun test_getQueuedDeposits_tracksPartialAndFullDrain() {
 
     // The new getter should initially report the full queued amount.
     var queuedDeposits = getQueuedDeposits(pid: 0, beFailed: false)
-    equalWithinVariance(queuedDeposits[flowType]!, 150.0)
+    Test.assert(equalWithinVariance(150.0, queuedDeposits[flowType]!, DEFAULT_UFIX_VARIANCE))
 
     // After one hour, deposit capacity regenerates by the configured depositRate.
     // That takes the capacity cap from 100 to 200, so async processing can now accept
@@ -150,7 +150,7 @@ fun test_getQueuedDeposits_tracksPartialAndFullDrain() {
     Test.expect(firstAsyncRes, Test.beSucceeded())
 
     queuedDeposits = getQueuedDeposits(pid: 0, beFailed: false)
-    equalWithinVariance(queuedDeposits[flowType]!, 50.0)
+    Test.assert(equalWithinVariance(50.0, queuedDeposits[flowType]!, 0.05))
 
     // Move forward another hour and run async processing again. The final 50 FLOW
     // should be deposited, leaving no queued entries behind.
