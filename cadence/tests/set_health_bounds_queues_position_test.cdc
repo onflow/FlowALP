@@ -87,7 +87,7 @@ fun test_setMinHealth_queues_position_when_health_falls_below_new_min() {
 
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 100.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
     var asyncUpdateRes = asyncUpdate()
-    Test.expect(asyncUpdate, Test.beSucceeded())
+    Test.expect(asyncUpdateRes, Test.beSucceeded())
 
     // Modest price drop → health ≈ 1.17, still within (1.1, 1.3)
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 0.9)
@@ -104,7 +104,7 @@ fun test_setMinHealth_queues_position_when_health_falls_below_new_min() {
 
     // asyncUpdate should rebalance the position back toward targetHealth (1.3)
     asyncUpdateRes = asyncUpdate()
-    Test.expect(asyncUpdate, Test.beSucceeded())
+    Test.expect(asyncUpdateRes, Test.beSucceeded())
 
     let healthAfter = getPositionHealth(pid: 0, beFailed: false)
     Test.assert(healthAfter > healthBeforeSetter,

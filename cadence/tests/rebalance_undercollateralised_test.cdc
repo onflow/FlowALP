@@ -15,7 +15,7 @@ fun setup() {
 
 access(all)
 fun testRebalanceUndercollateralised() {
-    Test.reset(to: snapshot)
+    // Test.reset(to: snapshot)
     let initialPrice = 1.0
     let priceDropPct: UFix64 = 0.2
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: initialPrice)
@@ -38,7 +38,7 @@ fun testRebalanceUndercollateralised() {
     Test.expect(mintRes, Test.beSucceeded())
 
     // Grant beta access to user so they can create positions
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user) // TODO(Uliana): refactor
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
 
     // open position
     let openRes = executeTransaction(
