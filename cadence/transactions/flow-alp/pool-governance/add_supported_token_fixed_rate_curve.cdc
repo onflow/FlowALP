@@ -3,7 +3,7 @@ import "FlowALPModels"
 import "FlowALPInterestRates"
 
 /// Adds a token type as supported to the stored pool with a fixed-rate interest curve.
-/// This uses FixedCurve for a constant yearly interest rate regardless of utilization.
+/// This uses FixedCurve for a constant nominal yearly interest rate regardless of utilization.
 ///
 transaction(
     tokenTypeIdentifier: String,
