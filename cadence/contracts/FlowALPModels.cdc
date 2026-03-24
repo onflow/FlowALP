@@ -1376,9 +1376,13 @@ access(all) contract FlowALPModels {
             )
         }
 
-        /// Returns the per-deposit limit based on depositCapacity * depositLimitFraction.
+        /// Returns the per-deposit limit based on user deposit limit cap and available deposit capacity.
         access(EImplementation) view fun depositLimit(): UFix64 {
-            return self.depositCapacity * self.depositLimitFraction
+            let cap = self.getUserDepositLimitCap()
+            if self.depositCapacity < cap {
+                return self.depositCapacity
+            }
+            return cap
         }
 
         /// Updates interest indices and regenerates deposit capacity for elapsed time.
