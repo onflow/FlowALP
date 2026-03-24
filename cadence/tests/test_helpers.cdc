@@ -854,6 +854,15 @@ fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool): Test.
 }
 
 access(all)
+fun setDrawDownSink(signer: Test.TestAccount, pid: UInt64, sink: {DeFiActions.Sink}?): Test.TransactionResult{
+    return _executeTransaction(
+        "./transactions/position-manager/set_draw_down_sink.cdc",
+        [ pid, sink ],
+        signer
+    )
+}
+
+access(all)
 fun manualLiquidation(
     signer: Test.TestAccount,
     pid: UInt64,
