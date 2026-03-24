@@ -2,6 +2,7 @@ import Test
 import "FlowALPv0"
 import "FlowALPModels"
 import "FlowALPEvents"
+import "DeFiActions"
 import "MOET"
 
 /* --- Global test constants --- */
@@ -1021,6 +1022,16 @@ fun withdrawReserve(
         signer
     )
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+/// the async update queue so all queued positions are processed.
+access(all)
+fun asyncUpdate(): Test.TransactionResult {
+    return _executeTransaction(
+        "./transactions/flow-alp/pool-management/process_update_queue.cdc",
+        [],
+        PROTOCOL_ACCOUNT
+    )
 }
 
 /* --- Assertion Helpers --- */
