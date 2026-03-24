@@ -1,6 +1,7 @@
 import Test
 import "FlowALPv0"
 import "FlowALPModels"
+import "FlowALPEvents"
 import "MOET"
 
 /* --- Global test constants --- */
@@ -27,7 +28,7 @@ access(all) let MAX_HEALTH = 1.5
 access(all) let INT_MIN_HEALTH: UFix128 = 1.1
 access(all) let INT_TARGET_HEALTH: UFix128 = 1.3
 access(all) let INT_MAX_HEALTH: UFix128 = 1.5
-access(all) let CEILING_HEALTH: UFix128 = UFix128.max      // infinite health when debt ~ 0.0
+access(all) let CEILING_HEALTH = UFix128.max      // infinite health when debt ~ 0.0
 
 // Time constants
 access(all) let DAY: Fix64 = 86_400.0
@@ -40,12 +41,13 @@ access(all) let ONE_YEAR: Fix64 = 31_557_600.0     // 365.25 * 86400
 access(all) let MAINNET_WETH_TOKEN_ID = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590.Vault"
 access(all) let MAINNET_USDF_TOKEN_ID = "A.1e4aa0b87d10b141.EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabed.Vault"
 access(all) let MAINNET_WBTC_TOKEN_ID = "A.1e4aa0b87d10b141.EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579.Vault"
-
+access(all) let MAINNET_USDC_TOKEN_ID = "A.f1ab99c82dee3526.USDCFlow.Vault"
 access(all) let MAINNET_MOET_TOKEN_ID = "A.6b00ff876c299c61.MOET.Vault"
 access(all) let MAINNET_FLOW_TOKEN_ID = "A.1654653399040a61.FlowToken.Vault"
 access(all) let MAINNET_MOCKED_YIELD_TOKEN_ID = "A.6b00ff876c299c61.MockYieldToken.Vault"
 
 // Storage paths
+access(all) let MAINNET_USDC_STORAGE_PATH = /storage/usdcFlowVault
 access(all) let MAINNET_USDF_STORAGE_PATH = /storage/EVMVMBridgedToken_2aabea2058b5ac2d339b163c6ab6f2b6d53aabedVault
 access(all) let MAINNET_WETH_STORAGE_PATH = /storage/EVMVMBridgedToken_2f6f07cdcf3588944bf4c42ac74ff24bf56e7590Vault
 access(all) let MAINNET_WBTC_STORAGE_PATH = /storage/EVMVMBridgedToken_717dae2baf7656be9a9b01dee31d571a9d4c9579Vault
@@ -56,6 +58,8 @@ access(all) let MAINNET_PROTOCOL_ACCOUNT_ADDRESS: Address = 0x6b00ff876c299c61
 access(all) let MAINNET_USDF_HOLDER_ADDRESS: Address = 0xf18b50870aed46ad
 access(all) let MAINNET_WETH_HOLDER_ADDRESS: Address = 0xf62e3381a164f993
 access(all) let MAINNET_WBTC_HOLDER_ADDRESS: Address = 0x47f544294e3b7656
+access(all) let MAINNET_FLOW_HOLDER_ADDRESS: Address = 0xe467b9dd11fa00df
+access(all) let MAINNET_USDC_HOLDER_ADDRESS: Address = 0xec6119051f7adc31
 
 access(all) let MAINNET_BAND_ORACLE_ADDRESS: Address = 0x6801a6222ebf784a
 access(all) let MAINNET_BAND_ORACLE_CONNECTORS_ADDRESS: Address = 0xe36ef556b8b5d955
@@ -147,6 +151,20 @@ fun deployContracts() {
     Test.expect(err, Test.beNil())
 
     err = Test.deployContract(
+        name: "FlowALPHealth",
+        path: "../contracts/FlowALPHealth.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "FlowALPPositionResources",
+        path: "../contracts/FlowALPPositionResources.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
         name: "FlowALPv0",
         path: "../contracts/FlowALPv0.cdc",
         arguments: []
@@ -157,6 +175,20 @@ fun deployContracts() {
         name: "MockOracle",
         path: "../contracts/mocks/MockOracle.cdc",
         arguments: [Type<@MOET.Vault>().identifier]
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "MultiMockOracle",
+        path: "./contracts/MultiMockOracle.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "PriceOracleAggregatorv1",
+        path: "../contracts/PriceOracleAggregatorv1.cdc",
+        arguments: []
     )
     Test.expect(err, Test.beNil())
 
@@ -238,6 +270,34 @@ fun deployContracts() {
         arguments: []
     )
     Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "PriceOracleRouterv1",
+        path: "../contracts/PriceOracleRouterv1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "OracleStorage",
+        path: "./contracts/OracleStorage.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "ExampleToken1",
+        path: "./contracts/ExampleToken1.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
+
+    err = Test.deployContract(
+        name: "ExampleToken2",
+        path: "./contracts/ExampleToken2.cdc",
+        arguments: []
+    )
+    Test.expect(err, Test.beNil())
 }
 
 /* --- Script Helpers --- */
@@ -281,6 +341,15 @@ fun getPositionDetails(pid: UInt64, beFailed: Bool): FlowALPModels.PositionDetai
         )
     Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
     return res.returnValue as! FlowALPModels.PositionDetails
+}
+
+access(all)
+fun getQueuedDeposits(pid: UInt64, beFailed: Bool): {Type: UFix64} {
+    let res = _executeScript("../scripts/flow-alp/get_queued_deposits.cdc",
+            [pid]
+        )
+    Test.expect(res, beFailed ? Test.beFailed() : Test.beSucceeded())
+    return res.returnValue as! {Type: UFix64}
 }
 
 access(all)
@@ -424,6 +493,23 @@ fun setMockOraclePrice(signer: Test.TestAccount, forTokenIdentifier: String, pri
         signer
     )
     Test.expect(setRes, Test.beSucceeded())
+}
+
+access(all)
+fun getOraclePrice(tokenIdentifier: String): UFix64 {
+    let result = Test.executeScript(
+        Test.readFile("./scripts/get_oracle_price.cdc"),
+        [tokenIdentifier]
+    )
+
+    if result.error != nil {
+        panic("Failed to get oracle price: ".concat(result.error!.message))
+    }
+
+    let price = result.returnValue! as! UFix64?
+        ?? panic("No price set for token: ".concat(tokenIdentifier))
+
+    return price
 }
 
 access(all)
@@ -782,7 +868,7 @@ fun collectStability(
         [ tokenTypeIdentifier ],
         signer
     )
-    
+
     return res
 }
 
@@ -799,7 +885,7 @@ fun withdrawStabilityFund(
         [tokenTypeIdentifier, amount, recipient, recipientPath],
         signer
     )
-    
+
     return res
 }
 
@@ -815,11 +901,11 @@ fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFail
 
 access(all)
 fun manualLiquidation(
-    signer: Test.TestAccount, 
-    pid: UInt64, 
-    debtVaultIdentifier: String, 
-    seizeVaultIdentifier: String, 
-    seizeAmount: UFix64, 
+    signer: Test.TestAccount,
+    pid: UInt64,
+    debtVaultIdentifier: String,
+    seizeVaultIdentifier: String,
+    seizeAmount: UFix64,
     repayAmount: UFix64,
 ): Test.TransactionResult {
     return _executeTransaction(
@@ -902,6 +988,65 @@ fun transferFungibleTokens(
     Test.expect(res, Test.beSucceeded())
 }
 
+/// Sets up the recipient's vault (if not already present) and transfers tokens in one call.
+/// Combines setupGenericVault + transferFungibleTokens for the common case of funding a fresh account.
+access(all)
+fun transferTokensWithSetup(tokenIdentifier: String, from: Test.TestAccount, to: Test.TestAccount, amount: UFix64) {
+    let res = setupGenericVault(to, vaultIdentifier: tokenIdentifier)
+    Test.expect(res, Test.beSucceeded())
+    transferFungibleTokens(tokenIdentifier: tokenIdentifier, from: from, to: to, amount: amount)
+}
+
+/// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
+/// The liquidator must hold sufficient debt tokens upfront.
+access(all) fun batchManualLiquidation(
+    pids: [UInt64],
+    debtVaultIdentifier: String,
+    seizeVaultIdentifiers: [String],
+    seizeAmounts: [UFix64],
+    repayAmounts: [UFix64],
+    signer: Test.TestAccount
+) {
+    let res = _executeTransaction(
+        "./transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
+        [pids, debtVaultIdentifier, seizeVaultIdentifiers, seizeAmounts, repayAmounts],
+        signer
+    )
+    Test.expect(res, Test.beSucceeded())
+}
+
+/// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
+/// chunkSize to stay within the computation limit.
+access(all) fun batchLiquidateViaMockDex(
+    pids: [UInt64],
+    debtVaultIdentifier: String,
+    seizeVaultIdentifiers: [String],
+    seizeAmounts: [UFix64],
+    repayAmounts: [UFix64],
+    chunkSize: Int,
+    signer: Test.TestAccount
+) {
+    let total = pids.length
+    let numChunks = (total + chunkSize - 1) / chunkSize
+    for i in InclusiveRange(0, numChunks - 1) {
+        let startIdx = i * chunkSize
+        var endIdx = startIdx + chunkSize
+        if endIdx > total {
+            endIdx = total
+        }
+        let res = _executeTransaction(
+            "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
+            [pids.slice(from: startIdx, upTo: endIdx),
+                debtVaultIdentifier,
+                seizeVaultIdentifiers.slice(from: startIdx, upTo: endIdx),
+                seizeAmounts.slice(from: startIdx, upTo: endIdx),
+                repayAmounts.slice(from: startIdx, upTo: endIdx)],
+            signer
+        )
+        Test.expect(res, Test.beSucceeded())
+    }
+}
+
 access(all)
 fun expectEvents(eventType: Type, expectedCount: Int) {
     let events = Test.eventsOfType(eventType)
@@ -927,28 +1072,29 @@ fun withdrawReserve(
 
 /* --- Assertion Helpers --- */
 
-access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct): Bool {
+access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct, _ variance: AnyStruct): Bool {
     let expectedType = expected.getType()
     let actualType = actual.getType()
-    if expectedType == Type<UFix64>() && actualType == Type<UFix64>() {
-        return ufixEqualWithinVariance(expected as! UFix64, actual as! UFix64)
-    } else if expectedType == Type<UFix128>() && actualType == Type<UFix128>() {
-        return ufix128EqualWithinVariance(expected as! UFix128, actual as! UFix128)
+    let varianceType = variance.getType()
+    if expectedType == Type<UFix64>() && actualType == Type<UFix64>() && varianceType == Type<UFix64>() {
+        return ufixEqualWithinVariance(expected as! UFix64, actual as! UFix64, variance as! UFix64)
+    } else if expectedType == Type<UFix128>() && actualType == Type<UFix128>() && varianceType == Type<UFix128>(){
+        return ufix128EqualWithinVariance(expected as! UFix128, actual as! UFix128, variance as! UFix128)
     }
     panic("Expected and actual types do not match - expected: \(expectedType.identifier), actual: \(actualType.identifier)")
 }
 
-access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64): Bool {
+access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64, _ variance: UFix64): Bool {
     // return true if expected is within DEFAULT_UFIX_VARIANCE of actual, false otherwise and protect for underflow`
     let diff = Fix64(expected) - Fix64(actual)
     // take the absolute value of the difference without relying on .abs()
     let absDiff: UFix64 = diff < 0.0 ? UFix64(-1.0 * diff) : UFix64(diff)
-    return absDiff <= DEFAULT_UFIX_VARIANCE
+    return absDiff <= variance
 }
 
-access(all) fun ufix128EqualWithinVariance(_ expected: UFix128, _ actual: UFix128): Bool {
+access(all) fun ufix128EqualWithinVariance(_ expected: UFix128, _ actual: UFix128, _ variance: UFix128): Bool {
     let absDiff: UFix128 = expected >= actual ? expected - actual : actual - expected
-    return absDiff <= DEFAULT_UFIX128_VARIANCE
+    return absDiff <= variance
 }
 
 /* --- Balance & Timestamp Helpers --- */
@@ -978,4 +1124,17 @@ fun getCreditBalanceForType(details: FlowALPModels.PositionDetails, vaultType: T
         }
     }
     return 0.0
+}
+
+access(all) fun getLastPositionId(): UInt64  {
+    var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+    return pid
+}
+
+access(all)
+fun getCurrentBlockTimestamp(): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/get_block_timestamp.cdc", [])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
 }

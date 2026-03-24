@@ -49,6 +49,22 @@
 				"mainnet-fork": "6d888f175c158410"
 			}
 		},
+		"ExampleToken1": {
+			"source": "./cadence/tests/contracts/ExampleToken1.cdc",
+			"aliases": {
+				"testing": "0000000000000008",
+				"mainnet-fork": "6b00ff876c299c61",
+				"mainnet": "6b00ff876c299c61"
+			}
+		},
+		"ExampleToken2": {
+			"source": "./cadence/tests/contracts/ExampleToken2.cdc",
+			"aliases": {
+				"testing": "0000000000000008",
+				"mainnet-fork": "6b00ff876c299c61",
+				"mainnet": "6b00ff876c299c61"
+			}
+		},
 		"FlowALPEvents": {
 			"source": "./cadence/contracts/FlowALPEvents.cdc",
 			"aliases": {
@@ -63,8 +79,22 @@
 				"mainnet-fork": "6b00ff876c299c61"
 			}
 		},
+		"FlowALPHealth": {
+			"source": "./cadence/contracts/FlowALPHealth.cdc",
+			"aliases": {
+				"testing": "0000000000000007",
+				"mainnet-fork": "6b00ff876c299c61"
+			}
+		},
 		"FlowALPModels": {
 			"source": "./cadence/contracts/FlowALPModels.cdc",
+			"aliases": {
+				"testing": "0000000000000007",
+				"mainnet-fork": "6b00ff876c299c61"
+			}
+		},
+		"FlowALPPositionResources": {
+			"source": "./cadence/contracts/FlowALPPositionResources.cdc",
 			"aliases": {
 				"testing": "0000000000000007",
 				"mainnet-fork": "6b00ff876c299c61"
@@ -109,11 +139,9 @@
 		"FungibleTokenConnectors": {
 			"source": "./FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
 			"aliases": {
-				"emulator": "045a1763c93006ca",
-				"mainnet": "0c237e1265caa7a3",
-				"mainnet-fork": "0c237e1265caa7a3",
 				"testing": "0000000000000006",
-				"testnet": "4cd02f8de4122c84"
+				"mainnet-fork": "6b00ff876c299c61",
+				"mainnet": "6b00ff876c299c61"
 			}
 		},
 		"MOET": {
@@ -146,6 +174,38 @@
 			"aliases": {
 				"testing": "0000000000000007",
 				"mainnet-fork": "6b00ff876c299c61"
+			}
+		},
+		"MultiMockOracle": {
+			"source": "./cadence/tests/contracts/MultiMockOracle.cdc",
+			"aliases": {
+				"testing": "0000000000000007",
+				"mainnet-fork": "6b00ff876c299c61",
+				"mainnet": "6b00ff876c299c61"
+			}
+		},
+		"OracleStorage": {
+			"source": "./cadence/tests/contracts/OracleStorage.cdc",
+			"aliases": {
+				"testing": "0000000000000008",
+				"mainnet-fork": "6b00ff876c299c61",
+				"mainnet": "6b00ff876c299c61"
+			}
+		},
+		"PriceOracleAggregatorv1": {
+			"source": "./cadence/contracts/PriceOracleAggregatorv1.cdc",
+			"aliases": {
+				"testing": "0000000000000007",
+				"mainnet-fork": "6b00ff876c299c61",
+				"mainnet": "6b00ff876c299c61"
+			}
+		},
+		"PriceOracleRouterv1": {
+			"source": "./cadence/contracts/PriceOracleRouterv1.cdc",
+			"aliases": {
+				"testing": "0000000000000007",
+				"mainnet-fork": "6b00ff876c299c61",
+				"mainnet": "6b00ff876c299c61"
 			}
 		}
 	},
