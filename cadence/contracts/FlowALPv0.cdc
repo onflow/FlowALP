@@ -1882,6 +1882,11 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        /// Returns the IDs of all currently open positions in this pool
+        access(all) fun getPositionIDs(): [UInt64] {
+            return self.positions.keys
+        }
+
         /// Returns the details of a given position as a PositionDetails external struct
         access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
             if self.debugLogging {
