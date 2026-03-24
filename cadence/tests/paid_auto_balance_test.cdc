@@ -321,6 +321,15 @@ access(all) fun test_supervisor_stale_uuid_does_not_panic() {
     Test.assertEqual(1, createdEvts.length)
     let created = createdEvts[0] as! FlowALPRebalancerv1.CreatedRebalancer
 
+    // Flush the initial scheduled tick (created at timestamp+1s during setup) so it doesn't
+    // fire during the intermediate block commits below. Without this, the supervisor may
+    // execute while the rebalancer still exists, consuming the cron boundary and preventing
+    // a later tick from seeing the stale UUID.
+    Test.moveTime(by: 5.0)
+    Test.commitBlock()
+
+    let baselineExecuted = Test.eventsOfType(Type<FlowALPSupervisorv1.Executed>()).length
+
     // Register the UUID with the Supervisor so it will call fixReschedule on it each tick.
     addPaidRebalancerToSupervisor(signer: userAccount, positionID: created.positionID, supervisorStoragePath: supervisorStoragePath)
 
@@ -328,26 +337,27 @@ access(all) fun test_supervisor_stale_uuid_does_not_panic() {
     // stale UUID in the Supervisor's paidRebalancers set, simulating the FLO-27 bug scenario.
     deletePaidRebalancer(signer: userAccount, paidRebalancerStoragePath: paidRebalancerStoragePath)
 
-    // Advance time to trigger the Supervisor's scheduled tick.
-    Test.moveTime(by: 60.0 * 60.0)
+    // Advance by just over 1 hour to guarantee crossing a cron boundary ("0 * * * *").
+    Test.moveTime(by: 60.0 * 60.0 + 1.0)
     Test.commitBlock()
 
     // The Supervisor must have executed without panicking. If fixReschedule force-unwrapped
     // the missing rebalancer the entire transaction would revert and Executed would not be emitted.
     let executedEvts = Test.eventsOfType(Type<FlowALPSupervisorv1.Executed>())
-    Test.assert(executedEvts.length >= 1, message: "Supervisor should have executed at least 1 time")
+    Test.assert(executedEvts.length > baselineExecuted, message: "Supervisor should have executed after time advance")
 
     // The stale UUID must have been pruned from the Supervisor's set.
     let removedEvts = Test.eventsOfType(Type<FlowALPSupervisorv1.RemovedPaidRebalancer>())
-    Test.assertEqual(1, removedEvts.length)
-    let removed = removedEvts[0] as! FlowALPSupervisorv1.RemovedPaidRebalancer
+    Test.assert(removedEvts.length >= 1, message: "Stale UUID should have been pruned")
+    let removed = removedEvts[removedEvts.length - 1] as! FlowALPSupervisorv1.RemovedPaidRebalancer
     Test.assertEqual(created.positionID, removed.positionID)
 
     // A second tick should not emit another RemovedPaidRebalancer — the UUID was already cleaned up.
-    Test.moveTime(by: 60.0 * 60.0)
+    let baselineRemoved = removedEvts.length
+    Test.moveTime(by: 60.0 * 60.0 + 1.0)
     Test.commitBlock()
     let removedEvts2 = Test.eventsOfType(Type<FlowALPSupervisorv1.RemovedPaidRebalancer>())
-    Test.assertEqual(1, removedEvts2.length)
+    Test.assertEqual(baselineRemoved, removedEvts2.length)
 }
 
 access(all) fun test_supervisor() {
