@@ -269,8 +269,8 @@ fun test_moet_debit_accrues_interest() {
     // Rebalance persists interest accrual to storage and may auto-repay debt
     // to restore health. We use pre-rebalance values for assertions since
     // rebalance can modify debt amounts.
-    rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: borrowerPid, force: true, beFailed: false)
-
+    let rebalanceRes= rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: borrowerPid, force: true)
+    Test.expect(rebalanceRes,  Test.beSucceeded())
     let detailsAfter = getPositionDetails(pid: borrowerPid, beFailed: false)
     let healthAfter = detailsAfter.health
     let debtAfter = getDebitBalanceForType(details: detailsAfter, vaultType: Type<@MOET.Vault>())

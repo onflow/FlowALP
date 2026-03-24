@@ -136,7 +136,8 @@ fun testUndercollateralizedPositionRebalanceSucceeds() {
 
     // rebalance should pull from the topUpSource, decreasing the MOET in the user's Vault since we use a VaultSource
     // as a topUpSource when opening the Position
-    rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true, beFailed: false)
+    let rebalanceRes = rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true)
+    Test.expect(rebalanceRes,  Test.beSucceeded())
 
     let moetBalanceAfterRebalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     let healthAfterRebalance = getPositionHealth(pid: 0, beFailed: false)
@@ -203,7 +204,8 @@ fun testOvercollateralizedPositionRebalanceSucceeds() {
 
     // rebalance should pull from the topUpSource, decreasing the MOET in the user's Vault since we use a VaultSource
     // as a topUpSource when opening the Position
-    rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true, beFailed: false)
+    let rebalanceRes = rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true)
+    Test.expect(rebalanceRes,  Test.beSucceeded())
 
     let moetBalanceAfterRebalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     let healthAfterRebalance = getPositionHealth(pid: 0, beFailed: false)

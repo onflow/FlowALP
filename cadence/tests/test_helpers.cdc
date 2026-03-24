@@ -844,13 +844,12 @@ fun withdrawStabilityFund(
 }
 
 access(all)
-fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFailed: Bool) {
-    let rebalanceRes = _executeTransaction(
+fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool): Test.TransactionResult{
+    return _executeTransaction(
         "../transactions/flow-alp/pool-management/rebalance_position.cdc",
         [ pid, force ],
         signer
     )
-    Test.expect(rebalanceRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
 access(all)
