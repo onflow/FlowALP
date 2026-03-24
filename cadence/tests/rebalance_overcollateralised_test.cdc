@@ -87,10 +87,12 @@ fun testRebalanceOvercollateralised() {
     }
 
     let tolerance: UFix64 = 0.01
-    Test.assert((actualDebt >= expectedDebt - tolerance) && (actualDebt <= expectedDebt + tolerance))
+    Test.assert(equalWithinVariance(expectedDebt, actualDebt, tolerance))
 
     // Ensure the borrowed MOET after rebalance actually reached the user's Vault
     let userMoetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
-    Test.assert(userMoetBalance >= expectedDebt - tolerance && userMoetBalance <= expectedDebt + tolerance,
-        message: "User MOET balance should reflect new debt (~".concat(expectedDebt.toString()).concat(") but was ").concat(userMoetBalance.toString()))
-}
+    Test.assert(
+        equalWithinVariance(expectedDebt, userMoetBalance ,tolerance),
+        message: "User MOET balance should reflect new debt (~ \(expectedDebt.toString())) but was \(userMoetBalance.toString())",
+    )
+} 
