@@ -113,16 +113,7 @@ fun test_collectInsurance_success_fullAmount() {
     // With 10% annual debit rate over 1 year: debitIncome ≈ 615.38 * (1.10517091665 - 1) ≈ 64.72
     // Insurance = debitIncome * 0.1 ≈ 6.472 MOET
 
-    // NOTE:
-    // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
-    // The default variance is designed for deterministic math, but insurance collection
-    // depends on block timestamps, which can differ slightly between test runs.
-    // A larger, time-aware tolerance is required.
-    let tolerance = 0.001
     let expectedCollectedAmount = 6.472
-    let diff = expectedCollectedAmount > collectedAmount 
-        ? expectedCollectedAmount - collectedAmount
-        : collectedAmount - expectedCollectedAmount
-
-    Test.assert(diff < tolerance, message: "Insurance collected should be around \(expectedCollectedAmount) but current \(collectedAmount)")
+    Test.assert(equalWithinVariance(expectedCollectedAmount, collectedAmount, 0.001),
+        message: "Insurance collected should be around \(expectedCollectedAmount) but current \(collectedAmount)")
 }

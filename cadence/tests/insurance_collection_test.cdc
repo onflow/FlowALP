@@ -3,37 +3,44 @@ import BlockchainHelpers
 
 import "MOET"
 import "FlowToken"
+import "FlowALPEvents"
 import "test_helpers.cdc"
 
 access(all) var snapshot: UInt64 = 0
+access(all) var snapshotTimestamp = 0.0
 
 access(all)
 fun setup() {
     deployContracts()
-    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
 
-    // Add FlowToken as a supported collateral type (needed for borrowing scenarios)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
     addSupportedTokenZeroRateCurve(
         signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
-        borrowFactor: 1.0,
+        borrowFactor: 0.9,
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
     )
 
-    // take snapshot first, then advance time so reset() target is always lower than current height
     snapshot = getCurrentBlockHeight()
-    // move time by 1 second so Test.reset() works properly before each test
-    Test.moveTime(by: 1.0)
+    snapshotTimestamp = getCurrentBlockTimestamp()
 }
 
 access(all)
 fun beforeEach() {
-     Test.reset(to: snapshot)
+    if snapshot != getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
+    // Test reset moves the timestamp but it will jump back to the previous timestamp on the next block.
+    Test.commitBlock()
+    let currentTimestamp = getCurrentBlockTimestamp()
+    if currentTimestamp > snapshotTimestamp {
+        let diff = currentTimestamp - snapshotTimestamp
+        Test.moveTime(by: -Fix64(diff))
+    }
 }
-
 
 // -----------------------------------------------------------------------------
 // Test: collectInsurance when no insurance rate is configured should complete without errors
@@ -109,6 +116,18 @@ fun test_collectInsurance_zeroDebitBalance_returnsNil() {
 // -----------------------------------------------------------------------------
 access(all)
 fun test_collectInsurance_insufficientReserves() {
+    // configure insurance swapper (1:1 ratio)
+    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER, swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    Test.expect(swapperResult, Test.beSucceeded())
+
+    // set 90% annual debit rate
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.9)
+
+    // set a high insurance rate (90% of debit income goes to insurance)
+    // Note: default stabilityFeeRate is 0.05, so insuranceRate + stabilityFeeRate = 0.9 + 0.05 = 0.95 < 1.0
+    let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, insuranceRate: 0.9)
+    Test.expect(rateResult, Test.beSucceeded())
+
     // setup LP to provide MOET liquidity for borrowing (small amount to create limited reserves)
     let lp = Test.createAccount()
     setupMoetVault(lp, beFailed: false)
@@ -132,22 +151,6 @@ fun test_collectInsurance_insufficientReserves() {
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
 
-    // configure insurance swapper (1:1 ratio)
-    let swapperResult = setInsuranceSwapper(
-        signer: PROTOCOL_ACCOUNT, 
-        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
-        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
-        priceRatio: 1.0,
-    )
-    Test.expect(swapperResult, Test.beSucceeded())
-
-    // set 90% annual debit rate
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.9)
-
-    // set a high insurance rate (90% of debit income goes to insurance)
-    // Note: default stabilityFeeRate is 0.05, so insuranceRate + stabilityFeeRate = 0.9 + 0.05 = 0.95 < 1.0
-    let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, insuranceRate: 0.9)
-    Test.expect(rateResult, Test.beSucceeded())
 
     let initialInsuranceBalance = getInsuranceFundBalance()
     Test.assertEqual(0.0, initialInsuranceBalance)
@@ -162,14 +165,13 @@ fun test_collectInsurance_insufficientReserves() {
 
     let finalInsuranceBalance = getInsuranceFundBalance()
     let reserveBalanceAfter = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
-    let lastCollectionTimeAfter = getLastStabilityCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
+    let lastCollectionTimeAfter = getLastInsuranceCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
 
     Test.assertEqual(0.0, finalInsuranceBalance)
     Test.assertEqual(reserveBalanceBefore, reserveBalanceAfter)
 
     // time should not change
     Test.assertEqual(lastCollectionTimeBefore, lastCollectionTimeAfter)
-
 }
 
 // -----------------------------------------------------------------------------
@@ -493,4 +495,117 @@ fun test_collectInsurance_dexOracleSlippageProtection() {
     // verify insurance was collected
     let finalBalance = getInsuranceFundBalance()
     Test.assert(finalBalance > 0.0, message: "Insurance fund should have received MOET after successful collection")
+}
+
+// -----------------------------------------------------------------------------
+/// Verifies that insurance collection remains correct when the insurance
+/// rate changes between collection periods. Rate changes must trigger fee collections,
+/// so that all fees due under the previous rate are collected before the new rate comes into effect.
+// -----------------------------------------------------------------------------
+access(all)
+fun test_collectInsurance_midPeriodRateChange() {
+    // configure the protocol FLOW wallet and the insurance swapper
+    setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
+    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, swapperInTypeIdentifier: FLOW_TOKEN_IDENTIFIER, swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    Test.expect(swapperResult, Test.beSucceeded())
+
+    // set interest curve
+    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    // set insurance rate
+    var rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.1)
+    Test.expect(rateResult, Test.beSucceeded())
+
+    // provide FLOW liquidity so the borrower can actually borrow
+    let lp = Test.createAccount()
+    let resMint = mintFlow(to: lp, amount: 10000.0)
+    Test.expect(resMint, Test.beSucceeded())
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+
+    // borrower deposits 1000 MOET as collateral
+    let borrower = Test.createAccount()
+    setupMoetVault(borrower, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: 1000.0, beFailed: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 1000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+
+    // collateralValue = 1000 MOET * price(MOET=1.0) * CF(1) = 1000$
+    // targetDebtValue = collateralValue / targetHealth(1.3) = 1000/1.3 = 769.2307692$
+    // Max FLOW borrow = targetDebtValue * BF(0.9) / price(FLOW=1.0) ≈ 692.3076923 FLOW
+
+    // borrow 500 FLOW
+    borrowFromPosition(
+        signer: borrower,
+        positionId: pid,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: 500.0,
+        beFailed: false
+    )
+
+    let reservesBefore_phase1 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
+
+    // Advance to ONE_YEAR
+    Test.moveTime(by: ONE_YEAR)
+
+    // Phase 1 expected insurance calculation:
+    //   yearly rate        = 0.1   (yearly debit rate, FixedCurve)
+    //   insuranceRate1     = 0.1   (fraction of debit income)
+    //
+    //   debitIncome_1 = totalDebitBalance * (pow(perSecondDebitRate, timeElapsed) - 1.0)
+    //   perSecondRate = 1 + (yearlyRate / 31_557_600)
+    //   insuranceAmount = debitIncome * insuranceRate
+    //
+    //   perSecondRate = 1 + (0.1 / 31557600) = 1.00000000317
+    //   debitIncome_1 = 500 * (1.00000000317^31557600 - 1) = 52.58545895 FLOW
+    //   insuranceAmount = debitIncome_1 * insurRate1 = 52.58545895 * 0.1 = 5.25854589
+    let expectedCollectedInsuranceAmountAfterPhase1 = 5.25854589
+
+   // change the insurance rate to 20% for phase 2
+    rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.2)
+    Test.expect(rateResult, Test.beSucceeded())
+
+    let insuranceAfterPhase1 = getInsuranceFundBalance()
+    let reservesAfterPhase1 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
+    let collected_phase1 = reservesBefore_phase1 - reservesAfterPhase1
+
+    let expectedCollectedAmount = 6.472
+    Test.assert(equalWithinVariance(expectedCollectedInsuranceAmountAfterPhase1, insuranceAfterPhase1, 0.00001),
+        message: "Insurance collected should be around \(expectedCollectedInsuranceAmountAfterPhase1) but current \(insuranceAfterPhase1)")
+    Test.assertEqual(collected_phase1, insuranceAfterPhase1)
+
+    let reservesBefore_phase2 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
+
+    Test.moveTime(by: ONE_YEAR)
+
+    // Phase 2 expected insurance calculation:
+    //   yearly rate        = 0.1   (yearly debit rate, FixedCurve)
+    //   insuranceRate2     = 0.2   (fraction of debit income)
+    //
+    //   debitIncome_2 = totalDebitBalance * (pow(perSecondDebitRate, timeElapsed) - 1.0)
+    //   perSecondRate = 1 + (yearlyRate / 31_557_600)
+    //   insuranceAmount_2 = debitIncome * insuranceRate2
+    //
+    //   perSecondRate = 1 + (0.1 / 31557600) = 1.00000000317
+    //   debitIncome_2 = 500 * (1.00000000317^31557600 - 1) = 52.58545895 FLOW
+    //   insuranceAmount_2 = debitIncome_2 * insuranceRate2 = 52.58545895 * 0.2 = 10.51709179
+    let expectedCollectedInsuranceAmountAfterPhase2 = 10.51709179
+
+    // change the insurance rate to 25%
+    rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.25)
+    Test.expect(rateResult, Test.beSucceeded())
+
+    let insuranceAfterPhase2 = getInsuranceFundBalance()
+    let reservesAfterPhase2 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
+
+    let expectedCollectedInsuranceAmount= expectedCollectedInsuranceAmountAfterPhase1 + expectedCollectedInsuranceAmountAfterPhase2 // 5.25854589 + 10.51709179
+    Test.assert(equalWithinVariance(expectedCollectedInsuranceAmount, insuranceAfterPhase2, 0.00001),
+        message: "Insurance collected should be around \(expectedCollectedInsuranceAmount) but current \(insuranceAfterPhase2)")
+    
+    // acumulative insurance fund must equal sum of both collections
+    let collected_phase2 = reservesBefore_phase2 - reservesAfterPhase2
+    Test.assertEqual(insuranceAfterPhase2, insuranceAfterPhase1 + collected_phase2)
+    Test.assert(collected_phase2 > collected_phase1, message: "Phase 2 collection should exceed phase 1 due to higher rate")
 }
