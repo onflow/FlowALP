@@ -11,8 +11,6 @@ transaction() {
             admin.capabilities.storage.issue<
                 auth(FlowALPModels.EParticipant) &FlowALPv0.Pool
             >(FlowALPv0.PoolStoragePath)
-        // assert(poolCap.check(), message: "Failed to issue Pool capability")
-
         if tester.storage.type(at: FlowALPv0.PoolCapStoragePath) != nil {
             tester.storage.load<Capability<auth(FlowALPModels.EParticipant) &FlowALPv0.Pool>>(
                 from: FlowALPv0.PoolCapStoragePath
