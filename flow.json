@@ -49,30 +49,40 @@
 		"FlowALPMath": {
 			"source": "./cadence/lib/FlowALPMath.cdc",
 			"aliases": {
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
 				"testing": "0000000000000007"
 			}
 		},
 		"FlowALPRebalancerPaidv1": {
 			"source": "./cadence/contracts/FlowALPRebalancerPaidv1.cdc",
 			"aliases": {
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
 				"testing": "0000000000000007"
 			}
 		},
 		"FlowALPRebalancerv1": {
 			"source": "./cadence/contracts/FlowALPRebalancerv1.cdc",
 			"aliases": {
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
 				"testing": "0000000000000007"
 			}
 		},
 		"FlowALPSupervisorv1": {
 			"source": "./cadence/contracts/FlowALPSupervisorv1.cdc",
 			"aliases": {
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
 				"testing": "0000000000000007"
 			}
 		},
 		"FlowALPv0": {
 			"source": "./cadence/contracts/FlowALPv0.cdc",
 			"aliases": {
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
 				"testing": "0000000000000007"
 			}
 		},
@@ -89,6 +99,8 @@
 		"MOET": {
 			"source": "./cadence/contracts/MOET.cdc",
 			"aliases": {
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
 				"testing": "0000000000000007"
 			}
 		},
@@ -364,7 +376,10 @@
 						}
 					]
 				},
-				"FlowALPv0"
+				"FlowALPv0",
+				"FlowALPRebalancerPaidv1",
+				"FlowALPRebalancerv1",
+				"FlowALPSupervisorv1"
 			],
 			"mainnet-fyv-deployer": [
 				"MockDexSwapper",
@@ -383,7 +398,10 @@
 						}
 					]
 				},
-				"FlowALPv0"
+				"FlowALPv0",
+				"FlowALPRebalancerPaidv1",
+				"FlowALPRebalancerv1",
+				"FlowALPSupervisorv1"
 			],
 			"mainnet-fork-fyv-deployer": [
 				"MockDexSwapper",
