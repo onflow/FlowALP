@@ -723,6 +723,20 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        // Builds a up-to-date TokenSnapshot instance for the given type.
+        access(self) fun buildTokenSnapshot(type: Type): FlowALPModels.TokenSnapshot {
+            let tokenState = self._borrowUpdatedTokenState(type: type)
+            return FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: type)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: type)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: type))
+                )
+            )
+        }
+
         /// Computes the deposit amount needed to bring effective values to the target health.
         /// Accounts for whether the deposit reduces debt or adds collateral based on the
         /// position's current balance direction for the deposit token.
@@ -960,6 +974,7 @@ access(all) contract FlowALPv0 {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.state.getTokenState(funds.getType()) != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
+                funds.balance > 0.0: "Cannot create a position without deposit"
                 self.positionSatisfiesMinimumBalance(type: funds.getType(), balance: UFix128(funds.balance)):
                     "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.state.getTokenState(funds.getType())!.getMinimumTokenBalancePerPosition())"
                 // TODO(jord): Sink/source should be valid
@@ -1014,12 +1029,13 @@ access(all) contract FlowALPv0 {
         /// This function is used to validate that positions maintain a minimum balance to prevent
         /// dust positions and ensure operational efficiency. The minimum requirement applies to
         /// credit (deposit) balances and is enforced at position creation and during withdrawals.
+        /// Zero balances are always allowed.
         ///
         /// @param type: The token type to check (e.g., Type<@FlowToken.Vault>())
-        /// @param balance: The balance amount to validate
+        /// @param balance: The (true) balance amount to validate
         /// @return true if the balance meets or exceeds the minimum requirement, false otherwise
         access(self) view fun positionSatisfiesMinimumBalance(type: Type, balance: UFix128): Bool {
-            return balance >= UFix128(self.state.getTokenState(type)!.getMinimumTokenBalancePerPosition())
+            return balance == 0.0 || balance >= UFix128(self.state.getTokenState(type)!.getMinimumTokenBalancePerPosition())
         }
 
         /// Allows anyone to deposit funds into any position.
@@ -1219,6 +1235,7 @@ access(all) contract FlowALPv0 {
             // Get a reference to the user's position and global token state for the affected token.
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: type)
+            let tokenSnapshot = self.buildTokenSnapshot(type: type)
 
             if pullFromTopUpSource {
                 if let topUpSource = position.borrowTopUpSource() {
@@ -1257,7 +1274,7 @@ access(all) contract FlowALPv0 {
             )
 
             // Safety checks!
-            self._assertMinimumBalanceAfterWithdrawal(type: type, position: position, tokenState: tokenState)
+            self._assertPositionSatisfiesMinimumBalance(type: type, position: position, tokenSnapshot: tokenSnapshot)
 
             let postHealth = self.positionHealth(pid: pid)
             if postHealth < position.getMinHealth() {
@@ -1301,20 +1318,17 @@ access(all) contract FlowALPv0 {
 
         /// Asserts that the remaining balance of `type` meets the minimum per-position requirement
         /// (or is exactly zero). Panics with a descriptive message if not satisfied.
-        access(self) view fun _assertMinimumBalanceAfterWithdrawal(
+        access(self) fun _assertPositionSatisfiesMinimumBalance(
             type: Type,
             position: &{FlowALPModels.InternalPosition},
-            tokenState: &{FlowALPModels.TokenState}
+            tokenSnapshot: FlowALPModels.TokenSnapshot
         ) {
-            let bal = position.getBalance(type)
-            let remainingBalance: UFix128 = bal == nil ? 0.0
-                : bal!.direction == FlowALPModels.BalanceDirection.Credit
-                    ? FlowALPMath.scaledBalanceToTrueBalance(bal!.scaledBalance, interestIndex: tokenState.getCreditInterestIndex())
-                    : FlowALPMath.scaledBalanceToTrueBalance(bal!.scaledBalance, interestIndex: tokenState.getDebitInterestIndex())
-            assert(
-                remainingBalance == 0.0 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
-                message: "Withdrawal would leave position below minimum balance requirement of \(self.state.getTokenState(type)!.getMinimumTokenBalancePerPosition()). Remaining balance would be \(remainingBalance)."
-            )
+            if let bal = position.getBalance(type) {
+                let trueBal = tokenSnapshot.trueBalance(balance: bal)
+                assert(
+                    self.positionSatisfiesMinimumBalance(type: type, balance: trueBal.quantity),
+                    message: "Withdrawal would leave position below minimum balance requirement of \(self.state.getTokenState(type)!.getMinimumTokenBalancePerPosition()). Remaining balance would be \(trueBal.quantity).")
+            }
         }
 
         ///////////////////////

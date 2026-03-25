@@ -394,6 +394,7 @@ access(all) contract FlowALPModels {
         }
 
         /// Returns the true balance for the given internal (scaled) balance, accounting for accrued interest.
+        /// TODO: This could be view, but Cadence seems to interpret constructing a Balance as modifying state
         access(all) fun trueBalance(balance: InternalBalance): Balance {
             let scaled = balance.getScaledBalance()
             let interestIndex = scaled.direction == BalanceDirection.Credit
