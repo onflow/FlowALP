@@ -891,6 +891,73 @@ fun manualLiquidation(
 }
 
 access(all)
+fun liquidateViaMockDex(
+    signer: Test.TestAccount,
+    pid: UInt64,
+    debtVaultIdentifier: String,
+    seizeVaultIdentifier: String,
+    seizeAmount: UFix64,
+    repayAmount: UFix64,
+): Test.TransactionResult {
+    return _executeTransaction(
+        "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
+        [[pid], debtVaultIdentifier, [seizeVaultIdentifier], [seizeAmount], [repayAmount]],
+        signer
+    )
+}
+
+/// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
+/// The liquidator must hold sufficient debt tokens upfront.
+access(all) fun batchManualLiquidation(
+    pids: [UInt64],
+    debtVaultIdentifier: String,
+    seizeVaultIdentifiers: [String],
+    seizeAmounts: [UFix64],
+    repayAmounts: [UFix64],
+    signer: Test.TestAccount
+) {
+    let res = _executeTransaction(
+        "./transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
+        [pids, debtVaultIdentifier, seizeVaultIdentifiers, seizeAmounts, repayAmounts],
+        signer
+    )
+    Test.expect(res, Test.beSucceeded())
+}
+
+/// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
+/// chunkSize to stay within the computation limit.
+access(all) fun batchLiquidateViaMockDex(
+    pids: [UInt64],
+    debtVaultIdentifier: String,
+    seizeVaultIdentifiers: [String],
+    seizeAmounts: [UFix64],
+    repayAmounts: [UFix64],
+    chunkSize: Int,
+    signer: Test.TestAccount
+) {
+    let total = pids.length
+    let numChunks = (total + chunkSize - 1) / chunkSize
+    for i in InclusiveRange(0, numChunks - 1) {
+        let startIdx = i * chunkSize
+        var endIdx = startIdx + chunkSize
+        if endIdx > total {
+            endIdx = total
+        }
+        let res = _executeTransaction(
+            "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
+            [pids.slice(from: startIdx, upTo: endIdx),
+                debtVaultIdentifier,
+                seizeVaultIdentifiers.slice(from: startIdx, upTo: endIdx),
+                seizeAmounts.slice(from: startIdx, upTo: endIdx),
+                repayAmounts.slice(from: startIdx, upTo: endIdx)],
+            signer
+        )
+        Test.expect(res, Test.beSucceeded())
+    }
+}
+
+
+access(all)
 fun setupMoetVault(_ signer: Test.TestAccount, beFailed: Bool) {
     let setupRes = _executeTransaction("../transactions/moet/setup_vault.cdc", [], signer)
     Test.expect(setupRes, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -970,56 +1037,6 @@ fun transferTokensWithSetup(tokenIdentifier: String, from: Test.TestAccount, to:
     let res = setupGenericVault(to, vaultIdentifier: tokenIdentifier)
     Test.expect(res, Test.beSucceeded())
     transferFungibleTokens(tokenIdentifier: tokenIdentifier, from: from, to: to, amount: amount)
-}
-
-/// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
-/// The liquidator must hold sufficient debt tokens upfront.
-access(all) fun batchManualLiquidation(
-    pids: [UInt64],
-    debtVaultIdentifier: String,
-    seizeVaultIdentifiers: [String],
-    seizeAmounts: [UFix64],
-    repayAmounts: [UFix64],
-    signer: Test.TestAccount
-) {
-    let res = _executeTransaction(
-        "./transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
-        [pids, debtVaultIdentifier, seizeVaultIdentifiers, seizeAmounts, repayAmounts],
-        signer
-    )
-    Test.expect(res, Test.beSucceeded())
-}
-
-/// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
-/// chunkSize to stay within the computation limit.
-access(all) fun batchLiquidateViaMockDex(
-    pids: [UInt64],
-    debtVaultIdentifier: String,
-    seizeVaultIdentifiers: [String],
-    seizeAmounts: [UFix64],
-    repayAmounts: [UFix64],
-    chunkSize: Int,
-    signer: Test.TestAccount
-) {
-    let total = pids.length
-    let numChunks = (total + chunkSize - 1) / chunkSize
-    for i in InclusiveRange(0, numChunks - 1) {
-        let startIdx = i * chunkSize
-        var endIdx = startIdx + chunkSize
-        if endIdx > total {
-            endIdx = total
-        }
-        let res = _executeTransaction(
-            "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
-            [pids.slice(from: startIdx, upTo: endIdx),
-                debtVaultIdentifier,
-                seizeVaultIdentifiers.slice(from: startIdx, upTo: endIdx),
-                seizeAmounts.slice(from: startIdx, upTo: endIdx),
-                repayAmounts.slice(from: startIdx, upTo: endIdx)],
-            signer
-        )
-        Test.expect(res, Test.beSucceeded())
-    }
 }
 
 access(all)
