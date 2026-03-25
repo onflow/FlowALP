@@ -9,11 +9,7 @@ import "DummyConnectors"
 
 transaction {
     prepare(admin: auth(BorrowValue, Storage, Capabilities) &Account) {
-<<<<<<< HEAD
-        let pool = admin.storage.borrow<auth(FlowALPv0.EParticipant) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
-=======
-        let pool = admin.storage.borrow<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
->>>>>>> main
+        let pool = admin.storage.borrow<auth(FlowALPModels.EParticipant) &FlowALPv0.Pool>(from: FlowALPv0.PoolStoragePath)
 
         // Ensure PositionManager exists
         if admin.storage.borrow<&FlowALPPositionResources.PositionManager>(from: FlowALPv0.PositionStoragePath) == nil {
