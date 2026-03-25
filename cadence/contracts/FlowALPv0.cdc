@@ -1883,7 +1883,7 @@ access(all) contract FlowALPv0 {
         }
 
         /// Returns the IDs of all currently open positions in this pool
-        access(all) fun getPositionIDs(): [UInt64] {
+        access(all) view fun getPositionIDs(): [UInt64] {
             return self.positions.keys
         }
 
