@@ -3,6 +3,7 @@ import BlockchainHelpers
 
 import "MOET"
 import "FlowALPv0"
+import "FlowALPModels"
 import "test_helpers.cdc"
 
 access(all)
@@ -61,7 +62,7 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     
     // Find the MOET balance (which should be debt)
     var moetBalance: UFix64 = 0.0
-    var moetDirection: FlowALPv0.BalanceDirection? = nil
+    var moetDirection: FlowALPModels.BalanceDirection? = nil
     for balance in details.balances {
         if balance.vaultType == Type<@MOET.Vault>() {
             moetBalance = balance.balance
@@ -70,22 +71,28 @@ fun testAutoBorrowBehaviorWithTargetHealth() {
     }
     
     // Verify MOET was auto-borrowed
-    Test.assert(moetDirection == FlowALPv0.BalanceDirection.Debit, 
+    Test.assert(moetDirection == FlowALPModels.BalanceDirection.Debit, 
         message: "Expected MOET to be in Debit (borrowed) state")
     
     // Verify the amount is approximately what we calculated (within 0.01 tolerance)
-    Test.assert(moetBalance >= expectedDebt - 0.01 && moetBalance <= expectedDebt + 0.01,
-        message: "Expected MOET debt to be approximately \(expectedDebt), but got \(moetBalance)")
+    Test.assert(
+        equalWithinVariance(expectedDebt, moetBalance, 0.01),
+        message: "Expected MOET debt to be approximately \(expectedDebt), but got \(moetBalance)",
+    )
     
     // Verify position health is at target
     let health = getPositionHealth(pid: 0, beFailed: false)
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health),
-        message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)")
+    Test.assert(
+        equalWithinVariance(INT_TARGET_HEALTH, health, DEFAULT_UFIX128_VARIANCE),
+        message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)",
+    )
 
     // Verify the user actually received the borrowed MOET in their Vault (draw-down sink)
     let userMoetBalance = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
-    Test.assert(userMoetBalance >= expectedDebt - 0.01 && userMoetBalance <= expectedDebt + 0.01,
-        message: "Expected user MOET Vault balance to be approximately \(expectedDebt), but got \(userMoetBalance)")
+    Test.assert(
+        equalWithinVariance(expectedDebt, userMoetBalance, 0.01),
+        message: "Expected user MOET Vault balance to be approximately \(expectedDebt), but got \(userMoetBalance)",
+    )
 }
 
 access(all)

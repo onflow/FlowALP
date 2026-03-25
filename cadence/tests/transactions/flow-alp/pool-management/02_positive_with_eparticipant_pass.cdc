@@ -2,6 +2,7 @@ import "FungibleToken"
 import "DeFiActions"
 import "DeFiActionsUtils"
 import "FlowALPv0"
+import "FlowALPModels"
 import "MOET"
 import "DummyConnectors"
 
@@ -12,7 +13,7 @@ transaction {
 
         // Issue a storage cap WITH the EParticipant entitlement
         let cap = admin.capabilities.storage.issue<
-            auth(FlowALPv0.EParticipant) &FlowALPv0.Pool
+            auth(FlowALPModels.EParticipant) &FlowALPv0.Pool
         >(FlowALPv0.PoolStoragePath)
 
         let pool = cap.borrow() ?? panic("borrow failed")

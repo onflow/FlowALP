@@ -5,7 +5,7 @@ import "FlowALPRebalancerPaidv1"
 import "FlowToken"
 import "FlowTransactionScheduler"
 
-transaction(uuid: UInt64, interval: UInt64) {
+transaction(positionID: UInt64, interval: UInt64) {
     let adminPaidRebalancerCap: Capability<&FlowALPRebalancerPaidv1.Admin>
     let vaultCapability: Capability<auth(FungibleToken.Withdraw) &FlowToken.Vault>
 
@@ -21,8 +21,8 @@ transaction(uuid: UInt64, interval: UInt64) {
     execute {
         let sinkSource = FungibleTokenConnectors.VaultSinkAndSource(min: nil, max: nil, vault: self.vaultCapability, uniqueID: nil)
 
-        let borrowedRebalancer = self.adminPaidRebalancerCap.borrow()!.borrowAuthorizedRebalancer(uuid: uuid)!
-        let config = FlowALPRebalancerv1.RecurringConfig(
+        let borrowedRebalancer = self.adminPaidRebalancerCap.borrow()!.borrowAuthorizedRebalancer(positionID: positionID)!
+        let config = FlowALPRebalancerv1.RecurringConfigImplv1(
             interval: interval,
             priority: FlowTransactionScheduler.Priority.Medium,
             executionEffort: 1000,

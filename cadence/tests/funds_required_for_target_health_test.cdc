@@ -5,6 +5,7 @@ import "test_helpers.cdc"
 
 import "MOET"
 import "FlowALPv0"
+import "FlowALPEvents"
 import "FlowALPMath"
 
 access(all) let userAccount = Test.createAccount()
@@ -86,22 +87,22 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
     // assert expected starting point
     startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
     let expectedStartingDebt = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / TARGET_HEALTH
-    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
+    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt, DEFAULT_UFIX_VARIANCE),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! FlowALPv0.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALPEvents.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
 
     let health = getPositionHealth(pid: positionID, beFailed: false)
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health),
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health, DEFAULT_UFIX128_VARIANCE),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)")
 
     log("[TEST] FLOW price set to \(flowStartPrice)")
@@ -151,12 +152,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromHealthy() {
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let health = getPositionHealth(pid: positionID, beFailed: false)
@@ -210,12 +211,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromOvercollatera
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let health = getPositionHealth(pid: positionID, beFailed: false)
@@ -282,22 +283,22 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     // assert expected starting point
     startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
     let expectedStartingDebt = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / TARGET_HEALTH
-    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
+    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt, DEFAULT_UFIX_VARIANCE),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! FlowALPv0.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALPEvents.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
 
     let actualHealthBeforePriceIncrease = getPositionHealth(pid: positionID, beFailed: false)
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, actualHealthBeforePriceIncrease),
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, actualHealthBeforePriceIncrease, DEFAULT_UFIX128_VARIANCE),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(actualHealthBeforePriceIncrease)")
 
     let priceIncrease = 0.25
@@ -365,12 +366,12 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithoutPushFromUndercollater
     Test.assert(expectedStartingDebt == startingDebt,
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
     Test.assert(evts.length == 0, message: "Expected no rebalanced events, but got \(evts.length)")
 
     let actualHealthBeforePriceDecrease = getPositionHealth(pid: positionID, beFailed: false)
@@ -437,22 +438,22 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     // assert expected starting point
     startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
     let expectedStartingDebt = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / TARGET_HEALTH
-    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
+    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt, DEFAULT_UFIX_VARIANCE),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
-    var evts = Test.eventsOfType(Type<FlowALPv0.Opened>())
-    let openedEvt = evts[evts.length - 1] as! FlowALPv0.Opened
+    var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let openedEvt = evts[evts.length - 1] as! FlowALPEvents.Opened
     positionID = openedEvt.pid
 
     // when position is opened, depositAndPush == true should trigger a rebalance, pushing MOET to user's Vault
-    evts = Test.eventsOfType(Type<FlowALPv0.Rebalanced>())
-    let rebalancedEvt = evts[evts.length - 1] as! FlowALPv0.Rebalanced
+    evts = Test.eventsOfType(Type<FlowALPEvents.Rebalanced>())
+    let rebalancedEvt = evts[evts.length - 1] as! FlowALPEvents.Rebalanced
     Test.assertEqual(positionID, rebalancedEvt.pid)
     Test.assertEqual(startingDebt, rebalancedEvt.amount)
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
 
     let actualHealthBeforePriceIncrease = getPositionHealth(pid: positionID, beFailed: false)
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, actualHealthBeforePriceIncrease),
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, actualHealthBeforePriceIncrease, DEFAULT_UFIX128_VARIANCE),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(actualHealthBeforePriceIncrease)")
 
     let priceDecrease = 0.25
@@ -556,6 +557,6 @@ fun runFundsRequiredForTargetHealthAfterWithdrawing(
     log("[TEST] Withdrawing: \(withdrawAmount)")
     log("[TEST] Expected Required: \(ufixExpectedRequired)")
     log("[TEST] Actual Required: \(actualRequired)")
-    Test.assert(equalWithinVariance(ufixExpectedRequired, actualRequired),
+    Test.assert(equalWithinVariance(ufixExpectedRequired, actualRequired, DEFAULT_UFIX_VARIANCE),
         message: "Expected required funds to be \(ufixExpectedRequired), but got \(actualRequired)")
 }

@@ -1,6 +1,8 @@
 import "FungibleToken"
 import "FlowToken"
 import "FlowALPv0"
+import "FlowALPPositionResources"
+import "FlowALPModels"
 
 /// TEST TRANSACTION - DO NOT USE IN PRODUCTION
 ///
@@ -10,15 +12,16 @@ import "FlowALPv0"
 transaction(
     positionId: UInt64,
     tokenTypeIdentifier: String,
+    tokenVaultStoragePath: StoragePath,
     amount: UFix64
 ) {
-    let position: auth(FungibleToken.Withdraw) &FlowALPv0.Position
+    let position: auth(FungibleToken.Withdraw) &FlowALPPositionResources.Position
     let tokenType: Type
     let receiverVault: &{FungibleToken.Receiver}
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
         // Borrow the PositionManager from constant storage path
-        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPv0.EPositionAdmin) &FlowALPv0.PositionManager>(
+        let manager = signer.storage.borrow<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>(
                 from: FlowALPv0.PositionStoragePath
             )
             ?? panic("Could not find PositionManager in signer's storage")
@@ -29,23 +32,9 @@ transaction(
         // Parse the token type
         self.tokenType = CompositeType(tokenTypeIdentifier)
             ?? panic("Invalid tokenTypeIdentifier: \(tokenTypeIdentifier)")
-
-        // Ensure signer has a FlowToken vault to receive borrowed tokens
-        // (Most borrows in tests are FlowToken)
-        if signer.storage.type(at: /storage/flowTokenVault) == nil {
-            signer.storage.save(<-FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>()), to: /storage/flowTokenVault)
-        }
-
-        // Get receiver for the specific token type
-        // For FlowToken, use the standard path
-        if tokenTypeIdentifier == "A.0000000000000003.FlowToken.Vault" {
-            self.receiverVault = signer.storage.borrow<&{FungibleToken.Receiver}>(from: /storage/flowTokenVault)
-                ?? panic("Could not borrow FlowToken vault receiver")
-        } else {
-            // For other tokens, try to find a matching vault
-            // This is a simplified approach for testing
-            panic("Unsupported token type for borrow: \(tokenTypeIdentifier)")
-        }
+        
+        self.receiverVault = signer.storage.borrow<&{FungibleToken.Receiver}>(from: tokenVaultStoragePath)
+            ?? panic("Could not borrow receiver vault")
     }
 
     execute {

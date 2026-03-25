@@ -28,8 +28,8 @@ import "test_helpers.cdc"
 // - Focuses on protocol solvency and insurance mechanics
 //
 // Interest Rate Configuration:
-// - MOET: FixedRateInterestCurve at 4% APY (rate independent of utilization)
-// - Flow: KinkInterestCurve with Aave v3 Volatile One parameters
+// - MOET: FixedCurve at a 4% nominal yearly rate (rate independent of utilization)
+// - Flow: KinkCurve with Aave v3 Volatile One parameters
 //         (45% optimal utilization, 0% base, 4% slope1, 300% slope2)
 // =============================================================================
 
@@ -40,20 +40,21 @@ access(all) var snapshot: UInt64 = 0
 // Interest Rate Parameters
 // =============================================================================
 
-// MOET: FixedRateInterestCurve (Spread Model)
+// MOET: FixedCurve (Protocol-Fee Spread Model)
 // -----------------------------------------------------------------------------
-// In the spread model, the curve defines the DEBIT rate (what borrowers pay).
-// The CREDIT rate is derived as: creditRate = debitRate - insuranceRate
+// In the fixed-curve path, the curve defines the DEBIT rate (what borrowers pay).
+// The CREDIT rate is derived from the debit rate after protocol fees.
 // This ensures lenders always earn less than borrowers pay, with the
-// difference going to the insurance pool for protocol solvency.
+// difference allocated by the configured protocol fee settings.
 //
-// Example at 4% debit rate with 0.1% insurance:
-// - Borrowers pay: 4.0% APY
-// - Lenders earn:  3.9% APY
-// - Insurance:     0.1% APY (collected by protocol)
-access(all) let moetFixedRate: UFix128 = 0.04  // 4% APY debit rate
+// Example at a 4% nominal yearly debit rate:
+// - Borrowers pay: 4.0% nominal yearly debit rate
+// - Lenders earn: a lower nominal yearly credit rate after protocol fees
+// - Protocol Fees are comprised of two parts -
+// - Insurance/Stability: configurable fees of accrued debit interest
+access(all) let moetFixedRate: UFix128 = 0.04  // 4% nominal yearly debit rate
 
-// FlowToken: KinkInterestCurve (Aave v3 Volatile One Parameters)
+// FlowToken: KinkCurve (Aave v3 Volatile One Parameters)
 // -----------------------------------------------------------------------------
 // The kink curve adjusts rates based on pool utilization to incentivize
 // balanced supply/demand. Below optimal utilization, rates rise slowly.
@@ -64,10 +65,10 @@ access(all) let moetFixedRate: UFix128 = 0.04  // 4% APY debit rate
 // - If utilization > optimal: rate = baseRate + slope1 + ((util-optimal)/(1-optimal)) × slope2
 //
 // At 40% utilization (below 45% optimal):
-// - Rate = 0% + (40%/45%) × 4% ≈ 3.56% APY
+// - Rate = 0% + (40%/45%) × 4% ≈ 3.56% nominal yearly rate
 //
 // At 80% utilization (above 45% optimal):
-// - Rate = 0% + 4% + ((80%-45%)/(100%-45%)) × 300% ≈ 195% APY
+// - Rate = 0% + 4% + ((80%-45%)/(100%-45%)) × 300% ≈ 195% nominal yearly rate
 access(all) let flowOptimalUtilization: UFix128 = 0.45  // 45% kink point
 access(all) let flowBaseRate: UFix128 = 0.0             // 0% base rate
 access(all) let flowSlope1: UFix128 = 0.04              // 4% slope below kink
@@ -160,7 +161,7 @@ fun test_moet_debit_accrues_interest() {
     // -------------------------------------------------------------------------
     // STEP 4: Configure MOET Interest Rate
     // -------------------------------------------------------------------------
-    // Set MOET to use a FixedRateInterestCurve at 4% APY.
+    // Set MOET to use a FixedCurve at a 4% nominal yearly rate.
     // This rate is independent of utilization - borrowers always pay 4%.
     // Note: Interest curve must be set AFTER LP deposit to ensure credit exists.
     setInterestCurveFixed(
@@ -168,7 +169,7 @@ fun test_moet_debit_accrues_interest() {
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: moetFixedRate
     )
-    log("Set MOET interest rate to 4% APY (after LP deposit)")
+    log("Set MOET interest rate to 4% nominal yearly rate (after LP deposit)")
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
@@ -305,7 +306,7 @@ fun test_moet_debit_accrues_interest() {
     // Expected Growth Calculation
     // -------------------------------------------------------------------------
     // Per-second compounding: (1 + r / 31_557_600) ^ seconds - 1
-    // At 4% APY for 30 days (2,592,000 seconds):
+    // At a 4% nominal yearly rate for 30 days (2,592,000 seconds):
     // Growth = (1 + 0.04 / 31_557_600) ^ 2_592_000 - 1 ≈ 0.328%
     //
     // We use a wide tolerance range because:
@@ -337,10 +338,10 @@ fun test_moet_debit_accrues_interest() {
 // - Time advances 30 days
 // - Verify: LP credit increased, growth rate is in expected range
 //
-// Key Insight (FixedRateInterestCurve Spread Model):
-// - debitRate = 4.0% (what borrowers pay, defined by curve)
-// - insuranceRate = 0.1% (protocol reserve)
-// - creditRate = debitRate - insuranceRate = 3.9% (what lenders earn)
+// Key Insight (FixedCurve Protocol-Fee Spread):
+// - debitRate is defined by the curve
+// - creditRate is the debit rate after protocol fees
+// - creditRate remains below debitRate
 // =============================================================================
 access(all)
 fun test_moet_credit_accrues_interest_with_insurance() {
@@ -394,7 +395,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     // -------------------------------------------------------------------------
     // STEP 4: Configure MOET Interest Rate
     // -------------------------------------------------------------------------
-    // Set 4% APY debit rate. Credit rate will be ~3.9% after insurance deduction.
+    // Set a 4% nominal yearly debit rate. Credit rate will be lower after protocol fees.
     setInterestCurveFixed(
         signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
@@ -420,7 +421,7 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     // -------------------------------------------------------------------------
     // For the LP to earn interest, there must be borrowers paying interest.
     // The borrower creates "utilization" - the ratio of borrowed to deposited.
-    // Note: For FixedRateInterestCurve (MOET), the credit rate is independent
+    // Note: For FixedCurve (MOET), the credit rate is independent
     // of utilization. For KinkCurve, higher utilization means higher rates.
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
@@ -485,9 +486,9 @@ fun test_moet_credit_accrues_interest_with_insurance() {
     // -------------------------------------------------------------------------
     // Expected Credit Growth Calculation
     // -------------------------------------------------------------------------
-    // Debit rate: 4% APY (what borrowers pay)
-    // Insurance: 0.1% APY (protocol reserve)
-    // Credit rate: 4% - 0.1% = 3.9% APY (what LPs earn)
+    // Debit rate: 4% nominal yearly rate (what borrowers pay)
+    // Protocol fees: configured insurance plus stability fee fractions
+    // Credit rate: lower than the debit rate after protocol fees
     //
     // 30-day credit growth ≈ 3.9% × (30/365) ≈ 0.32%
     //
@@ -510,8 +511,8 @@ fun test_moet_credit_accrues_interest_with_insurance() {
 // Test 3: Flow Debit - Borrower Pays Flow Interest at KinkCurve Rate
 // =============================================================================
 // This test verifies that borrowing a NON-DEFAULT token (Flow) also accrues
-// interest correctly. Unlike MOET which uses FixedRateInterestCurve, Flow uses
-// a KinkInterestCurve where the rate depends on pool utilization.
+// interest correctly. Unlike MOET which uses FixedCurve, Flow uses
+// a KinkCurve where the rate depends on pool utilization.
 //
 // Scenario:
 // - LP deposits 10,000 FLOW (provides Flow liquidity)
@@ -520,10 +521,10 @@ fun test_moet_credit_accrues_interest_with_insurance() {
 // - Time advances 30 days
 // - Verify: Flow debt increased, health decreased
 //
-// Key Insight (KinkInterestCurve):
+// Key Insight (KinkCurve):
 // At 40% utilization (below 45% optimal kink):
 // - Rate = baseRate + (utilization/optimal) × slope1
-// - Rate = 0% + (40%/45%) × 4% ≈ 3.56% APY
+// - Rate = 0% + (40%/45%) × 4% ≈ 3.56% nominal yearly rate
 // =============================================================================
 access(all)
 fun test_flow_debit_accrues_interest() {
@@ -575,7 +576,7 @@ fun test_flow_debit_accrues_interest() {
     // -------------------------------------------------------------------------
     // STEP 4: Configure Flow Interest Curve
     // -------------------------------------------------------------------------
-    // Set the KinkInterestCurve for Flow. The rate will vary based on
+    // Set the KinkCurve for Flow. The rate will vary based on
     // utilization, with a "kink" at 45% where the slope increases dramatically.
     // Note: Must be set AFTER LP deposit (totalCreditBalance > 0 required).
     setInterestCurveKink(
@@ -623,12 +624,7 @@ fun test_flow_debit_accrues_interest() {
     // Step 5b: Explicitly borrow Flow from the position
     // Borrowing 4,000 FLOW from 10,000 FLOW pool = 40% utilization
     let borrowPid: UInt64 = 1
-    let borrowRes = executeTransaction(
-        "./transactions/position-manager/borrow_from_position.cdc",
-        [borrowPid, FLOW_TOKEN_IDENTIFIER, 4_000.0],
-        borrower
-    )
-    Test.expect(borrowRes, Test.beSucceeded())
+    borrowFromPosition(signer: borrower, positionId: borrowPid, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 4_000.0, beFailed: false)
     log("Borrower deposited 10,000 MOET and borrowed 4,000 Flow")
 
     // -------------------------------------------------------------------------
@@ -690,7 +686,7 @@ fun test_flow_debit_accrues_interest() {
     // -------------------------------------------------------------------------
     // Utilization = 4,000 / 10,000 = 40% (below 45% optimal)
     // Rate = baseRate + (util/optimal) × slope1
-    //      = 0% + (40%/45%) × 4% ≈ 3.56% APY
+    //      = 0% + (40%/45%) × 4% ≈ 3.56% nominal yearly rate
     //
     // 30-day growth ≈ 3.56% × (30/365) ≈ 0.29%
     let minExpectedDebtGrowth: UFix64 = 0.002  // 0.2%
@@ -813,12 +809,8 @@ fun test_flow_credit_accrues_interest_with_insurance() {
 
     // Borrow 4,000 Flow (40% utilization)
     let borrowPid: UInt64 = 1
-    let borrowRes = executeTransaction(
-        "./transactions/position-manager/borrow_from_position.cdc",
-        [borrowPid, FLOW_TOKEN_IDENTIFIER, 4_000.0],
-        borrower
-    )
-    Test.expect(borrowRes, Test.beSucceeded())
+    borrowFromPosition(signer: borrower, positionId: borrowPid, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 4_000.0, beFailed: false)
+
     log("Borrower deposited 10,000 MOET and borrowed 4,000 Flow")
 
     // -------------------------------------------------------------------------
@@ -900,15 +892,15 @@ fun test_flow_credit_accrues_interest_with_insurance() {
 // - LP deposits 10,000 MOET
 // - Borrower deposits 10,000 FLOW and borrows MOET
 // - Insurance rate set to 1% (higher than default 0.1% for visibility)
-// - Debit rate set to 10% APY
+// - Debit rate set to a 10% nominal yearly rate
 // - Time advances 1 YEAR
 // - Verify: Insurance spread ≈ 1% (debit rate - credit rate)
 //
-// Key Insight (FixedRateInterestCurve Spread Model):
-// - debitRate = 10% (what borrowers pay)
-// - insuranceRate = 1% (protocol reserve)
-// - creditRate = debitRate - insuranceRate = 9% (what LPs earn)
-// - Spread = debitRate - creditRate = 1%
+// Key Insight (FixedCurve Protocol-Fee Spread):
+// - debitRate is set by the fixed curve
+// - insurance/stability remain configured fee parameters
+// - creditRate is reduced relative to debitRate by those protocol fees
+// - the realized spread shows up as a lower lender growth rate than borrower growth rate
 // =============================================================================
 access(all)
 fun test_insurance_deduction_verification() {
@@ -961,7 +953,7 @@ fun test_insurance_deduction_verification() {
     //
     // Insurance Rate: 1% (vs default 0.1%)
     // Debit Rate: 10% (vs default 4%)
-    // Expected Credit Rate: 10% - 1% = 9%
+    // Expected Credit Rate: lower than 10% after protocol fees
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
@@ -1021,8 +1013,8 @@ fun test_insurance_deduction_verification() {
     // =========================================================================
     // Using 1 year (31,557,600 seconds for 365.25 days) makes the percentage calculations
     // straightforward. With per-second discrete compounding:
-    // - 10% APY → (1 + 0.10 / 31_557_600) ^ 31_557_600 - 1 ≈ 10.52% effective rate
-    // - 9% APY → (1 + 0.09 / 31_557_600) ^ 31_557_600 - 1 ≈ 9.42% effective rate
+    // - 10% nominal yearly rate → (1 + 0.10 / 31_557_600) ^ 31_557_600 - 1 ≈ 10.52% effective rate
+    // - 9% nominal yearly rate → (1 + 0.09 / 31_557_600) ^ 31_557_600 - 1 ≈ 9.42% effective rate
     // - Spread should be approximately 1%
     Test.moveTime(by: ONE_YEAR)
     Test.commitBlock()
@@ -1058,9 +1050,10 @@ fun test_insurance_deduction_verification() {
     // =========================================================================
     // ASSERTION: Verify Insurance Spread
     // =========================================================================
-    // For FixedRateInterestCurve (spread model):
-    // - debitRate = creditRate + insuranceRate
-    // - insuranceSpread = debitRate - creditRate ≈ insuranceRate
+    // For FixedCurve:
+    // - debitRate is the curve-defined nominal yearly rate
+    // - creditRate is the debit rate after protocol fees
+    // - insuranceSpread = actualDebtRate - actualCreditRate
     //
     // With 10% debit and 1% insurance, spread should be ~1%
     // (Slight variation due to per-second compounding effects)
@@ -1167,12 +1160,12 @@ fun test_combined_all_interest_scenarios() {
     // -------------------------------------------------------------------------
     // STEP 5: Configure Interest Curves for Both Tokens
     // -------------------------------------------------------------------------
-    // MOET: FixedRateInterestCurve at 4% APY (spread model)
-    // Flow: KinkInterestCurve with Aave v3 Volatile One parameters
+    // MOET: FixedCurve at a 4% nominal yearly rate (fixed-curve spread model)
+    // Flow: KinkCurve with Aave v3 Volatile One parameters
     setInterestCurveFixed(
         signer: PROTOCOL_ACCOUNT,
         tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
-        yearlyRate: moetFixedRate  // 4% APY
+        yearlyRate: moetFixedRate  // 4% nominal yearly rate
     )
     setInterestCurveKink(
         signer: PROTOCOL_ACCOUNT,
@@ -1242,12 +1235,9 @@ fun test_combined_all_interest_scenarios() {
 
     // Explicitly borrow 2,000 Flow
     // Flow utilization = 2,000 / (5,000 LP2 + 2,000 Borrower1) = 2,000 / 7,000 ≈ 28.6%
-    let b2BorrowRes = executeTransaction(
-        "./transactions/position-manager/borrow_from_position.cdc",
-        [3 as UInt64, FLOW_TOKEN_IDENTIFIER, 2_000.0],
-        borrower2
-    )
-    Test.expect(b2BorrowRes, Test.beSucceeded())
+    let borrowPid: UInt64 = 3
+    borrowFromPosition(signer: borrower2, positionId: borrowPid, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 2_000.0, beFailed: false)
+
     log("Borrower2: Deposited 3,000 MOET, borrowed 2,000 Flow")
 
     // -------------------------------------------------------------------------
@@ -1336,14 +1326,14 @@ fun test_combined_all_interest_scenarios() {
     // Assertion Group 2: Health Factor Changes
     // -------------------------------------------------------------------------
     // Borrower1 (Flow collateral, MOET debt):
-    // - MOET debit rate: 4% APY
+    // - MOET debit rate: 4% nominal yearly rate
     // - Flow credit rate: lower than Flow debit rate due to insurance spread
     // - Net effect: Debt grows faster than collateral → Health DECREASES
     Test.assert(b1HealthAfter < b1HealthBefore, message: "Borrower1 health should decrease")
 
     // Borrower2 (MOET collateral, Flow debt):
-    // - MOET credit rate: ~3.9% APY (4% debit - 0.1% insurance)
-    // - Flow debit rate: ~2.5% APY (at 28.6% utilization)
+    // - MOET credit rate: lower than the MOET debit rate after protocol fees
+    // - Flow debit rate: ~2.5% nominal yearly rate (at 28.6% utilization)
     // - Collateral (3,000 MOET) earning more absolute interest than debt (2,000 Flow)
     // - Net effect: Health INCREASES
     Test.assert(b2HealthAfter > b2HealthBefore, message: "Borrower2 health should increase (collateral interest > debt interest)")
@@ -1358,7 +1348,7 @@ fun test_combined_all_interest_scenarios() {
     log("MOET credit growth rate: \(moetCreditGrowthRate.toString())")
     log("MOET debt growth rate: \(moetDebtGrowthRate.toString())")
 
-    // For FixedRateInterestCurve: creditRate < debitRate (insurance spread)
+    // For FixedCurve: creditRate < debitRate (insurance spread)
     Test.assert(
         moetCreditGrowthRate < moetDebtGrowthRate,
         message: "MOET credit rate should be less than debit rate (insurance spread)"
@@ -1371,7 +1361,7 @@ fun test_combined_all_interest_scenarios() {
     log("Flow credit growth (absolute): \(flowCreditGrowth.toString())")
     log("Flow debt growth (absolute): \(flowDebtGrowth.toString())")
 
-    // For KinkInterestCurve: total credit income < total debit income (reserve factor)
+    // For KinkCurve: total credit income < total debit income (reserve factor)
     // This ensures protocol solvency - can't pay out more than collected.
     Test.assert(
         flowCreditGrowth < flowDebtGrowth,
