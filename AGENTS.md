@@ -57,3 +57,9 @@ flow test cadence/tests/interest_accrual_integration_test.cdc --name test_combin
 ```bash
 grep "fun test" cadence/tests/interest_accrual_integration_test.cdc
 ```
+
+# Cadence Coding Guidelines
+
+- Use string templating, not concatenation: `"Hello \(name)"` not `"Hello ".concat(name)`
+- Use `equalWithinVariance` from `test_helpers.cdc` for equality assertions where rounding errors are possible
+- Use red-green TDD for bug fixes and extensions to functionality. Tests must use assertions (eg. `Test.assert`) to verify expected behaviour, not logs.
