@@ -1270,18 +1270,21 @@ access(all) contract FlowALPv0 {
             let tokenState = self._borrowUpdatedTokenState(type: type)
 
             if pullFromTopUpSource {
-                let topUpSource = position.borrowTopUpSource()
-                let topUpType = topUpSource?.getSourceType() ?? self.state.getDefaultToken()
-                let targetHealthDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
-                    pid: pid,
-                    depositType: topUpType,
-                    targetHealth: position.getTargetHealth(),
-                    withdrawType: type,
-                    withdrawAmount: amount
-                )
-                if let topUpSource = topUpSource {
+                if let topUpSource = position.borrowTopUpSource() {
+                    // NOTE: getSourceType can lie, but we are resilient to this because:
+                    // (1) we check the vault type returned by the source matches its purported type, below
+                    // (2) computing target health deposit below will panic if the purported type is not supported
+                    let purportedTopUpType = topUpSource.getSourceType()
+                    let targetHealthDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
+                        pid: pid,
+                        depositType: purportedTopUpType,
+                        targetHealth: position.getTargetHealth(),
+                        withdrawType: type,
+                        withdrawAmount: amount
+                    )
+                
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: targetHealthDeposit)
-                    assert(pulledVault.getType() == topUpType, message: "topUpSource returned unexpected token type")
+                    assert(pulledVault.getType() == purportedTopUpType, message: "topUpSource returned unexpected token type")
                     self._depositEffectsOnly(
                         pid: pid,
                         from: <-pulledVault
@@ -1297,9 +1300,8 @@ access(all) contract FlowALPv0 {
             }
 
             // Reflect the withdrawal in the position's balance
-            let uintAmount = UFix128(amount)
             position.borrowBalance(type)!.recordWithdrawal(
-                amount: uintAmount,
+                amount: UFix128(amount),
                 tokenState: tokenState
             )
 
