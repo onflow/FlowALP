@@ -59,12 +59,20 @@ access(all) var ePositionAdminPid: UInt64 = 0
 access(all) var snapshot: UInt64 = 0
 
 // Role accounts
+access(all) var userWithoutCap = Test.createAccount()
 access(all) var eParticipantUser = Test.createAccount()
 access(all) var ePositionUser = Test.createAccount()
 access(all) var eParticipantPositionUser = Test.createAccount()
 access(all) var eRebalanceUser = Test.createAccount()
 access(all) var ePositionAdminUser = Test.createAccount()
 access(all) var eGovernanceUser = Test.createAccount()
+
+/// Returns all role accounts that do NOT hold an EGovernance capability.
+/// Used in negative tests to verify governance methods are inaccessible to them.
+access(all)
+fun getNonGovernanceUsers(): [Test.TestAccount] {
+    return [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser]
+}
 
 access(all)
 fun safeReset() {
@@ -120,6 +128,12 @@ fun setup() {
     )
 
     setupPid = getLastPositionId()
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // user without any capability
+    // ─────────────────────────────────────────────────────────────────────────
+    setupMoetVault(userWithoutCap, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: userWithoutCap.address, amount: 100.0, beFailed: false)
 
     // ─────────────────────────────────────────────────────────────────────────
     // EParticipant user — EParticipant-ONLY capability (fixed beta cap)
@@ -698,14 +712,21 @@ access(all)
 fun testEGovernance_PauseUnpause_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_set_pool_paused.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_set_pool_paused.cdc",
             [true],
             user
         )
         Test.expect(result, Test.beFailed())
     }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_set_pool_paused_without_auth.cdc",
+        [true, PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 /// EGovernance cap allows Pool.addSupportedToken.
@@ -733,14 +754,21 @@ access(all)
 fun testEGovernance_AddSupportedToken_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_add_supported_token.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_add_supported_token.cdc",
             [FLOW_TOKEN_IDENTIFIER, 0.8, 0.8, 1_000_000.0, 1_000_000.0],
             user
         )
         Test.expect(result, Test.beFailed())
     }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_add_supported_token_without_auth.cdc",
+        [FLOW_TOKEN_IDENTIFIER, 0.8, 0.8, 1_000_000.0, 1_000_000.0, PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 /// EGovernance cap allows Pool.setInterestCurve.
@@ -769,14 +797,21 @@ access(all)
 fun testEGovernance_SetInterestCurve_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_set_interest_curve.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_set_interest_curve.cdc",
             [MOET_TOKEN_IDENTIFIER, 0.05 as UFix128],
             user
         )
         Test.expect(result, Test.beFailed())
     }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_set_interest_curve_without_auth.cdc",
+        [MOET_TOKEN_IDENTIFIER, 0.05 as UFix128, PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 /// EGovernance cap allows Pool.setInsuranceRate.
@@ -802,15 +837,21 @@ access(all)
 fun testEGovernance_SetInsuranceRate_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser,ePositionAdminUser,eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_set_insurance_rate.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_set_insurance_rate.cdc",
             [MOET_TOKEN_IDENTIFIER, 0.0],
             user
         )
         Test.expect(result, Test.beFailed())
-    } 
-    
+    }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_set_insurance_rate_without_auth.cdc",
+        [MOET_TOKEN_IDENTIFIER, 0.0, PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 /// EGovernance cap allows Pool.setStabilityFeeRate.
@@ -834,14 +875,21 @@ access(all)
 fun testEGovernance_SetStabilityFeeRate_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_set_stability_fee_rate.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_set_stability_fee_rate.cdc",
             [MOET_TOKEN_IDENTIFIER, 0.05],
             user
         )
         Test.expect(result, Test.beFailed())
     }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_set_stability_fee_rate_without_auth.cdc",
+        [MOET_TOKEN_IDENTIFIER, 0.05, PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 /// EGovernance cap allows Pool.setLiquidationParams (via borrowConfig).
@@ -868,14 +916,21 @@ access(all)
 fun testEGovernance_SetLiquidationParams_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_set_liquidation_params.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_set_liquidation_params.cdc",
             [1.05 as UFix128],
             user
         )
         Test.expect(result, Test.beFailed())
     }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_set_liquidation_params_without_auth.cdc",
+        [1.05 as UFix128, PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 /// EGovernance cap allows Pool.setPauseParams (via borrowConfig).
@@ -897,14 +952,21 @@ access(all)
 fun testEGovernance_SetPauseParams_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_set_pause_params.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_set_pause_params.cdc",
             [300 as UInt64],
             user
         )
         Test.expect(result, Test.beFailed())
     }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_set_pause_params_without_auth.cdc",
+        [300 as UInt64, PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 /// EGovernance cap allows Pool.setDepositLimitFraction.
@@ -927,14 +989,21 @@ access(all)
 fun testEGovernance_SetDepositLimitFraction_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_set_deposit_limit_fraction.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_set_deposit_limit_fraction.cdc",
             [MOET_TOKEN_IDENTIFIER, 0.10],
             user
         )
         Test.expect(result, Test.beFailed())
     }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_set_deposit_limit_fraction_without_auth.cdc",
+        [MOET_TOKEN_IDENTIFIER, 0.10, PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 /// EGovernance cap allows Pool.collectInsurance.
@@ -962,14 +1031,21 @@ access(all)
 fun testEGovernance_CollectInsurance_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_collect_insurance.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_collect_insurance.cdc",
             [MOET_TOKEN_IDENTIFIER],
             user
         )
         Test.expect(result, Test.beFailed())
     }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_collect_insurance_without_auth.cdc",
+        [MOET_TOKEN_IDENTIFIER, PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 /// EGovernance cap allows Pool.collectStability.
@@ -997,14 +1073,21 @@ access(all)
 fun testEGovernance_CollectStability_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_collect_stability.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_collect_stability.cdc",
             [MOET_TOKEN_IDENTIFIER],
             user
         )
         Test.expect(result, Test.beFailed())
     }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_collect_stability_without_auth.cdc",
+        [MOET_TOKEN_IDENTIFIER, PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 /// EGovernance cap allows Pool.setDEX (via borrowConfig).
@@ -1027,14 +1110,21 @@ access(all)
 fun testEGovernance_SetDEX_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_set_dex.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_set_dex.cdc",
             [],
             user
         )
         Test.expect(result, Test.beFailed())
     }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_set_dex_without_auth.cdc",
+        [PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 /// EGovernance cap allows Pool.setPriceOracle.
@@ -1057,14 +1147,21 @@ access(all)
 fun testEGovernance_SetPriceOracle_NonGovernanceUserFails() {
     safeReset()
 
-    for user in [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser, eGovernanceUser] {
+    for user in getNonGovernanceUsers() {
         let result = _executeTransaction(
-            "../tests/transactions/flow-alp/egovernance/neg_set_oracle.cdc",
+            "../tests/transactions/flow-alp/egovernance_neg/neg_set_oracle.cdc",
             [],
             user
         )
         Test.expect(result, Test.beFailed())
     }
+
+    let result = _executeTransaction(
+        "../tests/transactions/flow-alp/egovernance_neg/neg_set_oracle_without_auth.cdc",
+        [PROTOCOL_ACCOUNT.address],
+        userWithoutCap
+    )
+    Test.expect(result, Test.beFailed())
 }
 
 // =============================================================================
