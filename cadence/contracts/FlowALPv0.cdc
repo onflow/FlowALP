@@ -1882,6 +1882,18 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        /// Returns the number of currently open positions in this pool
+        access(all) fun getPositionCount(): UInt64 {
+            return UInt64(self.positions.keys.length)
+        }
+
+        /// Returns the details of the position at the given index into the active key list.
+        access(all) fun getPositionDetailsAtIndex(index: UInt64): PositionDetails {
+            assert(index < UInt64(self.positions.keys.length), message: "Index out of bounds")
+            let pid = self.positions.keys[Int(index)]
+            return self.getPositionDetails(pid: pid)
+        }
+
         /// Returns the details of a given position as a PositionDetails external struct
         access(all) fun getPositionDetails(pid: UInt64): PositionDetails {
             if self.debugLogging {
