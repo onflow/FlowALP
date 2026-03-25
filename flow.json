@@ -51,7 +51,8 @@
 			"aliases": {
 				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"testnet": "426f0458ced60037"
 			}
 		},
 		"FlowALPRebalancerPaidv1": {
@@ -59,7 +60,8 @@
 			"aliases": {
 				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"testnet": "426f0458ced60037"
 			}
 		},
 		"FlowALPRebalancerv1": {
@@ -67,7 +69,8 @@
 			"aliases": {
 				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"testnet": "426f0458ced60037"
 			}
 		},
 		"FlowALPSupervisorv1": {
@@ -75,7 +78,8 @@
 			"aliases": {
 				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"testnet": "426f0458ced60037"
 			}
 		},
 		"FlowALPv0": {
@@ -83,7 +87,8 @@
 			"aliases": {
 				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"testing": "0000000000000007"
+				"testing": "0000000000000007",
+				"testnet": "426f0458ced60037"
 			}
 		},
 		"FungibleTokenConnectors": {
@@ -420,7 +425,10 @@
 						}
 					]
 				},
-				"FlowALPv0"
+				"FlowALPv0",
+				"FlowALPRebalancerPaidv1",
+				"FlowALPRebalancerv1",
+				"FlowALPSupervisorv1"
 			],
 			"testnet-fyv-deployer": [
 				"MockDexSwapper",
