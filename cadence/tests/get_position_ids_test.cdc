@@ -20,28 +20,6 @@ fun setup() {
     snapshot = getCurrentBlockHeight()
 }
 
-// Helper: call the get_position_ids script and return the result array
-access(all)
-fun getPositionIDs(): [UInt64] {
-    let res = _executeScript(
-        "../scripts/flow-alp/get_position_ids.cdc",
-        [PROTOCOL_ACCOUNT.address, UInt64(0)]
-    )
-    Test.expect(res, Test.beSucceeded())
-    return res.returnValue as! [UInt64]
-}
-
-// Helper: repay and close a position by ID
-access(all)
-fun closePosition(user: Test.TestAccount, positionID: UInt64) {
-    let res = _executeTransaction(
-        "../transactions/flow-alp/position/repay_and_close_position.cdc",
-        [positionID],
-        user
-    )
-    Test.expect(res, Test.beSucceeded())
-}
-
 // =============================================================================
 // Test: getPositionIDs tracks opens and closes correctly
 // =============================================================================
@@ -63,31 +41,20 @@ fun test_getPositionIDs_lifecycle() {
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
     mintFlow(to: user, amount: 10_000.0)
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
 
     // --- No positions yet ---
     var ids = getPositionIDs()
     Test.assertEqual(0, ids.length)
 
     // --- Open position 0 (with borrow) ---
-    let open0 = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [100.0, FLOW_VAULT_STORAGE_PATH, true],
-        user
-    )
-    Test.expect(open0, Test.beSucceeded())
+    createPosition(signer: user, amount: 100.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     ids = getPositionIDs()
     Test.assertEqual(1, ids.length)
     Test.assert(ids.contains(UInt64(0)), message: "Expected position 0 in IDs")
 
     // --- Open position 1 (with borrow) ---
-    let open1 = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [100.0, FLOW_VAULT_STORAGE_PATH, true],
-        user
-    )
-    Test.expect(open1, Test.beSucceeded())
+    createPosition(signer: user, amount: 100.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     ids = getPositionIDs()
     Test.assertEqual(2, ids.length)
@@ -95,12 +62,7 @@ fun test_getPositionIDs_lifecycle() {
     Test.assert(ids.contains(UInt64(1)), message: "Expected position 1 in IDs")
 
     // --- Open position 2 (no borrow, so closing won't need MOET repay) ---
-    let open2 = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [100.0, FLOW_VAULT_STORAGE_PATH, false],
-        user
-    )
-    Test.expect(open2, Test.beSucceeded())
+    createPosition(signer: user, amount: 100.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     ids = getPositionIDs()
     Test.assertEqual(3, ids.length)
@@ -124,12 +86,7 @@ fun test_getPositionIDs_lifecycle() {
     Test.assert(ids.contains(UInt64(1)), message: "Position 1 should still exist")
 
     // --- Open position 3 (new position after some closures) ---
-    let open3 = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [100.0, FLOW_VAULT_STORAGE_PATH, true],
-        user
-    )
-    Test.expect(open3, Test.beSucceeded())
+    createPosition(signer: user, amount: 100.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     ids = getPositionIDs()
     Test.assertEqual(2, ids.length)

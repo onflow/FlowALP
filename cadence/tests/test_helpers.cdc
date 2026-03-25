@@ -790,6 +790,26 @@ fun withdrawReserve(
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
+access(all)
+fun getPositionIDs(): [UInt64] {
+    let res = _executeScript(
+        "../scripts/flow-alp/get_position_ids.cdc",
+        []
+    )
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! [UInt64]
+}
+
+access(all)
+fun closePosition(user: Test.TestAccount, positionID: UInt64) {
+    let res = _executeTransaction(
+        "../transactions/flow-alp/position/repay_and_close_position.cdc",
+        [positionID],
+        user
+    )
+    Test.expect(res, Test.beSucceeded())
+}
+
 /* --- Assertion Helpers --- */
 
 access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct): Bool {
