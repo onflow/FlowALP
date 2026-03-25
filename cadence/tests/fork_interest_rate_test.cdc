@@ -596,7 +596,7 @@ fun test_time_jump_scenarios() {
     // dailyGrowth = perSecondRate^86400 - 1
     // FLOW debit daily growth = (1 + 0.31272727 / 31557600)^86400 - 1 = 0.00085660
     let expectedFLOWDebtDailyGrowth = 0.00085660
-    Test.assert(equalWithinVariance(expectedFLOWDebtDailyGrowth, FLOWDebtDailyGrowth),
+    Test.assert(equalWithinVariance(expectedFLOWDebtDailyGrowth, FLOWDebtDailyGrowth, DEFAULT_UFIX_VARIANCE),
         message: "Expected FLOW debt growth rate to be ~\(expectedFLOWDebtDailyGrowth), but got \(FLOWDebtDailyGrowth)")
 
     // test longer period (7 days) to verify no overflow in calculation
@@ -615,6 +615,6 @@ fun test_time_jump_scenarios() {
     // weeklyGrowth = perSecondRate^604800 - 1
     // FLOW debit weekly growth = (1 + 0.31272727272 / 31_557_600)^604800 - 1 = 0.00601143
     let expectedFLOWDebtWeeklyGrowth = 0.00601143
-    Test.assert(equalWithinVariance(expectedFLOWDebtWeeklyGrowth, FLOWDebtWeeklyGrowth),
+    Test.assert(equalWithinVariance(expectedFLOWDebtWeeklyGrowth, FLOWDebtWeeklyGrowth, DEFAULT_UFIX_VARIANCE),
         message: "Expected FLOW debt growth rate to be ~\(expectedFLOWDebtWeeklyGrowth), but got \(FLOWDebtWeeklyGrowth)")
 }
