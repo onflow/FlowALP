@@ -1116,26 +1116,23 @@ access(all) contract FlowALPv0 {
             // Deposit rate limiting: prevent a single large deposit from monopolizing capacity.
             // Excess is queued to be processed asynchronously (see asyncUpdatePosition).
             let depositAmount = from.balance
-            let depositLimit = tokenState.depositLimit()
-
-            if depositAmount > depositLimit {
-                // The deposit is too big, so we need to queue the excess
-                let queuedDeposit <- from.withdraw(amount: depositAmount - depositLimit)
-
-                position.depositToQueue(type, vault: <-queuedDeposit)
-            }
+            var depositLimit = tokenState.depositLimit()
 
             // Per-user deposit limit: check if user has exceeded their per-user limit
             let userDepositLimitCap = tokenState.getUserDepositLimitCap()
             let currentUsage = tokenState.getDepositUsageForPosition(pid)
             let remainingUserLimit = userDepositLimitCap - currentUsage
+            if remainingUserLimit < depositLimit {
+                depositLimit = remainingUserLimit
+            }
 
-            // If the deposit would exceed the user's limit, queue or reject the excess
-            if from.balance > remainingUserLimit {
-                let excessAmount = from.balance - remainingUserLimit
-                let queuedForUserLimit <- from.withdraw(amount: excessAmount)
-
-                position.depositToQueue(type, vault: <-queuedForUserLimit)
+            // depositAmount is bounded by the smaller of:
+            // User deposit limit, per-deposit limit, and global deposit capacity
+            // If the deposit would exceed a limit, queue or reject the excess
+            if depositAmount > depositLimit {
+                let excessAmount = depositAmount - depositLimit
+                let queuedDeposit <- from.withdraw(amount: excessAmount)
+                position.depositToQueue(type, vault: <-queuedDeposit)
             }
 
             // If this position doesn't currently have an entry for this token, create one.
