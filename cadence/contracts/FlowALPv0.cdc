@@ -496,6 +496,11 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        /// Returns the IDs of all currently open positions in this pool
+        access(all) view fun getPositionIDs(): [UInt64] {
+            return self.positions.keys
+        }
+
         /// Returns the queued deposit balances for a given position.
         access(all) fun getQueuedDeposits(pid: UInt64): {Type: UFix64} {
             let position = self._borrowPosition(pid: pid)
