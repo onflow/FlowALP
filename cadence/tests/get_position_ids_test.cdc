@@ -12,12 +12,9 @@ import "test_helpers.cdc"
 // positions via the get_position_ids.cdc script.
 // -----------------------------------------------------------------------------
 
-access(all) var snapshot: UInt64 = 0
-
 access(all)
 fun setup() {
     deployContracts()
-    snapshot = getCurrentBlockHeight()
 }
 
 // =============================================================================
