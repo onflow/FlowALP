@@ -1936,9 +1936,6 @@ access(all) contract FlowALPv0 {
 
         /// Returns the details of a given position, or nil if the position does not exist.
         /// This is the non-panicking variant of getPositionDetails.
-        ///
-        /// Safe to guard-then-delegate because Cadence script execution is atomic —
-        /// a position cannot be removed between the existence check and getPositionDetails.
         access(all) fun tryGetPositionDetails(pid: UInt64): PositionDetails? {
             if self.debugLogging {
                 log("    [CONTRACT] tryGetPositionDetails(pid: \(pid))")
