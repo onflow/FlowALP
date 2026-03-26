@@ -1113,18 +1113,10 @@ access(all) contract FlowALPv0 {
 
             // Time-based state is handled by the tokenState() helper function
 
-            // Deposit rate limiting: prevent a single large deposit from monopolizing capacity.
+            // Deposit rate limiting: prevent a single user or single large deposit from monopolizing capacity.
             // Excess is queued to be processed asynchronously (see asyncUpdatePosition).
             let depositAmount = from.balance
-            var depositLimit = tokenState.depositLimit()
-
-            // Per-user deposit limit: check if user has exceeded their per-user limit
-            let userDepositLimitCap = tokenState.getUserDepositLimitCap()
-            let currentUsage = tokenState.getDepositUsageForPosition(pid)
-            let remainingUserLimit = userDepositLimitCap - currentUsage
-            if remainingUserLimit < depositLimit {
-                depositLimit = remainingUserLimit
-            }
+            let depositLimit = tokenState.depositLimit(pid: pid)
 
             // depositAmount is bounded by the smaller of:
             // User deposit limit, per-deposit limit, and global deposit capacity
@@ -1858,7 +1850,7 @@ access(all) contract FlowALPv0 {
                 let queuedVault <- position.removeQueuedDeposit(depositType)!
                 let queuedAmount = queuedVault.balance
                 let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
-                let maxDeposit = depositTokenState.depositLimit()
+                let maxDeposit = depositTokenState.depositLimit(pid: pid)
 
                 if maxDeposit >= queuedAmount {
                     // We can deposit all of the queued deposit, so just do it and remove it from the queue
