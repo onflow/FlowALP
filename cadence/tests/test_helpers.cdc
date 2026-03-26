@@ -80,7 +80,7 @@ access(all)
 fun grantBetaPoolParticipantAccess(_ admin: Test.TestAccount, _ grantee: Test.TestAccount) {
     let signers = admin.address == grantee.address ? [admin] : [admin, grantee]
     let betaTxn = Test.Transaction(
-        code: Test.readFile("./transactions/flow-alp/pool-management/03_grant_beta.cdc"),
+        code: Test.readFile("./transactions/flow-alp/setup/grant_beta_cap.cdc"),
         authorizers: [admin.address, grantee.address],
         signers: signers,
         arguments: []
@@ -458,12 +458,33 @@ fun getIsLiquidatable(pid: UInt64): Bool {
     return res.returnValue as! Bool
 }
 
+access(all)
+fun getPositionMinHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_min_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun getPositionMaxHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_max_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun getPositionTargetHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_target_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
 fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String, beFailed: Bool) {
     let createRes = _executeTransaction(
-        "transactions/flow-alp/pool-factory/create_and_store_pool.cdc",
+        "./transactions/flow-alp/setup/create_and_store_pool.cdc",
         [defaultTokenIdentifier],
         signer
     )
@@ -617,7 +638,7 @@ fun setPoolPauseState(
     pause: Bool
 ): Test.TransactionResult {
     return _executeTransaction(
-        "./transactions/flow-alp/pool-governance/set_pool_paused.cdc",
+        "./transactions/flow-alp/egovernance/set_pool_paused.cdc",
         [pause],
         signer
     )
@@ -762,7 +783,7 @@ fun setInsuranceSwapper(
     priceRatio: UFix64,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-alp/pool-governance/set_insurance_swapper_mock.cdc",
+        "./transactions/flow-alp/egovernance/set_insurance_swapper_mock.cdc",
         [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, MOET_TOKEN_IDENTIFIER],
         signer
     )
@@ -775,7 +796,7 @@ fun removeInsuranceSwapper(
     tokenTypeIdentifier: String,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-alp/pool-governance/remove_insurance_swapper.cdc",
+        "./transactions/flow-alp/egovernance/remove_insurance_swapper.cdc",
         [ tokenTypeIdentifier],
         signer
     )
@@ -1097,10 +1118,14 @@ fun getCreditBalanceForType(details: FlowALPModels.PositionDetails, vaultType: T
     return 0.0
 }
 
-access(all) fun getLastPositionId(): UInt64  {
+access(all)
+fun getLastPositionId(): UInt64 {
     var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
-    return pid
+    if openEvents.length > 0 {
+        let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+        return pid
+    }
+    return 0
 }
 
 access(all)
