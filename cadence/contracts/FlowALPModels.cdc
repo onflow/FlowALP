@@ -1037,9 +1037,9 @@ access(all) contract FlowALPModels {
         /// (used when deposits are made)
         access(EImplementation) fun consumeDepositCapacity(_ amount: UFix64, pid: UInt64)
 
-        /// Returns the per-deposit limit based on depositCapacity * depositLimitFraction
-        /// Rationale: cap per-deposit size to a fraction of the time-based
-        /// depositCapacity so a single large deposit cannot monopolize capacity.
+        /// Returns the per-deposit limit based on user deposit limit cap and available deposit capacity.
+        /// Rationale: cap per-deposit size to a fraction of the total depositCapacityCap
+        /// so a single large deposit cannot monopolize capacity.
         /// Excess is queued and drained in chunks (see asyncUpdatePosition),
         /// enabling fair throughput across many deposits in a block. The 5%
         /// fraction is conservative and can be tuned by protocol parameters.
