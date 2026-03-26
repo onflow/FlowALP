@@ -40,12 +40,12 @@ fun testPositionLifecycleBelowMinimumDeposit() {
     setMinimumTokenBalancePerPosition(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, minimum: minimum)
 
     // position id to use for tests
-    let positionId = 0 as UInt64
+    let positionId: UInt64 = 0
 
     // user prep
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
-    mintFlow(to: user, amount: 1_000.0)
+    Test.expect(mintFlow(to: user, amount: 1_000.0), Test.beSucceeded())
 
     // Grant beta access to user so they can create positions
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)

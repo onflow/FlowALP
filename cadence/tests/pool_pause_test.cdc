@@ -30,6 +30,14 @@ fun setup() {
         depositRate: 1_000_000.0,
         depositCapacityCap: 1_000_000.0
     )
+    // Grant PROTOCOL_ACCOUNT an EGovernance cap so setPoolPauseState (cap-based) works.
+    let grantResult = Test.executeTransaction(Test.Transaction(
+        code: Test.readFile("./transactions/flow-alp/setup/grant_egovernance_cap.cdc"),
+        authorizers: [PROTOCOL_ACCOUNT.address, PROTOCOL_ACCOUNT.address],
+        signers: [PROTOCOL_ACCOUNT],
+        arguments: []
+    ))
+    Test.expect(grantResult, Test.beSucceeded())
     snapshot = getCurrentBlockHeight()
 }
 

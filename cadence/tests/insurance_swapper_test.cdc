@@ -190,7 +190,7 @@ access(all)
 fun test_setInsuranceSwapper_wrongOutputType_fails() {
     // try to set a swapper that doesn't output MOET (outputs FLOW_TOKEN_IDENTIFIER instead)
     let res = _executeTransaction(
-        "./transactions/flow-alp/pool-governance/set_insurance_swapper_mock.cdc",
+        "./transactions/flow-alp/egovernance/set_insurance_swapper_mock.cdc",
         [MOET_TOKEN_IDENTIFIER, 1.0, MOET_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER],
         PROTOCOL_ACCOUNT
     )
@@ -207,7 +207,7 @@ access(all)
 fun test_setInsuranceSwapper_wrongInputType_fails() {
     // try to set a swapper with wrong input type (FLOW_TOKEN_IDENTIFIER instead of MOET_TOKEN_IDENTIFIER)
     let res = _executeTransaction(
-        "./transactions/flow-alp/pool-governance/set_insurance_swapper_mock.cdc",
+        "./transactions/flow-alp/egovernance/set_insurance_swapper_mock.cdc",
         [MOET_TOKEN_IDENTIFIER, 1.0, FLOW_TOKEN_IDENTIFIER, MOET_TOKEN_IDENTIFIER],
         PROTOCOL_ACCOUNT
     )
