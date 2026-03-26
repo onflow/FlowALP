@@ -1063,9 +1063,9 @@ fun withdrawReserve(
 }
 
 access(all)
-fun getPositionIDs(): [UInt64] {
+fun getOpenPositionIDs(): [UInt64] {
     let res = _executeScript(
-        "../scripts/flow-alp/get_position_ids.cdc",
+        "../scripts/flow-alp/get_open_position_ids.cdc",
         []
     )
     Test.expect(res, Test.beSucceeded())
@@ -1073,13 +1073,13 @@ fun getPositionIDs(): [UInt64] {
 }
 
 access(all)
-fun getPositionsByIDs(positionIDs: [UInt64]): [FlowALPv0.PositionDetails] {
+fun getOpenPositionsByIDs(positionIDs: [UInt64]): [FlowALPModels.PositionDetails] {
     let res = _executeScript(
-        "../scripts/flow-alp/get_positions_by_ids.cdc",
+        "../scripts/flow-alp/get_open_positions_by_ids.cdc",
         [positionIDs]
     )
     Test.expect(res, Test.beSucceeded())
-    return res.returnValue as! [FlowALPv0.PositionDetails]
+    return res.returnValue as! [FlowALPModels.PositionDetails]
 }
 
 access(all)
