@@ -1934,6 +1934,24 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        /// Returns the details of a given position, or nil if the position does not exist.
+        /// This is the non-panicking variant of getPositionDetails.
+        ///
+        /// Safe to guard-then-delegate because Cadence script execution is atomic —
+        /// a position cannot be removed between the existence check and getPositionDetails.
+        access(all) fun tryGetPositionDetails(pid: UInt64): PositionDetails? {
+            if self.debugLogging {
+                log("    [CONTRACT] tryGetPositionDetails(pid: \(pid))")
+            }
+
+            if self._tryBorrowPosition(pid: pid) == nil {
+                return nil
+            }
+
+            return self.getPositionDetails(pid: pid)
+        }
+
+
         /// Any external party can perform a manual liquidation on a position under the following circumstances:
         /// - the position has health < 1
         /// - the liquidation price offered is better than what is available on a DEX
@@ -4079,9 +4097,14 @@ access(all) contract FlowALPv0 {
             }
         }
 
-        /// Returns an authorized reference to the requested InternalPosition or `nil` if the position does not exist
-        access(self) view fun _borrowPosition(pid: UInt64): auth(EImplementation) &InternalPosition {
+        /// Returns an authorized reference to the requested InternalPosition, or nil if it does not exist.
+        access(self) view fun _tryBorrowPosition(pid: UInt64): (auth(EImplementation) &InternalPosition)? {
             return &self.positions[pid] as auth(EImplementation) &InternalPosition?
+        }
+
+        /// Returns an authorized reference to the requested InternalPosition or panics if the position does not exist.
+        access(self) view fun _borrowPosition(pid: UInt64): auth(EImplementation) &InternalPosition {
+            return self._tryBorrowPosition(pid: pid)
                 ?? panic("Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool")
         }
 
