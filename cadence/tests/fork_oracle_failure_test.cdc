@@ -15,9 +15,13 @@ import "FlowALPMath"
 import "test_helpers.cdc"
 
 access(all) let MAINNET_PROTOCOL_ACCOUNT = Test.getAccount(MAINNET_PROTOCOL_ACCOUNT_ADDRESS)
+access(all) let BAND_ORACLE_ACCOUNT = Test.getAccount(MAINNET_BAND_ORACLE_ADDRESS)
+access(all) let BAND_ORACLE_CONNECTORS_ACCOUNT = Test.getAccount(MAINNET_BAND_ORACLE_CONNECTORS_ADDRESS)
+
 access(all) let MAINNET_USDF_HOLDER = Test.getAccount(MAINNET_USDF_HOLDER_ADDRESS)
 access(all) let MAINNET_WETH_HOLDER = Test.getAccount(MAINNET_WETH_HOLDER_ADDRESS)
 
+access(all) let MAINNET_MOCKED_YIELD_TOKEN_ACCOUNT = Test.getAccount(MAINNET_PROTOCOL_ACCOUNT_ADDRESS)
 access(all) var snapshot: UInt64 = 0
 
 access(all)
@@ -32,9 +36,10 @@ access(all)
 fun setup() {
     deployContracts()
 
+    // create pool with mock oracle
     createAndStorePool(signer: MAINNET_PROTOCOL_ACCOUNT, defaultTokenIdentifier: MAINNET_MOET_TOKEN_ID, beFailed: false)
 
-    // Set initial oracle prices (baseline)
+    // Set initial oracle prices
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_USDF_TOKEN_ID, price: 1.0)
     setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_WETH_TOKEN_ID, price: 2000.0)
@@ -517,4 +522,202 @@ fun test_flash_pump_increase_doubles_health() {
     // when information sources disagree.
     let healthAfterCorrection = getPositionHealth(pid: pid, beFailed: false)
     Test.assert(healthAfterCorrection < 1.0, message: "Position should be underwater after pump-and-dump scenario")
+}
+
+// -----------------------------------------------------------------------------
+/// test_band_oracle_stale_price tests that the protocol correctly handles stale price data returned by the Band oracle.
+///
+/// The test verifies 2 scenarios:
+/// 1. A user attempts to open a position when the oracle price is stale, the transaction must fail.
+/// 2. The oracle price is updated to a fresh value, the position creation should succeed.
+// -----------------------------------------------------------------------------
+access(all)
+fun test_band_oracle_stale_price() {
+    safeReset()
+
+    updateOracleToBandOracle(signer: MAINNET_PROTOCOL_ACCOUNT)
+
+    // setup user with FLOW position
+    let user = Test.createAccount()
+    let FLOWAmount = 1000.0
+    transferFlowTokens(to: user, amount: FLOWAmount)
+    grantBetaPoolParticipantAccess(MAINNET_PROTOCOL_ACCOUNT, user)
+
+    // Case 1: try to open position with a stale oracle price, expect error
+    var openRes = _executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [FLOWAmount, FLOW_VAULT_STORAGE_PATH, false],
+        user
+    )
+    Test.expect(openRes, Test.beFailed())
+    Test.assertError(openRes, errorMessage: "Price data's base timestamp 1771341870 exceeds the staleThreshold 1771345470 at current timestamp")
+
+    // Case 2: update the oracle price and retry opening the position
+
+    // update price for FLOW
+    let symbolPrices = { 
+        "FLOW": 1.0
+    }
+    setBandOraclePrices(signer: BAND_ORACLE_ACCOUNT, symbolPrices: symbolPrices)
+
+    // user should now be able to open the position
+    openRes = _executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [FLOWAmount, FLOW_VAULT_STORAGE_PATH, false],
+        user
+    )
+    Test.expect(openRes, Test.beSucceeded())
+}
+
+// -----------------------------------------------------------------------------
+/// Tests how the protocol behaves when the Band oracle returns no price (nil) for a token.
+/// 
+/// The test covers three scenarios:
+/// 1. The token has no oracle symbol mapping, transaction fails.
+/// 2. The symbol exists but the oracle has no price for it, transaction fails.
+/// 3. A valid price is provided, the position creation succeeds.
+// -----------------------------------------------------------------------------
+access(all)
+fun test_band_oracle_nil_price() {
+    // add Mocked Yield token as supported token (80% CF, 90% BF)
+    addSupportedTokenZeroRateCurve(
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MAINNET_MOCKED_YIELD_TOKEN_ID,
+        collateralFactor: 0.8,
+        borrowFactor: 0.9,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
+
+    updateOracleToBandOracle(signer: MAINNET_PROTOCOL_ACCOUNT)
+
+    // setup user account with MockYieldToken
+    let user = Test.createAccount()
+    let YIELDAmount = 1000.0
+    setupMockYieldTokenVault(user, beFailed: false)
+    mintMockYieldToken(signer: MAINNET_MOCKED_YIELD_TOKEN_ACCOUNT, to: user.address, amount: YIELDAmount, beFailed: false)
+
+    grantBetaPoolParticipantAccess(MAINNET_PROTOCOL_ACCOUNT, user)
+    
+    // Case 1: try to open a position without a registered oracle symbol, expect a price error
+    var openRes = _executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [YIELDAmount, MAINNET_YIELD_STORAGE_PATH, false],
+        user
+    )
+    Test.expect(openRes, Test.beFailed())
+    Test.assertError(openRes, errorMessage: "Base asset type A.6b00ff876c299c61.MockYieldToken.Vault does not have an assigned symbol")
+
+    // add a new YIELD symbol to BandOracleConnectors
+    addSymbolToBandOracle(
+        signer: BAND_ORACLE_CONNECTORS_ACCOUNT,
+        symbol: "YIELD",
+        tokenTypeIdentifier: MAINNET_MOCKED_YIELD_TOKEN_ID
+    )
+
+    // Case 2: try to open a position when the symbol exists but the oracle returns no price, expect price error
+    openRes = _executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [YIELDAmount, MAINNET_YIELD_STORAGE_PATH, false],
+        user
+    )
+        Test.expect(openRes, Test.beFailed())
+    Test.assertError(openRes, errorMessage: "Cannot get a quote for the requested symbol pair.")
+    
+    // Case 3: provide a valid oracle price, try to open position
+    
+    // update price for YIELD
+    let symbolPrices = { 
+        "YIELD": 1.0
+    }
+    setBandOraclePrices(signer: BAND_ORACLE_ACCOUNT, symbolPrices: symbolPrices)
+
+    // user should now be able to open the position
+    openRes = _executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [YIELDAmount, MAINNET_YIELD_STORAGE_PATH, false],
+        user
+    )
+    Test.expect(openRes, Test.beSucceeded())
+}
+
+// -----------------------------------------------------------------------------
+/// Tests that liquidation is prevented when the DEX price deviates too much
+/// from the Band oracle price.
+///
+/// The test creates an unhealthy position and configures the DEX price so that
+/// the deviation between the DEX price and the Band oracle price exceeds the
+/// configured deviation threshold.
+// -----------------------------------------------------------------------------
+access(all)
+fun test_band_oracle_dex_deviation_threshold() {
+    safeReset()
+
+    updateOracleToBandOracle(signer: MAINNET_PROTOCOL_ACCOUNT)
+    
+    // set initial Band oracle prices for USD (MOET) and FLOW
+    var symbolPrices = { 
+        "USD": 1.0,
+        "FLOW": 1.0
+    }
+    setBandOraclePrices(signer: BAND_ORACLE_ACCOUNT, symbolPrices: symbolPrices)
+
+    // setup moetLp account, create position
+    let moetLp = Test.createAccount()
+    let MOETAmount = 50000.0
+    setupMoetVault(moetLp, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: moetLp.address, amount: MOETAmount, beFailed: false)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: moetLp, amount: MOETAmount, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
+
+    // setup user account, create position
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    let FLOWAmount = 1000.0
+    transferFlowTokens(to: user, amount: FLOWAmount)
+    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: user, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+
+    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
+    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+
+    // borrow MOET against the FLOW collateral
+    borrowFromPosition(signer: user, positionId: pid, tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, amount: 700.0, beFailed: false)
+
+    // make the position unhealthy by lowering the FLOW oracle price
+    symbolPrices = { 
+        "FLOW": 0.7
+    }
+    setBandOraclePrices(signer: BAND_ORACLE_ACCOUNT, symbolPrices: symbolPrices)
+
+    // set a DEX price slightly different from the oracle price
+    //
+    // Oracle: $0.70
+    // DEX: $0.685
+    // deviation = |0.685-0.70|/0.685 = 2.19%
+    setMockDexPriceForPair(
+        signer: MAINNET_PROTOCOL_ACCOUNT,
+        inVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
+        outVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        vaultSourceStoragePath: MAINNET_MOET_STORAGE_PATH,
+        priceRatio: 0.685
+    )
+
+    // tighten the allowed deviation threshold to 100 bps (1%)
+    setDexLiquidationConfig(signer: MAINNET_PROTOCOL_ACCOUNT, dexOracleDeviationBps: 100)
+
+    // setup liquidator account
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: liquidator.address, amount: 500.0, beFailed: false)
+
+    // liquidation should now fail (2.19% > 1% threshold)
+    let liqRes = manualLiquidation(
+        signer: liquidator,
+        pid: pid,
+        debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
+        seizeVaultIdentifier: MAINNET_FLOW_TOKEN_ID,
+        seizeAmount: 140.0,
+        repayAmount: 100.0,
+    )
+    Test.expect(liqRes, Test.beFailed())
+    Test.assertError(liqRes, errorMessage: "DEX/oracle price deviation too large")
 }
