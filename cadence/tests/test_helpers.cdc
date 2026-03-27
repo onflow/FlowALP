@@ -811,6 +811,16 @@ fun getPositionsByIDs(positionIDs: [UInt64]): [FlowALPv0.PositionDetails] {
 }
 
 access(all)
+fun tryGetPositionDetails(pid: UInt64): FlowALPv0.PositionDetails? {
+    let res = _executeScript(
+        "../scripts/flow-alp/try_get_position_details.cdc",
+        [pid]
+    )
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! FlowALPv0.PositionDetails?
+}
+
+access(all)
 fun closePosition(user: Test.TestAccount, positionID: UInt64) {
     let res = _executeTransaction(
         "../transactions/flow-alp/position/repay_and_close_position.cdc",
