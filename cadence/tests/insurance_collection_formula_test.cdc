@@ -91,12 +91,13 @@ fun test_collectInsurance_success_fullAmount() {
 
     let collectedInsuranceAmount = finalInsuranceBalance - initialInsuranceBalance
 
-    // collectProtocolFees withdraws both insurance AND stability in one call.
-    // With insuranceRate=0.1 and stabilityFeeRate=0.05 (default), both are withdrawn.
+    // collectInsurance accumulates both insurance AND stability in one call,
+    // and only insurance was withdrawn, with insuranceRate=0.1.
     let stabilityFundBalance = getStabilityFundBalance(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER) ?? 0.0
+    Test.assertEqual(0.0, stabilityFundBalance)
     let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
-    // Total withdrawn = insurance (→ fund via swap with 1:1 ratio) + stability (kept as MOET)
-    Test.assertEqual(amountWithdrawnFromReserves, collectedInsuranceAmount + stabilityFundBalance)
+    // Total withdrawn = insurance (→ fund via swap with 1:1 ratio)
+    Test.assertEqual(amountWithdrawnFromReserves, collectedInsuranceAmount)
 
     // verify last insurance collection time was updated to current block timestamp
     let currentTimestamp = getBlockTimestamp()

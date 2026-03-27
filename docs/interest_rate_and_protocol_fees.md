@@ -225,9 +225,9 @@ The update calculates the time elapsed since `lastUpdate` and compounds the inte
 
 ## Protocol Fee Accumulation
 
-### `collectProtocolFees()` Accumulator
+### `accumulateProtocolFees()` Accumulator
 
-Insurance and stability fees are both computed in a single `TokenState.collectProtocolFees()` method. It is called automatically before every balance or rate mutation to ensure fees settle at the rate that was in effect when they accrued:
+Insurance and stability fees are both computed in a single `TokenState.accumulateProtocolFees()` method. It is called automatically before every balance or rate mutation to ensure fees settle at the rate that was in effect when they accrued:
 
 ```
 currentDebitRate = 1.0 + debitRatePerSecond
@@ -251,7 +251,7 @@ The two accumulators are read and reset by `_withdrawInsurance` and `_withdrawSt
 
 ### When Fees Are Settled
 
-`collectProtocolFees()` is triggered on every mutation that could change the fee calculation:
+`accumulateProtocolFees()` is triggered on every mutation that could change the fee calculation:
 - `increaseCreditBalance` / `decreaseCreditBalance`
 - `increaseDebitBalance` / `decreaseDebitBalance`
 - `setInterestCurve`
@@ -279,7 +279,7 @@ Insurance is collected through `collectInsurance()` function on `Pool` in `FlowA
    insuranceAmount = tokenState.accumulatedInsuranceFeeIncome
    (reset to 0 after reading)
    ```
-   The accumulation itself happens in `collectProtocolFees()` (see above).
+   The accumulation itself happens in `accumulateProtocolFees()` (see above).
 
 2. **Withdraws from Reserves**:
    - Withdraws the calculated insurance amount from the token's reserve vault
@@ -341,7 +341,7 @@ Stability fees are collected through `_withdrawStability()` in `FlowALPv0`, whic
    stabilityAmount = tokenState.accumulatedStabilityFeeIncome
    (reset to 0 after reading)
    ```
-   The accumulation itself happens in `collectProtocolFees()` (see above).
+   The accumulation itself happens in `accumulateProtocolFees()` (see above).
 
 2. **Withdraws from Reserves**:
    - Withdraws the calculated stability amount from the token's reserve vault
@@ -380,30 +380,34 @@ This emits a `StabilityFundWithdrawn` event for transparency and accountability.
 
 1. **Initial State**:
    - Total credit balance (lender deposits): 10,000 FLOW
-   - Total debit balance (borrower debt): 8,000 FLOW  → utilization U = 0.8
-   - Debit nominal yearly rate: 10%
+   - Total debit balance (borrower debt): 1,000 FLOW  → utilization U = 0.1
+   - KinkCurve parameters (Aave v3 "Volatile One" profile): `optimalUtilization = 0.45`, `baseRate = 0.0`, `slope1 = 0.04`, `slope2 = 3.0`
    - Insurance rate: 0.1% (`0.001`)
    - Stability fee rate: 5% (`0.05`)
    - `protocolFeeRate = 0.001 + 0.05 = 0.051`
 
-2. **Per-Second Rates**:
-   - `debitRatePerSec = 0.10 / 31_557_600 ≈ 3.169e-9`
-   - `creditRatePerSec = 3.169e-9 × (1 - 0.051) × 0.8 = 2.406e-9`
+2. **KinkCurve Rate Computation**:
+   - Since `u = 0.10 ≤ u* = 0.45`:
+   - `debitRate = baseRate + slope1 × (u / u*) = 0.0 + 0.04 × (0.10 / 0.45) ≈ 0.00889` (≈ 0.889% nominal yearly rate)
 
-3. **After 1 Year**:
+3. **Per-Second Rates**:
+   - `debitRatePerSec = 0.00889 / 31_557_600 ≈ 2.817e-10`
+   - `creditRatePerSec = 2.817e-10 × (1 - 0.051) × 0.1 ≈ 2.673e-11`
+
+4. **After 1 Year**:
    - perSecondDebitRate = 1.0 + debitRatePerSec
    - perSecondCreditRate = 1.0 + creditRatePerSec
-   - `debitIncome  = 8,000 × (perSecondDebitRate ^ 31_557_600 − 1) ≈ 841.37 FLOW`
-   - `creditIncome = 10,000 × (perSecondCreditRate ^ 31_557_600 − 1) ≈ 792.54 FLOW`
-   - `protocolFeeIncome = 841.37 − 792.54 = 48.83 FLOW`
-   - `insuranceFee = 48.83 × 0.001 / 0.051 ≈ 0.957 FLOW` → converted to MOET
-   - `stabilityFee = 48.83 × 0.050 / 0.051 ≈ 47.87 FLOW` → kept as FLOW
-   - Net lender return = creditIncome = 792.54 FLOW
-   - Effective lender yield over the year: 792.54 / 10,000 ≈ 7.93%
+   - `debitIncome  = 1,000 × (perSecondDebitRate ^ 31_557_600 − 1) ≈ 8.9294 FLOW`
+   - `creditIncome = 10,000 × (perSecondCreditRate ^ 31_557_600 − 1) ≈ 8.4389 FLOW`
+   - `protocolFeeIncome = 8.9294 − 8.4389 = 0.4905 FLOW`
+   - `insuranceFee = 0.4905 × 0.001 / 0.051 ≈ 0.0096 FLOW` → converted to MOET
+   - `stabilityFee = protocolFeeIncome - insuranceFee ≈ 0.4809 FLOW` → kept as FLOW
+   - Net lender return = creditIncome = 8.4389 FLOW
+   - Effective lender yield over the year: 8.4389 / 10,000 ≈ 0.084%
 
-4. **Fund Accumulation**:
-   - Insurance fund: +0.957 FLOW worth of MOET (permanent, for bad debt coverage)
-   - Stability fund (FLOW): +47.87 FLOW (available for MOET stability operations)
+5. **Fund Accumulation**:
+   - Insurance fund: +0.0096 FLOW worth of MOET (permanent, for bad debt coverage)
+   - Stability fund (FLOW): +0.4809 FLOW (available for MOET stability operations)
 
 ## Key Design Decisions
 
@@ -421,7 +425,7 @@ This emits a `StabilityFundWithdrawn` event for transparency and accountability.
 
 7. **Spread-Based Fee Formula**: Fees are taken from `debitIncome - creditIncome` (the spread), not from gross debit income. This ensures that at zero utilization or zero protocol fee rate no fees are collected, and that the fee split between insurance and stability is always exact regardless of curve type.
 
-8. **Single `collectProtocolFees()` Accumulator**: A single shared accumulator and timestamp for both fees ensures they always use the same elapsed-time window and that a rate change for one fee type does not inadvertently double-count or skip the other.
+8. **Single `accumulateProtocolFees()` Accumulator**: A single shared accumulator and timestamp for both fees ensures they always use the same elapsed-time window and that a rate change for one fee type does not inadvertently double-count or skip the other.
 
 9. **Token-Specific Swappers**: Each token can have its own insurance swapper, allowing flexibility in how different tokens are converted to MOET.
 

@@ -112,7 +112,7 @@ fun test_collectStability_insufficientReserves() {
     Test.assertEqual(nil, finalStabilityBalance)
     Test.assertEqual(reserveBalanceBefore, reserveBalanceAfter)
 
-    // In the accumulator model, collectProtocolFees() is always called and updates the timestamp
+    // In the accumulator model, accumulateProtocolFees() is always called and updates the timestamp
     // even when reserves are insufficient. Fees accumulate in the accumulator until reserves recover.
     Test.assert(lastCollectionTimeAfter! > lastCollectionTimeBefore!, message: "Timestamp should be updated even on failed collection")
 }

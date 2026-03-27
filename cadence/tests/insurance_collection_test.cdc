@@ -165,7 +165,7 @@ fun test_collectInsurance_insufficientReserves() {
     Test.assertEqual(0.0, finalInsuranceBalance)
     Test.assertEqual(reserveBalanceBefore, reserveBalanceAfter)
 
-    // In the accumulator model, collectProtocolFees() is always called and updates the timestamp
+    // In the accumulator model, accumulateProtocolFees() is always called and updates the timestamp
     // even when reserves are insufficient. Fees accumulate in the accumulator until reserves recover.
     Test.assert(lastCollectionTimeAfter! > lastCollectionTimeBefore!, message: "Timestamp should be updated even on failed collection")
 
@@ -275,8 +275,9 @@ fun test_collectInsurance_success_fullAmount() {
     // collectInsurance only drains the insurance accumulator; stability remains in its accumulator
     // until collectStability is called separately.
     let stabilityFundBalance = getStabilityFundBalance(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER) ?? 0.0
+    Test.assertEqual(0.0, stabilityFundBalance)
     let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
-    Test.assertEqual(amountWithdrawnFromReserves, finalInsuranceBalance + stabilityFundBalance)
+    Test.assertEqual(amountWithdrawnFromReserves, finalInsuranceBalance)
 
     // verify last insurance collection time was updated to current block timestamp
     let currentTimestamp = getBlockTimestamp()

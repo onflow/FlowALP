@@ -1935,7 +1935,7 @@ access(all) contract FlowALPv0 {
             maxDeviationBps: UInt16
         ): @MOET.Vault? {
 
-            tokenState.collectProtocolFees()
+            tokenState.accumulateProtocolFees()
             let insuranceAmount = tokenState.getCollectInsuranceAmount()
 
             if insuranceAmount == 0.0 {
@@ -1977,7 +1977,7 @@ access(all) contract FlowALPv0 {
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
         ): @{FungibleToken.Vault}? {
 
-            tokenState.collectProtocolFees()
+            tokenState.accumulateProtocolFees()
             let stabilityAmount = tokenState.getCollectStabilityAmount()
 
             if stabilityAmount == 0.0 {

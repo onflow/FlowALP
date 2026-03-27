@@ -970,7 +970,7 @@ access(all) contract FlowALPModels {
 
         /// Accumulates protocol fees (insurance + stability) for elapsed time since last collection.
         /// Called before any balance or rate change to capture fees at the current rates and balances.
-        access(EImplementation) fun collectProtocolFees()
+        access(EImplementation) fun accumulateProtocolFees()
 
         /// Per-position limit fraction of capacity (default 0.05 i.e., 5%)
         access(all) view fun getDepositLimitFraction(): UFix64
@@ -1307,7 +1307,7 @@ access(all) contract FlowALPModels {
 
         /// Sets the insurance rate. See TokenState.setInsuranceRate.
         access(EImplementation) fun setInsuranceRate(_ rate: UFix64) {
-            self.collectProtocolFees()
+            self.accumulateProtocolFees()
             self.insuranceRate = rate
             self.updateForUtilizationChange()
         }
@@ -1351,7 +1351,7 @@ access(all) contract FlowALPModels {
 
         /// Sets the stability fee rate. See TokenState.setStabilityFeeRate.
         access(EImplementation) fun setStabilityFeeRate(_ rate: UFix64) {
-            self.collectProtocolFees()
+            self.accumulateProtocolFees()
             self.stabilityFeeRate = rate
             self.updateForUtilizationChange()
         }
@@ -1363,7 +1363,7 @@ access(all) contract FlowALPModels {
 
         /// Sets the interest curve. Recalculates interest rates immediately. See TokenState.setInterestCurve.
         access(EImplementation) fun setInterestCurve(_ curve: {FlowALPInterestRates.InterestCurve}) {
-            self.collectProtocolFees()
+            self.accumulateProtocolFees()
             self.interestCurve = curve
             // Update rates immediately to reflect the new curve
             self.updateInterestRates()
@@ -1501,14 +1501,14 @@ access(all) contract FlowALPModels {
 
         /// Increases total credit balance by the given amount and recalculates interest rates.
         access(EImplementation) fun increaseCreditBalance(by amount: UFix128) {
-            self.collectProtocolFees()
+            self.accumulateProtocolFees()
             self.totalCreditBalance = self.totalCreditBalance + amount
             self.updateForUtilizationChange()
         }
 
         /// Decreases total credit balance by the given amount (floored at 0) and recalculates interest rates.
         access(EImplementation) fun decreaseCreditBalance(by amount: UFix128) {
-            self.collectProtocolFees()
+            self.accumulateProtocolFees()
             if amount >= self.totalCreditBalance {
                 self.totalCreditBalance = 0.0
             } else {
@@ -1519,14 +1519,14 @@ access(all) contract FlowALPModels {
 
         /// Increases total debit balance by the given amount and recalculates interest rates.
         access(EImplementation) fun increaseDebitBalance(by amount: UFix128) {
-            self.collectProtocolFees()
+            self.accumulateProtocolFees()
             self.totalDebitBalance = self.totalDebitBalance + amount
             self.updateForUtilizationChange()
         }
 
         /// Decreases total debit balance by the given amount (floored at 0) and recalculates interest rates.
         access(EImplementation) fun decreaseDebitBalance(by amount: UFix128) {
-            self.collectProtocolFees()
+            self.accumulateProtocolFees()
             if amount >= self.totalDebitBalance {
                 self.totalDebitBalance = 0.0
             } else {
@@ -1541,9 +1541,6 @@ access(all) contract FlowALPModels {
         /// Note: This function only accrues fee income and does not withdraw it from the reserve.
         /// This is intentional—if the protocol becomes insolvent, fees should remain in the reserve
         /// and continue to accumulate until the protocol recovers, rather than being withdrawn.
-        /// Note: This function only accrues fee income and does not withdraw it from the reserve.
-        /// This is intentional—if the protocol becomes insolvent, fees should remain in the reserve
-        /// and continue to accumulate until the protocol recovers, rather than being withdrawn.
         access(EImplementation) fun accumulateProtocolFees() {
             let currentTime = getCurrentBlock().timestamp
             
@@ -1554,9 +1551,6 @@ access(all) contract FlowALPModels {
             }
 
             let timeElapsed = currentTime - self.lastProtocolFeeCollectionTime
-            if timeElapsed <= 0.0 {
-                return
-            }
 
             let debitIncome = self.totalDebitBalance * (FlowALPMath.powUFix128(self.currentDebitRate, timeElapsed) - 1.0)
             let creditIncome = self.totalCreditBalance * (FlowALPMath.powUFix128(self.currentCreditRate, timeElapsed) - 1.0)
