@@ -1165,7 +1165,7 @@ access(all) contract FlowALPv0 {
                 pid: pid,
                 poolUUID: self.uuid,
                 vaultType: type,
-                amount: amount,
+                amount: acceptedAmount,
                 depositedUUID: depositedUUID
             )
 
