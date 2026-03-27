@@ -394,6 +394,7 @@ access(all) contract FlowALPModels {
         }
 
         /// Returns the true balance for the given internal (scaled) balance, accounting for accrued interest.
+        /// TODO: This could be view, but Cadence seems to interpret constructing a Balance as modifying state
         access(all) fun trueBalance(balance: InternalBalance): Balance {
             let scaled = balance.getScaledBalance()
             let interestIndex = scaled.direction == BalanceDirection.Credit
@@ -2247,14 +2248,14 @@ access(all) contract FlowALPModels {
         /// Borrows an authorized internal position reference.
         access(EPosition) view fun borrowPosition(pid: UInt64): auth(EImplementation) &{InternalPosition}
 
-        /// Deposits funds to a position and optionally pushes excess to draw-down sink.
+        /// Deposits funds to a position. If `pushToDrawDownSink` is true, always rebalances to targetHealth.
         access(EPosition) fun depositAndPush(
             pid: UInt64,
             from: @{FungibleToken.Vault},
             pushToDrawDownSink: Bool
         )
 
-        /// Withdraws funds from a position and optionally pulls deficit from top-up source.
+        /// Withdraws funds from a position. If `pullFromTopUpSource` is true, always rebalances to targetHealth.
         access(EPosition) fun withdrawAndPull(
             pid: UInt64,
             type: Type,
