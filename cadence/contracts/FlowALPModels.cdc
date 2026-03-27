@@ -1538,6 +1538,9 @@ access(all) contract FlowALPModels {
         /// Accumulates insurance and stability fee income for the elapsed time since the last call.
         /// Updates lastProtocolFeeCollectionTime to the current block timestamp.
         /// Must be called before any balance or rate change to settle fees at current rates.
+        /// Note: This function only accrues fee income and does not withdraw it from the reserve.
+        /// This is intentional—if the protocol becomes insolvent, fees should remain in the reserve
+        /// and continue to accumulate until the protocol recovers, rather than being withdrawn.
         access(EImplementation) fun collectProtocolFees() {
             let currentTime = getCurrentBlock().timestamp
             
