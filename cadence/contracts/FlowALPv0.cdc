@@ -264,7 +264,7 @@ access(all) contract FlowALPv0 {
         /// Returns nil if the token type is not supported.
         access(all) view fun getLastStabilityCollectionTime(tokenType: Type): UFix64? {
             if let tokenState = self.state.getTokenState(tokenType) {
-                return tokenState.getLastStabilityFeeCollectionTime()
+                return tokenState.getLastProtocolFeeCollectionTime()
             }
 
             return nil
@@ -282,7 +282,7 @@ access(all) contract FlowALPv0 {
         /// Returns nil if the token type is not supported
         access(all) view fun getLastInsuranceCollectionTime(tokenType: Type): UFix64? {
             if let tokenState = self.state.getTokenState(tokenType) {
-                return tokenState.getLastInsuranceCollectionTime()
+                return tokenState.getLastProtocolFeeCollectionTime()
             }
             return nil
         }
@@ -1480,7 +1480,7 @@ access(all) contract FlowALPv0 {
                 )
             }
             // Collect all insurance fees accrued under the old rate before applying the new one, the new rate applies only to time elapsed from this point forward
-            self.updateInterestRatesAndCollectInsurance(tokenType: tokenType)
+            self._collectInsurance(tokenType: tokenType)
 
             tsRef.setInsuranceRate(insuranceRate)
 
@@ -1525,7 +1525,7 @@ access(all) contract FlowALPv0 {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
-            self.updateInterestRatesAndCollectInsurance(tokenType: tokenType)
+            self._collectInsurance(tokenType: tokenType)
         }
 
         /// Updates the per-deposit limit fraction for a given token (fraction in [0,1])
@@ -1591,7 +1591,7 @@ access(all) contract FlowALPv0 {
                 ?? panic("Invariant: token state missing")
 
             // Collect all stability fees accrued under the old rate before applying the new one, the new rate applies only to time elapsed from this point forward
-            self.updateInterestRatesAndCollectStability(tokenType: tokenType)
+            self._collectStability(tokenType: tokenType)
 
             tsRef.setStabilityFeeRate(stabilityFeeRate)
 
@@ -1636,7 +1636,7 @@ access(all) contract FlowALPv0 {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
-            self.updateInterestRatesAndCollectStability(tokenType: tokenType)
+            self._collectStability(tokenType: tokenType)
         }
 
         /// Regenerates deposit capacity for all supported token types
@@ -1877,7 +1877,7 @@ access(all) contract FlowALPv0 {
         /// This method should be called periodically to ensure rates are current and fee amounts are collected.
         ///
         /// @param tokenType: The token type to update rates for
-        access(self) fun updateInterestRatesAndCollectStability(tokenType: Type) {
+        access(self) fun _collectStability(tokenType: Type) {
             let tokenState = self._borrowUpdatedTokenState(type: tokenType)
             tokenState.updateInterestRates()
 
@@ -1890,7 +1890,7 @@ access(all) contract FlowALPv0 {
             let reserveRef = self.state.borrowReserve(tokenType)!
 
             // Collect stability and get token vault
-            if let collectedVault <- self._collectStability(tokenState: tokenState, reserveVault: reserveRef) {
+            if let collectedVault <- self._withdrawStability(tokenState: tokenState, reserveVault: reserveRef) {
                 let collectedBalance = collectedVault.balance
                 // Deposit collected token into stability fund
                 if !self.state.hasStabilityFund(tokenType) {
@@ -1904,7 +1904,7 @@ access(all) contract FlowALPv0 {
                     poolUUID: self.uuid,
                     tokenType: tokenType.identifier,
                     stabilityAmount: collectedBalance,
-                    collectionTime: tokenState.getLastStabilityFeeCollectionTime()
+                    collectionTime: tokenState.getLastProtocolFeeCollectionTime()
                 )
             }
         }
@@ -1917,52 +1917,39 @@ access(all) contract FlowALPv0 {
         /// fees will not be settled under the old rate. When reserves eventually recover, the entire
         /// elapsed window — including the period before the rate change — will be collected under the
         /// new rate, causing over- or under-collection for that period.
-        access(self) fun _collectInsurance(
+        access(self) fun _withdrawInsurance(
             tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
             oraclePrice: UFix64,
             maxDeviationBps: UInt16
         ): @MOET.Vault? {
-            let currentTime = getCurrentBlock().timestamp
 
-            if tokenState.getInsuranceRate() == 0.0 {
-                tokenState.setLastInsuranceCollectionTime(currentTime)
+            tokenState.accumulateProtocolFees()
+            let insuranceAmount = tokenState.getCollectInsuranceAmount()
+
+            if insuranceAmount == 0.0 {
                 return nil
             }
 
-            let timeElapsed = currentTime - tokenState.getLastInsuranceCollectionTime()
-            if timeElapsed <= 0.0 {
-                return nil
-            }
-
-            let debitIncome = tokenState.getTotalDebitBalance() * (FlowALPMath.powUFix128(tokenState.getCurrentDebitRate(), timeElapsed) - 1.0)
-            let insuranceAmount = debitIncome * UFix128(tokenState.getInsuranceRate())
-            let insuranceAmountUFix64 = FlowALPMath.toUFix64RoundDown(insuranceAmount)
-
-            if insuranceAmountUFix64 == 0.0 {
-                tokenState.setLastInsuranceCollectionTime(currentTime)
-                return nil
-            }
-
-            if insuranceAmountUFix64 > reserveVault.balance {
+            if insuranceAmount > reserveVault.balance {
                 // do not collect the insurance fee if the reserve doesn't have enough tokens to cover the full amount 
                 return nil
             }
 
-            let insuranceVault <- reserveVault.withdraw(amount: insuranceAmountUFix64)
+            let insuranceVault <- reserveVault.withdraw(amount: insuranceAmount)
             let insuranceSwapper = tokenState.getInsuranceSwapper() ?? panic("missing insurance swapper")
 
             assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
             assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
 
-            let quote = insuranceSwapper.quoteOut(forProvided: insuranceAmountUFix64, reverse: false)
+            let quote = insuranceSwapper.quoteOut(forProvided: insuranceAmount, reverse: false)
             let dexPrice = quote.outAmount / quote.inAmount
             assert(
                 FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
                 message: "DEX/oracle price deviation exceeds \(maxDeviationBps)bps. Dex price: \(dexPrice), Oracle price: \(oraclePrice)",
             )
             var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
-            tokenState.setLastInsuranceCollectionTime(currentTime)
+            tokenState.resetCollectInsuranceAmount()
             return <-moetVault
         }
 
@@ -1974,39 +1961,25 @@ access(all) contract FlowALPv0 {
         /// fees will not be settled under the old rate. When reserves eventually recover, the entire
         /// elapsed window — including the period before the rate change — will be collected under the
         /// new rate, causing over- or under-collection for that period.
-        access(self) fun _collectStability(
+        access(self) fun _withdrawStability(
             tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
         ): @{FungibleToken.Vault}? {
-            let currentTime = getCurrentBlock().timestamp
 
-            if tokenState.getStabilityFeeRate() == 0.0 {
-                tokenState.setLastStabilityFeeCollectionTime(currentTime)
+            tokenState.accumulateProtocolFees()
+            let stabilityAmount = tokenState.getCollectStabilityAmount()
+
+            if stabilityAmount == 0.0 {
                 return nil
             }
 
-            let timeElapsed = currentTime - tokenState.getLastStabilityFeeCollectionTime()
-            if timeElapsed <= 0.0 {
-                return nil
-            }
-
-            let stabilityFeeRate = UFix128(tokenState.getStabilityFeeRate())
-            let interestIncome = tokenState.getTotalDebitBalance() * (FlowALPMath.powUFix128(tokenState.getCurrentDebitRate(), timeElapsed) - 1.0)
-            let stabilityAmount = interestIncome * stabilityFeeRate
-            let stabilityAmountUFix64 = FlowALPMath.toUFix64RoundDown(stabilityAmount)
-
-            if stabilityAmountUFix64 == 0.0 {
-                tokenState.setLastStabilityFeeCollectionTime(currentTime)
-                return nil
-            }
-
-            if stabilityAmountUFix64 > reserveVault.balance {
+            if stabilityAmount > reserveVault.balance {
                 // do not collect the stability fee if the reserve doesn't have enough tokens to cover the full amount 
                 return nil
             }
 
-            let stabilityVault <- reserveVault.withdraw(amount: stabilityAmountUFix64)  
-            tokenState.setLastStabilityFeeCollectionTime(currentTime)
+            let stabilityVault <- reserveVault.withdraw(amount: stabilityAmount)  
+            tokenState.resetCollectStabilityAmount()
             return <-stabilityVault
         }
 
@@ -2105,7 +2078,7 @@ access(all) contract FlowALPv0 {
         /// This method should be called periodically to ensure rates are current and insurance is collected.
         ///
         /// @param tokenType: The token type to update rates for
-        access(self) fun updateInterestRatesAndCollectInsurance(tokenType: Type) {
+        access(self) fun _collectInsurance(tokenType: Type) {
             let tokenState = self._borrowUpdatedTokenState(type: tokenType)
             tokenState.updateInterestRates()
 
@@ -2119,7 +2092,7 @@ access(all) contract FlowALPv0 {
             if let reserveRef = self.state.borrowReserve(tokenType) {
                 // Collect insurance and get MOET vault
                 let oraclePrice = self.config.getPriceOracle().price(ofToken: tokenType)!
-                if let collectedMOET <- self._collectInsurance(
+                if let collectedMOET <- self._withdrawInsurance(
                     tokenState: tokenState,
                     reserveVault: reserveRef,
                     oraclePrice: oraclePrice,
@@ -2133,7 +2106,7 @@ access(all) contract FlowALPv0 {
                         poolUUID: self.uuid,
                         tokenType: tokenType.identifier,
                         insuranceAmount: collectedMOETBalance,
-                        collectionTime: tokenState.getLastInsuranceCollectionTime()
+                        collectionTime: tokenState.getLastProtocolFeeCollectionTime()
                     )
                 }
             }
