@@ -554,7 +554,7 @@ access(all) contract FlowALPModels {
         ) {
             // Enforce single balance per token invariant: if a type appears in one map, it must not appear in the other.
             for collateralType in effectiveCollateral.keys {
-                assert(effectiveDebt[collateralType] == nil)
+                assert(effectiveDebt[collateralType] == nil, message: "cannot construct BalanceShet: observed both credit and debit balance for \(collateralType)")
             }
 
             self.effectiveCollateralByToken = effectiveCollateral

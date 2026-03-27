@@ -692,7 +692,7 @@ access(all) contract FlowALPv0 {
         /// Computes the effective collateral and debt after a hypothetical withdrawal,
         /// accounting for whether the withdrawal reduces credit or increases debt.
         ///
-        /// @param balanceSheet The position's current balance sheet.
+        /// @param initialBalanceSheet The position's current balance sheet.
         /// @param position The position reference.
         /// @param withdrawType The token type being withdrawn.
         /// @param withdrawAmount The amount being withdrawn.
@@ -729,9 +729,7 @@ access(all) contract FlowALPv0 {
         ///
         /// @param position The position reference.
         /// @param depositType The token type being deposited.
-        /// @param withdrawType The token type being withdrawn (used for context).
-        /// @param effectiveCollateral The effective collateral after the proposed withdrawal.
-        /// @param effectiveDebt The effective debt after the proposed withdrawal.
+        /// @param initialBalanceSheet The position's balance sheet prior to the deposit
         /// @param targetHealth The desired health to achieve.
         /// @return The amount of depositType needed, or 0.0 if already at or above target.
         access(self) fun computeRequiredDepositForHealth(
@@ -830,7 +828,7 @@ access(all) contract FlowALPv0 {
         /// Computes the effective collateral and debt after a hypothetical deposit,
         /// accounting for whether the deposit adds collateral or reduces debt.
         ///
-        /// @param balanceSheet The position's current balance sheet.
+        /// @param initialBalanceSheet The position's current balance sheet.
         /// @param position The position reference.
         /// @param depositType The token type being deposited.
         /// @param depositAmount The amount being deposited.
@@ -865,9 +863,7 @@ access(all) contract FlowALPv0 {
         /// the target health, given pre-adjusted effective collateral and debt values.
         ///
         /// @param position The position reference.
-        /// @param withdrawType The token type being withdrawn.
-        /// @param effectiveCollateral The effective collateral (already adjusted for any prior deposit).
-        /// @param effectiveDebt The effective debt (already adjusted for any prior deposit).
+        /// @param initialBalanceSheet The position's current balance sheet 
         /// @param targetHealth The minimum health to maintain after withdrawal.
         /// @return The maximum withdrawable amount of withdrawType.
         access(self) fun computeAvailableWithdrawal(
@@ -2020,6 +2016,11 @@ access(all) contract FlowALPv0 {
                 let balance = position.getBalance(type)!
                 let tokenState = self._borrowUpdatedTokenState(type: type)
                 let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
+            let oracle = self.config.getPriceOracle()
+            for type in position.getBalanceKeys() {
+                let balance = position.getBalance(type)!
+                let tokenState = self._borrowUpdatedTokenState(type: type)
+                let price = UFix128(oracle.price(ofToken: type)!)
 
                 switch balance.getScaledBalance().direction {
                     case FlowALPModels.BalanceDirection.Credit:
