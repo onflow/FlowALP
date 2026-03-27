@@ -24,7 +24,7 @@ The insurance fund serves as the protocol's **reserve for covering bad debt**, a
 
 #### Stability Fund
 
-The stability fund provides **flexible funding for MOET stability operations**. A percentage of protocol spread income is collected and held in native token vaults (FLOW, USDC, etc.), with each token type having its own separate vault. These funds can be withdrawn by the governance committee via `withdrawStabilityFund()` to improve the stability of MOET at their discretion—whether by adding liquidity to specific pools, repurchasing MOET if it's trading under peg compared to the underlying basket of assets, or other stabilization strategies. All withdrawals emit `StabilityFundWithdrawn` events for public accountability and transparency.
+The stability fund provides **flexible funding for MOET stability operations**. A percentage of protocol spread income (borrower income − lender cost) is collected and held in native token vaults (FLOW, USDC, etc.), with each token type having its own separate vault. These funds can be withdrawn by the governance committee via `withdrawStabilityFund()` to improve the stability of MOET at their discretion—whether by adding liquidity to specific pools, repurchasing MOET if it's trading under peg compared to the underlying basket of assets, or other stabilization strategies. All withdrawals emit `StabilityFundWithdrawn` events for public accountability and transparency.
 
 ### Fee Deduction from Lender Returns
 
@@ -138,14 +138,16 @@ and `protocolFeeRate` must be `< 1.0`.
 
 For **FixedCurve** (used for stable assets like MOET):
 ```
-currentCreditRate = 1.0 + debitRatePerSecond * (1.0 - protocolFeeRate)
+creditRatePerSecond = debitRatePerSecond * (1.0 - protocolFeeRate)
+currentCreditRate = 1.0 + creditRatePerSecond
 ```
 
 The per-second credit excess is the debit excess scaled down by `(1 - protocolFeeRate)`. This is a fixed spread at the per-second level, independent of utilization.
 
 For **KinkCurve** and other non-fixed curves (reserve factor model):
 ```
-currentCreditRate = 1.0 + debitRatePerSecond * (1.0 - protocolFeeRate) * totalDebitBalance / totalCreditBalance
+creditRatePerSecond = debitRatePerSecond * (1.0 - protocolFeeRate) * totalDebitBalance / totalCreditBalance
+currentCreditRate = 1.0 + creditRatePerSecond
 ```
 
 The per-second credit excess is further scaled by the utilization ratio (`totalDebit / totalCredit`). This ensures the total interest paid by borrowers equals the total interest earned by lenders plus protocol fees, regardless of the utilization level.
@@ -228,9 +230,11 @@ The update calculates the time elapsed since `lastUpdate` and compounds the inte
 Insurance and stability fees are both computed in a single `TokenState.collectProtocolFees()` method. It is called automatically before every balance or rate mutation to ensure fees settle at the rate that was in effect when they accrued:
 
 ```
-timeElapsed = currentTime - lastProtocolFeeCollectionTime
-debitIncome  = totalDebitBalance  * (currentDebitRate  ^ timeElapsed - 1.0)
-creditIncome = totalCreditBalance * (currentCreditRate ^ timeElapsed - 1.0)
+currentDebitRate = 1.0 + debitRatePerSecond
+currentCreditRate = 1.0 + creditRatePerSecond
+secondsElapsed = currentTime - lastProtocolFeeCollectionTime
+debitIncome  = totalDebitBalance  * (currentDebitRate  ^ secondsElapsed - 1.0)
+creditIncome = totalCreditBalance * (currentCreditRate ^ secondsElapsed - 1.0)
 protocolFeeIncome = max(0, debitIncome - creditIncome)
 
 insuranceFeeAmount = protocolFeeIncome * insuranceRate / (insuranceRate + stabilityFeeRate)
@@ -384,10 +388,11 @@ This emits a `StabilityFundWithdrawn` event for transparency and accountability.
 
 2. **Per-Second Rates**:
    - `debitRatePerSec = 0.10 / 31_557_600 ≈ 3.169e-9`
-   - `currentDebitRate = 1 + 3.169e-9`
-   - KinkCurve path: `currentCreditRate = 1 + 3.169e-9 × (1 - 0.051) × 0.8 = 1 + 2.406e-9`
+   - `creditRatePerSec = 3.169e-9 × (1 - 0.051) × 0.8 = 2.406e-9`
 
 3. **After 1 Year**:
+   - perSecondDebitRate = 1.0 + debitRatePerSec
+   - perSecondCreditRate = 1.0 + creditRatePerSec
    - `debitIncome  = 8,000 × (perSecondDebitRate ^ 31_557_600 − 1) ≈ 841.37 FLOW`
    - `creditIncome = 10,000 × (perSecondCreditRate ^ 31_557_600 − 1) ≈ 792.54 FLOW`
    - `protocolFeeIncome = 841.37 − 792.54 = 48.83 FLOW`

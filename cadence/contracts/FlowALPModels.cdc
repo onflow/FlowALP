@@ -1541,7 +1541,10 @@ access(all) contract FlowALPModels {
         /// Note: This function only accrues fee income and does not withdraw it from the reserve.
         /// This is intentional—if the protocol becomes insolvent, fees should remain in the reserve
         /// and continue to accumulate until the protocol recovers, rather than being withdrawn.
-        access(EImplementation) fun collectProtocolFees() {
+        /// Note: This function only accrues fee income and does not withdraw it from the reserve.
+        /// This is intentional—if the protocol becomes insolvent, fees should remain in the reserve
+        /// and continue to accumulate until the protocol recovers, rather than being withdrawn.
+        access(EImplementation) fun accumulateProtocolFees() {
             let currentTime = getCurrentBlock().timestamp
             
             let totalProtocolFeeRate = self.insuranceRate + self.stabilityFeeRate
