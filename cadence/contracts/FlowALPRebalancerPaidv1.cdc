@@ -242,6 +242,7 @@ access(all) contract FlowALPRebalancerPaidv1 {
         let rebalancer <- create PositionRebalancer(
             positionID: positionID
         )
+        // will panic if the rebalancer already exists
         self.storeRebalancer(rebalancer: <-rebalancer, positionID: positionID)
         self.setSelfCapability(positionID: positionID).fixReschedule()
         emit CreatedRebalancerPaid(positionID: positionID)
