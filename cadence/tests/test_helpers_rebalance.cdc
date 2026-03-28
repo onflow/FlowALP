@@ -14,12 +14,11 @@ fun _executeTransaction(_ path: String, _ args: [AnyStruct], _ signer: Test.Test
 access(all)
 fun addPaidRebalancerToPosition(
     signer: Test.TestAccount,
-    positionStoragePath: StoragePath,
-    paidRebalancerStoragePath: StoragePath
+    positionStoragePath: StoragePath
 ) {
     let addRes = _executeTransaction(
         "./transactions/rebalancer/add_paid_rebalancer_to_position.cdc",
-        [positionStoragePath, paidRebalancerStoragePath],
+        [positionStoragePath],
         signer
     )
     Test.expect(addRes, Test.beSucceeded())
@@ -105,26 +104,24 @@ fun createSupervisor(
 access(all)
 fun deletePaidRebalancer(
     signer: Test.TestAccount,
-    paidRebalancerStoragePath: StoragePath
+    positionID: UInt64
 ) {
     let setRes = _executeTransaction(
         "./transactions/rebalancer/delete_paid_rebalancer.cdc",
-        [paidRebalancerStoragePath],
+        [positionID],
         signer
     )
     Test.expect(setRes, Test.beSucceeded())
 }
 
 access(all)
-fun fixPaidReschedule(
-    signer: Test.TestAccount,
-    positionID: UInt64?,
-    paidRebalancerStoragePath: StoragePath
-) {
-    let setRes = _executeTransaction(
-        "./transactions/rebalancer/fix_paid_reschedule.cdc",
-        [positionID, paidRebalancerStoragePath],
-        signer
+fun fixPaidReschedule(positionID: UInt64) {
+    let txn = Test.Transaction(
+        code: Test.readFile("./transactions/rebalancer/fix_paid_reschedule.cdc"),
+        authorizers: [],
+        signers: [],
+        arguments: [positionID]
     )
-    Test.expect(setRes, Test.beSucceeded())
+    let result = Test.executeTransaction(txn)
+    Test.expect(result, Test.beSucceeded())
 }

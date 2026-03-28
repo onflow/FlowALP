@@ -1,6 +1,5 @@
 import "FungibleToken"
 import "FungibleTokenConnectors"
-import "FlowALPRebalancerv1"
 import "FlowALPRebalancerPaidv1"
 import "FlowToken"
 import "FlowTransactionScheduler"
@@ -21,8 +20,7 @@ transaction(positionID: UInt64, interval: UInt64) {
     execute {
         let sinkSource = FungibleTokenConnectors.VaultSinkAndSource(min: nil, max: nil, vault: self.vaultCapability, uniqueID: nil)
 
-        let borrowedRebalancer = self.adminPaidRebalancerCap.borrow()!.borrowAuthorizedRebalancer(positionID: positionID)!
-        let config = FlowALPRebalancerv1.RecurringConfigImplv1(
+        let config = FlowALPRebalancerPaidv1.RecurringConfig(
             interval: interval,
             priority: FlowTransactionScheduler.Priority.Medium,
             executionEffort: 1000,
@@ -30,6 +28,6 @@ transaction(positionID: UInt64, interval: UInt64) {
             forceRebalance: false,
             txFunder: sinkSource
         )
-        borrowedRebalancer.setRecurringConfig(config)
+        self.adminPaidRebalancerCap.borrow()!.updateDefaultRecurringConfig(config)
     }
 }

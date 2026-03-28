@@ -1,11 +1,10 @@
 import "FungibleToken"
 import "FungibleTokenConnectors"
-import "FlowALPRebalancerv1"
 import "FlowALPRebalancerPaidv1"
 import "FlowToken"
 import "FlowTransactionScheduler"
 
-// Changes the recurring config for a paid rebalancer, using a different account as txFunder.
+// Changes the default recurring config, using a different account as txFunder.
 // `admin` must hold FlowALPRebalancerPaidv1.Admin; `newFunder` provides the new fee vault.
 transaction(positionID: UInt64, interval: UInt64) {
     let adminCap: Capability<&FlowALPRebalancerPaidv1.Admin>
@@ -27,7 +26,7 @@ transaction(positionID: UInt64, interval: UInt64) {
         let sinkSource = FungibleTokenConnectors.VaultSinkAndSource(
             min: nil, max: nil, vault: self.newFunderVaultCap, uniqueID: nil
         )
-        let config = FlowALPRebalancerv1.RecurringConfigImplv1(
+        let config = FlowALPRebalancerPaidv1.RecurringConfig(
             interval: interval,
             priority: FlowTransactionScheduler.Priority.Medium,
             executionEffort: 1000,
@@ -35,6 +34,6 @@ transaction(positionID: UInt64, interval: UInt64) {
             forceRebalance: false,
             txFunder: sinkSource
         )
-        self.adminCap.borrow()!.updateRecurringConfig(positionID: positionID, recurringConfig: config)
+        self.adminCap.borrow()!.updateDefaultRecurringConfig(config)
     }
 }
