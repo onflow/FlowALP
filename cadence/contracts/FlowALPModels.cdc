@@ -907,14 +907,20 @@ access(all) contract FlowALPModels {
         /// The timestamp at which the TokenState was last updated
         access(all) view fun getLastUpdate(): UFix64
 
-        /// The total credit balance for this token, in a specific Pool.
-        /// The total credit balance is the sum of balances of all positions with a credit balance (ie. they have lent this token).
+        /// The total, non-interest-adjusted credit balance for this token, in a specific Pool.
+        /// This field tracks deposit and withdrawal amounts; it DOES NOT account for interest accrual.
         /// In other words, it is the the sum of net deposits among positions which are net creditors in this token.
+        /// The following invariants should always hold:
+        ///  - totalCreditBalance >= totalDebitBalance
+        ///  - totalCreditBalance - totalDebitBalance = reserveBalance + allCollectedProtocolFees
         access(all) view fun getTotalCreditBalance(): UFix128
 
-        /// The total debit balance for this token, in a specific Pool.
-        /// The total debit balance is the sum of balances of all positions with a debit balance (ie. they have borrowed this token).
-        /// In other words, it is the the sum of net withdrawals among positions which are net debtors in this token.
+        /// The total, non-interest-adjusted debit balance for this token, in a specific Pool.
+        /// This field tracks borrow and repayment amounts; it DOES NOT account for interest accrual.
+        /// In other words, it is the sum of net borrows among positions which are net debtors in this token.
+        /// The following invariants should always hold:
+        ///  - totalCreditBalance >= totalDebitBalance
+        ///  - totalCreditBalance - totalDebitBalance = reserveBalance + allCollectedProtocolFees
         access(all) view fun getTotalDebitBalance(): UFix128
 
         /// The index of the credit interest for the related token.
@@ -1062,13 +1068,29 @@ access(all) contract FlowALPModels {
         /// When capacity regenerates, all user deposit usage is reset for this token type
         access(EImplementation) fun regenerateDepositCapacity()
 
-        /// Increases total credit balance and recalculates interest rates.
+        /// NOTE: For all {decrease,increase}{Credit,Debit}Balance functions below:
+        /// If a deposit flips a position direction from debit to credit, the debt removal and credit addition must be applied as separate operations.
+        /// (The same requirement holds in reverse for a withdrawal flipping a credit balance to a debit balance.)
+        ///
+        /// For example, if a position has a debit balance of 100FLOW, then deposits 150FLOW, we MUST do:
+        ///  - decreaseDebitBalance(by: 100)
+        ///  - increaseCreditBalance(by: 50)
+
+        /// Increases total non-interest-adjusted credit balance and recalculates interest rates.
+        /// This function MUST be called each time a creditor's balance increases (deposit).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun increaseCreditBalance(by amount: UFix128)
-        /// Decreases total credit balance (floored at 0) and recalculates interest rates.
+        /// Decreases total non-interest-adjusted credit balance (floored at 0) and recalculates interest rates.
+        /// This function MUST be called each time a credit balance decreases (withdrawal).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun decreaseCreditBalance(by amount: UFix128)
-        /// Increases total debit balance and recalculates interest rates.
+        /// Increases total non-interest-adjusted debit balance and recalculates interest rates.
+        /// This function MUST be called each time a debt balance increases (withdrawal).
+        /// The amount parameter must be equal to the amount of the withdrawal.
         access(EImplementation) fun increaseDebitBalance(by amount: UFix128)
-        /// Decreases total debit balance (floored at 0) and recalculates interest rates.
+        /// Decreases total non-interest-adjusted debit balance (floored at 0) and recalculates interest rates.
+        /// This function MUST be called each time a debt balance decreases (deposit).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun decreaseDebitBalance(by amount: UFix128)
     }
 
@@ -1080,13 +1102,19 @@ access(all) contract FlowALPModels {
         access(self) var tokenType: Type
         /// The timestamp at which the TokenState was last updated
         access(self) var lastUpdate: UFix64
-        /// The total credit balance for this token, in a specific Pool.
-        /// The total credit balance is the sum of balances of all positions with a credit balance (ie. they have lent this token).
-        /// In other words, it is the the sum of net deposits among positions which are net creditors in this token.
+        /// The total, non-interest-adjusted credit balance for this token, in a specific Pool.
+        /// This field tracks deposit and withdrawal amounts; it DOES NOT account for interest accrual.
+        /// In other words, it is the sum of net deposits among positions which are net creditors in this token.
+        /// The following invariants should always hold:
+        ///  - totalCreditBalance >= totalDebitBalance
+        ///  - totalCreditBalance - totalDebitBalance = reserveBalance - allCollectedProtocolFees
         access(self) var totalCreditBalance: UFix128
-        /// The total debit balance for this token, in a specific Pool.
-        /// The total debit balance is the sum of balances of all positions with a debit balance (ie. they have borrowed this token).
-        /// In other words, it is the the sum of net withdrawals among positions which are net debtors in this token.
+        /// The total, non-interest-adjusted debit balance for this token, in a specific Pool.
+        /// This field tracks borrow and repayment amounts; it DOES NOT account for interest accrual.
+        /// In other words, it is the sum of net borrows among positions which are net debtors in this token.
+        /// The following invariants should always hold:
+        ///  - totalCreditBalance >= totalDebitBalance
+        ///  - totalCreditBalance - totalDebitBalance = reserveBalance - allCollectedProtocolFees
         access(self) var totalDebitBalance: UFix128
         /// The index of the credit interest for the related token.
         ///
@@ -1183,12 +1211,14 @@ access(all) contract FlowALPModels {
             return self.lastUpdate
         }
 
-        /// Returns the total credit balance for this token. See TokenState.getTotalCreditBalance.
+        /// Returns the total, non-interest-adjusted credit balance for this token.
+        /// See TokenState.getTotalCreditBalance.
         access(all) view fun getTotalCreditBalance(): UFix128 {
             return self.totalCreditBalance
         }
 
-        /// Returns the total debit balance for this token. See TokenState.getTotalDebitBalance.
+        /// Returns the total, non-interest-adjusted debit balance for this token.
+        /// See TokenState.getTotalDebitBalance.
         access(all) view fun getTotalDebitBalance(): UFix128 {
             return self.totalDebitBalance
         }
@@ -1490,13 +1520,25 @@ access(all) contract FlowALPModels {
             }
         }
 
-        /// Increases total credit balance by the given amount and recalculates interest rates.
+        /// NOTE: For all {decrease,increase}{Credit,Debit}Balance functions below:
+        /// If a deposit flips a position direction from debit to credit, the debt removal and credit addition must be applied as separate operations.
+        /// (The same requirement holds in reverse for a withdrawal flipping a credit balance to a debit balance.)
+        ///
+        /// For example, if a position has a debit balance of 100FLOW, then deposits 150FLOW, we MUST do:
+        ///  - decreaseDebitBalance(by: 100)
+        ///  - increaseCreditBalance(by: 50)
+
+        /// Increases total non-interest-adjusted credit balance and recalculates interest rates.
+        /// This function MUST be called each time a creditor's balance increases (deposit).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun increaseCreditBalance(by amount: UFix128) {
             self.totalCreditBalance = self.totalCreditBalance + amount
             self.updateForUtilizationChange()
         }
 
-        /// Decreases total credit balance by the given amount (floored at 0) and recalculates interest rates.
+        /// Decreases total non-interest-adjusted credit balance (floored at 0) and recalculates interest rates.
+        /// This function MUST be called each time a credit balance decreases (withdrawal).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun decreaseCreditBalance(by amount: UFix128) {
             if amount >= self.totalCreditBalance {
                 self.totalCreditBalance = 0.0
@@ -1506,13 +1548,18 @@ access(all) contract FlowALPModels {
             self.updateForUtilizationChange()
         }
 
-        /// Increases total debit balance by the given amount and recalculates interest rates.
+        /// Increases total non-interest-adjusted credit balance and recalculates interest rates.
+        /// This function MUST be called each time a creditor's balance increases (deposit).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun increaseDebitBalance(by amount: UFix128) {
             self.totalDebitBalance = self.totalDebitBalance + amount
             self.updateForUtilizationChange()
         }
 
-        /// Decreases total debit balance by the given amount (floored at 0) and recalculates interest rates.
+        
+        /// Decreases total non-interest-adjusted debit balance (floored at 0) and recalculates interest rates.
+        /// This function MUST be called each time a debt balance decreases (deposit).
+        /// The amount parameter must be equal to the amount of the deposit.
         access(EImplementation) fun decreaseDebitBalance(by amount: UFix128) {
             if amount >= self.totalDebitBalance {
                 self.totalDebitBalance = 0.0
