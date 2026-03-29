@@ -340,7 +340,7 @@ access(all) contract PriceOracleAggregatorv1 {
         }
 
         /// Function called by the scheduler to update the price history.
-        access(FlowTransactionScheduler.Execute) fun executeTransaction(id: UInt64, data: AnyStruct?) {
+        access(FlowTransactionScheduler.Execute) fun executeTransaction(id _: UInt64, data _1: AnyStruct?) {
             let priceOracleAggregator = self.borrowPriceOracleAggregator()
             priceOracleAggregator.tryAddPriceToHistory()
         }

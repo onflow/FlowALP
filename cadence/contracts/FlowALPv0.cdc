@@ -755,7 +755,7 @@ access(all) contract FlowALPv0 {
          access(self) fun computeRequiredDepositForHealth(
             position: &{FlowALPModels.InternalPosition},
             depositType: Type,
-            withdrawType: Type,
+            withdrawType _: Type,
             effectiveCollateral: UFix128,
             effectiveDebt: UFix128,
             targetHealth: UFix128
@@ -1030,7 +1030,6 @@ access(all) contract FlowALPv0 {
 
             // assign issuance & repayment connectors within the InternalPosition
             let iPos = self._borrowPosition(pid: id)
-            let fundsType = funds.getType()
             iPos.setDrawDownSink(issuanceSink)
             if repaymentSource != nil {
                 iPos.setTopUpSource(repaymentSource)
@@ -1044,14 +1043,7 @@ access(all) contract FlowALPv0 {
                 self._rebalancePositionNoLock(pid: id, force: true)
             }
 
-            // Create a capability to the Pool for the Position resource
-            // The Pool is stored in the FlowALPv0 contract account
-            let poolCap = FlowALPv0.account.capabilities.storage.issue<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>(
-                FlowALPv0.PoolStoragePath
-            )
-
             // Create and return the Position resource
-
             let position <- FlowALPPositionResources.createPosition(id: id)
 
             self.unlockPosition(id)
@@ -1391,7 +1383,7 @@ access(all) contract FlowALPv0 {
         /// Returns a mutable reference to the pool's configuration.
         /// Use this to update config fields that don't require events or side effects.
         access(FlowALPModels.EGovernance) fun borrowConfig(): auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolConfig} {
-            return &self.config as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolConfig}
+            return &self.config
         }
 
         /// Pauses the pool, temporarily preventing further withdrawals, deposits, and liquidations
@@ -2229,7 +2221,7 @@ access(all) contract FlowALPv0 {
             )
             FlowALPv0.account.storage.save(<-pool, to: FlowALPv0.PoolStoragePath)
             let cap = FlowALPv0.account.capabilities.storage.issue<&Pool>(FlowALPv0.PoolStoragePath)
-            FlowALPv0.account.capabilities.unpublish(FlowALPv0.PoolPublicPath)
+            let _ = FlowALPv0.account.capabilities.unpublish(FlowALPv0.PoolPublicPath)
             FlowALPv0.account.capabilities.publish(cap, at: FlowALPv0.PoolPublicPath)
         }
     }
@@ -2271,7 +2263,6 @@ access(all) contract FlowALPv0 {
             <-create PoolFactory(),
             to: self.PoolFactoryPath
         )
-        let factory = self.account.storage.borrow<&PoolFactory>(from: self.PoolFactoryPath)!
         FlowALPPositionResources.setPoolCap(cap: self._borrowPool())
     }
 }

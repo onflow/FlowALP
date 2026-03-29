@@ -33,9 +33,7 @@ jobs:
           path: ./imports
           key: flow-deps-${{ hashFiles('flow.json') }}
       - name: Install Flow CLI
-        env:
-          FLOW_CLI_VERSION: v2.7.2
-        run: sh -ci "$(curl -fsSL https://raw.githubusercontent.com/onflow/flow-cli/master/install.sh)"
+        run: sh -ci "$(curl -fsSL https://raw.githubusercontent.com/onflow/flow-cli/master/install.sh)" -- v2.15.3
       - name: Update PATH and show Flow version
         run: |
           echo "/root/.local/bin" >> $GITHUB_PATH
@@ -45,7 +43,7 @@ jobs:
       - name: Install dependencies
         run: flow deps install --skip-alias --skip-deployments
       - name: Run tests
-        run: flow test --cover --covercode="contracts" --coverprofile="coverage.lcov" ./cadence/tests/*_test.cdc
+        run: make ci
       - name: Upload coverage report
         uses: codecov/codecov-action@v5
         with:
