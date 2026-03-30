@@ -530,7 +530,7 @@ fun testStabilityAndInsuranceFees_notCollectedForLiquidatedFunds() {
     // hardcodes MOET_TOKEN_ID = "A.0000000000000007.MOET.Vault" (local test address),
     // whereas in fork mode MOET lives at 0x6b00ff876c299c61 (MAINNET_MOET_TOKEN_ID).
     let swapRes = _executeTransaction(
-        "./transactions/flow-alp/pool-governance/set_insurance_swapper_mock.cdc",
+        "./transactions/flow-alp/egovernance/set_insurance_swapper_mock.cdc",
         [MAINNET_USDF_TOKEN_ID, 1.0, MAINNET_USDF_TOKEN_ID, MAINNET_MOET_TOKEN_ID],
         MAINNET_PROTOCOL_ACCOUNT
     )
