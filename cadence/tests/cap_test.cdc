@@ -22,15 +22,6 @@ import "test_helpers.cdc"
 //                              Published via the FIXED publish_beta_cap.cdc.
 //                              Cap stored at FlowALPv0.PoolCapStoragePath.
 //
-//   ePositionUser            — Capability<auth(EPosition) &Pool>
-//                              EPosition-only capability; can perform pool-level position
-//                              ops on any position by ID. No EParticipant.
-//                              Cap stored at FlowALPv0.PoolCapStoragePath.
-//
-//   eParticipantPositionUser — Capability<auth(EParticipant, EPosition) &Pool> over-grant
-//                              Current (unfixed) beta cap — grants EPosition unnecessarily.
-//                              Cap stored at FlowALPv0.PoolCapStoragePath.
-//
 //   eRebalanceUser           — Capability<auth(ERebalance) &Pool>
 //                              Narrowly-scoped cap for rebalancer contracts.
 //                              Cap stored at FlowALPv0.PoolCapStoragePath.
@@ -52,7 +43,7 @@ import "test_helpers.cdc"
 // =============================================================================
 
 
-// Position created for PROTOCOL_ACCOUNT in setup — used as target for EPosition tests.
+// Position created for PROTOCOL_ACCOUNT in setup — used as target for ERebalance tests.
 access(all) var setupPid: UInt64 = 0
 access(all) var ePositionAdminPid: UInt64 = 0
 
@@ -61,8 +52,6 @@ access(all) var snapshot: UInt64 = 0
 // Role accounts
 access(all) var userWithoutCap = Test.createAccount()
 access(all) var eParticipantUser = Test.createAccount()
-access(all) var ePositionUser = Test.createAccount()
-access(all) var eParticipantPositionUser = Test.createAccount()
 access(all) var eRebalanceUser = Test.createAccount()
 access(all) var ePositionAdminUser = Test.createAccount()
 access(all) var eGovernanceUser = Test.createAccount()
@@ -71,7 +60,7 @@ access(all) var eGovernanceUser = Test.createAccount()
 /// Used in negative tests to verify governance methods are inaccessible to them.
 access(all)
 fun getNonGovernanceUsers(): [Test.TestAccount] {
-    return [eParticipantUser, ePositionUser, eParticipantPositionUser, eRebalanceUser, ePositionAdminUser]
+    return [eParticipantUser, eRebalanceUser, ePositionAdminUser]
 }
 
 access(all)
@@ -149,28 +138,6 @@ fun setup() {
         ),
         Test.beSucceeded()
     )
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // EPosition user — EPosition-ONLY capability (no EParticipant)
-    // ─────────────────────────────────────────────────────────────────────────
-    setupMoetVault(ePositionUser, beFailed: false)
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: ePositionUser.address, amount: 100.0, beFailed: false)
-    Test.expect(
-        _execute2Signers(
-            "../tests/transactions/flow-alp/setup/grant_eposition_cap.cdc",
-            [],
-            PROTOCOL_ACCOUNT,
-            ePositionUser
-        ),
-        Test.beSucceeded()
-    )
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // EParticipantPosition user — EParticipant+EPosition capability (current over-grant)
-    // ─────────────────────────────────────────────────────────────────────────
-    setupMoetVault(eParticipantPositionUser, beFailed: false)
-    mintMoet(signer: PROTOCOL_ACCOUNT, to: eParticipantPositionUser.address, amount: 100.0, beFailed: false)
-    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, eParticipantPositionUser)
 
     // ─────────────────────────────────────────────────────────────────────────
     // ERebalance user — ERebalance-only capability (rebalancer simulation)
@@ -275,222 +242,6 @@ fun testEParticipant_CreateAndDeposit() {
         vaultType: Type<@MOET.Vault>()
     )
     Test.assertEqual(6.0, creditBalance)
-}
-
-// =============================================================================
-// EParticipant+EPosition — over-grant (current beta cap via publish_beta_cap.cdc)
-// =============================================================================
-//
-// Actor: eParticipantPositionUser — Capability<auth(EParticipant, EPosition) &Pool>
-//        Issued by publish_beta_cap.cdc and stored at FlowALPv0.PoolCapStoragePath.
-//        This is the CURRENT (unfixed) beta cap. EPosition is NOT needed for normal
-//        user actions; its presence lets this actor perform pool-level position ops
-//        on ANY position, including positions owned by other accounts.
-//
-// Matrix rows: createPosition (EParticipant), depositToPosition (EParticipant),
-//              withdraw [OVERGRANT], withdrawAndPull [OVERGRANT], depositAndPush [OVERGRANT],
-//              lockPosition [OVERGRANT], unlockPosition [OVERGRANT], rebalancePosition [OVERGRANT],
-//              rebalance (Position) [OVERGRANT — same entry point as rebalancePosition]
-//
-// The [OVERGRANT] rows confirm the security issue: a normal beta user can operate on
-// positions they do not own (setupPid is owned by PROTOCOL_ACCOUNT).
-
-/// Over-granted beta cap still allows EParticipant operations (createPosition, depositToPosition).
-access(all)
-fun testEParticipantPosition_CreateAndDeposit() {
-    safeReset()
-
-    let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eparticipant/create_and_deposit_via_cap.cdc",
-        [],
-        eParticipantPositionUser
-    )
-    Test.expect(result, Test.beSucceeded())
-
-    // Verify position was created and funded: create_and_deposit_via_cap.cdc deposits
-    // 5.0 MOET (createPosition) + 1.0 MOET (depositToPosition) = 6.0 MOET credit.
-    let newPid = getLastPositionId()
-    let creditBalance = getCreditBalanceForType(
-        details: getPositionDetails(pid: newPid, beFailed: false),
-        vaultType: Type<@MOET.Vault>()
-    )
-    Test.assertEqual(6.0, creditBalance)
-}
-
-/// Over-granted beta cap allows Pool.withdraw on ANY position — including
-/// setupPid owned by PROTOCOL_ACCOUNT.
-access(all)
-fun testEParticipantPosition_WithdrawAnyPosition() {
-    safeReset()
-
-    let balanceBefore = getBalance(address: eParticipantPositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
-    let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/withdraw_any.cdc",
-        [setupPid, 1.0],
-        eParticipantPositionUser
-    )
-    Test.expect(result, Test.beSucceeded())
-    let balanceAfter = getBalance(address: eParticipantPositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
-    Test.assertEqual(balanceAfter, balanceBefore + 1.0)
-}
-
-/// Over-granted beta cap allows Pool.withdrawAndPull on ANY position — including
-/// positions owned by other accounts.
-access(all)
-fun testEParticipantPosition_WithdrawAndPullAnyPosition() {
-    safeReset()
-
-    let balanceBefore = getBalance(address: eParticipantPositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
-    let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/withdraw_and_pull_any.cdc",
-        [setupPid, 1.0],
-        eParticipantPositionUser
-    )
-    Test.expect(result, Test.beSucceeded())
-    let balanceAfter = getBalance(address: eParticipantPositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
-    Test.assertEqual(balanceAfter, balanceBefore + 1.0)
-}
-
-/// Over-granted beta cap allows Pool.depositAndPush on ANY position — including
-/// positions owned by other accounts.
-access(all)
-fun testEParticipantPosition_DepositAndPushAnyPosition() {
-    safeReset()
-
-    let creditBefore = getCreditBalanceForType(
-        details: getPositionDetails(pid: setupPid, beFailed: false),
-        vaultType: Type<@MOET.Vault>()
-    )
-    let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/deposit_and_push_any.cdc",
-        [setupPid, 1.0],
-        eParticipantPositionUser
-    )
-    Test.expect(result, Test.beSucceeded())
-    let creditAfter = getCreditBalanceForType(
-        details: getPositionDetails(pid: setupPid, beFailed: false),
-        vaultType: Type<@MOET.Vault>()
-    )
-    Test.assertEqual(creditBefore + 1.0, creditAfter)
-}
-
-/// Over-granted beta cap allows Pool.lockPosition and Pool.unlockPosition on ANY position —
-/// including positions owned by other accounts.
-access(all)
-fun testEParticipantPosition_LockUnlockAnyPosition() {
-    safeReset()
-
-    let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/lock_any.cdc",
-        [setupPid],
-        eParticipantPositionUser
-    )
-    Test.expect(result, Test.beSucceeded())
-}
-
-/// Over-granted beta cap allows Pool.rebalancePosition on any position.
-access(all)
-fun testEParticipantPosition_RebalancePosition() {
-    safeReset()
-
-    let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/rebalance_position_via_cap.cdc",
-        [setupPid, true],
-        eParticipantPositionUser
-    )
-    Test.expect(result, Test.beSucceeded())
-}
-
-// =============================================================================
-// EPosition — narrowly-scoped EPosition-only Pool capability
-// =============================================================================
-//
-// Actor: ePositionUser — Capability<auth(EPosition) &Pool>
-// Matrix rows: withdraw, withdrawAndPull, depositAndPush, lockPosition, unlockPosition,
-//              rebalancePosition
-
-/// EPosition cap allows Pool.withdraw on ANY position by ID — including
-/// setupPid owned by PROTOCOL_ACCOUNT.
-access(all)
-fun testEPosition_WithdrawAnyPosition() {
-    safeReset()
-
-    let balanceBefore = getBalance(address: ePositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
-    let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/withdraw_any.cdc",
-        [setupPid, 1.0],
-        ePositionUser
-    )
-    Test.expect(result, Test.beSucceeded())
-    let balanceAfter = getBalance(address: ePositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
-    Test.assertEqual(balanceAfter, balanceBefore + 1.0)
-}
-
-/// EPosition cap allows Pool.withdrawAndPull on ANY position — including positions
-/// owned by other accounts.
-access(all)
-fun testEPosition_WithdrawAndPullAnyPosition() {
-    safeReset()
-
-    let balanceBefore = getBalance(address: ePositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
-    let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/withdraw_and_pull_any.cdc",
-        [setupPid, 1.0],
-        ePositionUser
-    )
-    Test.expect(result, Test.beSucceeded())
-    let balanceAfter = getBalance(address: ePositionUser.address, vaultPublicPath: MOET.VaultPublicPath)!
-    Test.assertEqual(balanceAfter, balanceBefore + 1.0)
-}
-
-/// EPosition cap allows Pool.depositAndPush on ANY position — including positions
-/// owned by other accounts.
-access(all)
-fun testEPosition_DepositAndPushAnyPosition() {
-    safeReset()
-
-    let creditBefore = getCreditBalanceForType(
-        details: getPositionDetails(pid: setupPid, beFailed: false),
-        vaultType: Type<@MOET.Vault>()
-    )
-    let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/deposit_and_push_any.cdc",
-        [setupPid, 1.0],
-        ePositionUser
-    )
-    Test.expect(result, Test.beSucceeded())
-    let creditAfter = getCreditBalanceForType(
-        details: getPositionDetails(pid: setupPid, beFailed: false),
-        vaultType: Type<@MOET.Vault>()
-    )
-    Test.assertEqual(creditBefore + 1.0, creditAfter)
-}
-
-/// EPosition cap allows Pool.lockPosition and Pool.unlockPosition on ANY position —
-/// including positions owned by other accounts.
-access(all)
-fun testEPosition_LockUnlockAnyPosition() {
-    safeReset()
-
-    let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/lock_any.cdc",
-        [setupPid],
-        ePositionUser
-    )
-    Test.expect(result, Test.beSucceeded())
-}
-
-/// EPosition cap allows Pool.rebalancePosition.
-access(all)
-fun testEPosition_RebalancePosition() {
-    safeReset()
-
-    let result = _executeTransaction(
-        "../tests/transactions/flow-alp/eposition/rebalance_position_via_cap.cdc",
-        [setupPid, true],
-        ePositionUser
-    )
-    Test.expect(result, Test.beSucceeded())
 }
 
 // =============================================================================
