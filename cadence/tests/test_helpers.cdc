@@ -80,7 +80,7 @@ access(all)
 fun grantBetaPoolParticipantAccess(_ admin: Test.TestAccount, _ grantee: Test.TestAccount) {
     let signers = admin.address == grantee.address ? [admin] : [admin, grantee]
     let betaTxn = Test.Transaction(
-        code: Test.readFile("./transactions/flow-alp/pool-management/03_grant_beta.cdc"),
+        code: Test.readFile("./transactions/flow-alp/setup/grant_beta_cap.cdc"),
         authorizers: [admin.address, grantee.address],
         signers: signers,
         arguments: []
@@ -458,12 +458,33 @@ fun getIsLiquidatable(pid: UInt64): Bool {
     return res.returnValue as! Bool
 }
 
+access(all)
+fun getPositionMinHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_min_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun getPositionMaxHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_max_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun getPositionTargetHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_target_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
 fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String, beFailed: Bool) {
     let createRes = _executeTransaction(
-        "transactions/flow-alp/pool-factory/create_and_store_pool.cdc",
+        "./transactions/flow-alp/setup/create_and_store_pool.cdc",
         [defaultTokenIdentifier],
         signer
     )
@@ -617,7 +638,7 @@ fun setPoolPauseState(
     pause: Bool
 ): Test.TransactionResult {
     return _executeTransaction(
-        "./transactions/flow-alp/pool-governance/set_pool_paused.cdc",
+        "./transactions/flow-alp/egovernance/set_pool_paused.cdc",
         [pause],
         signer
     )
@@ -762,7 +783,7 @@ fun setInsuranceSwapper(
     priceRatio: UFix64,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-alp/pool-governance/set_insurance_swapper_mock.cdc",
+        "./transactions/flow-alp/egovernance/set_insurance_swapper_mock.cdc",
         [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, MOET_TOKEN_IDENTIFIER],
         signer
     )
@@ -775,7 +796,7 @@ fun removeInsuranceSwapper(
     tokenTypeIdentifier: String,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-alp/pool-governance/remove_insurance_swapper.cdc",
+        "./transactions/flow-alp/egovernance/remove_insurance_swapper.cdc",
         [ tokenTypeIdentifier],
         signer
     )
@@ -870,6 +891,73 @@ fun manualLiquidation(
 }
 
 access(all)
+fun liquidateViaMockDex(
+    signer: Test.TestAccount,
+    pid: UInt64,
+    debtVaultIdentifier: String,
+    seizeVaultIdentifier: String,
+    seizeAmount: UFix64,
+    repayAmount: UFix64,
+): Test.TransactionResult {
+    return _executeTransaction(
+        "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
+        [[pid], debtVaultIdentifier, [seizeVaultIdentifier], [seizeAmount], [repayAmount]],
+        signer
+    )
+}
+
+/// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
+/// The liquidator must hold sufficient debt tokens upfront.
+access(all) fun batchManualLiquidation(
+    pids: [UInt64],
+    debtVaultIdentifier: String,
+    seizeVaultIdentifiers: [String],
+    seizeAmounts: [UFix64],
+    repayAmounts: [UFix64],
+    signer: Test.TestAccount
+) {
+    let res = _executeTransaction(
+        "./transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
+        [pids, debtVaultIdentifier, seizeVaultIdentifiers, seizeAmounts, repayAmounts],
+        signer
+    )
+    Test.expect(res, Test.beSucceeded())
+}
+
+/// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
+/// chunkSize to stay within the computation limit.
+access(all) fun batchLiquidateViaMockDex(
+    pids: [UInt64],
+    debtVaultIdentifier: String,
+    seizeVaultIdentifiers: [String],
+    seizeAmounts: [UFix64],
+    repayAmounts: [UFix64],
+    chunkSize: Int,
+    signer: Test.TestAccount
+) {
+    let total = pids.length
+    let numChunks = (total + chunkSize - 1) / chunkSize
+    for i in InclusiveRange(0, numChunks - 1) {
+        let startIdx = i * chunkSize
+        var endIdx = startIdx + chunkSize
+        if endIdx > total {
+            endIdx = total
+        }
+        let res = _executeTransaction(
+            "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
+            [pids.slice(from: startIdx, upTo: endIdx),
+                debtVaultIdentifier,
+                seizeVaultIdentifiers.slice(from: startIdx, upTo: endIdx),
+                seizeAmounts.slice(from: startIdx, upTo: endIdx),
+                repayAmounts.slice(from: startIdx, upTo: endIdx)],
+            signer
+        )
+        Test.expect(res, Test.beSucceeded())
+    }
+}
+
+
+access(all)
 fun setupMoetVault(_ signer: Test.TestAccount, beFailed: Bool) {
     let setupRes = _executeTransaction("../transactions/moet/setup_vault.cdc", [], signer)
     Test.expect(setupRes, beFailed ? Test.beFailed() : Test.beSucceeded())
@@ -951,56 +1039,6 @@ fun transferTokensWithSetup(tokenIdentifier: String, from: Test.TestAccount, to:
     transferFungibleTokens(tokenIdentifier: tokenIdentifier, from: from, to: to, amount: amount)
 }
 
-/// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
-/// The liquidator must hold sufficient debt tokens upfront.
-access(all) fun batchManualLiquidation(
-    pids: [UInt64],
-    debtVaultIdentifier: String,
-    seizeVaultIdentifiers: [String],
-    seizeAmounts: [UFix64],
-    repayAmounts: [UFix64],
-    signer: Test.TestAccount
-) {
-    let res = _executeTransaction(
-        "./transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
-        [pids, debtVaultIdentifier, seizeVaultIdentifiers, seizeAmounts, repayAmounts],
-        signer
-    )
-    Test.expect(res, Test.beSucceeded())
-}
-
-/// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
-/// chunkSize to stay within the computation limit.
-access(all) fun batchLiquidateViaMockDex(
-    pids: [UInt64],
-    debtVaultIdentifier: String,
-    seizeVaultIdentifiers: [String],
-    seizeAmounts: [UFix64],
-    repayAmounts: [UFix64],
-    chunkSize: Int,
-    signer: Test.TestAccount
-) {
-    let total = pids.length
-    let numChunks = (total + chunkSize - 1) / chunkSize
-    for i in InclusiveRange(0, numChunks - 1) {
-        let startIdx = i * chunkSize
-        var endIdx = startIdx + chunkSize
-        if endIdx > total {
-            endIdx = total
-        }
-        let res = _executeTransaction(
-            "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
-            [pids.slice(from: startIdx, upTo: endIdx),
-                debtVaultIdentifier,
-                seizeVaultIdentifiers.slice(from: startIdx, upTo: endIdx),
-                seizeAmounts.slice(from: startIdx, upTo: endIdx),
-                repayAmounts.slice(from: startIdx, upTo: endIdx)],
-            signer
-        )
-        Test.expect(res, Test.beSucceeded())
-    }
-}
-
 access(all)
 fun expectEvents(eventType: Type, expectedCount: Int) {
     let events = Test.eventsOfType(eventType)
@@ -1080,10 +1118,14 @@ fun getCreditBalanceForType(details: FlowALPModels.PositionDetails, vaultType: T
     return 0.0
 }
 
-access(all) fun getLastPositionId(): UInt64  {
+access(all)
+fun getLastPositionId(): UInt64 {
     var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
-    return pid
+    if openEvents.length > 0 {
+        let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+        return pid
+    }
+    return 0
 }
 
 access(all)

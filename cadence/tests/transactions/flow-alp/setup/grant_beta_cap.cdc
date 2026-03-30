@@ -7,14 +7,12 @@ transaction() {
         admin: auth(Capabilities, Storage) &Account,
         tester: auth(Storage) &Account
     ) {
-        let poolCap: Capability<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool> =
+        let poolCap =
             admin.capabilities.storage.issue<
-                auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool
+                auth(FlowALPModels.EParticipant) &FlowALPv0.Pool
             >(FlowALPv0.PoolStoragePath)
-        // assert(poolCap.check(), message: "Failed to issue Pool capability")
-
         if tester.storage.type(at: FlowALPv0.PoolCapStoragePath) != nil {
-            tester.storage.load<Capability<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>>(
+            tester.storage.load<Capability<auth(FlowALPModels.EParticipant) &FlowALPv0.Pool>>(
                 from: FlowALPv0.PoolCapStoragePath
             )
         }

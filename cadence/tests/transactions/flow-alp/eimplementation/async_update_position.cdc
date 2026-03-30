@@ -4,7 +4,6 @@ import "FlowALPModels"
 /// Async update a FlowALPv0 position by it's Position ID
 ///
 /// @param pid: The position ID to update
-///
 transaction(pid: UInt64) {
     let pool: auth(FlowALPModels.EImplementation) &FlowALPv0.Pool
 

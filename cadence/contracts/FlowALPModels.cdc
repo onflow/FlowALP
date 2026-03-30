@@ -1044,13 +1044,13 @@ access(all) contract FlowALPModels {
         /// (used when deposits are made)
         access(EImplementation) fun consumeDepositCapacity(_ amount: UFix64, pid: UInt64)
 
-        /// Returns the per-deposit limit based on depositCapacity * depositLimitFraction
-        /// Rationale: cap per-deposit size to a fraction of the time-based
-        /// depositCapacity so a single large deposit cannot monopolize capacity.
+        /// Returns the per-deposit limit based on user deposit limit and available deposit capacity.
+        /// Rationale: cap per-deposit size to a fraction of the total depositCapacityCap
+        /// so a single large deposit cannot monopolize capacity.
         /// Excess is queued and drained in chunks (see asyncUpdatePosition),
         /// enabling fair throughput across many deposits in a block. The 5%
         /// fraction is conservative and can be tuned by protocol parameters.
-        access(EImplementation) view fun depositLimit(): UFix64
+        access(EImplementation) view fun depositLimit(pid: UInt64): UFix64
 
         /// Updates interest indices and regenerates deposit capacity for elapsed time
         access(EImplementation) fun updateForTimeChange()
@@ -1396,9 +1396,15 @@ access(all) contract FlowALPModels {
             )
         }
 
-        /// Returns the per-deposit limit based on depositCapacity * depositLimitFraction.
-        access(EImplementation) view fun depositLimit(): UFix64 {
-            return self.depositCapacity * self.depositLimitFraction
+        /// Returns the maximum amount that can be deposited to the given position without being queued.
+        access(EImplementation) view fun depositLimit(pid: UInt64): UFix64 {
+            let userCap = self.getUserDepositLimitCap()
+            let userUsed = self.getDepositUsageForPosition(pid)
+            var available = userCap - userUsed
+            if self.depositCapacity < available {
+                available = self.depositCapacity
+            }
+            return available
         }
 
         /// Updates interest indices and regenerates deposit capacity for elapsed time.

@@ -113,7 +113,7 @@ After 1 hour regeneration (cap increases to 11000.0):
 When a user attempts to deposit:
 
 1. **Per-Deposit Limit Check** (prevents single large deposits):
-   - Calculate: `depositLimit = depositCapacity * depositLimitFraction`
+   - Calculate: `depositLimit = min(depositCapacity, depositCapacityCap * depositLimitFraction)`
    - If deposit amount > `depositLimit`, queue the excess
    - This ensures no single deposit can monopolize available capacity
 
@@ -161,10 +161,10 @@ When a user attempts to deposit:
 
 ### Per-Deposit Limit vs Per-User Limit
 
-- **Per-Deposit Limit**: `depositCapacity * depositLimitFraction`
-  - Based on current available capacity
-  - Prevents single large deposits
-  - Changes as capacity is consumed
+- **Per-Deposit Limit**: `min(depositCapacity, depositCapacityCap * depositLimitFraction)`
+  - Based on maximum capacity cap
+  - Prevents single large deposits and enforces the total capacity
+  - Limited by available capacity
   
 - **Per-User Limit**: `depositCapacityCap * depositLimitFraction`
   - Based on maximum capacity cap
