@@ -100,8 +100,7 @@ fun test_extreme_utilization() {
     let FLOWAmount = 2000.0
 
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: MAINNET_FLOW_HOLDER, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-    var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
-    let lpDepositPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+    let lpDepositPid = getLastPositionId()
 
     // create borrower with MOET collateral
     let borrower = Test.createAccount()
@@ -110,9 +109,7 @@ fun test_extreme_utilization() {
 
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 10_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
-    openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
-    let borrowerPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
-
+    let borrowerPid = getLastPositionId()
     // borrow 1800 FLOW (90% of 2000 FLOW credit)
     borrowFromPosition(
         signer: borrower,
@@ -188,8 +185,7 @@ fun test_zero_credit_balance() {
     // no Flow LP is created — pool has zero FLOW liquidity
 
     // attempt to borrow FLOW (no reserves)
-    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+    let pid = getLastPositionId()
 
     let borrowRes = _executeTransaction(
         "./transactions/position-manager/borrow_from_position.cdc",
@@ -228,7 +224,7 @@ fun test_zero_credit_balance() {
     //   creditRate = debitRate * (1.0 - protocolFeeRate)
     //   protocolFeeRate = insuranceRate + stabilityFeeRate
     //
-    //   protocolFeeRate = 0.001 * 0.05 = 0.051
+    //   protocolFeeRate = 0.001 + 0.05 = 0.051
     //   creditRate = 0.04 * (1 - 0.051) = 0.03796 (3.796% APY)
 
     Test.moveTime(by: THIRTY_DAYS)
@@ -317,8 +313,7 @@ fun test_empty_pool() {
     transferFungibleTokens(tokenIdentifier: MAINNET_FLOW_TOKEN_ID, from: MAINNET_FLOW_HOLDER, to: flowLp, amount: FLOWAmount)
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: flowLp, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
-    let lpPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+    let lpPid = getLastPositionId()
 
     // record initial credit
     let detailsBefore = getPositionDetails(pid: lpPid, beFailed: false)
@@ -345,7 +340,7 @@ fun test_empty_pool() {
 
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 10_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let borrowerPid: UInt64 = 1
+    let borrowerPid= getLastPositionId()
     borrowFromPosition(
         signer: borrower,
         positionId: borrowerPid,
@@ -413,8 +408,7 @@ fun test_kink_point_transition() {
     mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 100_000.0, beFailed: false)
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 100_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
-    let borrowerPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+    let borrowerPid = getLastPositionId()
 
     // KinkCurve
     // To achieve exactly 45% utilization:
@@ -465,9 +459,7 @@ fun test_long_time_period_accrual() {
 
     // create LP with 10000 FLOW
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: MAINNET_FLOW_HOLDER, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
-
-    var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
-    let lpPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+    let lpPid = getLastPositionId()
 
     // create borrower
     let borrower = Test.createAccount()
@@ -475,8 +467,7 @@ fun test_long_time_period_accrual() {
     mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 100_000.0, beFailed: false)
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 100_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
-    openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
-    let borrowerPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+    let borrowerPid = getLastPositionId()
 
     // borrow 2000 FLOW
     borrowFromPosition(
@@ -553,8 +544,7 @@ fun test_time_jump_scenarios() {
     mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 50_000.0, beFailed: false)
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 50_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
-    let openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
-    let borrowerPid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+    let borrowerPid = getLastPositionId()
 
     // borrow 5000 FLOW
     borrowFromPosition(
