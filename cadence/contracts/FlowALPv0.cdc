@@ -1118,29 +1118,18 @@ access(all) contract FlowALPv0 {
 
             // Time-based state is handled by the tokenState() helper function
 
-            // Deposit rate limiting: prevent a single large deposit from monopolizing capacity.
+            // Deposit rate limiting: prevent a single user or single large deposit from monopolizing capacity.
             // Excess is queued to be processed asynchronously (see asyncUpdatePosition).
             let depositAmount = from.balance
-            let depositLimit = tokenState.depositLimit()
+            let depositLimit = tokenState.depositLimit(pid: pid)
 
+            // depositAmount is bounded by the smaller of:
+            // User deposit limit, per-deposit limit, and global deposit capacity
+            // If the deposit would exceed a limit, queue or reject the excess
             if depositAmount > depositLimit {
-                // The deposit is too big, so we need to queue the excess
-                let queuedDeposit <- from.withdraw(amount: depositAmount - depositLimit)
-
+                let excessAmount = depositAmount - depositLimit
+                let queuedDeposit <- from.withdraw(amount: excessAmount)
                 position.depositToQueue(type, vault: <-queuedDeposit)
-            }
-
-            // Per-user deposit limit: check if user has exceeded their per-user limit
-            let userDepositLimitCap = tokenState.getUserDepositLimitCap()
-            let currentUsage = tokenState.getDepositUsageForPosition(pid)
-            let remainingUserLimit = userDepositLimitCap - currentUsage
-
-            // If the deposit would exceed the user's limit, queue or reject the excess
-            if from.balance > remainingUserLimit {
-                let excessAmount = from.balance - remainingUserLimit
-                let queuedForUserLimit <- from.withdraw(amount: excessAmount)
-
-                position.depositToQueue(type, vault: <-queuedForUserLimit)
             }
 
             // If this position doesn't currently have an entry for this token, create one.
@@ -1181,7 +1170,7 @@ access(all) contract FlowALPv0 {
                 pid: pid,
                 poolUUID: self.uuid,
                 vaultType: type,
-                amount: amount,
+                amount: acceptedAmount,
                 depositedUUID: depositedUUID
             )
 
@@ -1866,7 +1855,7 @@ access(all) contract FlowALPv0 {
                 let queuedVault <- position.removeQueuedDeposit(depositType)!
                 let queuedAmount = queuedVault.balance
                 let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
-                let maxDeposit = depositTokenState.depositLimit()
+                let maxDeposit = depositTokenState.depositLimit(pid: pid)
 
                 if maxDeposit >= queuedAmount {
                     // We can deposit all of the queued deposit, so just do it and remove it from the queue
