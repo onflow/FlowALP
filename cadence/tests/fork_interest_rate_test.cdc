@@ -168,7 +168,7 @@ fun test_extreme_utilization() {
 }
 
 // =============================================================================
-/// Verifies protocol behavior when a lending pool has liquidity but no borrows.
+/// Verifies protocol borrow behavior when a lending pool has no available liquidity.
 // =============================================================================
 access(all)
 fun test_zero_credit_balance() {
@@ -236,7 +236,7 @@ fun test_zero_credit_balance() {
     // FLOW debt 30 days growth = (1 + 0/31_557_600)^2_592_000 - 1 = 0
     // MOET credit 30 days growth = (1 + 0.03796/31_557_600)^2_592_000 - 1 = 0.0003122730069
     let detailsAfterTime = getPositionDetails(pid: pid, beFailed: false)
-    let moetCredit = getCreditBalanceForType(details: detailsAfterTime, vaultType: Type<@MOET.Vault>())
+    var moetCredit = getCreditBalanceForType(details: detailsAfterTime, vaultType: Type<@MOET.Vault>())
     Test.assert(moetCredit > 10000.0, message: "MOET credit should accrue interest")
 
     // add FLOW liquidity
@@ -249,6 +249,7 @@ fun test_zero_credit_balance() {
         amount: FLOWAmount
     )
     createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: flowLp, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let lpPid = getLastPositionId()
 
     // borrow FLOW (Flow LP deposited 5000.0 FLOW, liquidity now available)
     borrowFromPosition(
@@ -263,6 +264,9 @@ fun test_zero_credit_balance() {
     let details = getPositionDetails(pid: pid, beFailed: false)
     let flowDebt = getDebitBalanceForType(details: details, vaultType: Type<@FlowToken.Vault>())
     Test.assertEqual(100.0, flowDebt)
+
+    let lpDetails = getPositionDetails(pid: lpPid, beFailed: false)
+    let flowCredit = getCreditBalanceForType(details: lpDetails, vaultType: Type<@FlowToken.Vault>())
 
     // FLOW interest rate calculation (KinkInterestCurve)
     //
@@ -281,9 +285,10 @@ fun test_zero_credit_balance() {
     //   protocolFeeAmount = debitIncome * (insuranceRate + stabilityFeeRate)
     //   debitIncome = totalDebitBalance * debitRate
     //
-    //   debitIncome = 0.0 * 0.0 = 0.0
-    //   protocolFeeAmount = 0.0
-    //   totalCreditBalance = 0.0 -> creditRate = 0.0
+    //   debitIncome = totalDebitBalance * debitRate = 100 * 0.00177777777 = 0.177777777
+    //   protocolFeeRate = 0.001 + 0.05 = 0.051
+    //   protocolFeeAmount = 0.177777777 * 0.051 = 0.00906666662
+    //   creditRate = (0.177777777 - 0.00906666662) / 5000 = 0.00003374222 (0.003374% APY)
 
     // Advance 1 day to measure exact interest growth
     Test.moveTime(by: DAY)
@@ -298,10 +303,17 @@ fun test_zero_credit_balance() {
     let flowDebtAfter1Day = getDebitBalanceForType(details: detailsAfter1Day, vaultType: Type<@FlowToken.Vault>())
     let flowDebtDailyGrowth = (flowDebtAfter1Day - flowDebt) / flowDebt
     Test.assertEqual(expectedFlowDebtDailyGrowth, flowDebtDailyGrowth)
+
+    // FLOW LP credit daily growth = (1 + 0.00003374222 / 31_557_600)^86400 - 1 = 0.00000009232
+    let expectedFlowCreditDailyGrowth = 0.00000009
+    let lpDetailsAfter1Day = getPositionDetails(pid: lpPid, beFailed: false)
+    let flowCreditAfter1Day = getCreditBalanceForType(details: lpDetailsAfter1Day, vaultType: Type<@FlowToken.Vault>())
+    let flowCreditDailyGrowth = (flowCreditAfter1Day - flowCredit) / flowCredit
+    Test.assertEqual(expectedFlowCreditDailyGrowth, flowCreditDailyGrowth)
 }
 
 // =============================================================================
-/// Verifies protocol behavior when a lending pool has liquidity but no borrows.
+/// Verifies protocol behavior when a lending pool has liquidity but no borrowers.
 // =============================================================================
 access(all)
 fun test_empty_pool() {
@@ -486,7 +498,6 @@ fun test_long_time_period_accrual() {
     //
     // debitRate = baseRate + (slope1 * utilization / optimalUtilization)
     //   FLOW: debitRate = 0 + 0.04 * (0.2 / 0.45) = 0.01777777777 (1.77% APY)
-    let expectedFLOWDebtRate = 0.01777777
 
     let detailsBefore = getPositionDetails(pid: borrowerPid, beFailed: false)
     let FLOWDebtBefore = getDebitBalanceForType(details: detailsBefore, vaultType: Type<@FlowToken.Vault>())
