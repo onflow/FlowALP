@@ -1207,6 +1207,13 @@ access(all) contract FlowALPv0 {
 
             // Global interest indices are updated via tokenState() helper
 
+            // Queued deposits are held in the position but have not yet been credited to the reserve
+            // or the position's balance. Satisfy as much of the withdrawal as possible from them
+            // first; only the remainder needs to come from (and affect) the reserve.
+            let queuedBalanceForType: UFix64 = position.getQueuedDepositBalance(type) ?? 0.0
+            let queuedUsable = queuedBalanceForType < amount ? queuedBalanceForType : amount
+            let reserveWithdrawAmount: UFix64 = amount - queuedUsable
+
             // Preflight to see if the funds are available
             let topUpSource = position.borrowTopUpSource()
             let topUpType = topUpSource?.getSourceType() ?? self.state.getDefaultToken()
@@ -1216,7 +1223,7 @@ access(all) contract FlowALPv0 {
                 depositType: topUpType,
                 targetHealth: position.getMinHealth(),
                 withdrawType: type,
-                withdrawAmount: amount
+                withdrawAmount: reserveWithdrawAmount
             )
 
             var canWithdraw = false
@@ -1233,7 +1240,7 @@ access(all) contract FlowALPv0 {
                         depositType: topUpType,
                         targetHealth: position.getTargetHealth(),
                         withdrawType: type,
-                        withdrawAmount: amount
+                        withdrawAmount: reserveWithdrawAmount
                     )
 
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
@@ -1277,25 +1284,43 @@ access(all) contract FlowALPv0 {
                 panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
             }
 
-            // If this position doesn't currently have an entry for this token, create one.
-            if position.getBalance(type) == nil {
-                position.setBalance(type, FlowALPModels.InternalBalance(
-                    direction: FlowALPModels.BalanceDirection.Credit,
-                    scaledBalance: 0.0
-                ))
+            // Pull any queued (un-credited) deposits for this token type first.
+            // These tokens are held in the position and have never entered the reserve,
+            // so they can be returned directly with no balance or reserve accounting.
+            var withdrawn <- DeFiActionsUtils.getEmptyVault(type)
+            if queuedUsable > 0.0 {
+                let fullQueuedVault <- position.removeQueuedDeposit(type)!
+                if fullQueuedVault.balance > queuedUsable {
+                    // We only need part of the queued deposit; re-queue the remainder.
+                    let excess <- fullQueuedVault.withdraw(amount: fullQueuedVault.balance - queuedUsable)
+                    position.depositToQueue(type, vault: <-excess)
+                }
+                withdrawn.deposit(from: <-fullQueuedVault)
             }
 
-            let reserveVault = self.state.borrowReserve(type)!
+            // Withdraw the remaining amount from the reserve and reflect it in the position's balance.
+            if reserveWithdrawAmount > 0.0 {
+                // If this position doesn't currently have an entry for this token, create one.
+                if position.getBalance(type) == nil {
+                    position.setBalance(type, FlowALPModels.InternalBalance(
+                        direction: FlowALPModels.BalanceDirection.Credit,
+                        scaledBalance: 0.0
+                    ))
+                }
 
-            // Reflect the withdrawal in the position's balance
-            let uintAmount = UFix128(amount)
-            position.borrowBalance(type)!.recordWithdrawal(
-                amount: uintAmount,
-                tokenState: tokenState
-            )
-            // Attempt to pull additional collateral from the top-up source (if configured)
-            // to keep the position above minHealth after the withdrawal.
-            // Regardless of whether a top-up occurs, the position must be healthy post-withdrawal.
+                let reserveVault = self.state.borrowReserve(type)!
+
+                // Reflect the withdrawal in the position's balance
+                position.borrowBalance(type)!.recordWithdrawal(
+                    amount: UFix128(reserveWithdrawAmount),
+                    tokenState: tokenState
+                )
+
+                let fromReserve <- reserveVault.withdraw(amount: reserveWithdrawAmount)
+                withdrawn.deposit(from: <-fromReserve)
+            }
+
+            // Regardless of whether a top-up occurred, the position must be healthy post-withdrawal.
             let postHealth = self.positionHealth(pid: pid)
             assert(
                 postHealth >= 1.0,
@@ -1316,8 +1341,6 @@ access(all) contract FlowALPv0 {
 
             // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
-
-            let withdrawn <- reserveVault.withdraw(amount: amount)
 
             FlowALPEvents.emitWithdrawn(
                 pid: pid,
