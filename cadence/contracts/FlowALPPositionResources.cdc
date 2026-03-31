@@ -349,7 +349,7 @@ access(all) contract FlowALPPositionResources {
         /// drawDownSink
         access(self) let pushToDrawDownSink: Bool
 
-        init(
+        access(contract) init(
             id: UInt64,
             type: Type,
             pushToDrawDownSink: Bool
@@ -420,7 +420,7 @@ access(all) contract FlowALPPositionResources {
         /// in the event the withdrawal puts the position under its target health
         access(self) let pullFromTopUpSource: Bool
 
-        init(
+        access(contract) init(
             id: UInt64,
             type: Type,
             pullFromTopUpSource: Bool
