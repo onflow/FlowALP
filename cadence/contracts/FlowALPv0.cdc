@@ -2778,6 +2778,8 @@ access(all) contract FlowALPv0 {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.positionLock[pid] == true: "Position is not locked"
+                // Temporarily disabling MOET operations on v0 as a precaution.
+                from.getType() != Type<@MOET.Vault>: "MOET operations disabled"
             }
             post {
                 self.positionLock[pid] == true: "Position is not locked"
@@ -2944,6 +2946,8 @@ access(all) contract FlowALPv0 {
                     "Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool"
                 self.globalLedger[type] != nil:
                     "Invalid token type \(type.identifier) - not supported by this Pool"
+                // Temporarily disabling MOET operations on v0 as a precaution.
+                from.getType() != Type<@MOET.Vault>: "MOET operations disabled"
             }
             post {
                 self.positionLock[pid] == nil: "Position is not unlocked"
@@ -2983,6 +2987,7 @@ access(all) contract FlowALPv0 {
             } else if pullFromTopUpSource {
                 // We need more funds to service this withdrawal, see if they are available from the top up source
                 if let topUpSource = topUpSource {
+                    assert(topUpSource.getType() != Type<MOET.Vault>, message: "MOET operations disabled for v0")
                     // If we have to rebalance, let's try to rebalance to the target health, not just the minimum
                     let idealDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
                         pid: pid,
@@ -3814,20 +3819,21 @@ access(all) contract FlowALPv0 {
                             tokenState: tokenState
                         )
                         if sinkType == Type<@MOET.Vault>() {
-                            let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
-                            emit Rebalanced(
-                                pid: pid,
-                                poolUUID: self.uuid,
-                                atHealth: balanceSheet.health,
-                                amount: sinkVault.balance,
-                                fromUnder: false
-                            )
-                            drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-                            if sinkVault.balance > 0.0 {
-                                self._depositEffectsOnly(pid: pid, from: <-sinkVault)
-                            } else {
-                                Burner.burn(<-sinkVault)
-                            }
+                            panic("MOET operations disabled for v0")
+                            // let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
+                            // emit Rebalanced(
+                            //     pid: pid,
+                            //     poolUUID: self.uuid,
+                            //     atHealth: balanceSheet.health,
+                            //     amount: sinkVault.balance,
+                            //     fromUnder: false
+                            // )
+                            // drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
+                            // if sinkVault.balance > 0.0 {
+                            //     self._depositEffectsOnly(pid: pid, from: <-sinkVault)
+                            // } else {
+                            //     Burner.burn(<-sinkVault)
+                            // }
                         } else {
                             let reserveRef = (&self.reserves[sinkType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
                             let sinkVault <- reserveRef.withdraw(amount: sinkAmount)
