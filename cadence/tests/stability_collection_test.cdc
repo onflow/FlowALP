@@ -375,17 +375,9 @@ fun test_collectStability_midPeriodRateChange() {
     let reservesAfterPhase1 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
     let collected_phase1 = reservesBefore_phase1 - reservesAfterPhase1
 
-    // NOTE:
-    // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
-    // The default variance is designed for deterministic math, but stability collection
-    // depends on block timestamps, which can differ slightly between test runs.
-    // A larger, time-aware tolerance is required.
-    let tolerance = 0.00001
-    var diff = expectedStabilityAmountAfterPhase1 > stabilityAfterPhase1
-        ? expectedStabilityAmountAfterPhase1 - stabilityAfterPhase1
-        : stabilityAfterPhase1 - expectedStabilityAmountAfterPhase1
-    Test.assert(diff < tolerance, message: "Stability collected should be around \(expectedStabilityAmountAfterPhase1) but current \(stabilityAfterPhase1)")
-
+    Test.assert(equalWithinVariance(expectedStabilityAmountAfterPhase1, stabilityAfterPhase1, 0.00001),
+        message: "Stability collected should be around \(expectedStabilityAmountAfterPhase1) but current \(stabilityAfterPhase1)")
+    
     // stability fund balance must equal what was withdrawn from reserves
     // (no swap needed — stability is collected in the same token as the reserve)
     Test.assertEqual(collected_phase1, stabilityAfterPhase1)
@@ -412,12 +404,10 @@ fun test_collectStability_midPeriodRateChange() {
     let reservesAfterPhase2 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
 
     let expectedStabilityTotal = expectedStabilityAmountAfterPhase1 + expectedStabilityAmountAfterPhase2 // 2.62927294 + 10.51709179
-    diff = expectedStabilityTotal > stabilityAfterPhase2
-        ? expectedStabilityTotal - stabilityAfterPhase2
-        : stabilityAfterPhase2 - expectedStabilityTotal
-    Test.assert(diff < tolerance, message: "Stability collected should be around \(expectedStabilityTotal) but current \(stabilityAfterPhase2)")
-
-    // acumulative stability fund must equal sum of both collections
+    Test.assert(equalWithinVariance(expectedStabilityTotal, stabilityAfterPhase2, 0.00001),
+        message: "Stability collected should be around \(expectedStabilityTotal) but current \(stabilityAfterPhase2)")
+    
+    // cumulative stability fund must equal sum of both collections
     let collected_phase2 = reservesBefore_phase2 - reservesAfterPhase2
     Test.assertEqual(stabilityAfterPhase2, stabilityAfterPhase1 + collected_phase2)
     Test.assert(collected_phase2 > collected_phase1, message: "Phase 2 collection should exceed phase 1 due to higher rate")

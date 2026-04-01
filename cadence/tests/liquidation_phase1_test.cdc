@@ -341,6 +341,135 @@ fun testManualLiquidation_reduceHealth() {
     Test.assert(hAfterLiq < hAfterPrice, message: "test expects health to decrease after liquidation")
 }
 
+/// A severe price crash drives a position into bad-debt territory (collateral market value < debt).
+/// A liquidator can seize all remaining collateral in one call, leaving a zombie position with
+/// health = 0.0 and non-zero debt. FlowALPv0 has no automatic write-off mechanism — the shortfall
+/// is an implicit loss absorbed by LP reserve dilution.
+access(all)
+fun testBadDebt_seizeAllCollateral() {
+    safeReset()
+    let pid: UInt64 = 0
+
+    // User deposits 1000 FLOW; pool draws down MOET as debt (pushToDrawDownSink: true)
+    let user = Test.createAccount()
+    transferFlowTokens(to: user, amount: 1000.0)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+
+    let initialCollateral = getPositionBalance(pid: pid, vaultID: FLOW_TOKEN_IDENTIFIER).balance
+    let initialDebt = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER).balance
+
+    // FLOW crashes to $0.40: market value = 1000 × 0.40 = $400 < initialDebt → bad-debt territory
+    let crashedPrice = 0.4
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: crashedPrice)
+    setMockDexPriceForPair(
+        signer: PROTOCOL_ACCOUNT,
+        inVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        outVaultIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: crashedPrice
+    )
+
+    // Confirm bad-debt: collateral market value < outstanding debt
+    Test.assert(initialCollateral * crashedPrice < initialDebt, message: "Setup error: must be in bad-debt territory")
+    Test.assert(getPositionHealth(pid: pid, beFailed: false) < 1.0, message: "Position must be unhealthy after crash")
+
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: liquidator.address, amount: 5000.0, beFailed: false)
+
+    // === Complete collateral seizure ===
+    // Repay just above seize × priceRatio to satisfy DEX check:
+    //   seize(1000) < repay / 0.40  →  repay > 400.0
+    // Post-health = 0 / remainingDebt = 0.0 ≤ 1.05 ✓
+    let minRepay: UFix64 = initialCollateral * crashedPrice + 0.00000001
+    let liqRes = manualLiquidation(
+        signer: liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: initialCollateral,
+        repayAmount: minRepay,
+    )
+    Test.expect(liqRes, Test.beSucceeded())
+
+    // Confirm bad-debt state: health = 0.0, non-zero MOET debt remains
+    let expectedBadDebtHealth: UFix128 = 0.0
+    Test.assertEqual(expectedBadDebtHealth, getPositionHealth(pid: pid, beFailed: false))
+    let remainingDebt = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER).balance
+    Test.assert(remainingDebt > 0.0, message: "Irrecoverable bad debt should remain")
+    Test.assert(remainingDebt == initialDebt - minRepay, message: "Remaining debt should equal initial debt minus repaid amount")
+}
+
+/// After a position reaches bad-debt state (health = 0.0, no collateral), a liquidator can
+/// voluntarily repay the remaining debt with seize=0. However, repaying the very last token
+/// (which would set debt=0) reverts: postHealth=UFix128.max exceeds the 1.05 liquidationTargetHF.
+access(all)
+fun testBadDebt_voluntaryRepayment_fullRepayReverts() {
+    safeReset()
+    let pid: UInt64 = 0
+
+    // Same setup as testBadDebt_seizeAllCollateral: drive position into bad debt
+    let user = Test.createAccount()
+    transferFlowTokens(to: user, amount: 1000.0)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 1000.0, vaultStoragePath: /storage/flowTokenVault, pushToDrawDownSink: true)
+
+    let initialCollateral = getPositionBalance(pid: pid, vaultID: FLOW_TOKEN_IDENTIFIER).balance
+    let initialDebt = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER).balance
+
+    let crashedPrice = 0.4
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: crashedPrice)
+    setMockDexPriceForPair(
+        signer: PROTOCOL_ACCOUNT,
+        inVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        outVaultIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultSourceStoragePath: /storage/moetTokenVault_0x0000000000000007,
+        priceRatio: crashedPrice
+    )
+
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: liquidator.address, amount: 5000.0, beFailed: false)
+
+    // First liquidation: seize all collateral, enter bad-debt state
+    let minRepay: UFix64 = initialCollateral * crashedPrice + 0.00000001
+    Test.expect(manualLiquidation(
+        signer: liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: initialCollateral,
+        repayAmount: minRepay,
+    ), Test.beSucceeded())
+
+    let remainingDebt = getPositionBalance(pid: pid, vaultID: MOET_TOKEN_IDENTIFIER).balance
+
+    // === Second liquidation: voluntary partial bad-debt repayment (seize=0) ===
+    // DEX check: 0 < repay/priceRatio → always passes for any repay > 0
+    // Post-health: 0 / 0.00000001 = 0.0 ≤ 1.05 ✓
+    let almostAll = remainingDebt - 0.00000001
+    Test.expect(manualLiquidation(
+        signer: liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: 0.0,
+        repayAmount: almostAll,
+    ), Test.beSucceeded())
+
+    // === Third liquidation: repaying the final tick reverts ===
+    // Repaying 0.00000001 MOET sets postDebt=0, so postHealth=UFix128.max > 1.05 → revert
+    let liqRes3 = manualLiquidation(
+        signer: liquidator,
+        pid: pid,
+        debtVaultIdentifier: Type<@MOET.Vault>().identifier,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: 0.0,
+        repayAmount: 0.00000001,
+    )
+    Test.expect(liqRes3, Test.beFailed())
+    Test.assertError(liqRes3, errorMessage: "Liquidation must not exceed target health")
+}
+
 /// Should be able to liquidate to below target health while increasing health factor.
 access(all)
 fun testManualLiquidation_increaseHealthBelowTarget() {
@@ -511,7 +640,7 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
     let liqRes = _executeTransaction(
-        "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
+        "../tests/transactions/flow-alp/helpers/manual_liquidation_chosen_vault.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
@@ -567,7 +696,7 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
     let liqRes = _executeTransaction(
-        "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
+        "../tests/transactions/flow-alp/helpers/manual_liquidation_chosen_vault.cdc",
         [pid, Type<@MOET.Vault>().identifier, MOCK_YIELD_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
@@ -622,7 +751,7 @@ fun testManualLiquidation_unsupportedDebtType() {
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
     let liqRes = _executeTransaction(
-        "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
+        "../tests/transactions/flow-alp/helpers/manual_liquidation_chosen_vault.cdc",
         [pid, MOCK_YIELD_TOKEN_IDENTIFIER, MOCK_YIELD_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
         liquidator
     )
