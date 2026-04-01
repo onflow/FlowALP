@@ -1927,28 +1927,12 @@ access(all) contract FlowALPv0 {
             )
 
             return PositionDetails(
-                id: pid,
                 balances: balances,
                 poolDefaultToken: self.defaultToken,
                 defaultTokenAvailableBalance: defaultTokenAvailable,
                 health: health
             )
         }
-
-        /// Returns the details of a given position, or nil if the position does not exist.
-        /// This is the non-panicking variant of getPositionDetails.
-        access(all) fun tryGetPositionDetails(pid: UInt64): PositionDetails? {
-            if self.debugLogging {
-                log("    [CONTRACT] tryGetPositionDetails(pid: \(pid))")
-            }
-
-            if self._tryBorrowPosition(pid: pid) == nil {
-                return nil
-            }
-
-            return self.getPositionDetails(pid: pid)
-        }
-
 
         /// Any external party can perform a manual liquidation on a position under the following circumstances:
         /// - the position has health < 1
@@ -4095,14 +4079,9 @@ access(all) contract FlowALPv0 {
             }
         }
 
-        /// Returns an authorized reference to the requested InternalPosition, or nil if it does not exist.
-        access(self) view fun _tryBorrowPosition(pid: UInt64): (auth(EImplementation) &InternalPosition)? {
-            return &self.positions[pid] as auth(EImplementation) &InternalPosition?
-        }
-
-        /// Returns an authorized reference to the requested InternalPosition or panics if the position does not exist.
+        /// Returns an authorized reference to the requested InternalPosition or `nil` if the position does not exist
         access(self) view fun _borrowPosition(pid: UInt64): auth(EImplementation) &InternalPosition {
-            return self._tryBorrowPosition(pid: pid)
+            return &self.positions[pid] as auth(EImplementation) &InternalPosition?
                 ?? panic("Invalid position ID \(pid) - could not find an InternalPosition with the requested ID in the Pool")
         }
 
@@ -4783,9 +4762,6 @@ access(all) contract FlowALPv0 {
     /// This structure is NOT used internally.
     access(all) struct PositionDetails {
 
-        /// The unique identifier of the position
-        access(all) let id: UInt64
-
         /// Balance details about each Vault Type deposited to the related Position
         access(all) let balances: [PositionBalance]
 
@@ -4799,13 +4775,11 @@ access(all) contract FlowALPv0 {
         access(all) let health: UFix128
 
         init(
-            id: UInt64,
             balances: [PositionBalance],
             poolDefaultToken: Type,
             defaultTokenAvailableBalance: UFix64,
             health: UFix128
         ) {
-            self.id = id
             self.balances = balances
             self.poolDefaultToken = poolDefaultToken
             self.defaultTokenAvailableBalance = defaultTokenAvailableBalance
