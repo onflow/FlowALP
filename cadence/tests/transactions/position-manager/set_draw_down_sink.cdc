@@ -26,7 +26,7 @@ transaction(
     }
 
     execute {
-        // Privide new sink for the position directly
+        // Provide new sink for the position directly
         self.position.provideSink(sink: sink)
     }
 }

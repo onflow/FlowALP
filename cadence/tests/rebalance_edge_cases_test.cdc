@@ -202,13 +202,13 @@ fun testRebalance_AsyncUpdate_ProcessesAtMostConfiguredBatchSize() {
             admin: PROTOCOL_ACCOUNT,
             signer: user,
             amount: 1_000.0,
-            vaultStoragePath: /storage/flowTokenVault,
+            vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
             pushToDrawDownSink: true
         )
         pid = pid + 1
     }
 
-    // drop price: all positions overcollateralised
+    // raise price: all positions overcollateralised
     //   effectiveCollateral = 1000 × 1.2 × 0.8 = 960
     //   effectiveDebt       ≈ 615.38
     //   health              ≈ 1.56 > maxHealth (1.5)

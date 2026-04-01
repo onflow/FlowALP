@@ -866,7 +866,7 @@ fun withdrawStabilityFund(
 }
 
 access(all)
-fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool): Test.TransactionResult{
+fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool): Test.TransactionResult {
     return _executeTransaction(
         "../transactions/flow-alp/pool-management/rebalance_position.cdc",
         [ pid, force ],
@@ -875,7 +875,7 @@ fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool): Test.
 }
 
 access(all)
-fun setDrawDownSink(signer: Test.TestAccount, pid: UInt64, sink: {DeFiActions.Sink}?): Test.TransactionResult{
+fun setDrawDownSink(signer: Test.TestAccount, pid: UInt64, sink: {DeFiActions.Sink}?): Test.TransactionResult {
     return _executeTransaction(
         "./transactions/position-manager/set_draw_down_sink.cdc",
         [ pid, sink ],
@@ -1071,7 +1071,7 @@ fun withdrawReserve(
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
-/// the async update queue so all queued positions are processed.
+/// Drains the async update queue so all queued positions are processed.
 access(all)
 fun asyncUpdate(): Test.TransactionResult {
     return _executeTransaction(
