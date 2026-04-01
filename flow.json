@@ -49,31 +49,46 @@
 		"FlowALPMath": {
 			"source": "./cadence/lib/FlowALPMath.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007",
+				"testnet": "426f0458ced60037"
 			}
 		},
 		"FlowALPRebalancerPaidv1": {
 			"source": "./cadence/contracts/FlowALPRebalancerPaidv1.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007",
+				"testnet": "426f0458ced60037"
 			}
 		},
 		"FlowALPRebalancerv1": {
 			"source": "./cadence/contracts/FlowALPRebalancerv1.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007",
+				"testnet": "426f0458ced60037"
 			}
 		},
 		"FlowALPSupervisorv1": {
 			"source": "./cadence/contracts/FlowALPSupervisorv1.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007",
+				"testnet": "426f0458ced60037"
 			}
 		},
 		"FlowALPv0": {
 			"source": "./cadence/contracts/FlowALPv0.cdc",
 			"aliases": {
-				"testing": "0000000000000007"
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007",
+				"testnet": "426f0458ced60037"
 			}
 		},
 		"FungibleTokenConnectors": {
@@ -89,6 +104,8 @@
 		"MOET": {
 			"source": "./cadence/contracts/MOET.cdc",
 			"aliases": {
+				"mainnet": "6b00ff876c299c61",
+				"mainnet-fork": "6b00ff876c299c61",
 				"testing": "0000000000000007"
 			}
 		},
@@ -364,7 +381,10 @@
 						}
 					]
 				},
-				"FlowALPv0"
+				"FlowALPv0",
+				"FlowALPRebalancerPaidv1",
+				"FlowALPRebalancerv1",
+				"FlowALPSupervisorv1"
 			],
 			"mainnet-fyv-deployer": [
 				"MockDexSwapper",
@@ -383,7 +403,10 @@
 						}
 					]
 				},
-				"FlowALPv0"
+				"FlowALPv0",
+				"FlowALPRebalancerPaidv1",
+				"FlowALPRebalancerv1",
+				"FlowALPSupervisorv1"
 			],
 			"mainnet-fork-fyv-deployer": [
 				"MockDexSwapper",
@@ -402,7 +425,10 @@
 						}
 					]
 				},
-				"FlowALPv0"
+				"FlowALPv0",
+				"FlowALPRebalancerPaidv1",
+				"FlowALPRebalancerv1",
+				"FlowALPSupervisorv1"
 			],
 			"testnet-fyv-deployer": [
 				"MockDexSwapper",
