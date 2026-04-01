@@ -801,13 +801,23 @@ fun getPositionIDs(): [UInt64] {
 }
 
 access(all)
-fun getPositionsByIDs(positionIDs: [UInt64]): [FlowALPv0.PositionDetails] {
+fun getPositionsByIDs(positionIDs: [UInt64]): [FlowALPv0.PositionDetails?] {
     let res = _executeScript(
         "../scripts/flow-alp/get_positions_by_ids.cdc",
         [positionIDs]
     )
     Test.expect(res, Test.beSucceeded())
-    return res.returnValue as! [FlowALPv0.PositionDetails]
+    return res.returnValue as! [FlowALPv0.PositionDetails?]
+}
+
+access(all)
+fun tryGetPositionDetails(pid: UInt64): FlowALPv0.PositionDetails? {
+    let res = _executeScript(
+        "../scripts/flow-alp/try_get_position_details.cdc",
+        [pid]
+    )
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! FlowALPv0.PositionDetails?
 }
 
 access(all)
