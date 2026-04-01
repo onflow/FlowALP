@@ -253,14 +253,14 @@ fun testRebalance_ConcurrentRebalances() {
 
     // minHealth = 1.1: required deposit per position to reach minHealth after 50% price crash:
     //   effectiveCollateral = 1 000 * 0.5 * 0.8 = 400
-    //   effectiveDebt       ≈ 615.38
+    //   effectiveDebt       ≈ 615.38461538
     //
-    // Ideal health = 400 / (615.38 - required) = 1.3
-    // Required MOET ≈ 307.69 MOET
+    // health >= 1.0 (to avoid liquidation): 400 / (615.38461538 - required) = 1.0
+    // Required MOET ≈ 215.38461538 MOET
     //
-    // left 310 MOET which is enough for one position, not both
+    // left 215.38 MOET which is enough for one position, not both
     let moetAmount = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
-    transferFungibleTokens(tokenIdentifier: MOET_TOKEN_IDENTIFIER, from: user, to: drain, amount: moetAmount - 310.0)
+    transferFungibleTokens(tokenIdentifier: MOET_TOKEN_IDENTIFIER, from: user, to: drain, amount: moetAmount - 215.38461538)
 
     // drop price so both positions fall below health 1.0
     // effectiveCollateral = 1000 * 0.5 * 0.8 = 400; debt ≈ 615 → health ≈ 0.65
@@ -270,7 +270,7 @@ fun testRebalance_ConcurrentRebalances() {
     Test.assert(getPositionHealth(pid: 1, beFailed: false) < 1.0, message: "Position should be undercollateralised")
     let userMoetBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
 
-    // first rebalance (position 0): user has 310 MOET — enough to rescue
+    // first rebalance (position 0): user has 215.38461538 MOET — enough to rescue
     let rebalanceRes0 = rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true)
     Test.expect(rebalanceRes0, Test.beSucceeded())
 
@@ -286,7 +286,7 @@ fun testRebalance_ConcurrentRebalances() {
         message: "Position 0 should be healthy after first rebalance (health=\(health0AfterFirst.toString()))"
     )
     
-    // second rebalance (position 1): user has ≈ 2.3 MOET — not enough to rescue
+    // second rebalance (position 1): user has 0 MOET — not enough to rescue
     let rebalance1 = rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 1, force: true)
     Test.expect(rebalance1, Test.beFailed())
     Test.assertError(rebalance1, errorMessage: "topUpSource insufficient to save position from liquidation")
