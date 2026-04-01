@@ -1927,7 +1927,6 @@ access(all) contract FlowALPv0 {
             )
 
             return PositionDetails(
-                id: pid,
                 balances: balances,
                 poolDefaultToken: self.defaultToken,
                 defaultTokenAvailableBalance: defaultTokenAvailable,
@@ -4783,9 +4782,6 @@ access(all) contract FlowALPv0 {
     /// This structure is NOT used internally.
     access(all) struct PositionDetails {
 
-        /// The unique identifier of the position
-        access(all) let id: UInt64
-
         /// Balance details about each Vault Type deposited to the related Position
         access(all) let balances: [PositionBalance]
 
@@ -4799,13 +4795,11 @@ access(all) contract FlowALPv0 {
         access(all) let health: UFix128
 
         init(
-            id: UInt64,
             balances: [PositionBalance],
             poolDefaultToken: Type,
             defaultTokenAvailableBalance: UFix64,
             health: UFix128
         ) {
-            self.id = id
             self.balances = balances
             self.poolDefaultToken = poolDefaultToken
             self.defaultTokenAvailableBalance = defaultTokenAvailableBalance

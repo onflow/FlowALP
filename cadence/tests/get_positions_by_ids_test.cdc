@@ -51,11 +51,11 @@ fun test_getPositionsByIDs() {
     let details0 = getPositionDetails(pid: 0, beFailed: false)
     let details1 = getPositionDetails(pid: 1, beFailed: false)
 
-    Test.assertEqual(details0.health, details[0].health)
-    Test.assertEqual(details0.balances.length, details[0].balances.length)
+    Test.assertEqual(details0.health, details[0]!.health)
+    Test.assertEqual(details0.balances.length, details[0]!.balances.length)
 
-    Test.assertEqual(details1.health, details[1].health)
-    Test.assertEqual(details1.balances.length, details[1].balances.length)
+    Test.assertEqual(details1.health, details[1]!.health)
+    Test.assertEqual(details1.balances.length, details[1]!.balances.length)
 
     // --- Empty input returns empty array ---
     let emptyDetails = getPositionsByIDs(positionIDs: [])
@@ -64,21 +64,26 @@ fun test_getPositionsByIDs() {
     // --- Single ID works ---
     let singleDetails = getPositionsByIDs(positionIDs: [UInt64(0)])
     Test.assertEqual(1, singleDetails.length)
-    Test.assertEqual(details0.health, singleDetails[0].health)
+    Test.assertEqual(details0.health, singleDetails[0]!.health)
 
     // --- Closed positions are silently skipped ---
     // Close position 1, then request both IDs — should only return position 0
     closePosition(user: user, positionID: 1)
     let afterClose = getPositionsByIDs(positionIDs: [UInt64(0), UInt64(1)])
-    Test.assertEqual(1, afterClose.length)
-    Test.assertEqual(details0.health, afterClose[0].health)
+    Test.assertEqual(2, afterClose.length)
+    Test.assertEqual(details0.health, afterClose[0]!.health)
+    Test.assertEqual(afterClose[1], nil)
 
     // --- All IDs closed/invalid returns empty array ---
     closePosition(user: user, positionID: 0)
     let allClosed = getPositionsByIDs(positionIDs: [UInt64(0), UInt64(1)])
-    Test.assertEqual(0, allClosed.length)
+    Test.assertEqual(2, allClosed.length)
+    Test.assertEqual(allClosed[0], nil)
+    Test.assertEqual(allClosed[1], nil)
 
     // --- Non-existent IDs are skipped ---
     let nonExistent = getPositionsByIDs(positionIDs: [UInt64(999), UInt64(1000)])
-    Test.assertEqual(0, nonExistent.length)
+    Test.assertEqual(2, nonExistent.length)
+    Test.assertEqual(nonExistent[0], nil)
+    Test.assertEqual(nonExistent[1], nil)
 }
