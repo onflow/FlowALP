@@ -1,6 +1,4 @@
 // Returns the details of multiple positions by their IDs.
-// Positions that no longer exist (e.g., closed between fetching IDs and executing this script)
-// are silently skipped.
 import "FlowALPv0"
 
 access(all) fun main(positionIDs: [UInt64]): [FlowALPv0.PositionDetails] {
@@ -11,9 +9,7 @@ access(all) fun main(positionIDs: [UInt64]): [FlowALPv0.PositionDetails] {
 
     let details: [FlowALPv0.PositionDetails] = []
     for id in positionIDs {
-        if let detail = pool.tryGetPositionDetails(pid: id) {
-            details.append(detail)
-        }
+        details.append(pool.getPositionDetails(pid: id))
     }
     return details
 }
