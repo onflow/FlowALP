@@ -174,7 +174,7 @@ fun testRebalance_DrawDownSinkRejection() {
     Test.assertEqual(moetInVaultAfterRebalance, moetInVaultBeforeRebalance)
     let debtAfterRebalance = getPositionBalance(pid: 0, vaultID: MOET_TOKEN_IDENTIFIER).balance
     Test.assertEqual(initialDebt, debtAfterRebalance)
-    Test.assert(healthAfterRebalance >= INT_TARGET_HEALTH, message: "Health should remain above targetHealth when sink is at capacity (health=\(healthAfterRebalance.toString()))")
+    Test.assert(healthAfterRebalance >= INT_TARGET_HEALTH, message: "Health should remain above targetHealth when sink is removed (health=\(healthAfterRebalance.toString()))")
     Test.assertEqual(healthAfterRebalance, healthAfterPrice)
 }
 
