@@ -1683,6 +1683,10 @@ access(all) contract FlowALPv0 {
         /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
+        access(all) view fun positionExists(pid: UInt64): Bool {
+            return self.positions[pid] != nil
+        }
+
         access(FlowALPModels.EPosition | FlowALPModels.ERebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"

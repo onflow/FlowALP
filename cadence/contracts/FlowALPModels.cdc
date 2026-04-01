@@ -2129,6 +2129,9 @@ access(all) contract FlowALPModels {
             pullFromTopUpSource: Bool
         ): @{FungibleToken.Vault}
 
+        /// Returns true if a position with the given ID exists in the pool.
+        access(all) view fun positionExists(pid: UInt64): Bool
+
         /// Rebalances the specified position.
         access(EPosition | ERebalance) fun rebalancePosition(pid: UInt64, force: Bool)
 
