@@ -320,6 +320,19 @@ access(all) fun test_supervisor_stale_uuid_does_not_panic() {
     Test.assertEqual(1, removedEvts2.length)
 }
 
+access(all) fun test_invalid_position_id() {
+    let invalidPositionID: UInt64 = 9999
+
+    let createRes = Test.executeTransaction(Test.Transaction(
+        code: Test.readFile("./transactions/rebalancer/add_paid_rebalancer_with_id.cdc"),
+        authorizers: [protocolAccount.address],
+        signers: [protocolAccount],
+        arguments: [invalidPositionID]
+    ))
+    Test.expect(createRes, Test.beFailed())
+    Test.assertError(createRes, errorMessage: "position does not exist")
+}
+
 access(all) fun test_supervisor() {
     Test.moveTime(by: 100.0)
     Test.commitBlock()

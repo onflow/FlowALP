@@ -239,9 +239,9 @@ access(all) contract FlowALPRebalancerPaidv1 {
     /// Returns a RebalancerPaid resource; the underlying PositionRebalancer is stored in this contract
     /// and the first run is scheduled.
     access(all) fun createPaidRebalancer(positionID: UInt64) {
-        let rebalancer <- create PositionRebalancer(
-            positionID: positionID
-        )
+        let pool = self.poolCap!.borrow()!
+        assert(pool.positionExists(pid: positionID), message: "Invalid position ID \(positionID) - position does not exist")
+        let rebalancer <- create PositionRebalancer(positionID: positionID)
         // will panic if the rebalancer already exists
         self.storeRebalancer(rebalancer: <-rebalancer, positionID: positionID)
         self.setSelfCapability(positionID: positionID).fixReschedule()
