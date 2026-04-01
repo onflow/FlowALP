@@ -3818,22 +3818,22 @@ access(all) contract FlowALPv0 {
                             amount: uintSinkAmount,
                             tokenState: tokenState
                         )
+                        assert(sinkType != Type<MOET.Vault>, message: "MOET operations disabled for v0")
                         if sinkType == Type<@MOET.Vault>() {
-                            panic("MOET operations disabled for v0")
-                            // let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
-                            // emit Rebalanced(
-                            //     pid: pid,
-                            //     poolUUID: self.uuid,
-                            //     atHealth: balanceSheet.health,
-                            //     amount: sinkVault.balance,
-                            //     fromUnder: false
-                            // )
-                            // drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
-                            // if sinkVault.balance > 0.0 {
-                            //     self._depositEffectsOnly(pid: pid, from: <-sinkVault)
-                            // } else {
-                            //     Burner.burn(<-sinkVault)
-                            // }
+                            let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
+                            emit Rebalanced(
+                                pid: pid,
+                                poolUUID: self.uuid,
+                                atHealth: balanceSheet.health,
+                                amount: sinkVault.balance,
+                                fromUnder: false
+                            )
+                            drawDownSink.depositCapacity(from: &sinkVault as auth(FungibleToken.Withdraw) &{FungibleToken.Vault})
+                            if sinkVault.balance > 0.0 {
+                                self._depositEffectsOnly(pid: pid, from: <-sinkVault)
+                            } else {
+                                Burner.burn(<-sinkVault)
+                            }
                         } else {
                             let reserveRef = (&self.reserves[sinkType] as auth(FungibleToken.Withdraw) &{FungibleToken.Vault}?)!
                             let sinkVault <- reserveRef.withdraw(amount: sinkAmount)
