@@ -165,8 +165,10 @@ fun test_collectInsurance_insufficientReserves() {
     Test.assertEqual(0.0, finalInsuranceBalance)
     Test.assertEqual(reserveBalanceBefore, reserveBalanceAfter)
 
-    // time should not change
-    Test.assertEqual(lastCollectionTimeBefore, lastCollectionTimeAfter)
+    // In the accumulator model, accumulateProtocolFees() is always called and updates the timestamp
+    // even when reserves are insufficient. Fees accumulate in the accumulator until reserves recover.
+    Test.assert(lastCollectionTimeAfter! > lastCollectionTimeBefore!, message: "Timestamp should be updated even on failed collection")
+
 }
 
 // -----------------------------------------------------------------------------
@@ -245,11 +247,11 @@ fun test_collectInsurance_success_fullAmount() {
     let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set 10% annual debit rate
-    // Insurance is calculated on debit income, not debit balance directly
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    // set 10% annual debit rate using KinkCurve (slope1=0/slope2=0 → constant rate regardless of
+    // utilization), ensuring protocolFeeIncome > 0 at the ~6% utilization of this test setup.
+    setInterestCurveKink(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, optimalUtilization: 0.9, baseRate: 0.1, slope1: 0.0, slope2: 0.0)
 
-    // set insurance rate (10% of debit income)
+    // set insurance rate (10% of spread income)
     let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, insuranceRate: 0.1)
     Test.expect(rateResult, Test.beSucceeded())
 
@@ -269,7 +271,11 @@ fun test_collectInsurance_success_fullAmount() {
     let reserveBalanceAfter = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assert(reserveBalanceAfter < reserveBalanceBefore, message: "Reserves should have decreased after collection")
 
-    // verify the amount withdrawn from reserves equals the insurance fund balance (1:1 swap ratio)
+    // verify the total amount withdrawn from reserves equals insurance collected (1:1 swap ratio).
+    // collectInsurance only drains the insurance accumulator; stability remains in its accumulator
+    // until collectStability is called separately.
+    let stabilityFundBalance = getStabilityFundBalance(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER) ?? 0.0
+    Test.assertEqual(0.0, stabilityFundBalance)
     let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
     Test.assertEqual(amountWithdrawnFromReserves, finalInsuranceBalance)
 
@@ -334,10 +340,10 @@ fun test_collectInsurance_multipleTokens() {
     let flowSwapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, priceRatio: 1.0)
     Test.expect(flowSwapperResult, Test.beSucceeded())
 
-    // set 10% annual debit rates
-    // Insurance is calculated on debit income, not debit balance directly
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.1)
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    // set 10% annual debit rates using KinkCurve (slope1=0/slope2=0 → constant rate), ensuring
+    // protocolFeeIncome > 0 at the low utilization levels created by this test setup.
+    setInterestCurveKink(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, optimalUtilization: 0.9, baseRate: 0.1, slope1: 0.0, slope2: 0.0)
+    setInterestCurveKink(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, optimalUtilization: 0.9, baseRate: 0.1, slope1: 0.0, slope2: 0.0)
 
     // set different insurance rates for each token type (percentage of debit income)
     let moetRateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, insuranceRate: 0.1) // 10%
@@ -434,8 +440,9 @@ fun test_collectInsurance_dexOracleSlippageProtection() {
     let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, priceRatio: 0.5)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set 10% annual debit rate and 10% insurance rate
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    // set 10% annual debit rate using KinkCurve (slope1=0/slope2=0 → constant rate), ensuring
+    // protocolFeeIncome > 0 at 20% utilization so the slippage check is actually triggered.
+    setInterestCurveKink(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, optimalUtilization: 0.9, baseRate: 0.1, slope1: 0.0, slope2: 0.0)
     let rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.1)
     Test.expect(rateResult, Test.beSucceeded())
 
@@ -475,8 +482,9 @@ fun test_collectInsurance_midPeriodRateChange() {
     let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set interest curve
-    setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, yearlyRate: 0.1)
+    // set interest curve — KinkCurve with slope1=0/slope2=0 gives constant 10% debit rate,
+    // ensuring protocolFeeIncome > 0 at any utilization (5% here: 500 debit / 10000 credit).
+    setInterestCurveKink(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, optimalUtilization: 0.9, baseRate: 0.1, slope1: 0.0, slope2: 0.0)
     // set insurance rate
     var rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.1)
     Test.expect(rateResult, Test.beSucceeded())
@@ -515,18 +523,17 @@ fun test_collectInsurance_midPeriodRateChange() {
     // Advance to ONE_YEAR
     Test.moveTime(by: ONE_YEAR)
 
-    // Phase 1 expected insurance calculation:
-    //   yearly rate        = 0.1   (yearly debit rate, FixedCurve)
-    //   insuranceRate1     = 0.1   (fraction of debit income)
+    // Phase 1 expected insurance calculation (KinkCurve compound formula):
+    //   insuranceRate1 = 0.1, stabilityFeeRate = 0.05 (default), protocolFeeRate = 0.15
+    //   U = 500/10000 = 0.05
     //
-    //   debitIncome_1 = totalDebitBalance * (pow(perSecondDebitRate, timeElapsed) - 1.0)
-    //   perSecondRate = 1 + (yearlyRate / 31_557_600)
-    //   insuranceAmount = debitIncome * insuranceRate
-    //
-    //   perSecondRate = 1 + (0.1 / 31557600) = 1.00000000317
-    //   debitIncome_1 = 500 * (1.00000000317^31557600 - 1) = 52.58545895 FLOW
-    //   insuranceAmount = debitIncome_1 * insurRate1 = 52.58545895 * 0.1 = 5.25854589
-    let expectedCollectedInsuranceAmountAfterPhase1 = 5.25854589
+    //   debitRatePerSec  = 0.1 / 31557600
+    //   debitIncome      = 500  * (pow(1 + debitRatePerSec, ONE_YEAR) - 1)       ≈ 52.58545895
+    //   creditIncome     = 10000 * (pow(1 + debitRatePerSec * (1-0.15) * 0.05, ONE_YEAR) - 1)
+    //                    ≈ 10000 * (e^0.00425 - 1)                                ≈ 42.59044
+    //   protocolFeeIncome = debitIncome - creditIncome                            ≈  9.99502
+    //   insuranceFeeAmount_1 = protocolFeeIncome * 0.1 / 0.15                    ≈  6.66334
+    let expectedCollectedInsuranceAmountAfterPhase1 = 6.66334
 
    // change the insurance rate to 20% for phase 2
     rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.2)
@@ -545,18 +552,16 @@ fun test_collectInsurance_midPeriodRateChange() {
 
     Test.moveTime(by: ONE_YEAR)
 
-    // Phase 2 expected insurance calculation:
-    //   yearly rate        = 0.1   (yearly debit rate, FixedCurve)
-    //   insuranceRate2     = 0.2   (fraction of debit income)
+    // Phase 2 expected insurance calculation (KinkCurve compound formula):
+    //   insuranceRate2 = 0.2, stabilityFeeRate = 0.05 (default), protocolFeeRate = 0.25
+    //   U = 0.05 (unchanged)
     //
-    //   debitIncome_2 = totalDebitBalance * (pow(perSecondDebitRate, timeElapsed) - 1.0)
-    //   perSecondRate = 1 + (yearlyRate / 31_557_600)
-    //   insuranceAmount_2 = debitIncome * insuranceRate2
-    //
-    //   perSecondRate = 1 + (0.1 / 31557600) = 1.00000000317
-    //   debitIncome_2 = 500 * (1.00000000317^31557600 - 1) = 52.58545895 FLOW
-    //   insuranceAmount_2 = debitIncome_2 * insuranceRate2 = 52.58545895 * 0.2 = 10.51709179
-    let expectedCollectedInsuranceAmountAfterPhase2 = 10.51709179
+    //   debitIncome      = 500  * (pow(1 + debitRatePerSec, ONE_YEAR) - 1)       ≈ 52.58545895
+    //   creditIncome     = 10000 * (pow(1 + debitRatePerSec * (1-0.25) * 0.05, ONE_YEAR) - 1)
+    //                    ≈ 10000 * (e^0.00375 - 1)                                ≈ 37.57040
+    //   protocolFeeIncome = debitIncome - creditIncome                            ≈ 15.01506
+    //   insuranceFeeAmount_2 = protocolFeeIncome * 0.2 / 0.25                    ≈ 12.01205
+    let expectedCollectedInsuranceAmountAfterPhase2 = 12.01205
 
     // change the insurance rate to 25%
     rateResult = setInsuranceRate(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, insuranceRate: 0.25)

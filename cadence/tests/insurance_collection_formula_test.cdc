@@ -44,14 +44,14 @@ fun test_collectInsurance_success_fullAmount() {
     createPosition(admin: PROTOCOL_ACCOUNT, signer: lp, amount: 10000.0, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
 
     // setup borrower with FLOW collateral
-    // With 0.8 CF and 1.3 target health: 1000 FLOW collateral allows borrowing ~615 MOET
-    // borrow = (collateral * price * CF) / targetHealth = (1000 * 1.0 * 0.8) / 1.3 ≈ 615.38
+    // With 0.8 CF and 1.3 target health: 15000 FLOW collateral allows borrowing ~9231 MOET
+    // borrow = (collateral * price * CF) / targetHealth = (15000 * 1.0 * 0.8) / 1.3 ≈ 9230.77
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
-    transferFlowTokens(to: borrower, amount: 1000.0)
+    transferFlowTokens(to: borrower, amount: 15000.0)
 
-    // borrower deposits FLOW and auto-borrows MOET (creates debit balance ~615 MOET)
-    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 1000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
+    // borrower deposits 15000 FLOW and auto-borrows MOET (creates debit balance ~9231 MOET)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 15000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
     // setup protocol account with MOET vault for the swapper
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
@@ -61,8 +61,7 @@ fun test_collectInsurance_success_fullAmount() {
     let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
-    // set 10% annual debit rate
-    // insurance is calculated on debit income, not debit balance
+    // set 10% annual debit rate; credit rate = 0.1 × (1 − 0.15) = 0.085
     setInterestCurveFixed(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, yearlyRate: 0.1)
 
     // set insurance rate (10% of debit income)
@@ -90,25 +89,35 @@ fun test_collectInsurance_success_fullAmount() {
     let reserveBalanceAfter = getReserveBalance(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assert(reserveBalanceAfter < reserveBalanceBefore, message: "Reserves should have decreased after collection")
 
-    let collectedAmount = finalInsuranceBalance - initialInsuranceBalance
+    let collectedInsuranceAmount = finalInsuranceBalance - initialInsuranceBalance
 
+    // collectInsurance accumulates both insurance AND stability in one call,
+    // and only insurance was withdrawn, with insuranceRate=0.1.
+    let stabilityFundBalance = getStabilityFundBalance(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER) ?? 0.0
+    Test.assertEqual(0.0, stabilityFundBalance)
     let amountWithdrawnFromReserves = reserveBalanceBefore - reserveBalanceAfter
-    // verify the amount withdrawn from reserves equals the collected amount (1:1 swap ratio)
-    Test.assertEqual(amountWithdrawnFromReserves, collectedAmount)
+    // Total withdrawn = insurance (→ fund via swap with 1:1 ratio)
+    Test.assertEqual(amountWithdrawnFromReserves, collectedInsuranceAmount)
 
     // verify last insurance collection time was updated to current block timestamp
     let currentTimestamp = getBlockTimestamp()
     let lastInsuranceCollectionTime = getLastInsuranceCollectionTime(tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER)
     Test.assertEqual(currentTimestamp, lastInsuranceCollectionTime!)
 
-    // verify formula: insuranceAmount = debitIncome * insuranceRate
-    // where debitIncome = totalDebitBalance * (currentDebitRate^timeElapsed - 1.0)
-    // = (1.0 + 0.1 / 31_557_600)^31_557_600 = 1.10517091665
-    // debitBalance ≈ 615.38 MOET
-    // With 10% annual debit rate over 1 year: debitIncome ≈ 615.38 * (1.10517091665 - 1) ≈ 64.72
-    // Insurance = debitIncome * 0.1 ≈ 6.472 MOET
+    // verify formula (index-based, accounts for credit offset):
+    //   protocolFee = debitIncome - creditIncome
+    //   insuranceAmount = protocolFee × insuranceRate / totalProtocolFeeRate
+    //
+    //   debitBalance  ≈ 15000 × 0.8 / 1.3 ≈ 9230.77 MOET
+    //   creditBalance = 10000 MOET
+    //   debitGrowth   = e^0.1 ≈ 1.10517091807  (e^rate ≈ (1 + rate/N)^N for big N)
+    //   creditGrowth  = e^(0.085) ≈ 1.0887170667   (creditRate = debitRate × (1 − 0.15) = 0.085)
+    //   debitIncome   = 9230.77 × 0.10517091807 ≈ 970.808555393
+    //   creditIncome  = 10000  × 0.0887170667 ≈ 887.170667
+    //   protocolFee   = 970.808555393 - 887.170667 = 83.637888393 MOET
+    //   insuranceAmt  = 83.637888393 × 0.1 / 0.15 ≈ 55.758 MOET
+    //
+    let expectedCollectedAmount = 55.758
 
-    let expectedCollectedAmount = 6.472
-    Test.assert(equalWithinVariance(expectedCollectedAmount, collectedAmount, 0.001),
-        message: "Insurance collected should be around \(expectedCollectedAmount) but current \(collectedAmount)")
+    Test.assert(equalWithinVariance(expectedCollectedAmount, collectedInsuranceAmount, 0.001), message: "Insurance collected should be around \(expectedCollectedAmount) but current \(collectedInsuranceAmount)")
 }
