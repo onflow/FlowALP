@@ -1656,7 +1656,13 @@ access(all) contract FlowALPv0 {
         /// Returns whether a given token Type is supported or not
         access(all) view fun isTokenSupported(tokenType: Type): Bool {
             return self.globalLedger[tokenType] != nil
-        } 
+        }
+
+        /// Returns the total number of currently active positions in the Pool.
+        /// A position is counted from the moment it is created until it is closed.
+        access(all) view fun getPositionCount(): Int {
+            return self.positions.length
+        }
 
         /// Returns the current balance of the stability fund for a given token type.
         /// Returns nil if the token type is not supported.
