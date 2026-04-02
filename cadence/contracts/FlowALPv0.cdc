@@ -311,9 +311,10 @@ access(all) contract FlowALPv0 {
             }
         }
 
-        /// Returns true if the position is under the global liquidation trigger (health < 1.0)
+        /// Returns true if the position is under the global liquidation trigger (health < 1.0),
+        /// accounting for any queued deposits that would, once credited, improve the health factor.
         access(all) fun isLiquidatable(pid: UInt64): Bool {
-            let health = self.positionHealth(pid: pid)
+            let health = self._getBalanceSheetIncludingQueuedDeposits(pid: pid).health
             return health < 1.0
         }
 
@@ -544,7 +545,7 @@ access(all) contract FlowALPv0 {
 
             let positionView = self.buildPositionView(pid: pid)
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
-            let initialHealth = balanceSheet.health
+            let initialHealth = self._getBalanceSheetIncludingQueuedDeposits(pid: pid).health
             assert(initialHealth < 1.0, message: "Cannot liquidate healthy position: \(initialHealth)>=1")
 
             // Ensure liquidation amounts don't exceed position amounts
@@ -1681,19 +1682,21 @@ access(all) contract FlowALPv0 {
             }
             let position = self._borrowPosition(pid: pid)
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+            let effectiveBalanceSheet = self._getBalanceSheetIncludingQueuedDeposits(pid: pid)
 
-            if !force && (position.getMinHealth() <= balanceSheet.health && balanceSheet.health <= position.getMaxHealth()) {
+            if !force && (position.getMinHealth() <= effectiveBalanceSheet.health && effectiveBalanceSheet.health <= position.getMaxHealth()) {
                 // We aren't forcing the update, and the position is already between its desired min and max. Nothing to do!
                 return
             }
 
-            if balanceSheet.health < position.getTargetHealth() {
+            if effectiveBalanceSheet.health < position.getTargetHealth() {
                 // The position is undercollateralized,
                 // see if the source can get more collateral to bring it up to the target health.
                 if let topUpSource = position.borrowTopUpSource() {
-                    let idealDeposit = self.fundsRequiredForTargetHealth(
-                        pid: pid,
-                        type: topUpSource.getSourceType(),
+                    let idealDeposit = self.computeRequiredDepositForHealth(
+                        position: position,
+                        depositType: topUpSource.getSourceType(),
+                        initialBalanceSheet: effectiveBalanceSheet,
                         targetHealth: position.getTargetHealth()
                     )
                     if self.config.isDebugLogging() {
@@ -1718,10 +1721,10 @@ access(all) contract FlowALPv0 {
                     )
 
                     // Post-deposit health check: panic if the position is still liquidatable.
-                    let newBalanceSheet = self._getUpdatedBalanceSheet(pid: pid)
-                    assert(newBalanceSheet.health >= 1.0, message: "topUpSource insufficient to save position from liquidation")
+                    let newEffectiveHealth = self._getBalanceSheetIncludingQueuedDeposits(pid: pid).health
+                    assert(newEffectiveHealth >= 1.0, message: "topUpSource insufficient to save position from liquidation")
                 }
-            } else if balanceSheet.health > position.getTargetHealth() {
+            } else if effectiveBalanceSheet.health > position.getTargetHealth() {
                 // The position is overcollateralized,
                 // we'll withdraw funds to match the target health and offer it to the sink.
                 if self.isPausedOrWarmup() {
@@ -1730,9 +1733,10 @@ access(all) contract FlowALPv0 {
                 }
                 if let drawDownSink = position.borrowDrawDownSink() {
                     let sinkType = drawDownSink.getSinkType()
-                    let idealWithdrawal = self.fundsAvailableAboveTargetHealth(
-                        pid: pid,
-                        type: sinkType,
+                    let idealWithdrawal = self.computeAvailableWithdrawal(
+                        position: position,
+                        withdrawType: sinkType,
+                        initialBalanceSheet: effectiveBalanceSheet,
                         targetHealth: position.getTargetHealth()
                     )
                     if self.config.isDebugLogging() {
@@ -2006,6 +2010,7 @@ access(all) contract FlowALPv0 {
                 return
             }
 
+            // If there are no queued deposits, we don't need to take them into account when calculating health
             let positionHealth = self.positionHealth(pid: pid)
 
             if positionHealth < position.getMinHealth() || positionHealth > position.getMaxHealth() {
@@ -2053,6 +2058,26 @@ access(all) contract FlowALPv0 {
                 effectiveCollateral: effectiveCollateralByToken,
                 effectiveDebt: effectiveDebtByToken
             )
+        }
+
+        /// Returns a balance sheet that accounts for all queued deposits as if they had already been processed.
+        /// Used to determine whether rebalancing or liquidation is appropriate when pending deposits
+        /// would, once credited, bring the position to a safe health factor.
+        access(self) fun _getBalanceSheetIncludingQueuedDeposits(pid: UInt64): FlowALPModels.BalanceSheet {
+            let position = self._borrowPosition(pid: pid)
+            var balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+
+            for depositType in position.getQueuedDepositKeys() {
+                let queuedAmount = position.getQueuedDepositBalance(depositType)!
+                balanceSheet = self.computeAdjustedBalancesAfterDeposit(
+                    initialBalanceSheet: balanceSheet,
+                    position: position,
+                    depositType: depositType,
+                    depositAmount: queuedAmount
+                )
+            }
+
+            return balanceSheet
         }
 
         /// A convenience function that returns a reference to a particular token state, making sure it's up-to-date for
