@@ -1215,16 +1215,25 @@ access(all) contract FlowALPv0 {
             let queuedUsable = queuedBalanceForType < amount ? queuedBalanceForType : amount
             let reserveWithdrawAmount: UFix64 = amount - queuedUsable
 
-            // Preflight to see if the funds are available
+            // Preflight to see if the funds are available.
+            // Use effective health (reserve + queued deposits) so that this check is consistent
+            // with the liquidation and rebalancing checks, which also use effective health.
             let topUpSource = position.borrowTopUpSource()
             let topUpType = topUpSource?.getSourceType() ?? self.state.getDefaultToken()
 
-            let requiredDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
-                pid: pid,
-                depositType: topUpType,
-                targetHealth: position.getMinHealth(),
+            let effectiveBalanceSheet = self._getBalanceSheetIncludingQueuedDeposits(pid: pid)
+            let effectiveBalanceAfterWithdrawal = self.computeAdjustedBalancesAfterWithdrawal(
+                initialBalanceSheet: effectiveBalanceSheet,
+                position: position,
                 withdrawType: type,
-                withdrawAmount: reserveWithdrawAmount
+                withdrawAmount: amount
+            )
+
+            let requiredDeposit = self.computeRequiredDepositForHealth(
+                position: position,
+                depositType: topUpType,
+                initialBalanceSheet: effectiveBalanceAfterWithdrawal,
+                targetHealth: position.getMinHealth()
             )
 
             var canWithdraw = false
@@ -1236,12 +1245,11 @@ access(all) contract FlowALPv0 {
                 // We need more funds to service this withdrawal, see if they are available from the top up source
                 if let topUpSource = topUpSource {
                     // If we have to rebalance, let's try to rebalance to the target health, not just the minimum
-                    let idealDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
-                        pid: pid,
+                    let idealDeposit = self.computeRequiredDepositForHealth(
+                        position: position,
                         depositType: topUpType,
-                        targetHealth: position.getTargetHealth(),
-                        withdrawType: type,
-                        withdrawAmount: reserveWithdrawAmount
+                        initialBalanceSheet: effectiveBalanceAfterWithdrawal,
+                        targetHealth: position.getTargetHealth()
                     )
 
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
@@ -1322,7 +1330,9 @@ access(all) contract FlowALPv0 {
             }
 
             // Regardless of whether a top-up occurred, the position must be healthy post-withdrawal.
-            let postHealth = self.positionHealth(pid: pid)
+            // Uses effective health (reserve + remaining queued deposits) for consistency with
+            // the liquidation and rebalancing checks.
+            let postHealth = self._getBalanceSheetIncludingQueuedDeposits(pid: pid).health
             assert(
                 postHealth >= 1.0,
                 message: "Post-withdrawal position health (\(postHealth)) is unhealthy"

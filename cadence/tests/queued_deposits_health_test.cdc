@@ -294,3 +294,118 @@ fun test_rebalance_topup_reduced_by_queued_deposit() {
         message: "TopUp (\(topUpAmount)) should be close to \(newBehaviourTopUp) (accounting for queued deposit), not close to old value \(oldBehaviourTopUp)"
     )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 5: Withdrawal from the queue is permitted when reserve health < minHealth
+//         but effective health (reserve + remaining queue) >= minHealth.
+//
+// With: 1000 FLOW @ $0.75, cf=0.8 → reserve effectiveCollateral = 600
+//       MOET debt ≈ 615.38
+//       Reserve health ≈ 0.975  (< 1.0 — below liquidation threshold)
+//
+// Queue 200 FLOW → effective health = (1000+200)*0.75*0.8 / 615.38 ≈ 1.17
+//
+// Withdraw 50 FLOW from the queue (reserveWithdrawAmount = 0):
+//       Effective health after = (1000+150)*0.75*0.8 / 615.38 ≈ 1.12 >= minHealth(1.1) ✓
+//
+// Old behaviour: the preflight used reserve health (0.975 < minHealth) and blocked
+// this withdrawal even though no reserve tokens were touched.
+// New behaviour: the preflight uses effective health and permits it.
+// ─────────────────────────────────────────────────────────────────────────────
+access(all)
+fun test_withdrawal_from_queue_permitted_when_reserve_health_below_min() {
+    safeReset()
+    let pid: UInt64 = 0
+
+    let user = setupPositionWithDebt()
+
+    // Drop FLOW price so that reserve health falls below 1.0.
+    setMockOraclePrice(
+        signer: PROTOCOL_ACCOUNT,
+        forTokenIdentifier: FLOW_TOKEN_IDENTIFIER,
+        price: 0.75
+    )
+
+    // Confirm reserve health < 1.0.
+    let reserveHealth = getPositionHealth(pid: pid, beFailed: false)
+    Test.assert(reserveHealth < 1.0, message: "Expected reserve health < 1.0, got \(reserveHealth)")
+
+    // Queue 200 FLOW — brings effective health to ≈ 1.17, well above minHealth(1.1).
+    depositToPosition(
+        signer: user,
+        positionID: pid,
+        amount: 200.0,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        pushToDrawDownSink: false
+    )
+
+    let userFlowBefore = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
+
+    // Withdraw 50 FLOW — entirely from the queue (reserveWithdrawAmount = 0).
+    // Effective health after ≈ 1.12 >= minHealth, so this should succeed.
+    withdrawFromPosition(
+        signer: user,
+        positionId: pid,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        amount: 50.0,
+        pullFromTopUpSource: false
+    )
+
+    let userFlowAfter = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
+    Test.assert(
+        equalWithinVariance(userFlowBefore + 50.0, userFlowAfter, DEFAULT_UFIX_VARIANCE),
+        message: "User should have received 50 FLOW from the queue"
+    )
+
+    // Remaining queue should be 150.
+    let queued = getQueuedDeposits(pid: pid, beFailed: false)
+    let flowType = CompositeType(FLOW_TOKEN_IDENTIFIER)!
+    Test.assert(
+        equalWithinVariance(150.0, queued[flowType]!, DEFAULT_UFIX_VARIANCE),
+        message: "Queue should hold 150 FLOW after withdrawing 50"
+    )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 6: Withdrawal is rejected when it would drop effective health below 1.0,
+//         even if part of it comes from the queue.
+//
+// With: 1000 FLOW @ $0.75, cf=0.8 → reserve effectiveCollateral = 600
+//       MOET debt ≈ 615.38, reserve health ≈ 0.975
+// Queue 100 FLOW → effective health = 1100*0.75*0.8/615.38 ≈ 1.07
+//
+// Withdraw 200 FLOW (100 from queue, 100 from reserve):
+//       Effective credit after = (1000-100) + (100-100) = 900
+//       effectiveCollateral = 900*0.75*0.8 = 540 < 615.38 → health ≈ 0.88 < 1.0 → rejected
+// ─────────────────────────────────────────────────────────────────────────────
+access(all)
+fun test_withdrawal_rejected_when_effective_health_would_drop_below_one() {
+    safeReset()
+    let pid: UInt64 = 0
+
+    let user = setupPositionWithDebt()
+
+    setMockOraclePrice(
+        signer: PROTOCOL_ACCOUNT,
+        forTokenIdentifier: FLOW_TOKEN_IDENTIFIER,
+        price: 0.75
+    )
+
+    // Queue 100 FLOW.
+    depositToPosition(
+        signer: user,
+        positionID: pid,
+        amount: 100.0,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        pushToDrawDownSink: false
+    )
+
+    // Attempt to withdraw 200 FLOW (drains queue and takes 100 from reserve).
+    // Effective health after ≈ 0.88 < 1.0 — should be rejected.
+    let res = _executeTransaction(
+        "./transactions/position-manager/withdraw_from_position.cdc",
+        [pid, FLOW_TOKEN_IDENTIFIER, 200.0, false],
+        user
+    )
+    Test.expect(res, Test.beFailed())
+}
