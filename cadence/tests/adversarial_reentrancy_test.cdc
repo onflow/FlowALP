@@ -145,7 +145,7 @@ fun test_reentrancy_recursiveWithdrawSource() {
     //
     // In this test, the topUpSource behavior is adversarial: it attempts to re-enter
     // the pool during the pull/deposit flow. We expect the transaction to fail.
-        let withdrawRes = _executeTransaction(
+    let withdrawRes = _executeTransaction(
         "./transactions/position-manager/withdraw_from_position.cdc",
         [positionID, FLOW_TOKEN_IDENTIFIER, 1_500.0, true],
         user
