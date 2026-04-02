@@ -107,7 +107,7 @@ fun testGriefingDepositCapacity() {
 
     // The legitimate user's FLOW is queued, not credited — it cannot be used as collateral.
     let queued = getQueuedDeposits(pid: legitimatePid, beFailed: false)
-    Test.assert(queued[flowType] != nil, message: "Legitimate user should have queued FLOW when capacity is exhausted")
+    Test.assertEqual(1, queued.length)
     Test.assertEqual(5.0, queued[flowType]!)
 
     let details = getPositionDetails(pid: legitimatePid, beFailed: false)
@@ -347,11 +347,26 @@ fun testCapacityRegenerationMonopolization() {
     // Capacity was 100 at setup; attacker1 consumed it all.
     Test.assertEqual(100.0, attacker1Credit)
 
-    // Phase 2: advance the clock by one hour so the pool will regenerate
+    // Phase 2: an early depositor arrives before the clock advances — capacity is
+    // exhausted so the full deposit is queued.
+    let earlyDepositor = Test.createAccount()
+    transferFlowTokens(to: earlyDepositor, amount: 100.0)
+    createPosition(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
+        signer: earlyDepositor,
+        amount: 100.0,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        pushToDrawDownSink: false
+    )
+    let earlyDepositorPid = getLastPositionId()
+    let queued = getQueuedDeposits(pid: earlyDepositorPid, beFailed: false)
+    Test.assertEqual(1, queued.length)
+
+    // Phase 3: advance the clock by one hour so the pool will regenerate
     // 100 × (3600/3600) = 100 FLOW on the next interaction.
     Test.moveTime(by: 3600.0)
 
-    // Phase 3: attacker2 deposits immediately after the time advance.
+    // Phase 4: attacker2 deposits immediately after the time advance.
     // The pool's state-update runs first (dt=3600s → regen=100), then the
     // deposit consumes the newly available capacity in the same transaction.
     let attacker2 = Test.createAccount()
