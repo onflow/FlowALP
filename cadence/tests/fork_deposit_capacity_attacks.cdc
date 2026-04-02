@@ -278,7 +278,7 @@ fun testSybilPerUserLimitBypass() {
     // Note: sybilTotalCredit < 2×perPositionCap because the per-tx limit
     // (depositCapacity × fraction) erodes with each deposit: after the honest user
     // consumes 100 FLOW the remaining capacity is 1900, giving sybil1 a per-tx limit
-    // of 95 (not 100), and sybil2 a limit of ~90.25.  The combined credit still exceeds
+    // of 95 (not 100), and sybil2 a limit of ~90.25. The combined credit still exceeds
     // the per-position cap, proving the bypass.
     Test.assert(
         sybilTotalCredit > perPositionCap,
