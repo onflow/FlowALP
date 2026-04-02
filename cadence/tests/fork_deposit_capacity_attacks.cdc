@@ -41,7 +41,7 @@ fun setup() {
 // Griefing: 1000 minimum-amount positions exhaust pool capacity
 //
 // An attacker creates many positions each depositing exactly the protocol
-// minimum (1 FLOW), collectively consuming all available capacity.  A
+// minimum (1 FLOW), collectively consuming all available capacity. A
 // legitimate user who arrives afterwards finds capacity exhausted: their
 // deposit is fully queued and cannot be used as collateral.
 // 
@@ -51,8 +51,8 @@ fun testGriefingDepositCapacity() {
     safeReset()
 
     // minimumTokenBalancePerPosition = 1.0 FLOW enforces the floor each position
-    // must hold.  cap = 10.0 so 10 attackers at minimum balance exhaust it.
-    // depositRate must be strictly positive; use the minimum valid value so
+    // must hold. DepositCapacityCap = 10.0 so 10 attackers at minimum balance exhaust it.
+    // DepositRate must be strictly positive; use the minimum valid value so
     // regeneration is negligible during test execution (rounds to 0.0 in UFix64).
     addSupportedTokenZeroRateCurve(
         signer: MAINNET_PROTOCOL_ACCOUNT,
@@ -90,7 +90,7 @@ fun testGriefingDepositCapacity() {
         i = i + 1
     }
 
-    // Legitimate user arrives after griefing — their 5 FLOW deposit is fully
+    // Legitimate user arrives after griefing — user's 5 FLOW deposit is fully
     // queued because no capacity remains.
     let legitimateUser = Test.createAccount()
     transferFlowTokens(to: legitimateUser, amount: 5.0)
