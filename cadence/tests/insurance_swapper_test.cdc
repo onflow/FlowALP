@@ -212,10 +212,14 @@ fun test_setInsuranceSwapper_wrongInputType_fails() {
 }
 
 // -----------------------------------------------------------------------------
-/// Swapper returns 10 % less collateral than quoted.
+/// TODO: Update when automated liquidation (DEX swap execution) is implemented.
 ///
-/// The protocol validates `seizeAmount < quote.inAmount`, which is checked
-/// before the swap executes, liquidation tx must revert.
+/// This test is intended to validate a scenario where the swapper returns less
+/// than quoted (e.g. due to slippage or malicious behavior).
+///
+/// Currently, manual liquidation only uses the swapper as a price reference,
+/// so this test effectively reduces to a DEX/oracle price deviation check and
+/// overlaps with existing tests.
 // -----------------------------------------------------------------------------
 
 access(all)
