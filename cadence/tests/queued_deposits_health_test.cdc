@@ -367,7 +367,54 @@ fun test_withdrawal_from_queue_permitted_when_reserve_health_below_min() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Test 6: Withdrawal is rejected when it would drop effective health below 1.0,
+// Test 6: Cross-type borrow against queued collateral is blocked.
+//
+// A queued FLOW deposit should not increase borrowing capacity for MOET.
+// Only reserve FLOW should govern how much MOET can be withdrawn.
+//
+// With: 1000 FLOW reserve @ $1.0, cf=0.8, bf=1.0
+//       MOET debt ≈ 615.38 (drawn at position creation, targetHealth=1.3)
+//       Reserve health = 1000*1.0*0.8 / 615.38 ≈ 1.3 (at target)
+//       availableBalance(MOET) ≈ 0 (already at target health)
+//
+// Queue 500 FLOW (deposit cap exhausted, goes to queue).
+//       A cross-type borrow would incorrectly increase MOET borrowing capacity.
+//       The fix: queued FLOW provides no additional MOET borrow capacity.
+//       Attempting to withdraw any additional MOET beyond the reserve allowance must fail.
+// ─────────────────────────────────────────────────────────────────────────────
+access(all)
+fun test_queued_collateral_does_not_enable_cross_type_borrow() {
+    safeReset()
+    let pid: UInt64 = 0
+
+    let user = setupPositionWithDebt()
+
+    // Queue 500 FLOW (capacity is exhausted so it goes into the queue, not the reserve).
+    depositToPosition(
+        signer: user,
+        positionID: pid,
+        amount: 500.0,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        pushToDrawDownSink: false
+    )
+
+    let queued = getQueuedDeposits(pid: pid, beFailed: false)
+    let flowType = CompositeType(FLOW_TOKEN_IDENTIFIER)!
+    Test.assert(queued[flowType] != nil, message: "Expected 500 FLOW to be queued")
+
+    // Position is at targetHealth (1.3) with reserve FLOW only. No MOET should be available.
+    // A cross-type borrow would try to use queued FLOW to support additional MOET withdrawal.
+    // This must fail.
+    let res = _executeTransaction(
+        "./transactions/position-manager/withdraw_from_position.cdc",
+        [pid, MOET_TOKEN_IDENTIFIER, 100.0, false],
+        user
+    )
+    Test.expect(res, Test.beFailed())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test 8: Withdrawal is rejected when it would drop effective health below 1.0,
 //         even if part of it comes from the queue.
 //
 // With: 1000 FLOW @ $0.75, cf=0.8 → reserve effectiveCollateral = 600
