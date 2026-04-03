@@ -81,7 +81,7 @@ access(all) contract FlowALPModels {
         /// The unsigned numeric value.
         access(all) let quantity: UFix128
 
-        init(direction: BalanceDirection, quantity: UFix128) {
+        view init(direction: BalanceDirection, quantity: UFix128) {
             // Enforce 0-balance convention
             if quantity == 0.0 {
                 self.direction = BalanceDirection.Credit
@@ -394,7 +394,7 @@ access(all) contract FlowALPModels {
         }
 
         /// Returns the true balance for the given internal (scaled) balance, accounting for accrued interest.
-        access(all) fun trueBalance(balance: InternalBalance): Balance {
+        access(all) view fun trueBalance(balance: InternalBalance): Balance {
             let scaled = balance.getScaledBalance()
             let interestIndex = scaled.direction == BalanceDirection.Credit
                 ? self.creditIndex
@@ -404,7 +404,7 @@ access(all) contract FlowALPModels {
         }
 
         /// Returns the effective value (collateral or debt) for the given balance, based on its direction.
-        access(all) fun effectiveBalance(balance: Balance): Balance {
+        access(all) view fun effectiveBalance(balance: Balance): Balance {
             if balance.quantity == 0.0 {
                 return balance
             }
