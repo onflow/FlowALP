@@ -2012,10 +2012,6 @@ access(all) contract FlowALPv0 {
             var effectiveCollateralByToken: {Type: UFix128} = {}
             var effectiveDebtByToken: {Type: UFix128} = {}
 
-            for type in position.getBalanceKeys() {
-                let balance = position.getBalance(type)!
-                let tokenState = self._borrowUpdatedTokenState(type: type)
-                let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
             let oracle = self.config.getPriceOracle()
             for type in position.getBalanceKeys() {
                 let balance = position.getBalance(type)!
