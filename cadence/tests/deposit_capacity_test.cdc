@@ -112,6 +112,9 @@ fun test_per_user_deposit_limits() {
     // Calculate expected per-user limit
     let expectedUserLimit = initialCap * depositLimitFraction // 10000 * 0.05 = 500
     
+    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    Test.assertEqual(initialCap, capacityInfo["depositCapacity"]!)
+
     // Setup user 1
     let user1 = Test.createAccount()
     setupMoetVault(user1, beFailed: false)
@@ -124,15 +127,23 @@ fun test_per_user_deposit_limits() {
     // User 1 deposits more (should be accepted up to limit)
     let user1Deposit1 = 300.0 // After this: usage = 400 (out of 500 limit)
     depositToPosition(signer: user1, positionID: 0, amount: user1Deposit1, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
-    
+
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    Test.assertEqual(initialCap - 400.0, capacityInfo["depositCapacity"]!)
+
     // User 1 deposits more (should be partially accepted, partially queued)
     let user1Deposit2 = 200.0 // Only 100 more can be accepted to reach limit of 500, 100 will be queued
     depositToPosition(signer: user1, positionID: 0, amount: user1Deposit2, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
     // After this: usage = 500 (at limit), 100 queued
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    Test.assertEqual(initialCap - 500.0, capacityInfo["depositCapacity"]!)
     
     // User 1 tries to deposit more (should be queued due to per-user limit)
     let user1Deposit3 = 100.0 // This should be queued (user already at limit)
-    depositToPosition(signer: user1, positionID: 0, amount: user1Deposit3, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false) // Transaction succeeds but deposit is queued
+    depositToPosition(signer: user1, positionID: 0, amount: user1Deposit3, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // Transaction succeeds but deposit is queued
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    Test.assertEqual(initialCap - 500.0, capacityInfo["depositCapacity"]!)
     
     // Setup user 2 - they should have their own independent limit
     let user2 = Test.createAccount()
@@ -141,25 +152,35 @@ fun test_per_user_deposit_limits() {
     
     let initialDeposit2 = 100.0
     createPosition(admin: PROTOCOL_ACCOUNT, signer: user2, amount: initialDeposit2, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
-    // After position creation: usage = 100 (out of 500 limit)
+    // After position creation: user usage = 100 (out of 500 limit); total usage is 600
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    Test.assertEqual(initialCap - 600.0, capacityInfo["depositCapacity"]!)
     
     // User 2 should be able to deposit up to their own limit (500 total, so 400 more)
     let user2Deposit = 400.0
     depositToPosition(signer: user2, positionID: 1, amount: user2Deposit, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
-    // After this: usage = 500 (at limit)
+    // After this: user usage = 500 (at limit); total usage is 1000
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    Test.assertEqual(initialCap - 1000.0, capacityInfo["depositCapacity"]!)
     
-    // Verify that both users have independent limits by checking capacity
-    // Get capacity after all deposits
-    var capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
-    let finalCapacity = capacityInfo["depositCapacity"]!
-    
+    // Setup user 3 - they should be able to deposit up to the user limit in a single deposit
+    let user3 = Test.createAccount()
+    setupMoetVault(user3, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: user3.address, amount: 10000.0, beFailed: false)
+
+    let initialDeposit3 = 500.0
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: user3, amount: initialDeposit3, vaultStoragePath: MOET.VaultStoragePath, pushToDrawDownSink: false)
+    // After position creation: user usage = 500 (out of 500 limit); total usage is 1500
+    capacityInfo = getDepositCapacityInfo(vaultIdentifier: MOET_TOKEN_IDENTIFIER)
+    Test.assertEqual(initialCap - 1500.0, capacityInfo["depositCapacity"]!)
+
     // Total accepted deposits: 
     // user1 = 500 (100 initial + 300 + 100 from deposit2, 100 from deposit2 queued, 100 from deposit3 queued)
     // user2 = 500 (100 initial + 400)
-    // total = 1000
-    // We need to check that capacity decreased by at least 1000 from some initial value
-    Test.assert(finalCapacity <= initialCap - 1000.0, 
-                message: "Final capacity \(finalCapacity) should be <= initial cap \(initialCap) - 1000")
+    // user3 = 500 (500 initial)
+    // total = 1500
+    // since queued deposits do not consume any deposit capacity, and none of the deposits should have been
+    // affected by the per-deposit limit, the total capacity should have decreased by exactly 1500.0
 }
 
 // -----------------------------------------------------------------------------
