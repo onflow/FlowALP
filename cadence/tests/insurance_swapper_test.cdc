@@ -1,7 +1,10 @@
 import Test
+import BlockchainHelpers
+
+import "FlowALPv0"
+import "MOET"
 
 import "test_helpers.cdc"
-import "FlowALPv0"
 
 access(all) let alice = Test.createAccount()
 
@@ -206,4 +209,92 @@ fun test_setInsuranceSwapper_wrongInputType_fails() {
 
     Test.expect(res, Test.beFailed())
     Test.assertError(res, errorMessage: "Swapper input type must match token type")
+}
+
+// -----------------------------------------------------------------------------
+/// TODO: Update when automated liquidation (DEX swap execution) is implemented.
+///
+/// This test is intended to validate a scenario where the swapper returns less
+/// than quoted (e.g. due to slippage or malicious behavior).
+///
+/// Currently, manual liquidation only uses the swapper as a price reference,
+/// so this test effectively reduces to a DEX/oracle price deviation check and
+/// overlaps with existing tests.
+// -----------------------------------------------------------------------------
+
+access(all)
+fun test_insuranceSwapper_returns_less_than_quoted() {
+    let user = Test.createAccount()
+    setupMoetVault(user, beFailed: false)
+    let mintRes = mintFlow(to: user, amount: 1000.0)
+    Test.expect(mintRes, Test.beSucceeded())
+
+    addSupportedTokenZeroRateCurve(
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        collateralFactor: 0.65,
+        borrowFactor: 1.0,
+        depositRate: 1_000_000.0,
+        depositCapacityCap: 1_000_000.0
+    )
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
+
+    createPosition(
+        admin: PROTOCOL_ACCOUNT,
+        signer: user,
+        amount: 1000.0,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        pushToDrawDownSink: true
+    )
+    let pid = getLastPositionId()
+
+    // change oracle price FLOW $1.00 → $0.70
+    setMockOraclePrice(
+        signer: PROTOCOL_ACCOUNT,
+        forTokenIdentifier: FLOW_TOKEN_IDENTIFIER,
+        price: 0.70
+    )
+
+    // configure the DEX swapper to return only 90 % of what it quotes
+    // (simulates slippage / malicious swapper).
+    // priceRatio here represents actual tokens-out per token-in; setting it 10 %
+    // below the oracle causes the inferred DEX price to diverge by ~11 %, which
+    // exceeds the 3 % (300 bps) threshold -> transaction must revert.
+    let manipulatedRatio = 0.63   // 0.70 * 0.90 = 0.63
+    setMockDexPriceForPair(
+        signer: PROTOCOL_ACCOUNT,
+        inVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        outVaultIdentifier: MOET_TOKEN_IDENTIFIER,
+        vaultSourceStoragePath: MOET.VaultStoragePath,
+        priceRatio: manipulatedRatio
+    )
+
+    Test.assert(getPositionHealth(pid: pid, beFailed: false) < 1.0,message: "position must be underwater before liquidation attempt")
+
+    let liquidator = Test.createAccount()
+    setupMoetVault(liquidator, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: liquidator.address, amount: 500.0, beFailed: false)
+
+    // DEX quote at manipulatedRatio 0.63: 50 / 0.63 ≈ 79.37 FLOW required.
+    // Liquidator offers 70 FLOW < 79.37 → passes better-than-DEX check.
+    // But DEX implied price = 0.63, oracle = 0.70:
+    //   deviation = |0.70 - 0.63| / 0.63 ≈ 11.1 % > 3 % threshold
+    let liqRes = manualLiquidation(
+        signer: liquidator,
+        pid: pid,
+        debtVaultIdentifier: MOET_TOKEN_IDENTIFIER,
+        seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER,
+        seizeAmount: 70.0,
+        repayAmount: 50.0
+    )
+    Test.expect(liqRes, Test.beFailed())
+    Test.assertError(liqRes, errorMessage: "DEX/oracle price deviation too large")
+
+    // collateral must be unchanged
+    let details = getPositionDetails(pid: pid, beFailed: false)
+    let flowCredit = getCreditBalanceForType(
+        details: details,
+        vaultType: CompositeType(FLOW_TOKEN_IDENTIFIER)!
+    )
+    Test.assertEqual(1000.0, flowCredit)
 }
