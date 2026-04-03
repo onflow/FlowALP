@@ -70,7 +70,7 @@ access(all) contract FlowALPv0 {
             return 0.0
         }
 
-        // TODO: this logic partly duplicates FlowALPModels.BalanceSheet construction in _getReserveBalanceSheet
+        // TODO: this logic partly duplicates FlowALPModels.BalanceSheet construction in _getCreditedBalanceSheet
         // This function differs in that it does not read any data from a Pool resource. Consider consolidating the two implementations.
         var effectiveCollateralTotal: UFix128 = 0.0
         var effectiveDebtTotal: UFix128 = 0.0
@@ -146,8 +146,8 @@ access(all) contract FlowALPv0 {
     ///
     /// The Pool uses two distinct health factor concepts throughout its logic:
     ///
-    /// - **Reserve health**: computed from balances that have been credited to the reserve only.
-    ///   This is what `positionHealth()` and `_getReserveBalanceSheet()` return.
+    /// - **Credited health**: computed from balances that have been credited to the reserve only.
+    ///   This is what `positionHealth()` and `_getCreditedBalanceSheet()` return.
     ///   It is used for: available-balance queries, borrow-capacity checks, and the
     ///   pre/post-liquidation arithmetic (Ce_pre, De_pre).
     ///
@@ -160,8 +160,8 @@ access(all) contract FlowALPv0 {
     ///   unnecessary rebalancing, but it does not yet support borrowing against other tokens.
     ///
     /// The withdrawal preflight (`_getWithdrawalBalanceSheet`) is a hybrid: it starts from the
-    /// reserve balance sheet but adds the queued deposit for the *withdrawn token only*, so that
-    /// withdrawing same-type queued funds is gated on the remaining queued + reserve health for
+    /// credited balance sheet but adds the queued deposit for the *withdrawn token only*, so that
+    /// withdrawing same-type queued funds is gated on the remaining queued + credited health for
     /// that token, while cross-type borrowing against uncredited collateral remains blocked.
     access(all) resource Pool: FlowALPModels.PositionPool {
 
@@ -457,7 +457,7 @@ access(all) contract FlowALPv0 {
             return FlowALPMath.toUFix64Round(uintMax)
         }
 
-        /// Returns the **reserve health** of the given position: the ratio of effective collateral to
+        /// Returns the **credited health** of the given position: the ratio of effective collateral to
         /// effective debt, computed from credited reserve balances only (queued deposits excluded).
         /// "Effective collateral" is each credit balance times its collateral factor; "effective debt"
         /// is each debit balance divided by its borrow factor. Both are denominated in the default token.
@@ -466,7 +466,7 @@ access(all) contract FlowALPv0 {
         /// `_getQueuedBalanceSheet` for liquidation and rebalancing decisions.
         // TODO: make this output enumeration of effective debts/collaterals (or provide option that does)
         access(all) fun positionHealth(pid: UInt64): UFix128 {
-            let balanceSheet = self._getReserveBalanceSheet(pid: pid)
+            let balanceSheet = self._getCreditedBalanceSheet(pid: pid)
             return balanceSheet.health
         }
 
@@ -571,8 +571,8 @@ access(all) contract FlowALPv0 {
             self.lockPosition(pid)
 
             let positionView = self.buildPositionView(pid: pid)
-            // Reserve balance sheet used for Ce_pre/De_pre (liquidation seizes reserve collateral only).
-            let reserveBalanceSheet = self._getReserveBalanceSheet(pid: pid)
+            // Credited balance sheet used for Ce_pre/De_pre (liquidation seizes reserve collateral only).
+            let creditedBalanceSheet = self._getCreditedBalanceSheet(pid: pid)
             // Queued health used for the eligibility check: a pending deposit that would rescue the
             // position should prevent liquidation.
             let initialHealth = self._getQueuedBalanceSheet(pid: pid).health
@@ -593,9 +593,9 @@ access(all) contract FlowALPv0 {
             let Pcd_oracle = Pc_oracle / Pd_oracle
 
             // Compute the health factor which would result if we were to accept this liquidation.
-            // Uses reserve balance sheet: liquidation seizes reserve collateral, not queued deposits.
-            let Ce_pre = reserveBalanceSheet.effectiveCollateral // effective collateral pre-liquidation
-            let De_pre = reserveBalanceSheet.effectiveDebt       // effective debt pre-liquidation
+            // Uses credited balance sheet: liquidation seizes reserve collateral, not queued deposits.
+            let Ce_pre = creditedBalanceSheet.effectiveCollateral // effective collateral pre-liquidation
+            let De_pre = creditedBalanceSheet.effectiveDebt       // effective debt pre-liquidation
             let Fc = positionView.snapshots[seizeType]!.getRisk().getCollateralFactor()
             let Fd = positionView.snapshots[debtType]!.getRisk().getBorrowFactor()
 
@@ -703,7 +703,7 @@ access(all) contract FlowALPv0 {
                 log("    [CONTRACT] fundsRequiredForTargetHealthAfterWithdrawing(pid: \(pid), depositType: \(depositType.contractName!), targetHealth: \(targetHealth), withdrawType: \(withdrawType.contractName!), withdrawAmount: \(withdrawAmount))")
             }
 
-            let balanceSheet = self._getReserveBalanceSheet(pid: pid)
+            let balanceSheet = self._getCreditedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
 
             let adjusted = self.computeAdjustedBalancesAfterWithdrawal(
@@ -839,7 +839,7 @@ access(all) contract FlowALPv0 {
                 return fundsAvailable + depositAmount
             }
 
-            let balanceSheet = self._getReserveBalanceSheet(pid: pid)
+            let balanceSheet = self._getCreditedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
 
             let adjusted = self.computeAdjustedBalancesAfterDeposit(
@@ -932,7 +932,7 @@ access(all) contract FlowALPv0 {
         /// @param amount The amount to deposit.
         /// @return The projected health after the deposit.
         access(all) fun healthAfterDeposit(pid: UInt64, type: Type, amount: UFix64): UFix128 {
-            let balanceSheet = self._getReserveBalanceSheet(pid: pid)
+            let balanceSheet = self._getCreditedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
             let adjusted = self.computeAdjustedBalancesAfterDeposit(
                 initialBalanceSheet: balanceSheet,
@@ -955,7 +955,7 @@ access(all) contract FlowALPv0 {
         /// @param amount The amount to withdraw.
         /// @return The projected health after the withdrawal.
         access(all) fun healthAfterWithdrawal(pid: UInt64, type: Type, amount: UFix64): UFix128 {
-            let balanceSheet = self._getReserveBalanceSheet(pid: pid)
+            let balanceSheet = self._getCreditedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
             let adjusted = self.computeAdjustedBalancesAfterWithdrawal(
                 initialBalanceSheet: balanceSheet,
@@ -1248,7 +1248,7 @@ access(all) contract FlowALPv0 {
 
             // Preflight: determine whether the withdrawal is permitted and whether a topUp is needed.
             // Uses the withdrawal balance sheet (reserve + queued for the withdrawn token only),
-            // so same-type queue withdrawals are correctly gated on remaining queued+reserve health,
+            // so same-type queue withdrawals are correctly gated on remaining queued+credited health,
             // while cross-type borrows cannot be backed by queued deposits of other tokens.
             let topUpSource = position.borrowTopUpSource()
             let topUpType = topUpSource?.getSourceType() ?? self.state.getDefaultToken()
@@ -1719,7 +1719,7 @@ access(all) contract FlowALPv0 {
         /// Health-factor usage:
         ///   - The trigger check (is rebalancing needed?) and the undercollateralised topUp sizing
         ///     use **queued health**, so a pending deposit suppresses an unnecessary topUp pull.
-        ///   - The overcollateralised drawdown trigger and sizing use **reserve health**, so queued
+        ///   - The overcollateralised drawdown trigger and sizing use **credited health**, so queued
         ///     deposits do not cause the pool to push out tokens prematurely.
         access(self) fun _rebalancePositionNoLock(pid: UInt64, force: Bool) {
             pre {
@@ -1729,7 +1729,7 @@ access(all) contract FlowALPv0 {
                 log("    [CONTRACT] rebalancePosition(pid: \(pid), force: \(force))")
             }
             let position = self._borrowPosition(pid: pid)
-            let reserveBalanceSheet = self._getReserveBalanceSheet(pid: pid)
+            let creditedBalanceSheet = self._getCreditedBalanceSheet(pid: pid)
             let queuedBalanceSheet = self._getQueuedBalanceSheet(pid: pid)
 
             if !force && (position.getMinHealth() <= queuedBalanceSheet.health && queuedBalanceSheet.health <= position.getMaxHealth()) {
@@ -1759,7 +1759,7 @@ access(all) contract FlowALPv0 {
                     FlowALPEvents.emitRebalanced(
                         pid: pid,
                         poolUUID: self.uuid,
-                        atHealth: reserveBalanceSheet.health,
+                        atHealth: creditedBalanceSheet.health,
                         amount: pulledVault.balance,
                         fromUnder: true
                         )
@@ -1773,9 +1773,9 @@ access(all) contract FlowALPv0 {
                     let newQueuedHealth = self._getQueuedBalanceSheet(pid: pid).health
                     assert(newQueuedHealth >= 1.0, message: "topUpSource insufficient to save position from liquidation")
                 }
-            } else if reserveBalanceSheet.health > position.getTargetHealth() {
-                // Reserve health is above target — the position has excess collateral to push to the sink.
-                // Uses reserve health (not queued) so that queued deposits of other tokens do not
+            } else if creditedBalanceSheet.health > position.getTargetHealth() {
+                // Credited health is above target — the position has excess collateral to push to the sink.
+                // Uses credited health (not queued) so that queued deposits of other tokens do not
                 // cause premature drawdown before those deposits have entered the reserve.
                 if self.isPausedOrWarmup() {
                     // Withdrawals (including pushing to the drawDownSink) are disabled during the warmup period
@@ -1786,7 +1786,7 @@ access(all) contract FlowALPv0 {
                     let idealWithdrawal = self.computeAvailableWithdrawal(
                         position: position,
                         withdrawType: sinkType,
-                        initialBalanceSheet: reserveBalanceSheet,
+                        initialBalanceSheet: creditedBalanceSheet,
                         targetHealth: position.getTargetHealth()
                     )
                     if self.config.isDebugLogging() {
@@ -1817,7 +1817,7 @@ access(all) contract FlowALPv0 {
                         FlowALPEvents.emitRebalanced(
                             pid: pid,
                             poolUUID: self.uuid,
-                            atHealth: reserveBalanceSheet.health,
+                            atHealth: creditedBalanceSheet.health,
                             amount: sinkVault.balance,
                             fromUnder: false
                         )
@@ -2073,12 +2073,12 @@ access(all) contract FlowALPv0 {
             }
         }
 
-        /// Returns the **reserve balance sheet** for a position: effective collateral and debt computed
+        /// Returns the **credited balance sheet** for a position: effective collateral and debt computed
         /// from credited reserve balances only, with current interest indices applied.
         /// Queued deposits are not included.
         /// See the Pool-level comment for the rationale behind the two health-factor concepts.
         /// TODO(jord): in all cases callers already are calling _borrowPosition, more efficient to pass in PositionView?
-        access(self) fun _getReserveBalanceSheet(pid: UInt64): FlowALPModels.BalanceSheet {
+        access(self) fun _getCreditedBalanceSheet(pid: UInt64): FlowALPModels.BalanceSheet {
             let position = self._borrowPosition(pid: pid)
 
             // Get the position's collateral and debt values in terms of the default token.
@@ -2116,7 +2116,7 @@ access(all) contract FlowALPv0 {
             )
         }
 
-        /// Returns the **queued balance sheet**: the reserve balance sheet plus all queued deposits
+        /// Returns the **queued balance sheet**: the credited balance sheet plus all queued deposits
         /// projected as if they had already been credited.
         ///
         /// Used for: liquidation eligibility, rebalancing trigger/direction, and the post-withdrawal
@@ -2124,10 +2124,10 @@ access(all) contract FlowALPv0 {
         /// the position, so it should protect against liquidation and suppress unnecessary rebalancing,
         /// even though it has not yet entered the reserve.
         ///
-        /// Not used for: borrow-capacity or available-balance queries (those use reserve health only).
+        /// Not used for: borrow-capacity or available-balance queries (those use credited health only).
         access(self) fun _getQueuedBalanceSheet(pid: UInt64): FlowALPModels.BalanceSheet {
             let position = self._borrowPosition(pid: pid)
-            var balanceSheet = self._getReserveBalanceSheet(pid: pid)
+            var balanceSheet = self._getCreditedBalanceSheet(pid: pid)
 
             for depositType in position.getQueuedDepositKeys() {
                 let queuedAmount = position.getQueuedDepositBalance(depositType)!
