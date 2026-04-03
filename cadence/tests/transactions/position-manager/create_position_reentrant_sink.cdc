@@ -13,7 +13,7 @@ import "FlowALPModels"
 /// TEST TRANSACTION — DO NOT USE IN PRODUCTION
 ///
 /// Opens a FlowALPv0 position wired with VaultSinkHacked as its issuanceSink
-/// (drawDownSink), mirroring how create_position_reentrancy.cdc wires
+/// (drawDownSink), mirroring how create_position_reentrant_source.cdc wires
 /// VaultSourceHacked as repaymentSource.
 ///
 /// The sink is passed directly to createPosition() so the pool stores it

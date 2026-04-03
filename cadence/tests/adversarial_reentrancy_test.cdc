@@ -223,7 +223,8 @@ fun test_reentrancy_recursiveDepositSink() {
 //
 // Cadence's post-condition on withdrawAndPull:
 //   post { !self.state.isPositionLocked(pid): "Position is not unlocked" }
-// guarantees the lock is cleared even on revert.
+// guarantees the lock is cleared whenever the transaction does not revert. If the transaction reverts,
+// all state changes are rolled back (including locking the position).
 //
 //   maxWithdrawTokens = $100 / (CF * price) = $100 / (0.65 * $1.00) ≈ 153.8 FLOW
 //   50 FLOW is safely within that limit.
