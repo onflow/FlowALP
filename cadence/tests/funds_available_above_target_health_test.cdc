@@ -93,7 +93,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     // assert expected starting point
     let balanceAfterBorrow = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
     let expectedBorrowAmount = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / TARGET_HEALTH
-    Test.assert(equalWithinVariance(expectedBorrowAmount, balanceAfterBorrow),
+    Test.assert(equalWithinVariance(expectedBorrowAmount, balanceAfterBorrow, DEFAULT_UFIX_VARIANCE),
         message: "Expected MOET balance to be ~\(expectedBorrowAmount), but got \(balanceAfterBorrow)")
 
     let evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
@@ -114,10 +114,10 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithPushFromHealthy() {
     }
     Test.assertEqual(positionFundingAmount, flowPositionBalance!.balance)
 
-    Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance!.balance),
+    Test.assert(equalWithinVariance(expectedBorrowAmount, moetBalance!.balance, DEFAULT_UFIX_VARIANCE),
         message: "Expected borrow amount to be \(expectedBorrowAmount), but got \(moetBalance!.balance)")
 
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health),
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health, DEFAULT_UFIX128_VARIANCE),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)")
 
     log("[TEST] FLOW price set to \(flowStartPrice)")
@@ -298,7 +298,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     log("[TEST] Depositing: \(depositAmount)")
     log("[TEST] Expected Available: \(expectedAvailable)")
     log("[TEST] Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable),
+    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, DEFAULT_UFIX_VARIANCE),
         message: "Values are not equal within variance - expected: \(expectedAvailable), actual: \(actualAvailable)")
 
     log("..............................")
@@ -316,7 +316,7 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     log("[TEST] Depositing: \(depositAmount)")
     log("[TEST] Expected Available: \(expectedAvailable)")
     log("[TEST] Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable),
+    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, DEFAULT_UFIX_VARIANCE),
         message: "Values are not equal within variance - expected: \(expectedAvailable), actual: \(actualAvailable)")
 
     log("==============================")
@@ -456,7 +456,7 @@ fun runFundsAvailableAboveTargetHealthAfterDepositing(
     log("[TEST] Depositing: \(depositAmount)")
     log("[TEST] Expected Available: \(expectedAvailable)")
     log("[TEST] Actual Available: \(actualAvailable)")
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable),
+    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, DEFAULT_UFIX_VARIANCE),
         message: "Values are not equal within variance - expected: \(expectedAvailable), actual: \(actualAvailable)")
 }
 

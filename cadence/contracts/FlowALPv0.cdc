@@ -51,7 +51,14 @@ access(all) contract FlowALPv0 {
     */
 
     ///
-    /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth
+    /// Amount of `withdrawSnap` token that can be withdrawn while staying ≥ targetHealth.
+    ///
+    /// Callers are responsible for providing a safe targetHealth value; this function does not
+    /// enforce any health > 1 sanity checks.
+    ///
+    /// - If the position's health is ≤ targetHealth, returns 0.
+    /// - The returned amount may reduce the size of a collateral balance, flip a collateral balance
+    ///   to a debt balance, or increase the size of an existing debt balance.
     access(all) view fun maxWithdraw(
         view: FlowALPModels.PositionView,
         withdrawSnap: FlowALPModels.TokenSnapshot,
@@ -103,19 +110,30 @@ access(all) contract FlowALPv0 {
                 : 0.0 as UFix128
             return (deltaDebt * borrowFactor) / withdrawSnap.getPrice()
         } else {
-            // withdrawing reduces collateral
+            // withdrawing reduces collateral (and may flip into debt beyond zero)
             let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
                 withdrawBal!.getScaledBalance().quantity,
                 interestIndex: withdrawSnap.getCreditIndex()
             )
-            let maxPossible = trueBalance
             let requiredCollateral = effectiveDebtTotal * targetHealth
             if effectiveCollateralTotal <= requiredCollateral {
                 return 0.0
             }
             let deltaCollateralEffective = effectiveCollateralTotal - requiredCollateral
             let deltaTokens = (deltaCollateralEffective / collateralFactor) / withdrawSnap.getPrice()
-            return deltaTokens > maxPossible ? maxPossible : deltaTokens
+            if deltaTokens <= trueBalance {
+                // Health target is hit before exhausting credit — collateral-only withdrawal
+                return deltaTokens
+            }
+            // Exhausting all credit still leaves health above target: add debt capacity
+            let collateralEffectiveValue = FlowALPMath.effectiveCollateral(credit: trueBalance, price: withdrawSnap.getPrice(), collateralFactor: collateralFactor)
+            let remainingCollateral = effectiveCollateralTotal - collateralEffectiveValue
+            // From the health formula H=Ce/De we solve for availableDebtIncrease, the additional debt to reach target health:
+            // targetHealth = remainingCollateral / (effectiveDebtTotal + availableDebtIncrease)
+            let availableDebtIncrease = (remainingCollateral / targetHealth) - effectiveDebtTotal
+            let borrowCapacity = availableDebtIncrease * borrowFactor // how much additional value we can borrow ($)
+            let additionalTokens = borrowCapacity / withdrawSnap.getPrice() // how many additional units of the withdrawal token we can borrow
+            return trueBalance + additionalTokens
         }
     }
 
@@ -314,7 +332,7 @@ access(all) contract FlowALPv0 {
             if let tokenState = self.state.getTokenState(tokenType) {
                 return tokenState.getInsuranceRate()
             }
-            
+
             return nil
         }
 
@@ -410,49 +428,9 @@ access(all) contract FlowALPv0 {
         /// to its debt as denominated in the Pool's default token.
         /// "Effective collateral" means the value of each credit balance times the liquidation threshold
         /// for that token, i.e. the maximum borrowable amount
-        // TODO: make this output enumeration of effective debts/collaterals (or provide option that does)
         access(all) fun positionHealth(pid: UInt64): UFix128 {
-            let position = self._borrowPosition(pid: pid)
-
-            // Get the position's collateral and debt values in terms of the default token.
-            var effectiveCollateral: UFix128 = 0.0
-            var effectiveDebt: UFix128 = 0.0
-
-            for type in position.getBalanceKeys() {
-                let balance = position.getBalance(type)!
-                let tokenState = self._borrowUpdatedTokenState(type: type)
-
-                let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
-                let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
-                let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
-                switch balance.getScaledBalance().direction {
-                    case FlowALPModels.BalanceDirection.Credit:
-                        let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.getScaledBalance().quantity,
-                            interestIndex: tokenState.getCreditInterestIndex()
-                        )
-
-                        let value = price * trueBalance
-                        let effectiveCollateralValue = value * collateralFactor
-                        effectiveCollateral = effectiveCollateral + effectiveCollateralValue
-
-                    case FlowALPModels.BalanceDirection.Debit:
-                        let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.getScaledBalance().quantity,
-                            interestIndex: tokenState.getDebitInterestIndex()
-                        )
-
-                        let value = price * trueBalance
-                        let effectiveDebtValue = value / borrowFactor
-                        effectiveDebt = effectiveDebt + effectiveDebtValue
-                }
-            }
-
-            // Calculate the health as the ratio of collateral to debt.
-            return FlowALPMath.healthComputation(
-                effectiveCollateral: effectiveCollateral,
-                effectiveDebt: effectiveDebt
-            )
+            let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+            return balanceSheet.health
         }
 
         /// Returns the quantity of funds of a specified token which would need to be deposited
@@ -467,6 +445,18 @@ access(all) contract FlowALPv0 {
                 withdrawType: self.state.getDefaultToken(),
                 withdrawAmount: 0.0
             )
+        }
+
+        /// Returns the queued deposit balances for a given position.
+        access(all) fun getQueuedDeposits(pid: UInt64): {Type: UFix64} {
+            let position = self._borrowPosition(pid: pid)
+            let queuedBalances: {Type: UFix64} = {}
+
+            for depositType in position.getQueuedDepositKeys() {
+                queuedBalances[depositType] = position.getQueuedDepositBalance(depositType)!
+            }
+
+            return queuedBalances
         }
 
         /// Returns the details of a given position as a FlowALPModels.PositionDetails external struct
@@ -535,12 +525,12 @@ access(all) contract FlowALPv0 {
                 self.isTokenSupported(tokenType: debtType): "Debt token type unsupported: \(debtType.identifier)"
                 self.isTokenSupported(tokenType: seizeType): "Collateral token type unsupported: \(seizeType.identifier)"
                 debtType == repayment.getType(): "Repayment vault does not match debt type: \(debtType.identifier)!=\(repayment.getType().identifier)"
-                // TODO(jord): liquidation paused / post-pause warm
+                debtType != seizeType: "Debt and seize types must be different"
             }
             post {
                 !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
-            
+
             self.lockPosition(pid)
 
             let positionView = self.buildPositionView(pid: pid)
@@ -560,7 +550,7 @@ access(all) contract FlowALPv0 {
             let Pc_oracle = self.config.getPriceOracle().price(ofToken: seizeType)! // collateral price given by oracle ($/C)
             // Price of collateral, denominated in debt token, implied by oracle (D/C)
             // Oracle says: "1 unit of collateral is worth `Pcd_oracle` units of debt"
-            let Pcd_oracle = Pc_oracle / Pd_oracle 
+            let Pcd_oracle = Pc_oracle / Pd_oracle
 
             // Compute the health factor which would result if we were to accept this liquidation
             let Ce_pre = balanceSheet.effectiveCollateral // effective collateral pre-liquidation
@@ -571,7 +561,7 @@ access(all) contract FlowALPv0 {
             // Ce_seize = effective value of seized collateral ($)
             let Ce_seize = FlowALPMath.effectiveCollateral(credit: UFix128(seizeAmount), price: UFix128(Pc_oracle), collateralFactor: Fc)
             // De_seize = effective value of repaid debt ($)
-            let De_seize = FlowALPMath.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd) 
+            let De_seize = FlowALPMath.effectiveDebt(debit: UFix128(repayAmount), price:  UFix128(Pd_oracle), borrowFactor: Fd)
             let Ce_post = Ce_pre - Ce_seize // position's total effective collateral after liquidation ($)
             let De_post = De_pre - De_seize // position's total effective debt after liquidation ($)
             let postHealth = FlowALPMath.healthComputation(effectiveCollateral: Ce_post, effectiveDebt: De_post)
@@ -590,9 +580,9 @@ access(all) contract FlowALPv0 {
                 message: "DEX/oracle price deviation too large. Dex price: \(Pcd_dex), Oracle price: \(Pcd_oracle)")
             // Execute the liquidation
             let seizedCollateral <- self._doLiquidation(pid: pid, repayment: <-repayment, debtType: debtType, seizeType: seizeType, seizeAmount: seizeAmount)
-            
+
             self.unlockPosition(pid)
-            
+
             return <- seizedCollateral
         }
 
@@ -602,7 +592,7 @@ access(all) contract FlowALPv0 {
         access(self) fun _doLiquidation(pid: UInt64, repayment: @{FungibleToken.Vault}, debtType: Type, seizeType: Type, seizeAmount: UFix64): @{FungibleToken.Vault} {
             pre {
                 !self.isPausedOrWarmup(): "Liquidations are paused by governance"
-                // position must have debt and collateral balance 
+                // position must have debt and collateral balance
             }
 
             let repayAmount = repayment.balance
@@ -645,11 +635,18 @@ access(all) contract FlowALPv0 {
         }
 
         /// Returns the quantity of funds of a specified token which would need to be deposited
-        /// in order to bring the position to the target health
-        /// assuming we also withdraw a specified amount of another token.
+        /// in order to bring the position to the target health, assuming we also withdraw a
+        /// specified amount of another token.
         ///
-        /// This function will return 0.0 if the position would already be at or over the target health value
+        /// Returns 0.0 if the position would already be at or above the target health
         /// after the proposed withdrawal.
+        ///
+        /// @param pid The position ID.
+        /// @param depositType The token type that would be deposited to restore health.
+        /// @param targetHealth The desired health to reach (must be >= 1.0).
+        /// @param withdrawType The token type being withdrawn.
+        /// @param withdrawAmount The amount of withdrawType being withdrawn.
+        /// @return The amount of depositType needed to reach targetHealth, or 0.0 if already healthy enough.
         access(all) fun fundsRequiredForTargetHealthAfterWithdrawing(
             pid: UInt64,
             depositType: Type,
@@ -683,7 +680,14 @@ access(all) contract FlowALPv0 {
             )
         }
 
-        // TODO: documentation
+        /// Computes the effective collateral and debt after a hypothetical withdrawal,
+        /// accounting for whether the withdrawal reduces credit or increases debt.
+        ///
+        /// @param initialBalanceSheet The position's current balance sheet.
+        /// @param position The position reference.
+        /// @param withdrawType The token type being withdrawn.
+        /// @param withdrawAmount The amount being withdrawn.
+        /// @return An adjusted BalanceSheet reflecting post-withdrawal effective values.
         access(self) fun computeAdjustedBalancesAfterWithdrawal(
             initialBalanceSheet: FlowALPModels.BalanceSheet,
             position: &{FlowALPModels.InternalPosition},
@@ -701,7 +705,15 @@ access(all) contract FlowALPv0 {
             )
         }
 
-        // TODO: documentation
+        /// Computes the deposit amount needed to bring effective values to the target health.
+        /// Accounts for whether the deposit reduces debt or adds collateral based on the
+        /// position's current balance direction for the deposit token.
+        ///
+        /// @param position The position reference.
+        /// @param depositType The token type being deposited.
+        /// @param initialBalanceSheet The position's balance sheet prior to the deposit
+        /// @param targetHealth The desired health to achieve.
+        /// @return The amount of depositType needed, or 0.0 if already at or above target.
         access(self) fun computeRequiredDepositForHealth(
             position: &{FlowALPModels.InternalPosition},
             depositType: Type,
@@ -719,6 +731,12 @@ access(all) contract FlowALPv0 {
 
         /// Returns the quantity of the specified token that could be withdrawn
         /// while still keeping the position's health at or above the provided target.
+        /// Equivalent to fundsAvailableAboveTargetHealthAfterDepositing with depositAmount=0.
+        ///
+        /// @param pid The position ID.
+        /// @param type The token type to compute available withdrawal for.
+        /// @param targetHealth The minimum health to maintain after withdrawal.
+        /// @return The maximum withdrawable amount of the given token type.
         access(all) fun fundsAvailableAboveTargetHealth(pid: UInt64, type: Type, targetHealth: UFix128): UFix64 {
             return self.fundsAvailableAboveTargetHealthAfterDepositing(
                 pid: pid,
@@ -732,6 +750,13 @@ access(all) contract FlowALPv0 {
         /// Returns the quantity of the specified token that could be withdrawn
         /// while still keeping the position's health at or above the provided target,
         /// assuming we also deposit a specified amount of another token.
+        ///
+        /// @param pid The position ID.
+        /// @param withdrawType The token type to compute available withdrawal for.
+        /// @param targetHealth The minimum health to maintain after the withdrawal.
+        /// @param depositType The token type being deposited alongside the withdrawal.
+        /// @param depositAmount The amount of depositType being deposited.
+        /// @return The maximum withdrawable amount of withdrawType.
         access(all) fun fundsAvailableAboveTargetHealthAfterDepositing(
             pid: UInt64,
             withdrawType: Type,
@@ -790,7 +815,14 @@ access(all) contract FlowALPv0 {
             )
         }
 
-        // Helper function to compute balances after deposit
+        /// Computes the effective collateral and debt after a hypothetical deposit,
+        /// accounting for whether the deposit adds collateral or reduces debt.
+        ///
+        /// @param initialBalanceSheet The position's current balance sheet.
+        /// @param position The position reference.
+        /// @param depositType The token type being deposited.
+        /// @param depositAmount The amount being deposited.
+        /// @return An adjusted BalanceSheet reflecting post-deposit effective values.
         access(self) fun computeAdjustedBalancesAfterDeposit(
             initialBalanceSheet: FlowALPModels.BalanceSheet,
             position: &{FlowALPModels.InternalPosition},
@@ -806,7 +838,38 @@ access(all) contract FlowALPv0 {
             )
         }
 
-        /// Returns the position's health if the given amount of the specified token were deposited
+        /// Computes the maximum amount of a token that can be withdrawn while maintaining
+        /// the target health, given pre-adjusted effective collateral and debt values.
+        ///
+        /// @param position The position reference.
+        /// @param initialBalanceSheet The position's current balance sheet 
+        /// @param targetHealth The minimum health to maintain after withdrawal.
+        /// @return The maximum withdrawable amount of withdrawType.
+        access(self) fun computeAvailableWithdrawal(
+            position: &{FlowALPModels.InternalPosition},
+            withdrawType: Type,
+            initialBalanceSheet: FlowALPModels.BalanceSheet,
+            targetHealth: UFix128
+        ): UFix64 {
+            let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
+            let withdrawSnapshot = self.buildTokenSnapshot(type: withdrawType)
+
+            return FlowALPHealth.computeAvailableWithdrawal(
+                withdrawBalance: position.getBalance(withdrawType),
+                withdrawType: withdrawType,
+                withdrawSnapshot: withdrawSnapshot,
+                initialBalanceSheet: initialBalanceSheet,
+                targetHealth: targetHealth
+            )
+        }
+
+        /// Returns the position's health if the given amount of the specified token were deposited.
+        /// Accounts for whether the deposit reduces existing debt or adds new collateral.
+        ///
+        /// @param pid The position ID.
+        /// @param type The token type being deposited.
+        /// @param amount The amount to deposit.
+        /// @return The projected health after the deposit.
         access(all) fun healthAfterDeposit(pid: UInt64, type: Type, amount: UFix64): UFix128 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
@@ -819,10 +882,17 @@ access(all) contract FlowALPv0 {
             return adjusted.health
         }
 
-        /// Returns health value of this position if the given amount of the specified token were withdrawn
-        /// without using the top up source.
-        /// NOTE: This method can return health values below 1.0, which aren't actually allowed. This indicates
-        /// that the proposed withdrawal would fail (unless a top up source is available and used).
+        /// Returns the position's health if the given amount of the specified token were withdrawn
+        /// without using the top-up source. Accounts for whether the withdrawal reduces existing
+        /// collateral or creates new debt.
+        ///
+        /// NOTE: Can return values below 1.0, indicating the withdrawal would fail unless a
+        /// top-up source is available and used.
+        ///
+        /// @param pid The position ID.
+        /// @param type The token type being withdrawn.
+        /// @param amount The amount to withdraw.
+        /// @return The projected health after the withdrawal.
         access(all) fun healthAfterWithdrawal(pid: UInt64, type: Type, amount: UFix64): UFix128 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
@@ -849,7 +919,7 @@ access(all) contract FlowALPv0 {
         /// Clients are recommended to use the PositionManager collection type to manage their Positions.
         access(FlowALPModels.EParticipant) fun createPosition(
             funds: @{FungibleToken.Vault},
-            issuanceSink: {DeFiActions.Sink},
+            issuanceSink: {DeFiActions.Sink}?,
             repaymentSource: {DeFiActions.Source}?,
             pushToDrawDownSink: Bool
         ): @FlowALPPositionResources.Position {
@@ -961,29 +1031,18 @@ access(all) contract FlowALPv0 {
 
             // Time-based state is handled by the tokenState() helper function
 
-            // Deposit rate limiting: prevent a single large deposit from monopolizing capacity.
+            // Deposit rate limiting: prevent a single user or single large deposit from monopolizing capacity.
             // Excess is queued to be processed asynchronously (see asyncUpdatePosition).
             let depositAmount = from.balance
-            let depositLimit = tokenState.depositLimit()
+            let depositLimit = tokenState.depositLimit(pid: pid)
 
+            // depositAmount is bounded by the smaller of:
+            // User deposit limit, per-deposit limit, and global deposit capacity
+            // If the deposit would exceed a limit, queue or reject the excess
             if depositAmount > depositLimit {
-                // The deposit is too big, so we need to queue the excess
-                let queuedDeposit <- from.withdraw(amount: depositAmount - depositLimit)
-
+                let excessAmount = depositAmount - depositLimit
+                let queuedDeposit <- from.withdraw(amount: excessAmount)
                 position.depositToQueue(type, vault: <-queuedDeposit)
-            }
-
-            // Per-user deposit limit: check if user has exceeded their per-user limit
-            let userDepositLimitCap = tokenState.getUserDepositLimitCap()
-            let currentUsage = tokenState.getDepositUsageForPosition(pid)
-            let remainingUserLimit = userDepositLimitCap - currentUsage
-
-            // If the deposit would exceed the user's limit, queue or reject the excess
-            if from.balance > remainingUserLimit {
-                let excessAmount = from.balance - remainingUserLimit
-                let queuedForUserLimit <- from.withdraw(amount: excessAmount)
-
-                position.depositToQueue(type, vault: <-queuedForUserLimit)
             }
 
             // If this position doesn't currently have an entry for this token, create one.
@@ -1024,7 +1083,7 @@ access(all) contract FlowALPv0 {
                 pid: pid,
                 poolUUID: self.uuid,
                 vaultType: type,
-                amount: amount,
+                amount: acceptedAmount,
                 depositedUUID: depositedUUID
             )
 
@@ -1334,11 +1393,17 @@ access(all) contract FlowALPv0 {
             // Validate constraint: non-zero rate requires swapper
             if insuranceRate > 0.0 {
                 assert(
-                    tsRef.getInsuranceSwapper() != nil, 
+                    tsRef.getInsuranceSwapper() != nil,
                     message:"Cannot set non-zero insurance rate without an insurance swapper configured for \(tokenType.identifier)",
                 )
             }
+            // Collect all insurance fees accrued under the old rate before applying the new one, the new rate applies only to time elapsed from this point forward
+            self.updateInterestRatesAndCollectInsurance(tokenType: tokenType)
+
             tsRef.setInsuranceRate(insuranceRate)
+
+            // Recalculate currentCreditRate for a given token to reflect the new insurance rate
+            tsRef.updateInterestRates()
 
             FlowALPEvents.emitInsuranceRateUpdated(
                 poolUUID: self.uuid,
@@ -1353,13 +1418,13 @@ access(all) contract FlowALPv0 {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
             }
             let tsRef = self.state.borrowTokenState(tokenType)
-                ?? panic("Invariant: token state missing")   
+                ?? panic("Invariant: token state missing")
 
             if let swapper = swapper {
                 // Validate swapper types match
                 assert(swapper.inType() == tokenType, message: "Swapper input type must match token type")
                 assert(swapper.outType() == Type<@MOET.Vault>(), message: "Swapper output type must be MOET")
-            
+
             } else {
                 // cannot remove swapper if insurance rate > 0
                 assert(
@@ -1442,7 +1507,14 @@ access(all) contract FlowALPv0 {
             }
             let tsRef = self.state.borrowTokenState(tokenType)
                 ?? panic("Invariant: token state missing")
+
+            // Collect all stability fees accrued under the old rate before applying the new one, the new rate applies only to time elapsed from this point forward
+            self.updateInterestRatesAndCollectStability(tokenType: tokenType)
+
             tsRef.setStabilityFeeRate(stabilityFeeRate)
+
+            // Recalculate currentCreditRate for a given token to reflect the new stability rate
+            tsRef.updateInterestRates()
             
             FlowALPEvents.emitStabilityFeeRateUpdated(
                 poolUUID: self.uuid,
@@ -1464,7 +1536,7 @@ access(all) contract FlowALPv0 {
                 fundRef.balance >= amount,
                 message: "Insufficient stability fund balance. Available: \(fundRef.balance), requested: \(amount)"
             )
-            
+
             let withdrawn <- fundRef.withdraw(amount: amount)
             recipient.deposit(from: <-withdrawn)
 
@@ -1592,6 +1664,10 @@ access(all) contract FlowALPv0 {
                         pid: pid,
                         from: <-pulledVault,
                     )
+
+                    // Post-deposit health check: panic if the position is still liquidatable.
+                    let newBalanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+                    assert(newBalanceSheet.health >= 1.0, message: "topUpSource insufficient to save position from liquidation")
                 }
             } else if balanceSheet.health > position.getTargetHealth() {
                 // The position is overcollateralized,
@@ -1692,7 +1768,7 @@ access(all) contract FlowALPv0 {
                 let queuedVault <- position.removeQueuedDeposit(depositType)!
                 let queuedAmount = queuedVault.balance
                 let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
-                let maxDeposit = depositTokenState.depositLimit()
+                let maxDeposit = depositTokenState.depositLimit(pid: pid)
 
                 if maxDeposit >= queuedAmount {
                     // We can deposit all of the queued deposit, so just do it and remove it from the queue
@@ -1752,6 +1828,13 @@ access(all) contract FlowALPv0 {
         }
 
         /// Collects insurance by withdrawing from reserves and swapping to MOET.
+        ///
+        /// NOTE: If reserves are insufficient to cover the full calculated fee, collection is skipped
+        /// entirely and the timestamp is not updated. This interacts with the rate-change
+        /// collection: if a rate change occurs while reserves are insufficient, the pre-change
+        /// fees will not be settled under the old rate. When reserves eventually recover, the entire
+        /// elapsed window — including the period before the rate change — will be collected under the
+        /// new rate, causing over- or under-collection for that period.
         access(self) fun _collectInsurance(
             tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault},
@@ -1779,31 +1862,36 @@ access(all) contract FlowALPv0 {
                 return nil
             }
 
-            if reserveVault.balance == 0.0 {
-                tokenState.setLastInsuranceCollectionTime(currentTime)
+            if insuranceAmountUFix64 > reserveVault.balance {
+                // do not collect the insurance fee if the reserve doesn't have enough tokens to cover the full amount 
                 return nil
             }
 
-            let amountToCollect = insuranceAmountUFix64 > reserveVault.balance ? reserveVault.balance : insuranceAmountUFix64
-            var insuranceVault <- reserveVault.withdraw(amount: amountToCollect)
-
+            let insuranceVault <- reserveVault.withdraw(amount: insuranceAmountUFix64)
             let insuranceSwapper = tokenState.getInsuranceSwapper() ?? panic("missing insurance swapper")
 
             assert(insuranceSwapper.inType() == reserveVault.getType(), message: "Insurance swapper input type must be same as reserveVault")
             assert(insuranceSwapper.outType() == Type<@MOET.Vault>(), message: "Insurance swapper must output MOET")
 
-            let quote = insuranceSwapper.quoteOut(forProvided: amountToCollect, reverse: false)
+            let quote = insuranceSwapper.quoteOut(forProvided: insuranceAmountUFix64, reverse: false)
             let dexPrice = quote.outAmount / quote.inAmount
             assert(
                 FlowALPMath.dexOraclePriceDeviationInRange(dexPrice: dexPrice, oraclePrice: oraclePrice, maxDeviationBps: maxDeviationBps),
-                message: "DEX/oracle price deviation too large. Dex price: \(dexPrice), Oracle price: \(oraclePrice)")
+                message: "DEX/oracle price deviation exceeds \(maxDeviationBps)bps. Dex price: \(dexPrice), Oracle price: \(oraclePrice)",
+            )
             var moetVault <- insuranceSwapper.swap(quote: quote, inVault: <-insuranceVault) as! @MOET.Vault
-
             tokenState.setLastInsuranceCollectionTime(currentTime)
             return <-moetVault
         }
 
         /// Collects stability funds by withdrawing from reserves.
+        ///
+        /// NOTE: If reserves are insufficient to cover the full calculated fee, collection is skipped
+        /// entirely and the timestamp is not updated. This interacts with the rate-change
+        /// collection: if a rate change occurs while reserves are insufficient, the pre-change
+        /// fees will not be settled under the old rate. When reserves eventually recover, the entire
+        /// elapsed window — including the period before the rate change — will be collected under the
+        /// new rate, causing over- or under-collection for that period.
         access(self) fun _collectStability(
             tokenState: auth(FlowALPModels.EImplementation) &{FlowALPModels.TokenState},
             reserveVault: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
@@ -1830,17 +1918,20 @@ access(all) contract FlowALPv0 {
                 return nil
             }
 
-            if reserveVault.balance == 0.0 {
-                tokenState.setLastStabilityFeeCollectionTime(currentTime)
+            if stabilityAmountUFix64 > reserveVault.balance {
+                // do not collect the stability fee if the reserve doesn't have enough tokens to cover the full amount 
                 return nil
             }
 
-            let reserveVaultBalance = reserveVault.balance
-            let amountToCollect = stabilityAmountUFix64 > reserveVaultBalance ? reserveVaultBalance : stabilityAmountUFix64
-            let stabilityVault <- reserveVault.withdraw(amount: amountToCollect)
-
+            let stabilityVault <- reserveVault.withdraw(amount: stabilityAmountUFix64)  
             tokenState.setLastStabilityFeeCollectionTime(currentTime)
             return <-stabilityVault
+        }
+
+        /// Queues a position for asynchronous updates if its health is outside the configured bounds.
+        /// Exposed via EPosition so Position setters can trigger rebalance eligibility checks.
+        access(FlowALPModels.EPosition) fun queuePositionForUpdateIfNecessary(pid: UInt64) {
+            self._queuePositionForUpdateIfNecessary(pid: pid)
         }
 
         ////////////////
@@ -1881,10 +1972,11 @@ access(all) contract FlowALPv0 {
             var effectiveCollateralByToken: {Type: UFix128} = {}
             var effectiveDebtByToken: {Type: UFix128} = {}
 
+            let oracle = self.config.getPriceOracle()
             for type in position.getBalanceKeys() {
                 let balance = position.getBalance(type)!
                 let tokenState = self._borrowUpdatedTokenState(type: type)
-                let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
+                let price = UFix128(oracle.price(ofToken: type)!)
 
                 switch balance.getScaledBalance().direction {
                     case FlowALPModels.BalanceDirection.Credit:
@@ -1927,7 +2019,7 @@ access(all) contract FlowALPv0 {
         access(self) fun updateInterestRatesAndCollectInsurance(tokenType: Type) {
             let tokenState = self._borrowUpdatedTokenState(type: tokenType)
             tokenState.updateInterestRates()
-            
+
             // Collect insurance if swapper is configured
             // Ensure reserves exist for this token type
             if !self.state.hasReserve(tokenType) {
@@ -2000,7 +2092,7 @@ access(all) contract FlowALPv0 {
         access(all) fun getDefaultToken(): Type {
             return self.state.getDefaultToken()
         }
-        
+
         /// Returns the deposit capacity and deposit capacity cap for a given token type
         access(all) fun getDepositCapacityInfo(type: Type): {String: UFix64} {
             let tokenState = self._borrowUpdatedTokenState(type: type)

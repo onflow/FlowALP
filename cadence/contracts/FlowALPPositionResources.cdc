@@ -85,6 +85,7 @@ access(all) contract FlowALPPositionResources {
             let pool = self.pool.borrow()!
             let pos = pool.borrowPosition(pid: self.id)
             pos.setMinHealth(UFix128(minHealth))
+            pool.queuePositionForUpdateIfNecessary(pid: self.id)
         }
 
         /// Returns the maximum health of the Position
@@ -99,6 +100,7 @@ access(all) contract FlowALPPositionResources {
             let pool = self.pool.borrow()!
             let pos = pool.borrowPosition(pid: self.id)
             pos.setMaxHealth(UFix128(maxHealth))
+            pool.queuePositionForUpdateIfNecessary(pid: self.id)
         }
 
         /// Returns the maximum amount of the given token type that could be deposited into this position

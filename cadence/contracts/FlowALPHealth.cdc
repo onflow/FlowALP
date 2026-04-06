@@ -10,7 +10,7 @@ access(all) contract FlowALPHealth {
     /// in the withdrawn token. If the position has collateral in the token, the withdrawal may
     /// either draw down collateral, or exhaust it entirely and create new debt.
     ///
-    /// @param balanceSheet: The position's current effective collateral and debt (with per-token maps)
+    /// @param initialBalanceSheet: The position's current effective collateral and debt (with per-token maps)
     /// @param withdrawBalance: The position's existing balance for the withdrawn token, if any
     /// @param withdrawType: The type of token being withdrawn
     /// @param withdrawAmount: The amount of tokens to withdraw
@@ -142,8 +142,8 @@ access(all) contract FlowALPHealth {
             // H = Ce_others/(De_others+De_T) -> solve for De_T
             let targetTokenEffectiveDebt = (Ce_others / targetHealth) - De_others
             // The required credit balance to achieve this contribution (denominated in T)
-            // Re-arrange the effective debt formula De=(Nd)(Pd)/(Fd) -> Nd=(De*Fc)/Pc
-            let maxDebt = targetTokenEffectiveDebt * BF / price
+            // Re-arrange the effective debt formula De=(Nd)(Pd)/(Fd) -> Nd=(De*Fd)/Pd
+            let maxDebt = (targetTokenEffectiveDebt * BF) / price
             return FlowALPModels.Balance(
                 direction: FlowALPModels.BalanceDirection.Debit,
                 quantity: maxDebt
@@ -257,7 +257,7 @@ access(all) contract FlowALPHealth {
     /// in the deposited token. If the position has debt in the token, the deposit may
     /// either pay down debt, or pay it off entirely and create new collateral.
     ///
-    /// @param balanceSheet: The position's current effective collateral and debt (with per-token maps)
+    /// @param initialBalanceSheet: The position's current effective collateral and debt (with per-token maps)
     /// @param depositBalance: The position's existing balance for the deposited token, if any
     /// @param depositType: The type of token being deposited
     /// @param depositAmount: The amount of tokens to deposit
