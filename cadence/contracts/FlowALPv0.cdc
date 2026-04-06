@@ -782,6 +782,10 @@ access(all) contract FlowALPv0 {
         access(EImplementation) var lastInsuranceCollectionTime: UFix64
 
         /// Swapper used to convert this token to MOET for insurance collection.
+        /// NOTE: MOET is not used for the v0 deployment, because supporting infrastructure is not yet ready.
+        ///       MOET remains in the codebase, but cannot be used because of constraints on the EParticipant entitlement.
+        ///       Insurance collection is disabled while MOET is disabled.
+        ///       MOET will be re-enabled in a future release.
         access(EImplementation) var insuranceSwapper: {DeFiActions.Swapper}?
 
         /// The stability fee rate to calculate stability (default 0.05, 5%).
@@ -859,6 +863,10 @@ access(all) contract FlowALPv0 {
         }
 
         /// Sets the swapper used for insurance collection (must swap from this token type to MOET)
+        /// NOTE: MOET is not used for the v0 deployment, because supporting infrastructure is not yet ready.
+        ///       MOET remains in the codebase, but cannot be used because of constraints on the EParticipant entitlement.
+        ///       Insurance collection is disabled while MOET is disabled.
+        ///       MOET will be re-enabled in a future release.
         access(EImplementation) fun setInsuranceSwapper(_ swapper: {DeFiActions.Swapper}?) {
             if let swapper = swapper {
                 assert(swapper.inType() == self.tokenType, message: "Insurance swapper must accept \(self.tokenType.identifier), not \(swapper.inType().identifier)")
@@ -1098,6 +1106,11 @@ access(all) contract FlowALPv0 {
         /// The insurance amount is calculated based on the insurance rate applied to the total debit balance over the time elapsed.
         /// This should be called periodically (e.g., when updateInterestRates is called) to accumulate the insurance fund.
         /// CAUTION: This function will panic if no insuranceSwapper is provided.
+        ///
+        /// NOTE: MOET is not used for the v0 deployment, because supporting infrastructure is not yet ready.
+        ///       MOET remains in the codebase, but cannot be used because of constraints on the EParticipant entitlement.
+        ///       Insurance collection is disabled while MOET is disabled.
+        ///       MOET will be re-enabled in a future release.
         ///
         /// @param reserveVault: The reserve vault for this token type to withdraw insurance from
         /// @param oraclePrice: The current price for this token according to the Oracle, denominated in $
@@ -3520,6 +3533,10 @@ access(all) contract FlowALPv0 {
         }
 
         /// Sets the insurance swapper for a given token type (must swap from tokenType to MOET)
+        /// NOTE: MOET is not used for the v0 deployment, because supporting infrastructure is not yet ready.
+        ///       MOET remains in the codebase, but cannot be used because of constraints on the EParticipant entitlement.
+        ///       Insurance collection is disabled while MOET is disabled.
+        ///       MOET will be re-enabled in a future release.
         access(EGovernance) fun setInsuranceSwapper(tokenType: Type, swapper: {DeFiActions.Swapper}?) {
             pre {
                 self.isTokenSupported(tokenType: tokenType): "Unsupported token type"
@@ -3814,6 +3831,10 @@ access(all) contract FlowALPv0 {
                             tokenState: tokenState
                         )
                         if sinkType == Type<@MOET.Vault>() {
+                            /// NOTE: MOET is not used for the v0 deployment, because supporting infrastructure is not yet ready.
+                            ///       MOET remains in the codebase, but cannot be used because of constraints on the EParticipant entitlement.
+                            ///       Insurance collection is disabled while MOET is disabled.
+                            ///       MOET will be re-enabled in a future release.
                             let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
                             emit Rebalanced(
                                 pid: pid,
@@ -4886,6 +4907,10 @@ access(all) contract FlowALPv0 {
     /* --- INTERNAL METHODS --- */
 
     /// Returns a reference to the contract account's MOET Minter resource
+    /// NOTE: MOET is not used for the v0 deployment, because supporting infrastructure is not yet ready.
+    ///       MOET remains in the codebase, but cannot be used because of constraints on the EParticipant entitlement.
+    ///       Insurance collection is disabled while MOET is disabled.
+    ///       MOET will be re-enabled in a future release.
     access(self) view fun _borrowMOETMinter(): &MOET.Minter {
         return self.account.storage.borrow<&MOET.Minter>(from: MOET.AdminStoragePath)
             ?? panic("Could not borrow reference to internal MOET Minter resource")
