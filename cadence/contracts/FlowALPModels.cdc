@@ -81,7 +81,7 @@ access(all) contract FlowALPModels {
         /// The unsigned numeric value.
         access(all) let quantity: UFix128
 
-        init(direction: BalanceDirection, quantity: UFix128) {
+        view init(direction: BalanceDirection, quantity: UFix128) {
             // Enforce 0-balance convention
             if quantity == 0.0 {
                 self.direction = BalanceDirection.Credit
@@ -394,8 +394,7 @@ access(all) contract FlowALPModels {
         }
 
         /// Returns the true balance for the given internal (scaled) balance, accounting for accrued interest.
-        /// TODO: This could be view, but Cadence seems to interpret constructing a Balance as modifying state
-        access(all) fun trueBalance(balance: InternalBalance): Balance {
+        access(all) view fun trueBalance(balance: InternalBalance): Balance {
             let scaled = balance.getScaledBalance()
             let interestIndex = scaled.direction == BalanceDirection.Credit
                 ? self.creditIndex
@@ -405,7 +404,7 @@ access(all) contract FlowALPModels {
         }
 
         /// Returns the effective value (collateral or debt) for the given balance, based on its direction.
-        access(all) fun effectiveBalance(balance: Balance): Balance {
+        access(all) view fun effectiveBalance(balance: Balance): Balance {
             if balance.quantity == 0.0 {
                 return balance
             }
@@ -555,7 +554,7 @@ access(all) contract FlowALPModels {
         ) {
             // Enforce single balance per token invariant: if a type appears in one map, it must not appear in the other.
             for collateralType in effectiveCollateral.keys {
-                assert(effectiveDebt[collateralType] == nil)
+                assert(effectiveDebt[collateralType] == nil, message: "cannot construct BalanceSheet: observed both credit and debit balance for \(collateralType.identifier)")
             }
 
             self.effectiveCollateralByToken = effectiveCollateral
@@ -1177,13 +1176,13 @@ access(all) contract FlowALPModels {
         /// (used when deposits are made)
         access(EImplementation) fun consumeDepositCapacity(_ amount: UFix64, pid: UInt64)
 
-        /// Returns the per-deposit limit based on depositCapacity * depositLimitFraction
-        /// Rationale: cap per-deposit size to a fraction of the time-based
-        /// depositCapacity so a single large deposit cannot monopolize capacity.
+        /// Returns the per-deposit limit based on user deposit limit and available deposit capacity.
+        /// Rationale: cap per-deposit size to a fraction of the total depositCapacityCap
+        /// so a single large deposit cannot monopolize capacity.
         /// Excess is queued and drained in chunks (see asyncUpdatePosition),
         /// enabling fair throughput across many deposits in a block. The 5%
         /// fraction is conservative and can be tuned by protocol parameters.
-        access(EImplementation) view fun depositLimit(): UFix64
+        access(EImplementation) view fun depositLimit(pid: UInt64): UFix64
 
         /// Updates interest indices and regenerates deposit capacity for elapsed time
         access(EImplementation) fun updateForTimeChange()
@@ -1516,9 +1515,15 @@ access(all) contract FlowALPModels {
             )
         }
 
-        /// Returns the per-deposit limit based on depositCapacity * depositLimitFraction.
-        access(EImplementation) view fun depositLimit(): UFix64 {
-            return self.depositCapacity * self.depositLimitFraction
+        /// Returns the maximum amount that can be deposited to the given position without being queued.
+        access(EImplementation) view fun depositLimit(pid: UInt64): UFix64 {
+            let userCap = self.getUserDepositLimitCap()
+            let userUsed = self.getDepositUsageForPosition(pid)
+            var available = userCap - userUsed
+            if self.depositCapacity < available {
+                available = self.depositCapacity
+            }
+            return available
         }
 
         /// Updates interest indices and regenerates deposit capacity for elapsed time.

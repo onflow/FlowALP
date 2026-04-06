@@ -3,15 +3,15 @@
 		"AdversarialReentrancyConnectors": {
 			"source": "./cadence/tests/contracts/AdversarialReentrancyConnectors.cdc",
 			"aliases": {
-				"testing": "0000000000000008",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000008"
 			}
 		},
 		"AdversarialTypeSpoofingConnectors": {
 			"source": "./cadence/tests/contracts/AdversarialTypeSpoofingConnectors.cdc",
 			"aliases": {
-				"testing": "0000000000000008",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000008"
 			}
 		},
 		"BandOracleConnectors": {
@@ -45,167 +45,167 @@
 		"DummyConnectors": {
 			"source": "./cadence/contracts/mocks/DummyConnectors.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet-fork": "6d888f175c158410"
+				"mainnet-fork": "6d888f175c158410",
+				"testing": "0000000000000007"
 			}
 		},
 		"ExampleToken1": {
 			"source": "./cadence/tests/contracts/ExampleToken1.cdc",
 			"aliases": {
-				"testing": "0000000000000008",
+				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"mainnet": "6b00ff876c299c61"
+				"testing": "0000000000000008"
 			}
 		},
 		"ExampleToken2": {
 			"source": "./cadence/tests/contracts/ExampleToken2.cdc",
 			"aliases": {
-				"testing": "0000000000000008",
+				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"mainnet": "6b00ff876c299c61"
+				"testing": "0000000000000008"
 			}
 		},
 		"FlowALPEvents": {
 			"source": "./cadence/contracts/FlowALPEvents.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet-fork": "6b00ff876c299c61"
-			}
-		},
-		"FlowALPInterestRates": {
-			"source": "./cadence/contracts/FlowALPInterestRates.cdc",
-			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007"
 			}
 		},
 		"FlowALPHealth": {
 			"source": "./cadence/contracts/FlowALPHealth.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007"
 			}
 		},
-		"FlowALPModels": {
-			"source": "./cadence/contracts/FlowALPModels.cdc",
+		"FlowALPInterestRates": {
+			"source": "./cadence/contracts/FlowALPInterestRates.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet-fork": "6b00ff876c299c61"
-			}
-		},
-		"FlowALPPositionResources": {
-			"source": "./cadence/contracts/FlowALPPositionResources.cdc",
-			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007"
 			}
 		},
 		"FlowALPMath": {
 			"source": "./cadence/lib/FlowALPMath.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet": "6d888f175c158410"
+				"mainnet": "6d888f175c158410",
+				"testing": "0000000000000007"
+			}
+		},
+		"FlowALPModels": {
+			"source": "./cadence/contracts/FlowALPModels.cdc",
+			"aliases": {
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007"
+			}
+		},
+		"FlowALPPositionResources": {
+			"source": "./cadence/contracts/FlowALPPositionResources.cdc",
+			"aliases": {
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007"
 			}
 		},
 		"FlowALPRebalancerPaidv1": {
 			"source": "./cadence/contracts/FlowALPRebalancerPaidv1.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007"
 			}
 		},
 		"FlowALPRebalancerv1": {
 			"source": "./cadence/contracts/FlowALPRebalancerv1.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007"
 			}
 		},
 		"FlowALPSupervisorv1": {
 			"source": "./cadence/contracts/FlowALPSupervisorv1.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007"
 			}
 		},
 		"FlowALPv0": {
 			"source": "./cadence/contracts/FlowALPv0.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
 				"mainnet": "6b00ff876c299c61",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007"
 			}
 		},
 		"FungibleTokenConnectors": {
 			"source": "./FlowActions/cadence/contracts/connectors/FungibleTokenConnectors.cdc",
 			"aliases": {
-				"testing": "0000000000000006",
+				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"mainnet": "6b00ff876c299c61"
+				"testing": "0000000000000006"
 			}
 		},
 		"MOET": {
 			"source": "./cadence/contracts/MOET.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet": "6b00ff876c299c61"
+				"mainnet": "6b00ff876c299c61",
+				"testing": "0000000000000007"
 			}
 		},
 		"MockDexSwapper": {
 			"source": "./cadence/contracts/mocks/MockDexSwapper.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"testnet": "d2580caf2ef07c2f",
 				"mainnet": "6b00ff876c299c61",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007",
+				"testnet": "d2580caf2ef07c2f"
 			}
 		},
 		"MockOracle": {
 			"source": "./cadence/contracts/mocks/MockOracle.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"testnet": "d2580caf2ef07c2f",
 				"mainnet": "6b00ff876c299c61",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007",
+				"testnet": "d2580caf2ef07c2f"
 			}
 		},
 		"MockYieldToken": {
 			"source": "./cadence/contracts/mocks/MockYieldToken.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
-				"mainnet-fork": "6b00ff876c299c61"
+				"mainnet-fork": "6b00ff876c299c61",
+				"testing": "0000000000000007"
 			}
 		},
 		"MultiMockOracle": {
 			"source": "./cadence/tests/contracts/MultiMockOracle.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"mainnet": "6b00ff876c299c61"
+				"testing": "0000000000000007"
 			}
 		},
 		"OracleStorage": {
 			"source": "./cadence/tests/contracts/OracleStorage.cdc",
 			"aliases": {
-				"testing": "0000000000000008",
+				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"mainnet": "6b00ff876c299c61"
+				"testing": "0000000000000008"
 			}
 		},
 		"PriceOracleAggregatorv1": {
 			"source": "./cadence/contracts/PriceOracleAggregatorv1.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"mainnet": "6b00ff876c299c61"
+				"testing": "0000000000000007"
 			}
 		},
 		"PriceOracleRouterv1": {
 			"source": "./cadence/contracts/PriceOracleRouterv1.cdc",
 			"aliases": {
-				"testing": "0000000000000007",
+				"mainnet": "6b00ff876c299c61",
 				"mainnet-fork": "6b00ff876c299c61",
-				"mainnet": "6b00ff876c299c61"
+				"testing": "0000000000000007"
 			}
 		}
 	},
