@@ -19,9 +19,9 @@ The protocol's interest curve requires a utilization rate to determine borrowing
 
 ### Minimal Example
 - User A deposits 100 units of X
-- User B withdraws 100 units of X -> totalDebit(X) = 100
+- User B withdraws (borrows) 100 units of X -> totalDebit(X) = 100
 - Suppose debit rate on X is 10%, and 1 year passes
-- User B deposits 105 units of X -> totalDebit(X) = 0
+- User B deposits 105 units of X -> totalDebit(X) = ceil(100 - 105, 0) = 0
   - User B still owes 5 units of X, but totalDebit(X) = 0
 
 ## Decision
@@ -44,7 +44,8 @@ Let's describe the definition wlog for `totalTrueDebitBalance`:
 Prior to this ADR, protocol fees were computed as a percentage of estimated debit income, when extracted. Instead, we will compute protocol fees (insurance fee, stability fee) explicitly as the excess funds available in reserves.
 
 ```
-protocolFee = reserveBalance + totalTrueDebitBalance - totalTrueCreditBalance
+cumulativeInterestSpread = totalTrueCreditBalance - totalTrueDebitBalance
+protocolFee = reserveBalance - cumulativeInterestSpread
 ```
 
 ## Rationale
