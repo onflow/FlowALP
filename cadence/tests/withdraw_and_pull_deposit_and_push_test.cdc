@@ -112,7 +112,7 @@ fun test_withdraw_pull_aboveTargetHealth_noPull() {
     withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 10.0, pullFromTopUpSource: true)
 
     let moetAfter = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
-    Test.assert(equalWithinVariance(moetBefore, moetAfter),
+    Test.assert(equalWithinVariance(moetBefore, moetAfter, DEFAULT_UFIX_VARIANCE),
         message: "No pull should occur. MOET before: ".concat(moetBefore.toString()).concat(", after: ").concat(moetAfter.toString()))
 }
 
@@ -124,7 +124,7 @@ fun test_withdraw_pull_belowTarget_sourceHasEnough_restoresTarget() {
 
     withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 50.0, pullFromTopUpSource: true)
 
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, getPositionHealth(pid: 0, beFailed: false)))
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, getPositionHealth(pid: 0, beFailed: false), DEFAULT_UFIX128_VARIANCE))
 }
 
 /// Scenario 5: pull=true, health between min and target, source has partial funds → best-effort.
@@ -172,7 +172,7 @@ fun test_withdraw_pull_breachesMin_sourceRestores_succeeds() {
 
     withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 200.0, pullFromTopUpSource: true)
 
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, getPositionHealth(pid: 0, beFailed: false)))
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, getPositionHealth(pid: 0, beFailed: false), DEFAULT_UFIX128_VARIANCE))
 }
 
 /// Scenario 8: pull=true, breaches minHealth, source insufficient → fail.
@@ -233,7 +233,7 @@ fun test_deposit_push_aboveTarget_restoresTarget() {
 
     depositToPosition(signer: user, positionID: 0, amount: 100.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: true)
 
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, getPositionHealth(pid: 0, beFailed: false)))
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, getPositionHealth(pid: 0, beFailed: false), DEFAULT_UFIX128_VARIANCE))
 }
 
 /// Scenario 12: push=true, health above targetHealth, sink limited → best-effort.

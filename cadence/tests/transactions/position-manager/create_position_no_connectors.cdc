@@ -12,7 +12,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath) {
 
     let collateral: @{FungibleToken.Vault}
     let positionManager: auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager
-    let poolCap: Capability<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>
+    let poolCap: Capability<auth(FlowALPModels.EParticipant) &FlowALPv0.Pool>
     let signerAccount: auth(Storage) &Account
 
     prepare(signer: auth(BorrowValue, Storage, Capabilities) &Account) {
@@ -31,7 +31,7 @@ transaction(amount: UFix64, vaultStoragePath: StoragePath) {
         self.positionManager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>(from: FlowALPv0.PositionStoragePath)
             ?? panic("PositionManager not found")
 
-        self.poolCap = signer.storage.load<Capability<auth(FlowALPModels.EParticipant, FlowALPModels.EPosition) &FlowALPv0.Pool>>(
+        self.poolCap = signer.storage.load<Capability<auth(FlowALPModels.EParticipant) &FlowALPv0.Pool>>(
             from: FlowALPv0.PoolCapStoragePath
         ) ?? panic("Could not load Pool capability from storage")
     }
