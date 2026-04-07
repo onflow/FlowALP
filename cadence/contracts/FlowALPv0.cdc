@@ -79,10 +79,10 @@ access(all) contract FlowALPv0 {
             let balance = view.balances[tokenType]!
             let snap = view.snapshots[tokenType]!
 
-            switch balance.direction {
+            switch balance.getScaledBalance().direction {
                 case FlowALPModels.BalanceDirection.Credit:
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                        balance.scaledBalance,
+                        balance.getScaledBalance().quantity,
                         interestIndex: snap.getCreditIndex()
                     )
                     effectiveCollateralTotal = effectiveCollateralTotal
@@ -90,7 +90,7 @@ access(all) contract FlowALPv0 {
 
                 case FlowALPModels.BalanceDirection.Debit:
                     let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                        balance.scaledBalance,
+                        balance.getScaledBalance().quantity,
                         interestIndex: snap.getDebitIndex()
                     )
                     effectiveDebtTotal = effectiveDebtTotal
@@ -101,7 +101,7 @@ access(all) contract FlowALPv0 {
         let collateralFactor = withdrawSnap.getRisk().getCollateralFactor()
         let borrowFactor = withdrawSnap.getRisk().getBorrowFactor()
 
-        if withdrawBal == nil || withdrawBal!.direction == FlowALPModels.BalanceDirection.Debit {
+        if withdrawBal == nil || withdrawBal!.getScaledBalance().direction == FlowALPModels.BalanceDirection.Debit {
             // withdrawing increases debt
             let numerator = effectiveCollateralTotal
             let denominatorTarget = numerator / targetHealth
@@ -112,7 +112,7 @@ access(all) contract FlowALPv0 {
         } else {
             // withdrawing reduces collateral (and may flip into debt beyond zero)
             let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                withdrawBal!.scaledBalance,
+                withdrawBal!.getScaledBalance().quantity,
                 interestIndex: withdrawSnap.getCreditIndex()
             )
             let requiredCollateral = effectiveDebtTotal * targetHealth
@@ -437,49 +437,9 @@ access(all) contract FlowALPv0 {
         /// to its debt as denominated in the Pool's default token.
         /// "Effective collateral" means the value of each credit balance times the liquidation threshold
         /// for that token, i.e. the maximum borrowable amount
-        // TODO: make this output enumeration of effective debts/collaterals (or provide option that does)
         access(all) fun positionHealth(pid: UInt64): UFix128 {
-            let position = self._borrowPosition(pid: pid)
-
-            // Get the position's collateral and debt values in terms of the default token.
-            var effectiveCollateral: UFix128 = 0.0
-            var effectiveDebt: UFix128 = 0.0
-
-            for type in position.getBalanceKeys() {
-                let balance = position.getBalance(type)!
-                let tokenState = self._borrowUpdatedTokenState(type: type)
-
-                let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
-                let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
-                let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
-                switch balance.direction {
-                    case FlowALPModels.BalanceDirection.Credit:
-                        let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance,
-                            interestIndex: tokenState.getCreditInterestIndex()
-                        )
-
-                        let value = price * trueBalance
-                        let effectiveCollateralValue = value * collateralFactor
-                        effectiveCollateral = effectiveCollateral + effectiveCollateralValue
-
-                    case FlowALPModels.BalanceDirection.Debit:
-                        let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance,
-                            interestIndex: tokenState.getDebitInterestIndex()
-                        )
-
-                        let value = price * trueBalance
-                        let effectiveDebtValue = value / borrowFactor
-                        effectiveDebt = effectiveDebt + effectiveDebtValue
-                }
-            }
-
-            // Calculate the health as the ratio of collateral to debt.
-            return FlowALPMath.healthComputation(
-                effectiveCollateral: effectiveCollateral,
-                effectiveDebt: effectiveDebt
-            )
+            let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
+            return balanceSheet.health
         }
 
         /// Returns the quantity of funds of a specified token which would need to be deposited
@@ -520,15 +480,15 @@ access(all) contract FlowALPv0 {
                 let balance = position.getBalance(type)!
                 let tokenState = self._borrowUpdatedTokenState(type: type)
                 let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                    balance.scaledBalance,
-                    interestIndex: balance.direction == FlowALPModels.BalanceDirection.Credit
+                    balance.getScaledBalance().quantity,
+                    interestIndex: balance.getScaledBalance().direction == FlowALPModels.BalanceDirection.Credit
                         ? tokenState.getCreditInterestIndex()
                         : tokenState.getDebitInterestIndex()
                 )
 
                 balances.append(FlowALPModels.PositionBalance(
                     vaultType: type,
-                    direction: balance.direction,
+                    direction: balance.getScaledBalance().direction,
                     balance: FlowALPMath.toUFix64Round(trueBalance)
                 ))
             }
@@ -575,7 +535,6 @@ access(all) contract FlowALPv0 {
                 self.isTokenSupported(tokenType: seizeType): "Collateral token type unsupported: \(seizeType.identifier)"
                 debtType == repayment.getType(): "Repayment vault does not match debt type: \(debtType.identifier)!=\(repayment.getType().identifier)"
                 debtType != seizeType: "Debt and seize types must be different"
-                // TODO(jord): liquidation paused / post-pause warm
             }
             post {
                 !self.state.isPositionLocked(pid): "Position is not unlocked"
@@ -685,11 +644,18 @@ access(all) contract FlowALPv0 {
         }
 
         /// Returns the quantity of funds of a specified token which would need to be deposited
-        /// in order to bring the position to the target health
-        /// assuming we also withdraw a specified amount of another token.
+        /// in order to bring the position to the target health, assuming we also withdraw a
+        /// specified amount of another token.
         ///
-        /// This function will return 0.0 if the position would already be at or over the target health value
+        /// Returns 0.0 if the position would already be at or above the target health
         /// after the proposed withdrawal.
+        ///
+        /// @param pid The position ID.
+        /// @param depositType The token type that would be deposited to restore health.
+        /// @param targetHealth The desired health to reach (must be >= 1.0).
+        /// @param withdrawType The token type being withdrawn.
+        /// @param withdrawAmount The amount of withdrawType being withdrawn.
+        /// @return The amount of depositType needed to reach targetHealth, or 0.0 if already healthy enough.
         access(all) fun fundsRequiredForTargetHealthAfterWithdrawing(
             pid: UInt64,
             depositType: Type,
@@ -709,7 +675,7 @@ access(all) contract FlowALPv0 {
             let position = self._borrowPosition(pid: pid)
 
             let adjusted = self.computeAdjustedBalancesAfterWithdrawal(
-                balanceSheet: balanceSheet,
+                initialBalanceSheet: balanceSheet,
                 position: position,
                 withdrawType: withdrawType,
                 withdrawAmount: withdrawAmount
@@ -718,69 +684,88 @@ access(all) contract FlowALPv0 {
             return self.computeRequiredDepositForHealth(
                 position: position,
                 depositType: depositType,
-                withdrawType: withdrawType,
-                effectiveCollateral: adjusted.effectiveCollateral,
-                effectiveDebt: adjusted.effectiveDebt,
+                initialBalanceSheet: adjusted,
                 targetHealth: targetHealth
             )
         }
 
-        // TODO: documentation
+        /// Computes the effective collateral and debt after a hypothetical withdrawal,
+        /// accounting for whether the withdrawal reduces credit or increases debt.
+        ///
+        /// @param initialBalanceSheet The position's current balance sheet.
+        /// @param position The position reference.
+        /// @param withdrawType The token type being withdrawn.
+        /// @param withdrawAmount The amount being withdrawn.
+        /// @return An adjusted BalanceSheet reflecting post-withdrawal effective values.
         access(self) fun computeAdjustedBalancesAfterWithdrawal(
-            balanceSheet: FlowALPModels.BalanceSheet,
+            initialBalanceSheet: FlowALPModels.BalanceSheet,
             position: &{FlowALPModels.InternalPosition},
             withdrawType: Type,
             withdrawAmount: UFix64
         ): FlowALPModels.BalanceSheet {
-            let balance = position.getBalance(withdrawType)
-            var withdrawCreditInterestIndex: UFix128 = 1.0
-            if balance?.direction == FlowALPModels.BalanceDirection.Credit {
-                withdrawCreditInterestIndex = self._borrowUpdatedTokenState(type: withdrawType).getCreditInterestIndex()
-            }
+            let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
+            let snapshot = FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
+                )
+            )
 
             return FlowALPHealth.computeAdjustedBalancesAfterWithdrawal(
-                balanceSheet: balanceSheet,
-                withdrawBalance: balance,
+                initialBalanceSheet: initialBalanceSheet,
+                withdrawBalance: position.getBalance(withdrawType),
+                withdrawType: withdrawType,
                 withdrawAmount: withdrawAmount,
-                withdrawPrice: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
-                withdrawBorrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType)),
-                withdrawCollateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
-                withdrawCreditInterestIndex: withdrawCreditInterestIndex,
-                isDebugLogging: self.config.isDebugLogging()
+                tokenSnapshot: snapshot
             )
         }
 
-        // TODO(jord): ~100-line function - consider refactoring
-        // TODO: documentation
-         access(self) fun computeRequiredDepositForHealth(
+        /// Computes the deposit amount needed to bring effective values to the target health.
+        /// Accounts for whether the deposit reduces debt or adds collateral based on the
+        /// position's current balance direction for the deposit token.
+        ///
+        /// @param position The position reference.
+        /// @param depositType The token type being deposited.
+        /// @param initialBalanceSheet The position's balance sheet prior to the deposit
+        /// @param targetHealth The desired health to achieve.
+        /// @return The amount of depositType needed, or 0.0 if already at or above target.
+        access(self) fun computeRequiredDepositForHealth(
             position: &{FlowALPModels.InternalPosition},
             depositType: Type,
-            withdrawType: Type,
-            effectiveCollateral: UFix128,
-            effectiveDebt: UFix128,
+            initialBalanceSheet: FlowALPModels.BalanceSheet,
             targetHealth: UFix128
         ): UFix64 {
-            let depositBalance = position.getBalance(depositType)
-            var depositDebitInterestIndex: UFix128 = 1.0
-            if depositBalance?.direction == FlowALPModels.BalanceDirection.Debit {
-                depositDebitInterestIndex = self._borrowUpdatedTokenState(type: depositType).getDebitInterestIndex()
-            }
+            let tokenState = self._borrowUpdatedTokenState(type: depositType)
+            let depositSnapshot = FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType))
+                )
+            )
 
             return FlowALPHealth.computeRequiredDepositForHealth(
-                depositBalance: depositBalance,
-                depositDebitInterestIndex: depositDebitInterestIndex,
-                depositPrice: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
-                depositBorrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType)),
-                depositCollateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
-                effectiveCollateral: effectiveCollateral,
-                effectiveDebt: effectiveDebt,
-                targetHealth: targetHealth,
-                isDebugLogging: self.config.isDebugLogging()
+                initialBalance: position.getBalance(depositType),
+                depositType: depositType,
+                depositSnapshot: depositSnapshot,
+                initialBalanceSheet: initialBalanceSheet,
+                targetHealth: targetHealth
             )
         }
 
         /// Returns the quantity of the specified token that could be withdrawn
         /// while still keeping the position's health at or above the provided target.
+        /// Equivalent to fundsAvailableAboveTargetHealthAfterDepositing with depositAmount=0.
+        ///
+        /// @param pid The position ID.
+        /// @param type The token type to compute available withdrawal for.
+        /// @param targetHealth The minimum health to maintain after withdrawal.
+        /// @return The maximum withdrawable amount of the given token type.
         access(all) fun fundsAvailableAboveTargetHealth(pid: UInt64, type: Type, targetHealth: UFix128): UFix64 {
             return self.fundsAvailableAboveTargetHealthAfterDepositing(
                 pid: pid,
@@ -794,6 +779,13 @@ access(all) contract FlowALPv0 {
         /// Returns the quantity of the specified token that could be withdrawn
         /// while still keeping the position's health at or above the provided target,
         /// assuming we also deposit a specified amount of another token.
+        ///
+        /// @param pid The position ID.
+        /// @param withdrawType The token type to compute available withdrawal for.
+        /// @param targetHealth The minimum health to maintain after the withdrawal.
+        /// @param depositType The token type being deposited alongside the withdrawal.
+        /// @param depositAmount The amount of depositType being deposited.
+        /// @return The maximum withdrawable amount of withdrawType.
         access(all) fun fundsAvailableAboveTargetHealthAfterDepositing(
             pid: UInt64,
             withdrawType: Type,
@@ -819,7 +811,7 @@ access(all) contract FlowALPv0 {
             let position = self._borrowPosition(pid: pid)
 
             let adjusted = self.computeAdjustedBalancesAfterDeposit(
-                balanceSheet: balanceSheet,
+                initialBalanceSheet: balanceSheet,
                 position: position,
                 depositType: depositType,
                 depositAmount: depositAmount
@@ -828,163 +820,118 @@ access(all) contract FlowALPv0 {
             return self.computeAvailableWithdrawal(
                 position: position,
                 withdrawType: withdrawType,
-                effectiveCollateral: adjusted.effectiveCollateral,
-                effectiveDebt: adjusted.effectiveDebt,
+                initialBalanceSheet: adjusted,
                 targetHealth: targetHealth
             )
         }
 
-        // Helper function to compute balances after deposit
+        /// Computes the effective collateral and debt after a hypothetical deposit,
+        /// accounting for whether the deposit adds collateral or reduces debt.
+        ///
+        /// @param initialBalanceSheet The position's current balance sheet.
+        /// @param position The position reference.
+        /// @param depositType The token type being deposited.
+        /// @param depositAmount The amount being deposited.
+        /// @return An adjusted BalanceSheet reflecting post-deposit effective values.
         access(self) fun computeAdjustedBalancesAfterDeposit(
-            balanceSheet: FlowALPModels.BalanceSheet,
+            initialBalanceSheet: FlowALPModels.BalanceSheet,
             position: &{FlowALPModels.InternalPosition},
             depositType: Type,
             depositAmount: UFix64
         ): FlowALPModels.BalanceSheet {
-            let depositBalance = position.getBalance(depositType)
-            var depositDebitInterestIndex: UFix128 = 1.0
-            if depositBalance?.direction == FlowALPModels.BalanceDirection.Debit {
-                depositDebitInterestIndex = self._borrowUpdatedTokenState(type: depositType).getDebitInterestIndex()
-            }
+            let tokenState = self._borrowUpdatedTokenState(type: depositType)
+            let snapshot = FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType))
+                )
+            )
 
             return FlowALPHealth.computeAdjustedBalancesAfterDeposit(
-                balanceSheet: balanceSheet,
-                depositBalance: depositBalance,
+                initialBalanceSheet: initialBalanceSheet,
+                depositBalance: position.getBalance(depositType),
+                depositType: depositType,
                 depositAmount: depositAmount,
-                depositPrice: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
-                depositBorrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType)),
-                depositCollateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
-                depositDebitInterestIndex: depositDebitInterestIndex,
-                isDebugLogging: self.config.isDebugLogging()
+                tokenSnapshot: snapshot
             )
         }
 
-        // Helper function to compute available withdrawal
-        // TODO(jord): ~100-line function - consider refactoring
+        /// Computes the maximum amount of a token that can be withdrawn while maintaining
+        /// the target health, given pre-adjusted effective collateral and debt values.
+        ///
+        /// @param position The position reference.
+        /// @param initialBalanceSheet The position's current balance sheet 
+        /// @param targetHealth The minimum health to maintain after withdrawal.
+        /// @return The maximum withdrawable amount of withdrawType.
         access(self) fun computeAvailableWithdrawal(
             position: &{FlowALPModels.InternalPosition},
             withdrawType: Type,
-            effectiveCollateral: UFix128,
-            effectiveDebt: UFix128,
+            initialBalanceSheet: FlowALPModels.BalanceSheet,
             targetHealth: UFix128
         ): UFix64 {
-            let withdrawBalance = position.getBalance(withdrawType)
-            var withdrawCreditInterestIndex: UFix128 = 1.0
-            if withdrawBalance?.direction == FlowALPModels.BalanceDirection.Credit {
-                withdrawCreditInterestIndex = self._borrowUpdatedTokenState(type: withdrawType).getCreditInterestIndex()
-            }
+            let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
+            let withdrawSnapshot = FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
+                )
+            )
 
             return FlowALPHealth.computeAvailableWithdrawal(
-                withdrawBalance: withdrawBalance,
-                withdrawCreditInterestIndex: withdrawCreditInterestIndex,
-                withdrawPrice: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
-                withdrawCollateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
-                withdrawBorrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType)),
-                effectiveCollateral: effectiveCollateral,
-                effectiveDebt: effectiveDebt,
-                targetHealth: targetHealth,
-                isDebugLogging: self.config.isDebugLogging()
+                withdrawBalance: position.getBalance(withdrawType),
+                withdrawType: withdrawType,
+                withdrawSnapshot: withdrawSnapshot,
+                initialBalanceSheet: initialBalanceSheet,
+                targetHealth: targetHealth
             )
         }
 
-        /// Returns the position's health if the given amount of the specified token were deposited
+        /// Returns the position's health if the given amount of the specified token were deposited.
+        /// Accounts for whether the deposit reduces existing debt or adds new collateral.
+        ///
+        /// @param pid The position ID.
+        /// @param type The token type being deposited.
+        /// @param amount The amount to deposit.
+        /// @return The projected health after the deposit.
         access(all) fun healthAfterDeposit(pid: UInt64, type: Type, amount: UFix64): UFix128 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
-            let tokenState = self._borrowUpdatedTokenState(type: type)
-
-            var effectiveCollateralIncrease: UFix128 = 0.0
-            var effectiveDebtDecrease: UFix128 = 0.0
-
-            let amountU = UFix128(amount)
-            let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
-            let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
-            let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
-            let balance = position.getBalance(type)
-            let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Credit
-            let scaledBalance = balance?.scaledBalance ?? 0.0
-            switch direction {
-                case FlowALPModels.BalanceDirection.Credit:
-                    // Since the user has no debt in the given token,
-                    // we can just compute how much additional collateral this deposit will create.
-                    effectiveCollateralIncrease = (amountU * price) * collateralFactor
-
-                case FlowALPModels.BalanceDirection.Debit:
-                    // The user has a debit position in the given token,
-                    // we need to figure out if this deposit will only pay off some of the debt,
-                    // or if it will also create new collateral.
-                    let trueDebt = FlowALPMath.scaledBalanceToTrueBalance(
-                        scaledBalance,
-                        interestIndex: tokenState.getDebitInterestIndex()
-                    )
-
-                    if trueDebt >= amountU {
-                        // This deposit will wipe out some or all of the debt, but won't create new collateral,
-                        // we just need to account for the debt decrease.
-                        effectiveDebtDecrease = (amountU * price) / borrowFactor
-                    } else {
-                        // This deposit will wipe out all of the debt, and create new collateral.
-                        effectiveDebtDecrease = (trueDebt * price) / borrowFactor
-                        effectiveCollateralIncrease = (amountU - trueDebt) * price * collateralFactor
-                    }
-            }
-
-            return FlowALPMath.healthComputation(
-                effectiveCollateral: balanceSheet.effectiveCollateral + effectiveCollateralIncrease,
-                effectiveDebt: balanceSheet.effectiveDebt - effectiveDebtDecrease
+            let adjusted = self.computeAdjustedBalancesAfterDeposit(
+                initialBalanceSheet: balanceSheet,
+                position: position,
+                depositType: type,
+                depositAmount: amount
             )
+            return adjusted.health
         }
 
-        // Returns health value of this position if the given amount of the specified token were withdrawn without
-        // using the top up source.
-        // NOTE: This method can return health values below 1.0, which aren't actually allowed. This indicates
-        // that the proposed withdrawal would fail (unless a top up source is available and used).
+        /// Returns the position's health if the given amount of the specified token were withdrawn
+        /// without using the top-up source. Accounts for whether the withdrawal reduces existing
+        /// collateral or creates new debt.
+        ///
+        /// NOTE: Can return values below 1.0, indicating the withdrawal would fail unless a
+        /// top-up source is available and used.
+        ///
+        /// @param pid The position ID.
+        /// @param type The token type being withdrawn.
+        /// @param amount The amount to withdraw.
+        /// @return The projected health after the withdrawal.
         access(all) fun healthAfterWithdrawal(pid: UInt64, type: Type, amount: UFix64): UFix128 {
             let balanceSheet = self._getUpdatedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
-            let tokenState = self._borrowUpdatedTokenState(type: type)
-
-            var effectiveCollateralDecrease: UFix128 = 0.0
-            var effectiveDebtIncrease: UFix128 = 0.0
-
-            let amountU = UFix128(amount)
-            let price = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
-            let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
-            let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
-            let balance = position.getBalance(type)
-            let direction = balance?.direction ?? FlowALPModels.BalanceDirection.Debit
-            let scaledBalance = balance?.scaledBalance ?? 0.0
-
-            switch direction {
-                case FlowALPModels.BalanceDirection.Debit:
-                    // The user has no credit position in the given token,
-                    // we can just compute how much additional effective debt this withdrawal will create.
-                    effectiveDebtIncrease = (amountU * price) / borrowFactor
-
-                case FlowALPModels.BalanceDirection.Credit:
-                    // The user has a credit position in the given token,
-                    // we need to figure out if this withdrawal will only draw down some of the collateral,
-                    // or if it will also create new debt.
-                    let trueCredit = FlowALPMath.scaledBalanceToTrueBalance(
-                        scaledBalance,
-                        interestIndex: tokenState.getCreditInterestIndex()
-                    )
-
-                    if trueCredit >= amountU {
-                        // This withdrawal will draw down some collateral, but won't create new debt,
-                        // we just need to account for the collateral decrease.
-                        effectiveCollateralDecrease = (amountU * price) * collateralFactor
-                    } else {
-                        // The withdrawal will wipe out all of the collateral, and create new debt.
-                        effectiveDebtIncrease = ((amountU - trueCredit) * price) / borrowFactor
-                        effectiveCollateralDecrease = (trueCredit * price) * collateralFactor
-                    }
-            }
-
-            return FlowALPMath.healthComputation(
-                effectiveCollateral: balanceSheet.effectiveCollateral - effectiveCollateralDecrease,
-                effectiveDebt: balanceSheet.effectiveDebt + effectiveDebtIncrease
+            let adjusted = self.computeAdjustedBalancesAfterWithdrawal(
+                initialBalanceSheet: balanceSheet,
+                position: position,
+                withdrawType: type,
+                withdrawAmount: amount
             )
+            return adjusted.health
         }
 
         ///////////////////////////
@@ -2055,44 +2002,37 @@ access(all) contract FlowALPv0 {
             let position = self._borrowPosition(pid: pid)
 
             // Get the position's collateral and debt values in terms of the default token.
-            var effectiveCollateral: UFix128 = 0.0
-            var effectiveDebt: UFix128 = 0.0
+            var effectiveCollateralByToken: {Type: UFix128} = {}
+            var effectiveDebtByToken: {Type: UFix128} = {}
 
+            let oracle = self.config.getPriceOracle()
             for type in position.getBalanceKeys() {
                 let balance = position.getBalance(type)!
                 let tokenState = self._borrowUpdatedTokenState(type: type)
+                let price = UFix128(oracle.price(ofToken: type)!)
 
-                switch balance.direction {
+                switch balance.getScaledBalance().direction {
                     case FlowALPModels.BalanceDirection.Credit:
                         let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance,
+                            balance.getScaledBalance().quantity,
                             interestIndex: tokenState.getCreditInterestIndex()
                         )
-
-                        let convertedPrice = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
-                        let value = convertedPrice * trueBalance
-
-                        let convertedCollateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
-                        effectiveCollateral = effectiveCollateral + (value * convertedCollateralFactor)
+                        let collateralFactor = UFix128(self.config.getCollateralFactor(tokenType: type))
+                        effectiveCollateralByToken[type] = (price * trueBalance) * collateralFactor
 
                     case FlowALPModels.BalanceDirection.Debit:
                         let trueBalance = FlowALPMath.scaledBalanceToTrueBalance(
-                            balance.scaledBalance,
+                            balance.getScaledBalance().quantity,
                             interestIndex: tokenState.getDebitInterestIndex()
                         )
-
-                        let convertedPrice = UFix128(self.config.getPriceOracle().price(ofToken: type)!)
-                        let value = convertedPrice * trueBalance
-
-                        let convertedBorrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
-                        effectiveDebt = effectiveDebt + (value / convertedBorrowFactor)
-
+                        let borrowFactor = UFix128(self.config.getBorrowFactor(tokenType: type))
+                        effectiveDebtByToken[type] = (price * trueBalance) / borrowFactor
                 }
             }
 
             return FlowALPModels.BalanceSheet(
-                effectiveCollateral: effectiveCollateral,
-                effectiveDebt: effectiveDebt
+                effectiveCollateral: effectiveCollateralByToken,
+                effectiveDebt: effectiveDebtByToken
             )
         }
 
