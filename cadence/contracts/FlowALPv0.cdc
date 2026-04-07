@@ -1675,6 +1675,10 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        access(all) view fun positionExists(pid: UInt64): Bool {
+            return self.positions[pid] != nil
+        }
+
         /// Rebalances the position to the target health value, if the position is under- or over-collateralized,
         /// as defined by the position-specific min/max health thresholds.
         /// If force=true, the position will be rebalanced regardless of its current health.
@@ -1683,10 +1687,6 @@ access(all) contract FlowALPv0 {
         /// Rebalancing is done on a best effort basis (even when force=true). If the position has no sink/source,
         /// of either cannot accept/provide sufficient funds for rebalancing, the rebalance will still occur but will
         /// not cause the position to reach its target health.
-        access(all) view fun positionExists(pid: UInt64): Bool {
-            return self.positions[pid] != nil
-        }
-
         access(FlowALPModels.EPosition | FlowALPModels.ERebalance) fun rebalancePosition(pid: UInt64, force: Bool) {
             pre {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"

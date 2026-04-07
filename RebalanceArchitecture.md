@@ -95,6 +95,6 @@ sequenceDiagram
 
 ### Why `fixReschedule()` is necessary
 
-After each run, the rebalancer calls `scheduleNext()` to book the next run with `FlowTransactionScheduler`. That call can **fail** for transient reasons (e.g. `txFunder` has insufficient balance, or the scheduler is busy). When it fails, the rebalancer emits `FailedRecurringSchedule` and does **not** schedule the next execution — leaving it stuck.
+After each run, the rebalancer calls `scheduleNext()` to book the next run with `FlowTransactionScheduler`. That call can **fail** for transient reasons (e.g. `txFunder` has insufficient balance). When it fails, the rebalancer emits `FailedRecurringSchedule` and does **not** schedule the next execution — leaving it stuck.
 
 `fixReschedule()` is **idempotent**: if there is no scheduled transaction, it tries to schedule the next one; if one already exists, it does nothing. The Supervisor calls this for each registered rebalancer on every tick, recovering from transient failures automatically.
