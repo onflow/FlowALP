@@ -47,12 +47,14 @@ access(all) contract FlowALPRebalancerPaidv1 {
 
     /// Configuration for how often and how the rebalancer runs, and which account pays scheduler fees.
     access(all) struct RecurringConfig {
+        /// Period of rebalance transactions, in seconds.
         access(all) let interval: UInt64
         access(all) let priority: FlowTransactionScheduler.Priority
         access(all) let executionEffort: UInt64
         /// feePaid = estimate.flowFee * estimationMargin
+        /// For example, for a 5% margin, set estimationMargin=1.05
         access(all) let estimationMargin: UFix64
-        /// Whether to force rebalance even when the position is already balanced
+        /// Whether to force rebalance even when the position is within its configured min/max health bounds.
         access(all) let forceRebalance: Bool
         /// Who pays for rebalance transactions. Must provide and accept FLOW.
         access(contract) var txFunder: {DeFiActions.Sink, DeFiActions.Source}
@@ -106,6 +108,8 @@ access(all) contract FlowALPRebalancerPaidv1 {
         access(all) let positionID: UInt64
         access(all) var lastRebalanceTimestamp: UFix64
 
+        /// A capability referencing this PositionRebalancer, set by the contract when the PositionRebalancer is created (and stored).
+        /// This is necessary because in order to schedule the next transaction, we need to pass a persistent reference (capability) to FlowTransactionScheduler.
         access(self) var selfCap: Capability<auth(FlowTransactionScheduler.Execute) &{FlowTransactionScheduler.TransactionHandler}>?
         access(self) var scheduledTransactions: @{UInt64: FlowTransactionScheduler.ScheduledTransaction}
 
@@ -125,6 +129,8 @@ access(all) contract FlowALPRebalancerPaidv1 {
             self.selfCap = cap
         }
 
+        /// Invoked by FlowTransactionScheduler to execute each requested scheduled transaction.
+        /// @param id: the scheduled transaction ID
         access(FlowTransactionScheduler.Execute) fun executeTransaction(id: UInt64, data: AnyStruct?) {
             let pool = FlowALPRebalancerPaidv1.poolCap!.borrow()!
             let config = FlowALPRebalancerPaidv1.defaultRecurringConfig!
