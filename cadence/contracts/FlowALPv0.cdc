@@ -694,6 +694,9 @@ access(all) contract FlowALPv0 {
             withdrawType: Type,
             withdrawAmount: UFix64
         ): FlowALPModels.BalanceSheet {
+            if withdrawAmount == 0.0 {
+                return initialBalanceSheet
+            }
             let snapshot = self.buildTokenSnapshot(type: withdrawType)
 
             return FlowALPHealth.computeAdjustedBalancesAfterWithdrawal(
@@ -829,6 +832,9 @@ access(all) contract FlowALPv0 {
             depositType: Type,
             depositAmount: UFix64
         ): FlowALPModels.BalanceSheet {
+            if depositAmount == 0.0 {
+                return initialBalanceSheet
+            }
             return FlowALPHealth.computeAdjustedBalancesAfterDeposit(
                 initialBalanceSheet: initialBalanceSheet,
                 depositBalance: position.getBalance(depositType),
@@ -851,11 +857,13 @@ access(all) contract FlowALPv0 {
             initialBalanceSheet: FlowALPModels.BalanceSheet,
             targetHealth: UFix128
         ): UFix64 {
-            let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
             let withdrawSnapshot = self.buildTokenSnapshot(type: withdrawType)
 
+            let internalBalance = position.getBalance(withdrawType) ?? FlowALPModels.makeZeroInternalBalance()
+            let trueBalance = withdrawSnapshot.trueBalance(balance: internalBalance)
+
             return FlowALPHealth.computeAvailableWithdrawal(
-                withdrawBalance: position.getBalance(withdrawType),
+                withdrawTrueBalance: trueBalance,
                 withdrawType: withdrawType,
                 withdrawSnapshot: withdrawSnapshot,
                 initialBalanceSheet: initialBalanceSheet,
@@ -1639,9 +1647,10 @@ access(all) contract FlowALPv0 {
                 // The position is undercollateralized,
                 // see if the source can get more collateral to bring it up to the target health.
                 if let topUpSource = position.borrowTopUpSource() {
-                    let idealDeposit = self.fundsRequiredForTargetHealth(
-                        pid: pid,
-                        type: topUpSource.getSourceType(),
+                    let idealDeposit = self.computeRequiredDepositForHealth(
+                        position: position,
+                        depositType: topUpSource.getSourceType(),
+                        initialBalanceSheet: balanceSheet,
                         targetHealth: position.getTargetHealth()
                     )
                     if self.config.isDebugLogging() {
@@ -1678,9 +1687,10 @@ access(all) contract FlowALPv0 {
                 }
                 if let drawDownSink = position.borrowDrawDownSink() {
                     let sinkType = drawDownSink.getSinkType()
-                    let idealWithdrawal = self.fundsAvailableAboveTargetHealth(
-                        pid: pid,
-                        type: sinkType,
+                    let idealWithdrawal = self.computeAvailableWithdrawal(
+                        position: position,
+                        withdrawType: sinkType,
+                        initialBalanceSheet: balanceSheet,
                         targetHealth: position.getTargetHealth()
                     )
                     if self.config.isDebugLogging() {

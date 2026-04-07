@@ -382,8 +382,8 @@ fun testfundsAvailableAboveTargetHealthAfterDepositing_flo15_sameTypeDepositWith
     let details = getPositionDetails(pid: borrowerPid, beFailed: false)
     let moetCredit = getCreditBalanceForType(details: details, vaultType: Type<@MOET.Vault>())
     let flowDebitBal = getDebitBalanceForType(details: details, vaultType: Type<@FlowToken.Vault>())
-    Test.assert(equalWithinVariance(moetCollateral, moetCredit), message: "Expected \(moetCollateral) MOET Credit, got \(moetCredit)")
-    Test.assert(equalWithinVariance(flowDebt, flowDebitBal), message: "Expected \(flowDebt) FLOW Debit, got \(flowDebitBal)")
+    Test.assert(equalWithinVariance(moetCollateral, moetCredit, DEFAULT_UFIX_VARIANCE), message: "Expected \(moetCollateral) MOET Credit, got \(moetCredit)")
+    Test.assert(equalWithinVariance(flowDebt, flowDebitBal, DEFAULT_UFIX_VARIANCE), message: "Expected \(flowDebt) FLOW Debit, got \(flowDebitBal)")
 
     // Call fundsAvailableAboveTargetHealthAfterDepositing with a FLOW deposit exceeding our debit balance and a FLOW withdrawal type
     let depositAmount = 150.0
@@ -424,7 +424,7 @@ fun testfundsAvailableAboveTargetHealthAfterDepositing_flo15_sameTypeDepositWith
     log("[TEST] Expected correct result: \(expectedCorrect)")
     log("[TEST] Buggy shortcut would return: \(depositAmount)")
 
-    Test.assert(equalWithinVariance(expectedCorrect, result), message: "Same-type linearization bug: expected ~\(expectedCorrect), got \(result).")
+    Test.assert(equalWithinVariance(expectedCorrect, result, DEFAULT_UFIX_VARIANCE), message: "Same-type linearization bug: expected ~\(expectedCorrect), got \(result).")
 }
 
 /* --- Parameterized runner --- */
