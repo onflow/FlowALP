@@ -1253,13 +1253,33 @@ access(all) contract FlowALPv0 {
             let topUpSource = position.borrowTopUpSource()
             let topUpType = topUpSource?.getSourceType() ?? self.state.getDefaultToken()
 
-            let queuedBalanceSheet = self._getQueuedBalanceSheet(pid: pid)
-            let withdrawalBalanceSheet = self.computeAdjustedBalancesAfterWithdrawal(
-                initialBalanceSheet: queuedBalanceSheet,
-                position: position,
-                withdrawType: type,
-                withdrawAmount: amount
-            )
+            // Build the withdrawal balance sheet in three steps to stay internally consistent:
+            //   1. Start from the credited (reserve-only) balance sheet.
+            //   2. Apply the reserve portion of the withdrawal — uses position.getBalance(type), which
+            //      is the reserve-only scaled balance, so the sheet and the delta are consistent.
+            //   3. Add back the remaining queued balance for the withdrawn type (the portion that was
+            //      not consumed by this withdrawal and will stay in the queue).
+            // This correctly reflects the post-withdrawal state while (a) preventing cross-type
+            // borrowing against queued collateral of other tokens, and (b) allowing same-type queue
+            // withdrawals when the remaining reserve + remaining queue keeps health above the minimum.
+            let remainingQueued = queuedBalanceForType - queuedUsable
+            var withdrawalBalanceSheet = self._getCreditedBalanceSheet(pid: pid)
+            if reserveWithdrawAmount > 0.0 {
+                withdrawalBalanceSheet = self.computeAdjustedBalancesAfterWithdrawal(
+                    initialBalanceSheet: withdrawalBalanceSheet,
+                    position: position,
+                    withdrawType: type,
+                    withdrawAmount: reserveWithdrawAmount
+                )
+            }
+            if remainingQueued > 0.0 {
+                withdrawalBalanceSheet = self.computeAdjustedBalancesAfterDeposit(
+                    initialBalanceSheet: withdrawalBalanceSheet,
+                    position: position,
+                    depositType: type,
+                    depositAmount: remainingQueued
+                )
+            }
 
             let requiredDeposit = self.computeRequiredDepositForHealth(
                 position: position,
