@@ -465,7 +465,6 @@ access(all) contract FlowALPv0 {
         ///
         /// This is the appropriate value for borrow-capacity and available-balance queries. Use
         /// `_getQueuedBalanceSheet` for liquidation and rebalancing decisions.
-        // TODO: make this output enumeration of effective debts/collaterals (or provide option that does)
         access(all) fun positionHealth(pid: UInt64): UFix128 {
             let balanceSheet = self._getCreditedBalanceSheet(pid: pid)
             return balanceSheet.health
@@ -1404,10 +1403,10 @@ access(all) contract FlowALPv0 {
                 withdrawn.deposit(from: <-fromReserve)
             }
 
-            // Post-withdrawal safety check: queued health must be >= 1.0.
-            // Uses queued health (reserve + remaining queued deposits) for consistency with
-            // the liquidation and rebalancing checks.
-            let postHealth = self._getQueuedBalanceSheet(pid: pid).health
+            // Post-withdrawal safety check: credited health must be >= 1.0.
+            // Uses withdrawal balance sheet instead of credited balance sheet
+            // to allow withdrawals from the deposit queue.
+            let postHealth = self._getWithdrawalBalanceSheet(pid: pid, withdrawType: type, withdrawAmount: 0.0).health
             assert(
                 postHealth >= 1.0,
                 message: "Post-withdrawal position health (\(postHealth)) is unhealthy"
