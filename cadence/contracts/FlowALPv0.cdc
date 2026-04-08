@@ -159,10 +159,9 @@ access(all) contract FlowALPv0 {
     ///   custody and committed to the position — it protects against liquidation and avoids
     ///   unnecessary rebalancing, but it does not yet support borrowing against other tokens.
     ///
-    /// The withdrawal preflight (`_getWithdrawalBalanceSheet`) is a hybrid: it starts from the
-    /// credited balance sheet but adds the queued deposit for the *withdrawn token only*, so that
-    /// withdrawing same-type queued funds is gated on the remaining queued + credited health for
-    /// that token, while cross-type borrowing against uncredited collateral remains blocked.
+    /// `withdrawAndPull` uses a hybrid approach, only including queued deposits
+    /// for the token type being withdrawn. This lets withdrawals from the deposit queue function,
+    /// while cross-token borrowing against queued deposits is blocked.
     access(all) resource Pool: FlowALPModels.PositionPool {
 
         /// Pool state (extracted fields)
@@ -407,6 +406,8 @@ access(all) contract FlowALPv0 {
         }
 
         /// Returns a position's balance available for withdrawal of a given Vault type.
+        /// Queued deposits of the requested type are NOT included in the result.
+        ///
         /// Phase 0 refactor: compute via pure helpers using a PositionView and TokenSnapshot for the base path.
         /// When `pullFromTopUpSource` is true and a topUpSource exists, preserve deposit-assisted semantics.
         access(all) fun availableBalance(pid: UInt64, type: Type, pullFromTopUpSource: Bool): UFix64 {
@@ -682,6 +683,10 @@ access(all) contract FlowALPv0 {
         /// Returns 0.0 if the position would already be at or above the target health
         /// after the proposed withdrawal.
         ///
+        /// Mirrors the usage in `withdrawAndPull`: any queued deposit of
+        /// `withdrawType` is drained before the reserve, so only the net reserve withdrawal and
+        /// the remaining queued balance affect the resulting health.
+        ///
         /// @param pid The position ID.
         /// @param depositType The token type that would be deposited to restore health.
         /// @param targetHealth The desired health to reach (must be >= 1.0).
@@ -703,12 +708,9 @@ access(all) contract FlowALPv0 {
                 log("    [CONTRACT] fundsRequiredForTargetHealthAfterWithdrawing(pid: \(pid), depositType: \(depositType.contractName!), targetHealth: \(targetHealth), withdrawType: \(withdrawType.contractName!), withdrawAmount: \(withdrawAmount))")
             }
 
-            let balanceSheet = self._getCreditedBalanceSheet(pid: pid)
             let position = self._borrowPosition(pid: pid)
-
-            let adjusted = self.computeAdjustedBalancesAfterWithdrawal(
-                initialBalanceSheet: balanceSheet,
-                position: position,
+            let balanceSheet = self._getWithdrawalBalanceSheet(
+                pid: pid,
                 withdrawType: withdrawType,
                 withdrawAmount: withdrawAmount
             )
@@ -716,9 +718,53 @@ access(all) contract FlowALPv0 {
             return self.computeRequiredDepositForHealth(
                 position: position,
                 depositType: depositType,
-                initialBalanceSheet: adjusted,
+                initialBalanceSheet: balanceSheet,
                 targetHealth: targetHealth
             )
+        }
+
+        /// Returns the balance sheet that reflects a position's state immediately after a
+        /// hypothetical withdrawal of `withdrawAmount` of `withdrawType`, accounting for the
+        /// fact that `withdrawAndPull` drains queued deposits before touching the reserve.
+        ///
+        /// This allows withdrawal from the queue as long as those queued deposits are not required
+        /// to maintain the position's health, while preventing borrowing against queued deposits
+        /// of other token types (their queued deposits are never added to this sheet).
+        ///
+        /// @param pid The position ID.
+        /// @param withdrawType The token type being withdrawn.
+        /// @param withdrawAmount The total amount being withdrawn (queue first, then reserve).
+        /// @return A BalanceSheet reflecting the post-withdrawal state.
+        access(self) fun _getWithdrawalBalanceSheet(
+            pid: UInt64,
+            withdrawType: Type,
+            withdrawAmount: UFix64
+        ): FlowALPModels.BalanceSheet {
+            let position = self._borrowPosition(pid: pid)
+            let balanceSheet = self._getCreditedBalanceSheet(pid: pid)
+            let queuedForType = position.getQueuedDepositBalance(withdrawType) ?? 0.0
+            // Either the withdrawal only touches the queued deposit,
+            // in which case we include the remaining portion of the queued deposit in the balance sheet
+            let remainingQueued = queuedForType.saturatingSubtract(withdrawAmount)
+            if remainingQueued > 0.0 {
+                return self.computeAdjustedBalancesAfterDeposit(
+                    initialBalanceSheet: balanceSheet,
+                    position: position,
+                    depositType: withdrawType,
+                    depositAmount: remainingQueued
+                )
+            }
+            // Or it withdraws the entire queued deposit for the token and remaining amount from the reserve
+            let reserveWithdrawAmount = withdrawAmount.saturatingSubtract(queuedForType)
+            if reserveWithdrawAmount > 0.0 {
+                return self.computeAdjustedBalancesAfterWithdrawal(
+                    initialBalanceSheet: balanceSheet,
+                    position: position,
+                    withdrawType: withdrawType,
+                    withdrawAmount: reserveWithdrawAmount
+                )
+            }
+            return balanceSheet
         }
 
         /// Computes the effective collateral and debt after a hypothetical withdrawal,
@@ -793,6 +839,7 @@ access(all) contract FlowALPv0 {
         /// Returns the quantity of the specified token that could be withdrawn
         /// while still keeping the position's health at or above the provided target.
         /// Equivalent to fundsAvailableAboveTargetHealthAfterDepositing with depositAmount=0.
+        /// Note: Does not account for queued deposits.
         ///
         /// @param pid The position ID.
         /// @param type The token type to compute available withdrawal for.
@@ -811,6 +858,7 @@ access(all) contract FlowALPv0 {
         /// Returns the quantity of the specified token that could be withdrawn
         /// while still keeping the position's health at or above the provided target,
         /// assuming we also deposit a specified amount of another token.
+        /// Note: Does not account for queued deposits.
         ///
         /// @param pid The position ID.
         /// @param withdrawType The token type to compute available withdrawal for.
@@ -1247,39 +1295,14 @@ access(all) contract FlowALPv0 {
             let reserveWithdrawAmount: UFix64 = amount - queuedUsable
 
             // Preflight: determine whether the withdrawal is permitted and whether a topUp is needed.
-            // Uses the withdrawal balance sheet (reserve + queued for the withdrawn token only),
-            // so same-type queue withdrawals are correctly gated on remaining queued+credited health,
-            // while cross-type borrows cannot be backed by queued deposits of other tokens.
             let topUpSource = position.borrowTopUpSource()
             let topUpType = topUpSource?.getSourceType() ?? self.state.getDefaultToken()
 
-            // Build the withdrawal balance sheet in three steps to stay internally consistent:
-            //   1. Start from the credited (reserve-only) balance sheet.
-            //   2. Apply the reserve portion of the withdrawal — uses position.getBalance(type), which
-            //      is the reserve-only scaled balance, so the sheet and the delta are consistent.
-            //   3. Add back the remaining queued balance for the withdrawn type (the portion that was
-            //      not consumed by this withdrawal and will stay in the queue).
-            // This correctly reflects the post-withdrawal state while (a) preventing cross-type
-            // borrowing against queued collateral of other tokens, and (b) allowing same-type queue
-            // withdrawals when the remaining reserve + remaining queue keeps health above the minimum.
-            let remainingQueued = queuedBalanceForType - queuedUsable
-            var withdrawalBalanceSheet = self._getCreditedBalanceSheet(pid: pid)
-            if reserveWithdrawAmount > 0.0 {
-                withdrawalBalanceSheet = self.computeAdjustedBalancesAfterWithdrawal(
-                    initialBalanceSheet: withdrawalBalanceSheet,
-                    position: position,
-                    withdrawType: type,
-                    withdrawAmount: reserveWithdrawAmount
-                )
-            }
-            if remainingQueued > 0.0 {
-                withdrawalBalanceSheet = self.computeAdjustedBalancesAfterDeposit(
-                    initialBalanceSheet: withdrawalBalanceSheet,
-                    position: position,
-                    depositType: type,
-                    depositAmount: remainingQueued
-                )
-            }
+            let withdrawalBalanceSheet = self._getWithdrawalBalanceSheet(
+                pid: pid,
+                withdrawType: type,
+                withdrawAmount: amount
+            )
 
             let requiredDeposit = self.computeRequiredDepositForHealth(
                 position: position,
@@ -1789,7 +1812,7 @@ access(all) contract FlowALPv0 {
                         from: <-pulledVault,
                     )
 
-                    // Post-topUp check: queued health must be >= 1.0 after the deposit.
+                    // Post-topUp health check: panic if the position is still liquidatable.
                     let newQueuedHealth = self._getQueuedBalanceSheet(pid: pid).health
                     assert(newQueuedHealth >= 1.0, message: "topUpSource insufficient to save position from liquidation")
                 }
