@@ -73,10 +73,10 @@ fun setupPositionWithDebt(): Test.TestAccount {
 //
 // With: 1000 FLOW @ $0.70, cf=0.8 → effectiveCollateral = 560
 //       MOET debt ≈ 615.38 (drawn at initial price 1.0, targetHealth 1.3)
-//       Reserve health = 560 / 615.38 ≈ 0.91  (< 1.0 → normally liquidatable)
+//       Credited health = 560 / 615.38 ≈ 0.91  (< 1.0 → normally liquidatable)
 //
 // Queuing 200 FLOW @ $0.70, cf=0.8 adds 112 to effectiveCollateral:
-//       Effective health = 672 / 615.38 ≈ 1.09  (≥ 1.0 → not liquidatable)
+//       Queued health = 672 / 615.38 ≈ 1.09  (≥ 1.0 → not liquidatable)
 // ─────────────────────────────────────────────────────────────────────────────
 access(all)
 fun test_liquidation_blocked_by_queued_deposit() {
@@ -85,7 +85,7 @@ fun test_liquidation_blocked_by_queued_deposit() {
 
     let user = setupPositionWithDebt()
 
-    // Drop FLOW price so reserve health < 1.0.
+    // Drop FLOW price so credited health < 1.0.
     let crashedPrice: UFix64 = 0.7
     setMockOraclePrice(
         signer: Test.getAccount(0x0000000000000007),
@@ -100,9 +100,9 @@ fun test_liquidation_blocked_by_queued_deposit() {
         priceRatio: crashedPrice
     )
 
-    // Confirm reserve health is below 1.0.
-    let reserveHealth = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(reserveHealth < 1.0, message: "Expected reserve health < 1.0 after price drop, got \(reserveHealth)")
+    // Confirm credited health is below 1.0.
+    let creditedHealth = getPositionHealth(pid: pid, beFailed: false)
+    Test.assert(creditedHealth < 1.0, message: "Expected credited health < 1.0 after price drop, got \(creditedHealth)")
 
     // Deposit 200 FLOW into the queue (deposit cap is exhausted, so it cannot enter the reserve).
     depositToPosition(
@@ -119,7 +119,7 @@ fun test_liquidation_blocked_by_queued_deposit() {
     Test.assert(queued[flowType] != nil, message: "Expected 200 FLOW to be in the queue")
 
     // The position should now NOT be liquidatable because the queued deposit
-    // brings effective health above 1.0.
+    // brings queued health above 1.0.
     let liquidatable = getIsLiquidatable(pid: pid)
     Test.assert(!liquidatable, message: "Position should not be liquidatable when queued deposit rescues health")
 
@@ -144,7 +144,7 @@ fun test_liquidation_blocked_by_queued_deposit() {
 //
 // Same setup as Test 1, but only 50 FLOW is queued:
 //       Queued contribution = 50 × 0.7 × 0.8 = 28
-//       Effective health = (560 + 28) / 615.38 ≈ 0.96  (< 1.0 → still liquidatable)
+//       Queued health = (560 + 28) / 615.38 ≈ 0.96  (< 1.0 → still liquidatable)
 // ─────────────────────────────────────────────────────────────────────────────
 access(all)
 fun test_liquidation_allowed_when_queued_deposit_insufficient() {
@@ -176,7 +176,7 @@ fun test_liquidation_allowed_when_queued_deposit_insufficient() {
         pushToDrawDownSink: false
     )
 
-    // Even with the queued deposit, effective health is < 1.0.
+    // Even with the queued deposit, queued health is < 1.0.
     let liquidatable = getIsLiquidatable(pid: pid)
     Test.assert(liquidatable, message: "Position should still be liquidatable when queued deposit is insufficient")
 }
@@ -186,10 +186,10 @@ fun test_liquidation_allowed_when_queued_deposit_insufficient() {
 //
 // With: 1000 FLOW @ $0.80, cf=0.8 → effectiveCollateral = 640
 //       MOET debt ≈ 615.38
-//       Reserve health = 640 / 615.38 ≈ 1.04  (< MIN_HEALTH = 1.1 → would trigger topUp)
+//       Credited health = 640 / 615.38 ≈ 1.04  (< MIN_HEALTH = 1.1 → would trigger topUp)
 //
 // Queuing 100 FLOW @ $0.80, cf=0.8 adds 64 to effectiveCollateral:
-//       Effective health = 704 / 615.38 ≈ 1.14  (within [1.1, 1.5] → no rebalance needed)
+//       Queued health = 704 / 615.38 ≈ 1.14  (within [1.1, 1.5] → no rebalance needed)
 // ─────────────────────────────────────────────────────────────────────────────
 access(all)
 fun test_rebalance_skipped_when_queued_deposit_within_health_bounds() {
@@ -199,18 +199,18 @@ fun test_rebalance_skipped_when_queued_deposit_within_health_bounds() {
     let user = setupPositionWithDebt()
     let userMoetBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
 
-    // Drop FLOW price so reserve health falls below MIN_HEALTH (1.1) but not below 1.0.
+    // Drop FLOW price so credited health falls below MIN_HEALTH (1.1) but not below 1.0.
     setMockOraclePrice(
         signer: PROTOCOL_ACCOUNT,
         forTokenIdentifier: FLOW_TOKEN_IDENTIFIER,
         price: 0.8
     )
 
-    let reserveHealth = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(reserveHealth < UFix128(MIN_HEALTH), message: "Expected reserve health below MIN_HEALTH, got \(reserveHealth)")
-    Test.assert(reserveHealth >= 1.0, message: "Reserve health should still be above 1.0 (non-liquidatable), got \(reserveHealth)")
+    let creditedHealth = getPositionHealth(pid: pid, beFailed: false)
+    Test.assert(creditedHealth < UFix128(MIN_HEALTH), message: "Expected credited health below MIN_HEALTH, got \(creditedHealth)")
+    Test.assert(creditedHealth >= 1.0, message: "Credited health should still be above 1.0 (non-liquidatable), got \(creditedHealth)")
 
-    // Queue 100 FLOW — sufficient to push effective health into [MIN_HEALTH, MAX_HEALTH].
+    // Queue 100 FLOW — sufficient to push queued health into [MIN_HEALTH, MAX_HEALTH].
     depositToPosition(
         signer: user,
         positionID: pid,
@@ -219,7 +219,7 @@ fun test_rebalance_skipped_when_queued_deposit_within_health_bounds() {
         pushToDrawDownSink: false
     )
 
-    // With force=false the rebalancer should see effective health within bounds and do nothing.
+    // With force=false the rebalancer should see queued health within bounds and do nothing.
     rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: pid, force: false, beFailed: false)
 
     // The user's MOET vault should be unchanged — no topUp was pulled.
@@ -236,15 +236,15 @@ fun test_rebalance_skipped_when_queued_deposit_within_health_bounds() {
 //
 // With: 1000 FLOW @ $0.60, cf=0.8 → effectiveCollateral = 480
 //       MOET debt ≈ 615.38
-//       Reserve health ≈ 0.78  (badly unhealthy — topUp required regardless)
+//       Credited health ≈ 0.78  (badly unhealthy — topUp required regardless)
 //
 // Queuing 200 FLOW @ $0.60, cf=0.8 adds 96 to effectiveCollateral:
-//       Effective health ≈ 0.94  (still below MIN_HEALTH, so rebalance fires)
+//       Queued health ≈ 0.94  (still below MIN_HEALTH, so rebalance fires)
 //
-// Ideal topUp based on EFFECTIVE balance sheet:
+// Ideal topUp based on Queued balance sheet:
 //       debt_after = 576 / 1.3 ≈ 443.08  →  topUp ≈ 172.30 MOET
 //
-// If instead the topUp were based on RESERVE health only (old behaviour):
+// If instead the topUp were based on Credited health only:
 //       debt_after = 480 / 1.3 ≈ 369.23  →  topUp ≈ 246.15 MOET
 //       After queued deposit processes: health ≈ 1.56  (above MAX_HEALTH = 1.5 — needs drawdown!)
 //
@@ -257,14 +257,14 @@ fun test_rebalance_topup_reduced_by_queued_deposit() {
 
     let user = setupPositionWithDebt()
 
-    // Drop FLOW price sharply so reserve health is well below 1.0.
+    // Drop FLOW price sharply so credited health is well below 1.0.
     setMockOraclePrice(
         signer: PROTOCOL_ACCOUNT,
         forTokenIdentifier: FLOW_TOKEN_IDENTIFIER,
         price: 0.6
     )
 
-    // Queue 200 FLOW. Even with it the effective health is below MIN_HEALTH,
+    // Queue 200 FLOW. Even with it the queued health is below MIN_HEALTH,
     // so a rebalance will still be triggered — but the topUp should be sized
     // to reach targetHealth *including* the queued deposit's contribution.
     depositToPosition(
@@ -296,21 +296,17 @@ fun test_rebalance_topup_reduced_by_queued_deposit() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Test 5: Withdrawal from the queue is permitted when reserve health < minHealth
-//         but effective health (reserve + remaining queue) >= minHealth.
+// Test 5: Withdrawal from the deposit queue is permitted when credited health < minHealth
+//         but queued health >= minHealth, and the withdrawal would not push queued health below minHealth.
 //
 // With: 1000 FLOW @ $0.75, cf=0.8 → reserve effectiveCollateral = 600
 //       MOET debt ≈ 615.38
-//       Reserve health ≈ 0.975  (< 1.0 — below liquidation threshold)
+//       Credited health ≈ 0.975  (< 1.0 — below liquidation threshold)
 //
-// Queue 200 FLOW → effective health = (1000+200)*0.75*0.8 / 615.38 ≈ 1.17
+// Queue 200 FLOW → queued health = (1000+200)*0.75*0.8 / 615.38 ≈ 1.17
 //
-// Withdraw 50 FLOW from the queue (reserveWithdrawAmount = 0):
-//       Effective health after = (1000+150)*0.75*0.8 / 615.38 ≈ 1.12 >= minHealth(1.1) ✓
-//
-// Old behaviour: the preflight used reserve health (0.975 < minHealth) and blocked
-// this withdrawal even though no reserve tokens were touched.
-// New behaviour: the preflight uses effective health and permits it.
+// Withdraw 50 FLOW from the queue (the reserve is not touched):
+//       Queued health after = (1000+150)*0.75*0.8 / 615.38 ≈ 1.12 >= minHealth(1.1) ✓
 // ─────────────────────────────────────────────────────────────────────────────
 access(all)
 fun test_withdrawal_from_queue_permitted_when_reserve_health_below_min() {
@@ -319,18 +315,18 @@ fun test_withdrawal_from_queue_permitted_when_reserve_health_below_min() {
 
     let user = setupPositionWithDebt()
 
-    // Drop FLOW price so that reserve health falls below 1.0.
+    // Drop FLOW price so that credited health falls below 1.0.
     setMockOraclePrice(
         signer: PROTOCOL_ACCOUNT,
         forTokenIdentifier: FLOW_TOKEN_IDENTIFIER,
         price: 0.75
     )
 
-    // Confirm reserve health < 1.0.
-    let reserveHealth = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(reserveHealth < 1.0, message: "Expected reserve health < 1.0, got \(reserveHealth)")
+    // Confirm credited health < 1.0.
+    let creditedHealth = getPositionHealth(pid: pid, beFailed: false)
+    Test.assert(creditedHealth < 1.0, message: "Expected credited health < 1.0, got \(creditedHealth)")
 
-    // Queue 200 FLOW — brings effective health to ≈ 1.17, well above minHealth(1.1).
+    // Queue 200 FLOW — brings queued health to ≈ 1.17, well above minHealth(1.1).
     depositToPosition(
         signer: user,
         positionID: pid,
@@ -342,7 +338,7 @@ fun test_withdrawal_from_queue_permitted_when_reserve_health_below_min() {
     let userFlowBefore = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
 
     // Withdraw 50 FLOW — entirely from the queue (reserveWithdrawAmount = 0).
-    // Effective health after ≈ 1.12 >= minHealth, so this should succeed.
+    // Queued health after ≈ 1.12 >= minHealth, so this should succeed.
     withdrawFromPosition(
         signer: user,
         positionId: pid,
@@ -374,7 +370,7 @@ fun test_withdrawal_from_queue_permitted_when_reserve_health_below_min() {
 //
 // With: 1000 FLOW reserve @ $1.0, cf=0.8, bf=1.0
 //       MOET debt ≈ 615.38 (drawn at position creation, targetHealth=1.3)
-//       Reserve health = 1000*1.0*0.8 / 615.38 ≈ 1.3 (at target)
+//       Credited health = 1000*1.0*0.8 / 615.38 ≈ 1.3 (at target)
 //       availableBalance(MOET) ≈ 0 (already at target health)
 //
 // Queue 500 FLOW (deposit cap exhausted, goes to queue).
@@ -414,12 +410,12 @@ fun test_queued_collateral_does_not_enable_cross_type_borrow() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Test 8: Withdrawal is rejected when it would drop effective health below 1.0,
+// Test 7: Withdrawal is rejected when it would drop queued health below 1.0,
 //         even if part of it comes from the queue.
 //
 // With: 1000 FLOW @ $0.75, cf=0.8 → reserve effectiveCollateral = 600
-//       MOET debt ≈ 615.38, reserve health ≈ 0.975
-// Queue 100 FLOW → effective health = 1100*0.75*0.8/615.38 ≈ 1.07
+//       MOET debt ≈ 615.38, credited health ≈ 0.975
+// Queue 100 FLOW → queued health = 1100*0.75*0.8/615.38 ≈ 1.07
 //
 // Withdraw 200 FLOW (100 from queue, 100 from reserve):
 //       Effective credit after = (1000-100) + (100-100) = 900
