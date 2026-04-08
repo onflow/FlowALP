@@ -357,7 +357,7 @@ access(all) contract FlowALPPositionResources {
         /// drawDownSink
         access(self) let pushToDrawDownSink: Bool
 
-        init(
+        access(contract) init(
             id: UInt64,
             pool: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>,
             type: Type,
@@ -431,7 +431,7 @@ access(all) contract FlowALPPositionResources {
         /// in the event the withdrawal puts the position under its target health
         access(self) let pullFromTopUpSource: Bool
 
-        init(
+        access(contract) init(
             id: UInt64,
             pool: Capability<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>,
             type: Type,
