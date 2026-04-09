@@ -78,7 +78,7 @@ access(all)
 fun test_withdraw_noPull_aboveMinHealth_succeeds() {
     let user = setupUserWithPosition(1_000.0)
 
-    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 10.0, pullFromTopUpSource: false)
+    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 10.0, pullFromTopUpSource: false)
 
     Test.assert(getPositionHealth(pid: 0, beFailed: false) > INT_MIN_HEALTH)
 }
@@ -109,7 +109,7 @@ fun test_withdraw_pull_aboveTargetHealth_noPull() {
     let moetBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
 
     // Small withdrawal keeps health above targetHealth — no pull should occur
-    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 10.0, pullFromTopUpSource: true)
+    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 10.0, pullFromTopUpSource: true)
 
     let moetAfter = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assert(equalWithinVariance(moetBefore, moetAfter, DEFAULT_UFIX_VARIANCE),
@@ -122,7 +122,7 @@ fun test_withdraw_pull_belowTarget_sourceHasEnough_restoresTarget() {
     Test.reset(to: snapshot)
     let user = setupUserWithPosition(1_000.0)
 
-    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 50.0, pullFromTopUpSource: true)
+    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 50.0, pullFromTopUpSource: true)
 
     Test.assert(equalWithinVariance(INT_TARGET_HEALTH, getPositionHealth(pid: 0, beFailed: false), DEFAULT_UFIX128_VARIANCE))
 }
@@ -139,7 +139,7 @@ fun test_withdraw_pull_belowTarget_sourcePartial_bestEffort() {
     let userMoet = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     transferFungibleTokens(tokenIdentifier: MOET_TOKEN_IDENTIFIER, from: user, to: receiver, amount: userMoet - 5.0)
 
-    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 50.0, pullFromTopUpSource: true)
+    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 50.0, pullFromTopUpSource: true)
 
     let health = getPositionHealth(pid: 0, beFailed: false)
     Test.assert(health > INT_MIN_HEALTH, message: "Should be > minHealth but was ".concat(health.toString()))
@@ -170,7 +170,7 @@ fun test_withdraw_pull_breachesMin_sourceRestores_succeeds() {
     Test.reset(to: snapshot)
     let user = setupUserWithPosition(1_000.0)
 
-    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 200.0, pullFromTopUpSource: true)
+    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 200.0, pullFromTopUpSource: true)
 
     Test.assert(equalWithinVariance(INT_TARGET_HEALTH, getPositionHealth(pid: 0, beFailed: false), DEFAULT_UFIX128_VARIANCE))
 }
