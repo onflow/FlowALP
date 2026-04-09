@@ -118,8 +118,8 @@ access(all) contract FlowALPPositionResources {
             )
         }
 
-        /// Deposits funds to the Position enabling the caller to configure whether excess value
-        /// should be pushed to the drawDownSink if the deposit puts the Position above its maximum health
+        /// Deposits funds to the Position. If `pushToDrawDownSink` is true, a rebalance is always
+        /// triggered at deposit time, pushing excess value to the drawDownSink to restore targetHealth.
         /// NOTE: Anyone is allowed to deposit to any position.
         access(all) fun depositAndPush(
             from: @{FungibleToken.Vault},
@@ -143,8 +143,8 @@ access(all) contract FlowALPPositionResources {
             )
         }
 
-        /// Withdraws funds from the Position enabling the caller to configure whether insufficient value
-        /// should be pulled from the topUpSource if the withdrawal puts the Position below its minimum health
+        /// Withdraws funds from the Position. If `pullFromTopUpSource` is true, a rebalance is always
+        /// triggered at withdrawal time, pulling value from the topUpSource to restore targetHealth.
         access(FungibleToken.Withdraw) fun withdrawAndPull(
             type: Type,
             amount: UFix64,
