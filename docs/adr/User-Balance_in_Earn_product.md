@@ -5,6 +5,8 @@
 **Authors**: Alex Hentschel, Dete Shirley  
 **Component**: Flow EARN 
 
+**Creation**: Alex H with AI assistance (fully fact-checked)
+
 ### References
 [Slack discussion](https://flow-foundation.slack.com/archives/C08QF29F7TK/p1771567751505249?thread_ts=1771355840.068079&cid=C08QF29F7TK) and 
 [Q&A meeting notes from Feb 19, 2026](https://docs.google.com/document/d/1jGj-ypjLO1Uo2ZPL4xtRyRlMAdbW4THozGc2i3z6TAc/edit?tab=t.buc00sqsnehk)
