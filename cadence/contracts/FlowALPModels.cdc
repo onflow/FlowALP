@@ -553,7 +553,7 @@ access(all) contract FlowALPModels {
             effectiveDebt: {Type: UFix128}
         ) {
             // Enforce single balance per token invariant: if a type appears in one map, it must not appear in the other.
-            for collateralType in effectiveCollateral.keys {
+            for collateralType in effectiveCollateral {
                 assert(effectiveDebt[collateralType] == nil, message: "cannot construct BalanceSheet: observed both credit and debit balance for \(collateralType.identifier)")
             }
 
@@ -2253,14 +2253,14 @@ access(all) contract FlowALPModels {
         /// Borrows an authorized internal position reference.
         access(EPosition) view fun borrowPosition(pid: UInt64): auth(EImplementation) &{InternalPosition}
 
-        /// Deposits funds to a position and optionally pushes excess to draw-down sink.
+        /// Deposits funds to a position. If `pushToDrawDownSink` is true, always rebalances to targetHealth.
         access(EPosition) fun depositAndPush(
             pid: UInt64,
             from: @{FungibleToken.Vault},
             pushToDrawDownSink: Bool
         )
 
-        /// Withdraws funds from a position and optionally pulls deficit from top-up source.
+        /// Withdraws funds from a position. If `pullFromTopUpSource` is true, always rebalances to targetHealth.
         access(EPosition) fun withdrawAndPull(
             pid: UInt64,
             type: Type,

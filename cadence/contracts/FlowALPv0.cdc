@@ -780,16 +780,10 @@ access(all) contract FlowALPv0 {
             withdrawType: Type,
             withdrawAmount: UFix64
         ): FlowALPModels.BalanceSheet {
-            let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
-            let snapshot = FlowALPModels.TokenSnapshot(
-                price: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
-                credit: tokenState.getCreditInterestIndex(),
-                debit: tokenState.getDebitInterestIndex(),
-                risk: FlowALPModels.RiskParamsImplv1(
-                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
-                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
-                )
-            )
+            if withdrawAmount == 0.0 {
+                return initialBalanceSheet
+            }
+            let snapshot = self.buildTokenSnapshot(type: withdrawType)
 
             return FlowALPHealth.computeAdjustedBalancesAfterWithdrawal(
                 initialBalanceSheet: initialBalanceSheet,
@@ -797,6 +791,20 @@ access(all) contract FlowALPv0 {
                 withdrawType: withdrawType,
                 withdrawAmount: withdrawAmount,
                 tokenSnapshot: snapshot
+            )
+        }
+
+        // Builds a up-to-date TokenSnapshot instance for the given type.
+        access(self) fun buildTokenSnapshot(type: Type): FlowALPModels.TokenSnapshot {
+            let tokenState = self._borrowUpdatedTokenState(type: type)
+            return FlowALPModels.TokenSnapshot(
+                price: UFix128(self.config.getPriceOracle().price(ofToken: type)!),
+                credit: tokenState.getCreditInterestIndex(),
+                debit: tokenState.getDebitInterestIndex(),
+                risk: FlowALPModels.RiskParamsImplv1(
+                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: type)),
+                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: type))
+                )
             )
         }
 
@@ -918,16 +926,10 @@ access(all) contract FlowALPv0 {
             depositType: Type,
             depositAmount: UFix64
         ): FlowALPModels.BalanceSheet {
-            let tokenState = self._borrowUpdatedTokenState(type: depositType)
-            let snapshot = FlowALPModels.TokenSnapshot(
-                price: UFix128(self.config.getPriceOracle().price(ofToken: depositType)!),
-                credit: tokenState.getCreditInterestIndex(),
-                debit: tokenState.getDebitInterestIndex(),
-                risk: FlowALPModels.RiskParamsImplv1(
-                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: depositType)),
-                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: depositType))
-                )
-            )
+            if depositAmount == 0.0 {
+                return initialBalanceSheet
+            }
+            let snapshot = self.buildTokenSnapshot(type: depositType)
 
             return FlowALPHealth.computeAdjustedBalancesAfterDeposit(
                 initialBalanceSheet: initialBalanceSheet,
@@ -951,16 +953,7 @@ access(all) contract FlowALPv0 {
             initialBalanceSheet: FlowALPModels.BalanceSheet,
             targetHealth: UFix128
         ): UFix64 {
-            let tokenState = self._borrowUpdatedTokenState(type: withdrawType)
-            let withdrawSnapshot = FlowALPModels.TokenSnapshot(
-                price: UFix128(self.config.getPriceOracle().price(ofToken: withdrawType)!),
-                credit: tokenState.getCreditInterestIndex(),
-                debit: tokenState.getDebitInterestIndex(),
-                risk: FlowALPModels.RiskParamsImplv1(
-                    collateralFactor: UFix128(self.config.getCollateralFactor(tokenType: withdrawType)),
-                    borrowFactor: UFix128(self.config.getBorrowFactor(tokenType: withdrawType))
-                )
-            )
+            let withdrawSnapshot = self.buildTokenSnapshot(type: withdrawType)
 
             return FlowALPHealth.computeAvailableWithdrawal(
                 withdrawBalance: position.getBalance(withdrawType),
@@ -1035,6 +1028,7 @@ access(all) contract FlowALPv0 {
                 !self.isPaused(): "Withdrawal, deposits, and liquidations are paused by governance"
                 self.state.getTokenState(funds.getType()) != nil:
                     "Invalid token type \(funds.getType().identifier) - not supported by this Pool"
+                funds.balance > 0.0: "Cannot create a position without deposit"
                 self.positionSatisfiesMinimumBalance(type: funds.getType(), balance: UFix128(funds.balance)):
                     "Insufficient funds to create position. Minimum deposit of \(funds.getType().identifier) is \(self.state.getTokenState(funds.getType())!.getMinimumTokenBalancePerPosition())"
                 // TODO(jord): Sink/source should be valid
@@ -1089,12 +1083,13 @@ access(all) contract FlowALPv0 {
         /// This function is used to validate that positions maintain a minimum balance to prevent
         /// dust positions and ensure operational efficiency. The minimum requirement applies to
         /// credit (deposit) balances and is enforced at position creation and during withdrawals.
+        /// Zero balances are always allowed.
         ///
         /// @param type: The token type to check (e.g., Type<@FlowToken.Vault>())
-        /// @param balance: The balance amount to validate
+        /// @param balance: The (true) balance amount to validate
         /// @return true if the balance meets or exceeds the minimum requirement, false otherwise
         access(self) view fun positionSatisfiesMinimumBalance(type: Type, balance: UFix128): Bool {
-            return balance >= UFix128(self.state.getTokenState(type)!.getMinimumTokenBalancePerPosition())
+            return balance == 0.0 || balance >= UFix128(self.state.getTokenState(type)!.getMinimumTokenBalancePerPosition())
         }
 
         /// Allows anyone to deposit funds into any position.
@@ -1198,8 +1193,8 @@ access(all) contract FlowALPv0 {
         }
 
         /// Deposits the provided funds to the specified position with the configurable `pushToDrawDownSink` option.
-        /// If `pushToDrawDownSink` is true, excess value putting the position above its max health
-        /// is pushed to the position's configured `drawDownSink`.
+        /// If `pushToDrawDownSink` is true, a rebalance is always triggered at deposit time,
+        /// pushing excess value to the position's configured `drawDownSink` to restore targetHealth.
         access(FlowALPModels.EPosition) fun depositAndPush(
             pid: UInt64,
             from: @{FungibleToken.Vault},
@@ -1252,8 +1247,8 @@ access(all) contract FlowALPv0 {
         /// Withdraws the requested funds from the specified position
         /// with the configurable `pullFromTopUpSource` option.
         ///
-        /// If `pullFromTopUpSource` is true, deficient value putting the position below its min health
-        /// is pulled from the position's configured `topUpSource`.
+        /// If `pullFromTopUpSource` is true, a rebalance is always triggered at withdrawal time,
+        /// pulling value from the position's configured `topUpSource` to restore targetHealth.
         /// TODO(jord): ~150-line function - consider refactoring.
         access(FlowALPModels.EPosition) fun withdrawAndPull(
             pid: UInt64,
@@ -1283,8 +1278,7 @@ access(all) contract FlowALPv0 {
             // Get a reference to the user's position and global token state for the affected token.
             let position = self._borrowPosition(pid: pid)
             let tokenState = self._borrowUpdatedTokenState(type: type)
-
-            // Global interest indices are updated via tokenState() helper
+            let tokenSnapshot = self.buildTokenSnapshot(type: type)
 
             // Queued deposits are held in the position but have not yet been credited to the reserve
             // or the position's balance. Satisfy as much of the withdrawal as possible from them
@@ -1293,78 +1287,27 @@ access(all) contract FlowALPv0 {
             let queuedUsable = queuedBalanceForType < amount ? queuedBalanceForType : amount
             let reserveWithdrawAmount: UFix64 = amount - queuedUsable
 
-            // Preflight: determine whether the withdrawal is permitted and whether a topUp is needed.
-            let topUpSource = position.borrowTopUpSource()
-            let topUpType = topUpSource?.getSourceType() ?? self.state.getDefaultToken()
-
-            let withdrawalBalanceSheet = self._getWithdrawalBalanceSheet(
-                pid: pid,
-                withdrawType: type,
-                withdrawAmount: amount
-            )
-
-            let requiredDeposit = self.computeRequiredDepositForHealth(
-                position: position,
-                depositType: topUpType,
-                initialBalanceSheet: withdrawalBalanceSheet,
-                targetHealth: position.getMinHealth()
-            )
-
-            var canWithdraw = false
-
-            if requiredDeposit == 0.0 {
-                // We can service this withdrawal without any top up
-                canWithdraw = true
-            } else if pullFromTopUpSource {
-                // We need more funds to service this withdrawal, see if they are available from the top up source
-                if let topUpSource = topUpSource {
-                    // If we have to rebalance, let's try to rebalance to the target health, not just the minimum
-                    let idealDeposit = self.computeRequiredDepositForHealth(
-                        position: position,
-                        depositType: topUpType,
-                        initialBalanceSheet: withdrawalBalanceSheet,
-                        targetHealth: position.getTargetHealth()
+            if pullFromTopUpSource {
+                if let topUpSource = position.borrowTopUpSource() {
+                    // NOTE: getSourceType can lie, but we are resilient to this because:
+                    // (1) we check the vault type returned by the source matches its purported type, below
+                    // (2) computing target health deposit below will panic if the purported type is not supported
+                    let purportedTopUpType = topUpSource.getSourceType()
+                    let targetHealthDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
+                        pid: pid,
+                        depositType: purportedTopUpType,
+                        targetHealth: position.getTargetHealth(),
+                        withdrawType: type,
+                        withdrawAmount: amount
                     )
 
-                    let pulledVault <- topUpSource.withdrawAvailable(maxAmount: idealDeposit)
-                    assert(pulledVault.getType() == topUpType, message: "topUpSource returned unexpected token type")
-                    let pulledAmount = pulledVault.balance
-
-
-                    // NOTE: We requested the "ideal" deposit, but we compare against the required deposit here.
-                    // The top up source may not have enough funds get us to the target health, but could have
-                    // enough to keep us over the minimum.
-                    if pulledAmount >= requiredDeposit {
-                        // We can service this withdrawal if we deposit funds from our top up source
-                        self._depositEffectsOnly(
-                            pid: pid,
-                            from: <-pulledVault
-                        )
-                        canWithdraw = true
-                    } else {
-                        // We can't get the funds required to service this withdrawal, so we need to redeposit what we got
-                        self._depositEffectsOnly(
-                            pid: pid,
-                            from: <-pulledVault
-                        )
-                    }
+                    let pulledVault <- topUpSource.withdrawAvailable(maxAmount: targetHealthDeposit)
+                    assert(pulledVault.getType() == purportedTopUpType, message: "topUpSource returned unexpected token type")
+                    self._depositEffectsOnly(
+                        pid: pid,
+                        from: <-pulledVault
+                    )
                 }
-            }
-
-            if !canWithdraw {
-                // Log detailed information about the failed withdrawal (only if debugging enabled)
-                if self.config.isDebugLogging() {
-                    let availableBalance = self.availableBalance(pid: pid, type: type, pullFromTopUpSource: false)
-                    log("    [CONTRACT] WITHDRAWAL FAILED:")
-                    log("    [CONTRACT] Position ID: \(pid)")
-                    log("    [CONTRACT] Token type: \(type.identifier)")
-                    log("    [CONTRACT] Requested amount: \(amount)")
-                    log("    [CONTRACT] Available balance (without topUp): \(availableBalance)")
-                    log("    [CONTRACT] Required deposit for minHealth: \(requiredDeposit)")
-                    log("    [CONTRACT] Pull from topUpSource: \(pullFromTopUpSource)")
-                }
-                // We can't service this withdrawal, so we just abort
-                panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
             }
 
             // Pull any queued (un-credited) deposits for this token type first.
@@ -1403,28 +1346,36 @@ access(all) contract FlowALPv0 {
                 withdrawn.deposit(from: <-fromReserve)
             }
 
+            // Safety checks!
+            self._assertPositionSatisfiesMinimumBalance(type: type, position: position, tokenSnapshot: tokenSnapshot)
+
             // Post-withdrawal safety check: credited health must be >= 1.0.
             // Uses withdrawal balance sheet instead of credited balance sheet
             // to allow withdrawals from the deposit queue.
             let postHealth = self._getWithdrawalBalanceSheet(pid: pid, withdrawType: type, withdrawAmount: 0.0).health
-            assert(
-                postHealth >= 1.0,
-                message: "Post-withdrawal position health (\(postHealth)) is unhealthy"
-            )
+            if postHealth < position.getMinHealth() {
+                if self.config.isDebugLogging() {
+                    let topUpType = position.borrowTopUpSource()?.getSourceType() ?? self.state.getDefaultToken()
+                    let minHealthDeposit = self.fundsRequiredForTargetHealthAfterWithdrawing(
+                        pid: pid,
+                        depositType: topUpType,
+                        targetHealth: position.getMinHealth(),
+                        withdrawType: type,
+                        withdrawAmount: amount
+                    )
+                    let availableBalance = self.availableBalance(pid: pid, type: type, pullFromTopUpSource: false)
+                    log("    [CONTRACT] WITHDRAWAL FAILED:")
+                    log("    [CONTRACT] Position ID: \(pid)")
+                    log("    [CONTRACT] Token type: \(type.identifier)")
+                    log("    [CONTRACT] Requested amount: \(amount)")
+                    log("    [CONTRACT] Available balance (without topUp): \(availableBalance)")
+                    log("    [CONTRACT] Required deposit for minHealth: \(minHealthDeposit)")
+                    log("    [CONTRACT] Pull from topUpSource: \(pullFromTopUpSource)")
+                }
+                // We can't service this withdrawal, so we just abort
+                panic("Cannot withdraw \(amount) of \(type.identifier) from position ID \(pid) - Insufficient funds for withdrawal")
+            }
 
-            // Ensure that the remaining balance meets the minimum requirement (or is zero)
-            // Building the position view does require copying the balances, so it's less efficient than accessing the balance directly.
-            // Since most positions will have a single token type, we're okay with this for now.
-            let positionView = self.buildPositionView(pid: pid)
-            let remainingBalance = positionView.trueBalance(ofToken: type)
-
-            // This is applied to both credit and debit balances, with the main goal being to avoid dust positions.
-            assert(
-                remainingBalance == 0.0 || self.positionSatisfiesMinimumBalance(type: type, balance: remainingBalance),
-                message: "Withdrawal would leave position below minimum balance requirement of \(self.state.getTokenState(type)!.getMinimumTokenBalancePerPosition()). Remaining balance would be \(remainingBalance)."
-            )
-
-            // Queue for update if necessary
             self._queuePositionForUpdateIfNecessary(pid: pid)
 
             FlowALPEvents.emitWithdrawn(
@@ -1437,6 +1388,21 @@ access(all) contract FlowALPv0 {
 
             self.unlockPosition(pid)
             return <- withdrawn
+        }
+
+        /// Asserts that the remaining balance of `type` meets the minimum per-position requirement
+        /// (or is exactly zero). Panics with a descriptive message if not satisfied.
+        access(self) fun _assertPositionSatisfiesMinimumBalance(
+            type: Type,
+            position: &{FlowALPModels.InternalPosition},
+            tokenSnapshot: FlowALPModels.TokenSnapshot
+        ) {
+            if let bal = position.getBalance(type) {
+                let trueBal = tokenSnapshot.trueBalance(balance: bal)
+                assert(
+                    self.positionSatisfiesMinimumBalance(type: type, balance: trueBal.quantity),
+                    message: "Withdrawal would leave position below minimum balance requirement of \(self.state.getTokenState(type)!.getMinimumTokenBalancePerPosition()). Remaining balance would be \(trueBal.quantity).")
+            }
         }
 
         ///////////////////////
