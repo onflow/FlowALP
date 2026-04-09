@@ -1349,7 +1349,7 @@ access(all) contract FlowALPv0 {
             // Safety checks!
             self._assertPositionSatisfiesMinimumBalance(type: type, position: position, tokenSnapshot: tokenSnapshot)
 
-            // Post-withdrawal safety check: credited health must be >= 1.0.
+            // Post-withdrawal safety check: credited health must be >= minHealth.
             // Uses withdrawal balance sheet instead of credited balance sheet
             // to allow withdrawals from the deposit queue.
             let postHealth = self._getWithdrawalBalanceSheet(pid: pid, withdrawType: type, withdrawAmount: 0.0).health
@@ -1873,36 +1873,35 @@ access(all) contract FlowALPv0 {
                 !self.state.isPositionLocked(pid): "Position is not unlocked"
             }
             self.lockPosition(pid)
-            let position = self._borrowPosition(pid: pid)
-
-            // store types to avoid iterating while mutating
-            let depositTypes = position.getQueuedDepositKeys()
-            // First check queued deposits, their addition could affect the rebalance we attempt later
-            for depositType in depositTypes {
-                let queuedVault <- position.removeQueuedDeposit(depositType)!
-                let queuedAmount = queuedVault.balance
-                let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
-                let maxDeposit = depositTokenState.depositLimit(pid: pid)
-
-                if maxDeposit >= queuedAmount {
-                    // We can deposit all of the queued deposit, so just do it and remove it from the queue
-
-                    self._depositEffectsOnly(pid: pid, from: <-queuedVault)
-                } else {
-                    // We can only deposit part of the queued deposit, so do that and leave the rest in the queue
-                    // for the next time we run.
-                    let depositVault <- queuedVault.withdraw(amount: maxDeposit)
-                    self._depositEffectsOnly(pid: pid, from: <-depositVault)
-
-                    // We need to update the queued vault to reflect the amount we used up
-                    position.depositToQueue(depositType, vault: <-queuedVault)
-                }
-            }
+            // First check if we can deposit from the deposit queue
+            self._updateQueuedDeposits(pid: pid)
 
             // Now that we've deposited a non-zero amount of any queued deposits, we can rebalance
             // the position if necessary.
             self._rebalancePositionNoLock(pid: pid, force: false)
             self.unlockPosition(pid)
+        }
+
+        /// Processes deposits to the position from the deposit queue, according to the position's current depositLimit for each token.
+        /// This helper is intentionally effects-only: it assumes all higher-level preconditions have already been enforced by the caller
+        access(self) fun _updateQueuedDeposits(pid: UInt64) {
+            let position = self._borrowPosition(pid: pid)
+
+            // store types to avoid iterating while mutating
+            let depositTypes = position.getQueuedDepositKeys()
+            for depositType in depositTypes {
+                let depositTokenState = self._borrowUpdatedTokenState(type: depositType)
+                let maxDeposit = depositTokenState.depositLimit(pid: pid)
+                if maxDeposit > 0.0 {
+                    let queuedVault <- position.removeQueuedDeposit(depositType)!
+                    if maxDeposit < queuedVault.balance {
+                        // We can't deposit the entire amount, so put the remainder back in the queue
+                        let remainingQueued = queuedVault.balance - maxDeposit
+                        position.depositToQueue(depositType, vault: <-queuedVault.withdraw(amount: remainingQueued))
+                    }
+                    self._depositEffectsOnly(pid: pid, from: <-queuedVault)
+                }
+            }
         }
 
         /// Updates interest rates for a token and collects stability fee.
