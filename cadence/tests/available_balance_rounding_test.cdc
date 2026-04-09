@@ -6,8 +6,7 @@ import "FlowALPModels"
 import "test_helpers.cdc"
 
 // Tests that availableBalance rounds DOWN when converting from UFix128 to UFix64.
-// This is critical: rounding up could return a value that, if withdrawn/borrowed,
-// would violate the position's minimum health factor.
+// Rounding up could return a value that, if withdrawn/borrowed, would violate the position's minimum health factor.
 //
 // Token setup:
 //   FLOW: collateralFactor=0.8, borrowFactor=1.0, price=1.0
@@ -15,7 +14,7 @@ import "test_helpers.cdc"
 //
 // Scenario:
 //   Deposit 100 FLOW (no debt). Available MOET borrow = 80 / 1.1 = 72.72727272727...
-//   UFix64 round-down: 72.72727272
+//   UFix64 round-down:    72.72727272
 //   UFix64 round-half-up: 72.72727273  (incorrect — would breach minHealth)
 
 access(all) let user = Test.createAccount()
@@ -78,7 +77,8 @@ fun beforeEach() {
 access(all)
 fun test_availableBalance_rounds_down() {
     // Open position: deposit 100 FLOW, no auto-borrow
-    let pid = openPosition(flowAmount: 100.0)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 100.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid = getLastPositionId()
 
     // availableBalance for MOET (no MOET credit, so this is the pure borrow path)
     let available = getAvailableBalance(
@@ -100,7 +100,8 @@ fun test_availableBalance_rounds_down() {
 // ---------------------------------------------------------------------------
 access(all)
 fun test_borrowing_full_availableBalance_succeeds() {
-    let pid = openPosition(flowAmount: 100.0)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: user, amount: 100.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let pid = getLastPositionId()
 
     let available = getAvailableBalance(
         pid: pid,
@@ -123,18 +124,5 @@ fun test_borrowing_full_availableBalance_succeeds() {
     let health = getPositionHealth(pid: pid, beFailed: false)
     Test.assert(health >= 1.1,
         message: "Health after borrowing full availableBalance should be >= 1.1, got \(health)")
-}
-
-// --- helpers ---
-
-access(self)
-fun openPosition(flowAmount: UFix64): UInt64 {
-    let openRes = _executeTransaction(
-        "../transactions/flow-alp/position/create_position.cdc",
-        [flowAmount, FLOW_VAULT_STORAGE_PATH, false],
-        user
-    )
-    Test.expect(openRes, Test.beSucceeded())
-    return getLastPositionId()
 }
 
