@@ -1280,6 +1280,9 @@ access(all) contract FlowALPv0 {
             let tokenState = self._borrowUpdatedTokenState(type: type)
             let tokenSnapshot = self.buildTokenSnapshot(type: type)
 
+            // First process any queued deposits if we can, since queued deposits can't be borrowed against
+            self._updateQueuedDeposits(pid: pid)
+
             if pullFromTopUpSource {
                 if let topUpSource = position.borrowTopUpSource() {
                     // NOTE: getSourceType can lie, but we are resilient to this because:
