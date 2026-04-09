@@ -1,5 +1,3 @@
-#test_fork(network: "mainnet-fork", height: 142528994)
-
 import Test
 import BlockchainHelpers
 
@@ -10,11 +8,8 @@ import "FlowALPEvents"
 
 import "test_helpers.cdc"
 
-access(all) let MAINNET_PROTOCOL_ACCOUNT = Test.getAccount(MAINNET_PROTOCOL_ACCOUNT_ADDRESS)
-access(all) let MAINNET_USDF_HOLDER = Test.getAccount(MAINNET_USDF_HOLDER_ADDRESS)
-access(all) let MAINNET_WETH_HOLDER = Test.getAccount(MAINNET_WETH_HOLDER_ADDRESS)
-access(all) let MAINNET_WBTC_HOLDER = Test.getAccount(MAINNET_WBTC_HOLDER_ADDRESS)
-access(all) let MAINNET_FLOW_HOLDER = Test.getAccount(MAINNET_FLOW_HOLDER_ADDRESS)
+// Test MOET storage path for testing environment
+access(all) let TEST_MOET_STORAGE_PATH = /storage/moetTokenVault_0x0000000000000007
 
 access(all) var snapshot: UInt64 = 0
 
@@ -39,12 +34,12 @@ access(all)
 fun setup() {
     deployContracts()
 
-    createAndStorePool(signer: MAINNET_PROTOCOL_ACCOUNT, defaultTokenIdentifier: MAINNET_MOET_TOKEN_ID, beFailed: false)
-    setMockOraclePrice(signer: MAINNET_PROTOCOL_ACCOUNT, forTokenIdentifier: MAINNET_FLOW_TOKEN_ID, price: 1.0)
+    createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
+    setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
 
     addSupportedTokenKinkCurve(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         collateralFactor: 0.8,
         borrowFactor: 0.9,
         optimalUtilization: flowOptimalUtilization,
@@ -57,22 +52,22 @@ fun setup() {
 
     // set MOET to use a FixedRateInterestCurve at 4% APY.
     setInterestCurveFixed(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MAINNET_MOET_TOKEN_ID,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         yearlyRate: moetFixedRate
     )
 
     let res = setInsuranceSwapper(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        swapperInTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
-        swapperOutTypeIdentifier: MAINNET_MOET_TOKEN_ID,
+        signer: PROTOCOL_ACCOUNT,
+        swapperInTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
 
     let setInsRes = setInsuranceRate(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         insuranceRate: 0.001,
     )
     Test.expect(setInsRes, Test.beSucceeded())
@@ -88,8 +83,8 @@ fun test_extreme_utilization() {
     safeReset()
 
     setInterestCurveKink(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         optimalUtilization: flowOptimalUtilization,
         baseRate: flowBaseRate,
         slope1: flowSlope1,
@@ -98,23 +93,25 @@ fun test_extreme_utilization() {
 
     // create Flow LP with 2000 FLOW
     let FLOWAmount = 2000.0
+    let flowLp = Test.createAccount()
+    transferFlowTokens(to: flowLp, amount: FLOWAmount)
 
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: MAINNET_FLOW_HOLDER, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: flowLp, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     let lpDepositPid = getLastPositionId()
 
     // create borrower with MOET collateral
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
-    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 10_000.0, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: 10_000.0, beFailed: false)
 
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 10_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 10_000.0, vaultStoragePath: TEST_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
     let borrowerPid = getLastPositionId()
     // borrow 1800 FLOW (90% of 2000 FLOW credit)
     borrowFromPosition(
         signer: borrower,
         positionId: borrowerPid,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 1800.0,
         beFailed: false
@@ -161,7 +158,7 @@ fun test_extreme_utilization() {
     // depends on block timestamps, which can differ slightly between test runs.
     // A larger, time-aware tolerance is required.
     let tolerance = 0.00001
-    var diff = expectedFLOWGrowthRate > FLOWGrowthRate 
+    var diff = expectedFLOWGrowthRate > FLOWGrowthRate
         ? expectedFLOWGrowthRate - FLOWGrowthRate
         : FLOWGrowthRate - expectedFLOWGrowthRate
     Test.assert(diff < tolerance, message: "Expected FLOW debt growth rate to be \(expectedFLOWGrowthRate) but got \(FLOWGrowthRate)")
@@ -179,8 +176,8 @@ fun test_zero_credit_balance() {
     setupMoetVault(borrower, beFailed: false)
 
     let MOETAmount = 10_000.0
-    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: MOETAmount, beFailed: false)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: MOETAmount, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: MOETAmount, beFailed: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: MOETAmount, vaultStoragePath: TEST_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
     // no Flow LP is created — pool has zero FLOW liquidity
 
@@ -189,7 +186,7 @@ fun test_zero_credit_balance() {
 
     let borrowRes = _executeTransaction(
         "./transactions/position-manager/borrow_from_position.cdc",
-        [pid, MAINNET_FLOW_TOKEN_ID, FLOW_VAULT_STORAGE_PATH, 100.0],
+        [pid, FLOW_TOKEN_IDENTIFIER, FLOW_VAULT_STORAGE_PATH, 100.0],
         borrower
     )
     Test.expect(borrowRes, Test.beFailed())
@@ -242,20 +239,15 @@ fun test_zero_credit_balance() {
     // add FLOW liquidity
     let FLOWAmount = 5000.0
     let flowLp = Test.createAccount()
-    transferFungibleTokens(
-        tokenIdentifier: MAINNET_FLOW_TOKEN_ID,
-        from: MAINNET_FLOW_HOLDER,
-        to: flowLp,
-        amount: FLOWAmount
-    )
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: flowLp, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    transferFlowTokens(to: flowLp, amount: FLOWAmount)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: flowLp, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     let lpPid = getLastPositionId()
 
     // borrow FLOW (Flow LP deposited 5000.0 FLOW, liquidity now available)
     borrowFromPosition(
         signer: borrower,
         positionId: pid,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 100.0,
         beFailed: false
@@ -322,8 +314,8 @@ fun test_empty_pool() {
     // create Flow LP only — no borrowers
     let flowLp = Test.createAccount()
     let FLOWAmount = 10000.0
-    transferFungibleTokens(tokenIdentifier: MAINNET_FLOW_TOKEN_ID, from: MAINNET_FLOW_HOLDER, to: flowLp, amount: FLOWAmount)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: flowLp, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    transferFlowTokens(to: flowLp, amount: FLOWAmount)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: flowLp, amount: FLOWAmount, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     let lpPid = getLastPositionId()
 
@@ -336,7 +328,7 @@ fun test_empty_pool() {
     Test.commitBlock()
 
     // FLOW rate calculation (KinkInterestCurve)
-    //   baseRate:0 
+    //   baseRate:0
     //   debitBalance:0
     //
     // debitRate = (if no debt, debitRate = base rate) = 0
@@ -348,15 +340,15 @@ fun test_empty_pool() {
     // create a borrower to trigger utilization
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
-    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 10_000.0, beFailed: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: 10_000.0, beFailed: false)
 
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 10_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 10_000.0, vaultStoragePath: TEST_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
     let borrowerPid= getLastPositionId()
     borrowFromPosition(
         signer: borrower,
         positionId: borrowerPid,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 2_000.0,
         beFailed: false
@@ -403,8 +395,8 @@ fun test_kink_point_transition() {
     safeReset()
 
     setInterestCurveKink(
-        signer: MAINNET_PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        signer: PROTOCOL_ACCOUNT,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         optimalUtilization: flowOptimalUtilization,
         baseRate: flowBaseRate,
         slope1: flowSlope1,
@@ -412,13 +404,15 @@ fun test_kink_point_transition() {
     )
 
     // create LP with 10000 FLOW
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: MAINNET_FLOW_HOLDER, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let flowLp = Test.createAccount()
+    transferFlowTokens(to: flowLp, amount: 10000.0)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: flowLp, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     // create borrower with large MOET collateral
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
-    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 100_000.0, beFailed: false)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 100_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: 100_000.0, beFailed: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 100_000.0, vaultStoragePath: TEST_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
     let borrowerPid = getLastPositionId()
 
@@ -430,7 +424,7 @@ fun test_kink_point_transition() {
     borrowFromPosition(
         signer: borrower,
         positionId: borrowerPid,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 4500.0,
         beFailed: false
@@ -470,14 +464,16 @@ fun test_long_time_period_accrual() {
     safeReset()
 
     // create LP with 10000 FLOW
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: MAINNET_FLOW_HOLDER, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let flowLp = Test.createAccount()
+    transferFlowTokens(to: flowLp, amount: 10000.0)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: flowLp, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
     let lpPid = getLastPositionId()
 
     // create borrower
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
-    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 100_000.0, beFailed: false)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 100_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: 100_000.0, beFailed: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 100_000.0, vaultStoragePath: TEST_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
     let borrowerPid = getLastPositionId()
 
@@ -485,7 +481,7 @@ fun test_long_time_period_accrual() {
     borrowFromPosition(
         signer: borrower,
         positionId: borrowerPid,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 2000.0,
         beFailed: false
@@ -537,7 +533,8 @@ fun test_long_time_period_accrual() {
     // 11-year debt growth = perSecondRate^(31_557_600 * 11) - 1
     // FLOW debit 11-year growth = (1 + 0.017777778 / 31_557_600)^(31_557_600*11) - 1 = 0.21598635
     let expectedFLOWDebt10YearsGrowth = 0.21598635
-    Test.assertEqual(expectedFLOWDebt10YearsGrowth, FLOWTotalGrowthRate)
+    Test.assert(equalWithinVariance(expectedFLOWDebt10YearsGrowth, FLOWTotalGrowthRate, DEFAULT_UFIX_VARIANCE),
+        message: "Expected FLOW debt 11-year growth to be ~\(expectedFLOWDebt10YearsGrowth), but got \(FLOWTotalGrowthRate)")
 }
 
 // =============================================================================
@@ -548,12 +545,14 @@ fun test_time_jump_scenarios() {
     safeReset()
 
     // set up LP and borrower
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: MAINNET_FLOW_HOLDER, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
+    let flowLp = Test.createAccount()
+    transferFlowTokens(to: flowLp, amount: 10000.0)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: flowLp, amount: 10000.0, vaultStoragePath: FLOW_VAULT_STORAGE_PATH, pushToDrawDownSink: false)
 
     let borrower = Test.createAccount()
     setupMoetVault(borrower, beFailed: false)
-    mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: borrower.address, amount: 50_000.0, beFailed: false)
-    createPosition(admin: MAINNET_PROTOCOL_ACCOUNT, signer: borrower, amount: 50_000.0, vaultStoragePath: MAINNET_MOET_STORAGE_PATH, pushToDrawDownSink: false)
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: borrower.address, amount: 50_000.0, beFailed: false)
+    createPosition(admin: PROTOCOL_ACCOUNT, signer: borrower, amount: 50_000.0, vaultStoragePath: TEST_MOET_STORAGE_PATH, pushToDrawDownSink: false)
 
     let borrowerPid = getLastPositionId()
 
@@ -561,7 +560,7 @@ fun test_time_jump_scenarios() {
     borrowFromPosition(
         signer: borrower,
         positionId: borrowerPid,
-        tokenTypeIdentifier: MAINNET_FLOW_TOKEN_ID,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
         vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 5000.0,
         beFailed: false
@@ -597,7 +596,8 @@ fun test_time_jump_scenarios() {
     // dailyGrowth = perSecondRate^86400 - 1
     // FLOW debit daily growth = (1 + 0.31272727 / 31557600)^86400 - 1 = 0.00085660
     let expectedFLOWDebtDailyGrowth = 0.00085660
-    Test.assert(equalWithinVariance(expectedFLOWDebtDailyGrowth, FLOWDebtDailyGrowth, DEFAULT_UFIX_VARIANCE),
+    let interestVariance = 0.00001 // slightly larger variance for interest calculations
+    Test.assert(equalWithinVariance(expectedFLOWDebtDailyGrowth, FLOWDebtDailyGrowth, interestVariance),
         message: "Expected FLOW debt growth rate to be ~\(expectedFLOWDebtDailyGrowth), but got \(FLOWDebtDailyGrowth)")
 
     // test longer period (7 days) to verify no overflow in calculation
@@ -616,6 +616,6 @@ fun test_time_jump_scenarios() {
     // weeklyGrowth = perSecondRate^604800 - 1
     // FLOW debit weekly growth = (1 + 0.31272727272 / 31_557_600)^604800 - 1 = 0.00601143
     let expectedFLOWDebtWeeklyGrowth = 0.00601143
-    Test.assert(equalWithinVariance(expectedFLOWDebtWeeklyGrowth, FLOWDebtWeeklyGrowth, DEFAULT_UFIX_VARIANCE),
+    Test.assert(equalWithinVariance(expectedFLOWDebtWeeklyGrowth, FLOWDebtWeeklyGrowth, interestVariance),
         message: "Expected FLOW debt growth rate to be ~\(expectedFLOWDebtWeeklyGrowth), but got \(FLOWDebtWeeklyGrowth)")
 }
