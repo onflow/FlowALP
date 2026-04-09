@@ -3,6 +3,7 @@ import "FungibleTokenMetadataViews"
 import "MetadataViews"
 
 import "FlowALPv0"
+import "FlowALPModels"
 import "MockDexSwapper"
 
 /// TEST-ONLY: Batch liquidate multiple positions using the stored MockDexSwapper as the debt
@@ -23,14 +24,15 @@ transaction(
     seizeAmounts: [UFix64],
     repayAmounts: [UFix64]
 ) {
-    let pool: &FlowALPv0.Pool
+    let pool: auth(FlowALPModels.EParticipant) &FlowALPv0.Pool
     let debtType: Type
     let signerAccount: auth(BorrowValue) &Account
 
     prepare(signer: auth(BorrowValue) &Account) {
-        let protocolAddress = Type<@FlowALPv0.Pool>().address!
-        self.pool = getAccount(protocolAddress).capabilities.borrow<&FlowALPv0.Pool>(FlowALPv0.PoolPublicPath)
-            ?? panic("Could not borrow Pool at \(FlowALPv0.PoolPublicPath)")
+        let cap = signer.storage.borrow<&Capability<auth(FlowALPModels.EParticipant) &FlowALPv0.Pool>>(
+            from: FlowALPv0.PoolCapStoragePath
+        ) ?? panic("Could not borrow Pool capability from storage - ensure the signer has been granted Pool access with EParticipant entitlement")
+        self.pool = cap.borrow() ?? panic("Could not borrow Pool from capability")
 
         self.debtType = CompositeType(repayVaultIdentifier)
             ?? panic("Invalid debtVaultIdentifier: \(repayVaultIdentifier)")

@@ -636,6 +636,7 @@ access(all) fun testBatchLiquidations() {
     let batchRepayAmounts  = [usdfRepay, wethRepay, usdcRepay, wbtcRepay]
 
     batchManualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         pids: batchPids,
         debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         seizeVaultIdentifiers: batchSeizeTypes,
@@ -945,6 +946,7 @@ access(all) fun testMassUnhealthyLiquidations() {
     // DEX sources MOET from MAINNET_PROTOCOL_ACCOUNT's vault; liquidator receives seized collateral.
     log("Liquidating all 100 positions via DEX in chunks of 10...\n")
     batchLiquidateViaMockDex(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         pids: batchPids,
         debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
         seizeVaultIdentifiers: batchSeize,

@@ -313,6 +313,7 @@ fun test_governance_tightens_dex_deviation_threshold() {
     mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: liquidator.address, amount: 500.0, beFailed: false)
 
     let liqRes = manualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         signer: liquidator,
         pid: pid,
         debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
@@ -407,6 +408,7 @@ fun test_flash_crash_triggers_liquidation() {
     // DEX quote: 100 / 0.50 = 200 FLOW
     // Liquidator offers: 195 FLOW (better than DEX)
     let liqRes = manualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         signer: liquidator,
         pid: pid,
         debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,

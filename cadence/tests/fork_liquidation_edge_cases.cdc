@@ -208,6 +208,7 @@ fun testPartialLiquidationSequences() {
     // Post effectiveCollateral = 990 * 0.855 * 0.8 = 677.16
     // Post health = 677.16 / 700 = 0.967371428571428571428571 ≤ 1.05
     let liq1Res = manualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         signer: liquidator1,
         pid: pid1,
         debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
@@ -224,6 +225,7 @@ fun testPartialLiquidationSequences() {
     // Post effectiveCollateral = 980 * 0.855 * 0.8 = 670.32
     // Post health = 670.32 / 680 = 0.985764705882352941176470 ≤ 1.05
     let liq2Res = manualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         signer: liquidator1,
         pid: pid1,
         debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
@@ -240,6 +242,7 @@ fun testPartialLiquidationSequences() {
     // Post effectiveCollateral = 970 * 0.855 * 0.8 = 663.48
     // Post health = 663.48 / 660 = 1.005272727272727272727272 ≤ 1.05
     let liq3Res = manualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         signer: liquidator1,
         pid: pid1,
         debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
@@ -259,6 +262,7 @@ fun testPartialLiquidationSequences() {
 
     // Liquidation call 4: fails because health = 1.00527 > 1.0
     let liq4Res = manualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         signer: liquidator1,
         pid: pid1,
         debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
@@ -274,6 +278,7 @@ fun testPartialLiquidationSequences() {
     mintMoet(signer: MAINNET_PROTOCOL_ACCOUNT, to: liquidator2.address, amount: 500.0, beFailed: false)
 
     let liq5Res = manualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         signer: liquidator2,
         pid: pid1,
         debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
@@ -410,6 +415,7 @@ fun testLiquidateMultiCollateralChooseUSDC() {
     Test.expect(res, Test.beSucceeded())
 
     let liqRes = manualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         signer: liquidator,
         pid: pid,
         debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
@@ -435,6 +441,7 @@ fun testLiquidateMultiCollateralChooseUSDC() {
 
     // A second liquidation attempt fails — position is now healthy
     let liqRes2 = manualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         signer: liquidator,
         pid: pid,
         debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,
@@ -592,6 +599,7 @@ fun testStabilityAndInsuranceFees_notCollectedForLiquidatedFunds() {
     let liquidator = Test.createAccount()
     transferTokensWithSetup(tokenIdentifier: MAINNET_USDF_TOKEN_ID, from: MAINNET_USDF_HOLDER, to: liquidator, amount: 200.0)
     let liqRes = manualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         signer: liquidator,
         pid: pid,
         debtVaultIdentifier: MAINNET_USDF_TOKEN_ID,

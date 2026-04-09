@@ -876,6 +876,7 @@ fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFail
 
 access(all)
 fun manualLiquidation(
+    admin: Test.TestAccount,
     signer: Test.TestAccount,
     pid: UInt64,
     debtVaultIdentifier: String,
@@ -883,6 +884,7 @@ fun manualLiquidation(
     seizeAmount: UFix64,
     repayAmount: UFix64,
 ): Test.TransactionResult {
+    grantBetaPoolParticipantAccess(admin, signer)
     return _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, debtVaultIdentifier, seizeVaultIdentifier, seizeAmount, repayAmount],
@@ -892,6 +894,7 @@ fun manualLiquidation(
 
 access(all)
 fun liquidateViaMockDex(
+    admin: Test.TestAccount,
     signer: Test.TestAccount,
     pid: UInt64,
     debtVaultIdentifier: String,
@@ -899,6 +902,7 @@ fun liquidateViaMockDex(
     seizeAmount: UFix64,
     repayAmount: UFix64,
 ): Test.TransactionResult {
+    grantBetaPoolParticipantAccess(admin, signer)
     return _executeTransaction(
         "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
         [[pid], debtVaultIdentifier, [seizeVaultIdentifier], [seizeAmount], [repayAmount]],
@@ -909,6 +913,7 @@ fun liquidateViaMockDex(
 /// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
 /// The liquidator must hold sufficient debt tokens upfront.
 access(all) fun batchManualLiquidation(
+    admin: Test.TestAccount,
     pids: [UInt64],
     debtVaultIdentifier: String,
     seizeVaultIdentifiers: [String],
@@ -916,6 +921,7 @@ access(all) fun batchManualLiquidation(
     repayAmounts: [UFix64],
     signer: Test.TestAccount
 ) {
+    grantBetaPoolParticipantAccess(admin, signer)
     let res = _executeTransaction(
         "./transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
         [pids, debtVaultIdentifier, seizeVaultIdentifiers, seizeAmounts, repayAmounts],
@@ -927,6 +933,7 @@ access(all) fun batchManualLiquidation(
 /// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
 /// chunkSize to stay within the computation limit.
 access(all) fun batchLiquidateViaMockDex(
+    admin: Test.TestAccount,
     pids: [UInt64],
     debtVaultIdentifier: String,
     seizeVaultIdentifiers: [String],
@@ -935,6 +942,7 @@ access(all) fun batchLiquidateViaMockDex(
     chunkSize: Int,
     signer: Test.TestAccount
 ) {
+    grantBetaPoolParticipantAccess(admin, signer)
     let total = pids.length
     let numChunks = (total + chunkSize - 1) / chunkSize
     for i in InclusiveRange(0, numChunks - 1) {

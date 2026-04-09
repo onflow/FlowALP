@@ -77,7 +77,8 @@ fun testManualLiquidation_healthyPosition() {
     let repayAmount = 2.0
     let seizeAmount = 1.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -131,7 +132,8 @@ fun testManualLiquidation_liquidationExceedsTargetHealth() {
     let repayAmount = 500.0
     let seizeAmount = 500.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -194,7 +196,8 @@ fun testManualLiquidation_repayExceedsDebt() {
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -255,7 +258,8 @@ fun testManualLiquidation_seizeExceedsCollateral() {
     let seizeAmount = collateralBalance + 0.001
     let repayAmount = seizeAmount * newPrice * 1.01
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -317,7 +321,8 @@ fun testManualLiquidation_reduceHealth() {
     let seizeAmount = collateralBalancePreLiq - 0.01
     let repayAmount = seizeAmount * newPrice * 1.01
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -383,6 +388,7 @@ fun testBadDebt_seizeAllCollateral() {
     // Post-health = 0 / remainingDebt = 0.0 ≤ 1.05 ✓
     let minRepay: UFix64 = initialCollateral * crashedPrice + 0.00000001
     let liqRes = manualLiquidation(
+        admin: PROTOCOL_ACCOUNT,
         signer: liquidator,
         pid: pid,
         debtVaultIdentifier: Type<@MOET.Vault>().identifier,
@@ -433,6 +439,7 @@ fun testBadDebt_voluntaryRepayment_fullRepayReverts() {
     // First liquidation: seize all collateral, enter bad-debt state
     let minRepay: UFix64 = initialCollateral * crashedPrice + 0.00000001
     Test.expect(manualLiquidation(
+        admin: PROTOCOL_ACCOUNT,
         signer: liquidator,
         pid: pid,
         debtVaultIdentifier: Type<@MOET.Vault>().identifier,
@@ -448,6 +455,7 @@ fun testBadDebt_voluntaryRepayment_fullRepayReverts() {
     // Post-health: 0 / 0.00000001 = 0.0 ≤ 1.05 ✓
     let almostAll = remainingDebt - 0.00000001
     Test.expect(manualLiquidation(
+        admin: PROTOCOL_ACCOUNT,
         signer: liquidator,
         pid: pid,
         debtVaultIdentifier: Type<@MOET.Vault>().identifier,
@@ -459,6 +467,7 @@ fun testBadDebt_voluntaryRepayment_fullRepayReverts() {
     // === Third liquidation: repaying the final tick reverts ===
     // Repaying 0.00000001 MOET sets postDebt=0, so postHealth=UFix128.max > 1.05 → revert
     let liqRes3 = manualLiquidation(
+        admin: PROTOCOL_ACCOUNT,
         signer: liquidator,
         pid: pid,
         debtVaultIdentifier: Type<@MOET.Vault>().identifier,
@@ -512,7 +521,8 @@ fun testManualLiquidation_increaseHealthBelowTarget() {
     let repayAmount = 100.0
     let seizeAmount = 150.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -580,7 +590,8 @@ fun testManualLiquidation_liquidateToTarget() {
     let repayAmount = 100.0
     let seizeAmount = 33.66
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -639,6 +650,7 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
     // Purport to repay MOET to seize FLOW, but we will actually pass in a FLOW vault for repayment
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../tests/transactions/flow-alp/helpers/manual_liquidation_chosen_vault.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -695,6 +707,7 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
     // Purport to repay MOET to seize FLOW, but we will actually pass in a MockYieldToken vault for repayment
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../tests/transactions/flow-alp/helpers/manual_liquidation_chosen_vault.cdc",
         [pid, Type<@MOET.Vault>().identifier, MOCK_YIELD_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -750,6 +763,7 @@ fun testManualLiquidation_unsupportedDebtType() {
     // Pass in MockYieldToken as repayment, an unsupported debt type
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../tests/transactions/flow-alp/helpers/manual_liquidation_chosen_vault.cdc",
         [pid, MOCK_YIELD_TOKEN_IDENTIFIER, MOCK_YIELD_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -806,7 +820,8 @@ fun testManualLiquidation_unsupportedCollateralType() {
     let seizeAmount = collateralBalancePreLiq - 0.01
     let repayAmount = seizeAmount * newPrice * 1.01
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: MOCK_YIELD_TOKEN_IDENTIFIER, 
@@ -893,7 +908,8 @@ fun testManualLiquidation_supportedDebtTypeNotInPosition() {
     let seizeAmount = 0.01
     let repayAmount = 100.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid1, 
         debtVaultIdentifier: MOCK_YIELD_TOKEN_IDENTIFIER, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -980,7 +996,8 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
     let seizeAmount = 0.01
     let repayAmount = 100.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid1, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: MOCK_YIELD_TOKEN_IDENTIFIER, 
@@ -1042,7 +1059,8 @@ fun testManualLiquidation_dexOraclePriceDivergence_withinThreshold() {
     let repayAmount = 50.0
     let seizeAmount = 72.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -1080,7 +1098,8 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexBelowOracle() {
     setupMoetVault(liquidator, beFailed: false)
     mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -1119,7 +1138,8 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexAboveOracle() {
     setupMoetVault(liquidator, beFailed: false)
     mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -1173,7 +1193,8 @@ fun testManualLiquidation_liquidatorOfferWorseThanDex() {
     let repayAmount = 50.0
     let seizeAmount = 75.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 
@@ -1229,7 +1250,8 @@ fun testManualLiquidation_combinedEdgeCase() {
     let repayAmount = 50.0
     let seizeAmount = 75.0
     let liqRes = manualLiquidation(
-        signer:liquidator, 
+        admin: PROTOCOL_ACCOUNT,
+        signer:liquidator,
         pid: pid, 
         debtVaultIdentifier: Type<@MOET.Vault>().identifier, 
         seizeVaultIdentifier: FLOW_TOKEN_IDENTIFIER, 

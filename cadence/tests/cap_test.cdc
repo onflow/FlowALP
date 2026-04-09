@@ -220,7 +220,7 @@ fun testPublishClaimCap() {
 // =============================================================================
 //
 // Actor: eParticipantUser — Capability<auth(EParticipant) &Pool>
-// Matrix rows: createPosition, depositToPosition
+// Matrix rows: createPosition, depositToPosition, manualLiquidation
 
 /// EParticipant cap allows createPosition and depositToPosition.
 access(all)

@@ -835,6 +835,7 @@ fun test_multi_asset_liquidation_collateral_selection() {
     let seizeAmount: UFix64 = 140.0
 
     let liqRes = manualLiquidation(
+        admin: MAINNET_PROTOCOL_ACCOUNT,
         signer:liquidator,
         pid: pid,
         debtVaultIdentifier: MAINNET_MOET_TOKEN_ID,
