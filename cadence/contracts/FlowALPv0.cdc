@@ -1280,13 +1280,6 @@ access(all) contract FlowALPv0 {
             let tokenState = self._borrowUpdatedTokenState(type: type)
             let tokenSnapshot = self.buildTokenSnapshot(type: type)
 
-            // Queued deposits are held in the position but have not yet been credited to the reserve
-            // or the position's balance. Satisfy as much of the withdrawal as possible from them
-            // first; only the remainder needs to come from (and affect) the reserve.
-            let queuedBalanceForType: UFix64 = position.getQueuedDepositBalance(type) ?? 0.0
-            let queuedUsable = queuedBalanceForType < amount ? queuedBalanceForType : amount
-            let reserveWithdrawAmount: UFix64 = amount - queuedUsable
-
             if pullFromTopUpSource {
                 if let topUpSource = position.borrowTopUpSource() {
                     // NOTE: getSourceType can lie, but we are resilient to this because:
@@ -1309,6 +1302,13 @@ access(all) contract FlowALPv0 {
                     )
                 }
             }
+
+            // Queued deposits are held in the position but have not yet been credited to the reserve
+            // or the position's balance. Satisfy as much of the withdrawal as possible from them
+            // first; only the remainder needs to come from (and affect) the reserve.
+            let queuedBalanceForType: UFix64 = position.getQueuedDepositBalance(type) ?? 0.0
+            let queuedUsable = queuedBalanceForType < amount ? queuedBalanceForType : amount
+            let reserveWithdrawAmount: UFix64 = amount - queuedUsable
 
             // Pull any queued (un-credited) deposits for this token type first.
             // These tokens are held in the position and have never entered the reserve,
