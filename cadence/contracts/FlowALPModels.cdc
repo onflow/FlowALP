@@ -1176,6 +1176,10 @@ access(all) contract FlowALPModels {
         /// (used when deposits are made)
         access(EImplementation) fun consumeDepositCapacity(_ amount: UFix64, pid: UInt64)
 
+        /// Increases deposit capacity by the specified amount and tracks per-user deposit usage
+        /// (used when withdrawals are made)
+        access(EImplementation) fun refillDepositCapacity(_ amount: UFix64, pid: UInt64)
+
         /// Returns the per-deposit limit based on user deposit limit and available deposit capacity.
         /// Rationale: cap per-deposit size to a fraction of the total depositCapacityCap
         /// so a single large deposit cannot monopolize capacity.
@@ -1514,6 +1518,23 @@ access(all) contract FlowALPModels {
                 remainingCapacity: self.depositCapacity
             )
         }
+
+        /// Increases deposit capacity by the specified amount when a withdrawal is made.
+        /// This is because we want to limit net deposits within a certain time period rather than gross deposits.
+        access(EImplementation) fun refillDepositCapacity(_ amount: UFix64, pid: UInt64) {
+            self.depositCapacity = self.depositCapacity + amount
+            // Track per-user deposit usage
+            let currentUserUsage = self.depositUsage[pid] ?? 0.0
+            self.depositUsage[pid] = currentUserUsage.saturatingSubtract(amount)
+
+            FlowALPEvents.emitDepositCapacityConsumed(
+                tokenType: self.tokenType,
+                pid: pid,
+                amount: 0.0,
+                remainingCapacity: self.depositCapacity
+            )
+        }
+
 
         /// Returns the maximum amount that can be deposited to the given position without being queued.
         access(EImplementation) view fun depositLimit(pid: UInt64): UFix64 {

@@ -1346,6 +1346,7 @@ access(all) contract FlowALPv0 {
                 )
 
                 let fromReserve <- reserveVault.withdraw(amount: reserveWithdrawAmount)
+                tokenState.refillDepositCapacity(reserveWithdrawAmount, pid: pid)
                 withdrawn.deposit(from: <-fromReserve)
             }
 
@@ -1823,6 +1824,8 @@ access(all) contract FlowALPv0 {
                             amount: uintSinkAmount,
                             tokenState: tokenState
                         )
+                        tokenState.refillDepositCapacity(UFix64(uintSinkAmount), pid: pid)
+
                         let sinkVault <- FlowALPv0._borrowMOETMinter().mintTokens(amount: sinkAmount)
 
                         FlowALPEvents.emitRebalanced(
