@@ -2,6 +2,7 @@ import Test
 import "FlowALPv0"
 import "FlowALPModels"
 import "FlowALPEvents"
+import "DeFiActions"
 import "MOET"
 
 /* --- Global test constants --- */
@@ -9,6 +10,7 @@ import "MOET"
 access(all) let MOET_TOKEN_IDENTIFIER = "A.0000000000000007.MOET.Vault"
 access(all) let FLOW_TOKEN_IDENTIFIER = "A.0000000000000003.FlowToken.Vault"
 access(all) let FLOW_VAULT_STORAGE_PATH = /storage/flowTokenVault
+access(all) let FLOW_VAULT_PUBLIC_PATH = /public/flowTokenReceiver
 
 access(all) let PROTOCOL_ACCOUNT = Test.getAccount(0x0000000000000007)
 access(all) let NON_ADMIN_ACCOUNT = Test.getAccount(0x0000000000000008)
@@ -866,13 +868,21 @@ fun withdrawStabilityFund(
 }
 
 access(all)
-fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFailed: Bool) {
-    let rebalanceRes = _executeTransaction(
+fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool): Test.TransactionResult {
+    return _executeTransaction(
         "../transactions/flow-alp/pool-management/rebalance_position.cdc",
         [ pid, force ],
         signer
     )
-    Test.expect(rebalanceRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun setDrawDownSink(signer: Test.TestAccount, pid: UInt64, sink: {DeFiActions.Sink}?): Test.TransactionResult {
+    return _executeTransaction(
+        "./transactions/position-manager/set_draw_down_sink.cdc",
+        [ pid, sink ],
+        signer
+    )
 }
 
 access(all)
@@ -1061,6 +1071,16 @@ fun withdrawReserve(
         signer
     )
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+/// Drains the async update queue so all queued positions are processed.
+access(all)
+fun asyncUpdate(): Test.TransactionResult {
+    return _executeTransaction(
+        "./transactions/flow-alp/pool-management/process_update_queue.cdc",
+        [],
+        PROTOCOL_ACCOUNT
+    )
 }
 
 /* --- Assertion Helpers --- */
