@@ -11,7 +11,6 @@ access(all)
 fun setup() {
     deployContracts()
     createAndStorePool(signer: PROTOCOL_ACCOUNT, defaultTokenIdentifier: MOET_TOKEN_IDENTIFIER, beFailed: false)
-    
     // take snapshot first, then advance time so reset() target is always lower than current height
     snapshot = getCurrentBlockHeight()
     // move time by 1 second so Test.reset() works properly before each test
@@ -32,7 +31,8 @@ fun test_setInsuranceRate_withoutEGovernanceEntitlement() {
     // set insurance swapper
     var res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -56,7 +56,8 @@ fun test_setInsuranceRate_withEGovernanceEntitlement() {
     // set insurance swapper
     var res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -104,7 +105,8 @@ fun test_setInsuranceRate_rateGreaterThanOne_fails() {
     // set insurance swapper
     var res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -131,7 +133,8 @@ fun test_setInsuranceRate_combinedRateExceedsOne_fails() {
     // set insurance swapper
     var res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -164,7 +167,8 @@ fun test_setStabilityFeeRate_combinedRateExceedsOne_fails() {
     // set insurance swapper
     var res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -197,7 +201,8 @@ fun test_setInsuranceRate_rateLessThanZero_fails() {
     // set insurance swapper
     var res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -223,7 +228,8 @@ fun test_setInsuranceRate_invalidTokenType_fails() {
     // set insurance swapper
     var res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
