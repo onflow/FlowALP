@@ -39,6 +39,22 @@ Let's describe the definition wlog for `totalTrueDebitBalance`:
 - Let `debitPositions(X)` be the set of positions which have a debit balance for token `X`
 - Let `totalTrueDebitBalance(X)` be the sum of token X debit balances for all positions in `debitPositions(X)`
 
+#### Timing of Interest and Utilization Updates
+
+Interest and utilization are inter-related but computed **sequentially** to avoid circular dependency:
+
+1. When a balance-mutating (deposits, withdrawals etc) operation occurs at time `t`, we first accrue interest using state from `t-1`
+2. Then we apply the balance change using the updated interest index
+
+Formally, for discrete time steps:
+```
+interestIndex[t]         = f(totalTrueBalance[t-1], interestIndex[t-1])
+totalTrueBalance[t]      = g(totalTrueBalance[t-1], interestIndex[t], mutation)
+```
+
+This ensures interest accumulated between `t-1` and `t` is calculated based on the balances that existed during that period, **before** the current mutation is applied.
+
+
 ### 3. Change the protocol fee definition 
 
 Prior to this ADR, protocol fees were computed as a percentage of estimated debit income, when extracted. Instead, we will compute protocol fees (insurance fee, stability fee) explicitly as the excess funds available in reserves.
