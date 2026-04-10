@@ -7,6 +7,7 @@ import "FungibleToken"
 transaction(
     positionID: UInt64,
     tokenTypeIdentifier: String,
+    receiverVaultStoragePath: StoragePath,
     amount: UFix64,
     pullFromTopUpSource: Bool
 ) {
@@ -21,9 +22,8 @@ transaction(
         self.positionManager = signer.storage.borrow<auth(FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>(from: FlowALPv0.PositionStoragePath)
             ?? panic("PositionManager not found")
 
-        let cap = signer.capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
-        self.receiverRef = cap.borrow()
-            ?? panic("Could not borrow receiver ref from /public/flowTokenReceiver")
+        self.receiverRef = signer.storage.borrow<&{FungibleToken.Receiver}>(from: receiverVaultStoragePath)
+            ?? panic("Could not borrow receiver vault at \(receiverVaultStoragePath)")
     }
 
     execute {
