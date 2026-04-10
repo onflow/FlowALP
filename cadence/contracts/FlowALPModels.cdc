@@ -553,7 +553,7 @@ access(all) contract FlowALPModels {
             effectiveDebt: {Type: UFix128}
         ) {
             // Enforce single balance per token invariant: if a type appears in one map, it must not appear in the other.
-            for collateralType in effectiveCollateral {
+            for collateralType in effectiveCollateral.keys {
                 assert(effectiveDebt[collateralType] == nil, message: "cannot construct BalanceSheet: observed both credit and debit balance for \(collateralType.identifier)")
             }
 
