@@ -190,10 +190,13 @@ fun test_withdraw_fails_when_health_drops_below_one() {
     // health = 600 / 615.38 ~ 0.975, well below 1.0.
     // The preflight check enforces that withdrawals cannot reduce health below minHealth,
     // which prevents health from ever reaching 1.0.
-    let withdrawRes = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [positionId, FLOW_TOKEN_IDENTIFIER, 250.0, false],
-        user
+    let withdrawRes = withdrawFromPosition(
+        signer: user,
+        positionId: positionId,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: 250.0,
+        pullFromTopUpSource: false
     )
     Test.expect(withdrawRes, Test.beFailed())
     Test.assertError(withdrawRes, errorMessage: "Insufficient funds for withdrawal")
