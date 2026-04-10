@@ -116,7 +116,7 @@ fun test_reentrancy_recursiveWithdrawSource() {
     //
     // The goal is to prove the pool rejects the attempt (e.g. via position lock /
     // reentrancy guard), rather than allowing nested withdraw/deposit effects.
-    
+
     let res = createReentrantSourcePosition(
         signer: user,
         vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
@@ -145,10 +145,13 @@ fun test_reentrancy_recursiveWithdrawSource() {
     //
     // In this test, the topUpSource behavior is adversarial: it attempts to re-enter
     // the pool during the pull/deposit flow. We expect the transaction to fail.
-    let withdrawRes = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [positionID, FLOW_TOKEN_IDENTIFIER, 1_500.0, true],
-        user
+    let withdrawRes = withdrawFromPosition(
+        signer: user,
+        positionId: positionID,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: 1500.0,
+        pullFromTopUpSource: true
     )
     Test.expect(withdrawRes, Test.beFailed())
 
@@ -246,8 +249,8 @@ fun test_reentrancy_guard_position_lock_released_after_failure() {
 
     // trigger reentrancy — must fail
     let failRes = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [pid, FLOW_TOKEN_IDENTIFIER, 1_500.0, true],
+        "./transactions/flow-alp/epositionadmin/withdraw_from_position.cdc",
+        [pid, FLOW_TOKEN_IDENTIFIER, FLOW_VAULT_STORAGE_PATH, 1_500.0, true],
         user
     )
     Test.expect(failRes, Test.beFailed())
@@ -258,6 +261,7 @@ fun test_reentrancy_guard_position_lock_released_after_failure() {
         signer: user,
         positionId: pid,
         tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
         amount: 50.0,
         pullFromTopUpSource: false
     )
@@ -307,8 +311,8 @@ fun test_reentrancy_state_consistency_no_partial_writes() {
 
     // trigger re-entrant failure
     let failRes = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [pid, FLOW_TOKEN_IDENTIFIER, 1_500.0, true],
+        "./transactions/flow-alp/epositionadmin/withdraw_from_position.cdc",
+        [pid, FLOW_TOKEN_IDENTIFIER, FLOW_VAULT_STORAGE_PATH, 1_500.0, true],
         user
     )
     Test.expect(failRes, Test.beFailed())
