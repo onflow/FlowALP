@@ -522,7 +522,7 @@ access(all) contract FlowALPv0 {
         /// - C means collateral: Ce is effective collateral, Ct is true collateral, measured in $
         /// - D means debt: De is effective debt, Dt is true debt, measured in $
         /// - Fc, Fd are collateral and debt factors
-        access(all) fun manualLiquidation(
+        access(FlowALPModels.EParticipant) fun manualLiquidation(
             pid: UInt64,
             debtType: Type,
             seizeType: Type,

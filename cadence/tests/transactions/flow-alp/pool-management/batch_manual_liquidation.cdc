@@ -3,6 +3,7 @@ import "FungibleTokenMetadataViews"
 import "MetadataViews"
 
 import "FlowALPv0"
+import "FlowALPModels"
 
 /// Batch liquidate multiple positions in a single transaction
 ///
@@ -18,7 +19,7 @@ transaction(
     seizeAmounts: [UFix64],
     repayAmounts: [UFix64]
 ) {
-    let pool: &FlowALPv0.Pool
+    let pool: auth(FlowALPModels.EParticipant) &FlowALPv0.Pool
     let repaymentType: Type
     let repaymentVaultRef: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}
     let signerAccount: auth(BorrowValue) &Account
@@ -26,9 +27,10 @@ transaction(
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
         self.signerAccount = signer
 
-        let protocolAddress = Type<@FlowALPv0.Pool>().address!
-        self.pool = getAccount(protocolAddress).capabilities.borrow<&FlowALPv0.Pool>(FlowALPv0.PoolPublicPath)
-            ?? panic("Could not borrow Pool at \(FlowALPv0.PoolPublicPath)")
+        let cap = signer.storage.borrow<&Capability<auth(FlowALPModels.EParticipant) &FlowALPv0.Pool>>(
+            from: FlowALPv0.PoolCapStoragePath
+        ) ?? panic("Could not borrow Pool capability from storage - ensure the signer has been granted Pool access with EParticipant entitlement")
+        self.pool = cap.borrow() ?? panic("Could not borrow Pool from capability")
 
         self.repaymentType = CompositeType(repaymentVaultIdentifier) ?? panic("Invalid repaymentVaultIdentifier: \(repaymentVaultIdentifier)")
 
