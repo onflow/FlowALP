@@ -163,8 +163,8 @@ fun test_multi_collateral_position() {
 
     // STEP 6: Test weighted collateral factors - calculate max borrowing
     // Max borrow = (effectiveCollateral / minHealth) * borrowFactor / price
-    //    MOET: maxBorrow = ($1325 / 1.1) * 1.0 / $1.00 = 1204.54545455 MOET
-    let expectedMaxMoet: UFix64 = 1204.54545455
+    //    MOET: maxBorrow = ($1325 / 1.1) * 1.0 / $1.00 = 1204.54545454 MOET (rounded down)
+    let expectedMaxMoet: UFix64 = 1204.54545454
     let availableMoet = getAvailableBalance(pid: pid, vaultIdentifier: MAINNET_MOET_TOKEN_ID, pullFromTopUpSource: false, beFailed: false)
     Test.assertEqual(expectedMaxMoet, availableMoet)
 

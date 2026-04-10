@@ -430,7 +430,7 @@ access(all) contract FlowALPv0 {
                 withdrawBal: withdrawBal,
                 targetHealth: view.minHealth
             )
-            return FlowALPMath.toUFix64Round(uintMax)
+            return FlowALPMath.toUFix64RoundDown(uintMax)
         }
 
         /// Returns the health of the given position, which is the ratio of the position's effective collateral
