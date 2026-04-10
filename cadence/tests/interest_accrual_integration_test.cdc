@@ -42,8 +42,8 @@ access(all) var snapshot: UInt64 = 0
 
 // MOET: FixedCurve (Protocol-Fee Spread Model)
 // -----------------------------------------------------------------------------
-// In the fixed-curve path, the curve defines the DEBIT rate (what borrowers pay).
-// The CREDIT rate is derived from the debit rate after protocol fees.
+// In the spread model, the curve defines the DEBIT rate (what borrowers pay).
+// The CREDIT rate is derived as: creditRate = debitRate - protocolRate
 // This ensures lenders always earn less than borrowers pay, with the
 // difference allocated by the configured protocol fee settings.
 //
@@ -173,7 +173,8 @@ fun test_moet_debit_accrues_interest() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -404,7 +405,8 @@ fun test_moet_credit_accrues_interest_with_insurance() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -590,7 +592,8 @@ fun test_flow_debit_accrues_interest() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -778,7 +781,8 @@ fun test_flow_credit_accrues_interest_with_insurance() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -956,7 +960,8 @@ fun test_insurance_deduction_verification() {
     // Expected Credit Rate: lower than 10% after protocol fees
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -1178,7 +1183,8 @@ fun test_combined_all_interest_scenarios() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
