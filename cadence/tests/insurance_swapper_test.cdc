@@ -23,7 +23,8 @@ access(all)
 fun test_setInsuranceSwapper_success() {
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -42,7 +43,8 @@ fun test_setInsuranceSwapper_updateExistingSwapper_success() {
     let initialPriceRatio = 1.0
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: initialPriceRatio,
     )
     Test.expect(res, Test.beSucceeded())
@@ -51,7 +53,8 @@ fun test_setInsuranceSwapper_updateExistingSwapper_success() {
     let updatedPriceRatio = 2.0
     let updatedRes = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: updatedPriceRatio,
     )
     Test.expect(updatedRes, Test.beSucceeded())
@@ -69,7 +72,8 @@ fun test_removeInsuranceSwapper_success() {
     // set a swapper
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -97,7 +101,8 @@ fun test_remove_insuranceSwapper_failed() {
     // set a swapper
     var res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
     Test.expect(res, Test.beSucceeded())
@@ -133,7 +138,8 @@ access(all)
 fun test_setInsuranceSwapper_withoutEGovernanceEntitlement_fails() {
     let res = setInsuranceSwapper(
         signer: alice,
-        tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
 
@@ -151,7 +157,8 @@ fun test_setInsuranceSwapper_invalidTokenTypeIdentifier_fails() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: invalidTokenIdentifier,
+        swapperInTypeIdentifier: invalidTokenIdentifier,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
 
@@ -169,7 +176,8 @@ fun test_setInsuranceSwapper_emptyTokenTypeIdentifier_fails() {
 
     let res = setInsuranceSwapper(
         signer: PROTOCOL_ACCOUNT,
-        tokenTypeIdentifier: emptyTokenIdentifier,
+        swapperInTypeIdentifier: emptyTokenIdentifier,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
         priceRatio: 1.0,
     )
 

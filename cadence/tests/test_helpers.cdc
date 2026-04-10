@@ -2,6 +2,7 @@ import Test
 import "FlowALPv0"
 import "FlowALPModels"
 import "FlowALPEvents"
+import "DeFiActions"
 import "MOET"
 
 /* --- Global test constants --- */
@@ -55,7 +56,7 @@ access(all) let MAINNET_PROTOCOL_ACCOUNT_ADDRESS: Address = 0x6b00ff876c299c61
 access(all) let MAINNET_USDF_HOLDER_ADDRESS: Address = 0xf18b50870aed46ad
 access(all) let MAINNET_WETH_HOLDER_ADDRESS: Address = 0xf62e3381a164f993
 access(all) let MAINNET_WBTC_HOLDER_ADDRESS: Address = 0x47f544294e3b7656
-access(all) let MAINNET_FLOW_HOLDER_ADDRESS: Address = 0xe467b9dd11fa00df
+access(all) let MAINNET_FLOW_HOLDER_ADDRESS: Address = 0x92674150c9213fc9
 access(all) let MAINNET_USDC_HOLDER_ADDRESS: Address = 0xec6119051f7adc31
 
 /* --- Test execution helpers --- */
@@ -702,13 +703,13 @@ fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeId
 }
 
 access(all)
-fun withdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, pullFromTopUpSource: Bool) {
+fun withdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, receiverVaultStoragePath: StoragePath, amount: UFix64, pullFromTopUpSource: Bool): Test.TransactionResult{
     let withdrawRes = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [positionId, tokenTypeIdentifier, amount, pullFromTopUpSource],
+        "./transactions/flow-alp/epositionadmin/withdraw_from_position.cdc",
+        [positionId, tokenTypeIdentifier, receiverVaultStoragePath, amount, pullFromTopUpSource],
         signer
     )
-    Test.expect(withdrawRes, Test.beSucceeded())
+    return withdrawRes
 }
 
 access(all)
@@ -780,12 +781,13 @@ fun setInsuranceRate(
 access(all)
 fun setInsuranceSwapper(
     signer: Test.TestAccount,
-    tokenTypeIdentifier: String,
+    swapperInTypeIdentifier: String,
+    swapperOutTypeIdentifier: String,
     priceRatio: UFix64,
 ): Test.TransactionResult {
     let res = _executeTransaction(
         "./transactions/flow-alp/egovernance/set_insurance_swapper_mock.cdc",
-        [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, MOET_TOKEN_IDENTIFIER],
+        [ swapperInTypeIdentifier, priceRatio, swapperInTypeIdentifier, swapperOutTypeIdentifier],
         signer
     )
     return res
@@ -866,13 +868,21 @@ fun withdrawStabilityFund(
 }
 
 access(all)
-fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFailed: Bool) {
-    let rebalanceRes = _executeTransaction(
+fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool): Test.TransactionResult {
+    return _executeTransaction(
         "../transactions/flow-alp/pool-management/rebalance_position.cdc",
         [ pid, force ],
         signer
     )
-    Test.expect(rebalanceRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun setDrawDownSink(signer: Test.TestAccount, pid: UInt64, sink: {DeFiActions.Sink}?): Test.TransactionResult {
+    return _executeTransaction(
+        "./transactions/position-manager/set_draw_down_sink.cdc",
+        [ pid, sink ],
+        signer
+    )
 }
 
 access(all)
@@ -1063,18 +1073,36 @@ fun withdrawReserve(
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
+/// Drains the async update queue so all queued positions are processed.
+access(all)
+fun asyncUpdate(): Test.TransactionResult {
+    return _executeTransaction(
+        "./transactions/flow-alp/pool-management/process_update_queue.cdc",
+        [],
+        PROTOCOL_ACCOUNT
+    )
+}
+
 /* --- Assertion Helpers --- */
 
 access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct, _ variance: AnyStruct): Bool {
-    let expectedType = expected.getType()
-    let actualType = actual.getType()
-    let varianceType = variance.getType()
-    if expectedType == Type<UFix64>() && actualType == Type<UFix64>() && varianceType == Type<UFix64>() {
-        return ufixEqualWithinVariance(expected as! UFix64, actual as! UFix64, variance as! UFix64)
-    } else if expectedType == Type<UFix128>() && actualType == Type<UFix128>() && varianceType == Type<UFix128>(){
-        return ufix128EqualWithinVariance(expected as! UFix128, actual as! UFix128, variance as! UFix128)
+    // Try UFix64 first
+    if let e = expected as? UFix64 {
+        if let a = actual as? UFix64 {
+            if let v = variance as? UFix64 {
+                return ufixEqualWithinVariance(e, a, v)
+            }
+        }
     }
-    panic("Expected and actual types do not match - expected: \(expectedType.identifier), actual: \(actualType.identifier)")
+    // Try UFix128
+    if let e = expected as? UFix128 {
+        if let a = actual as? UFix128 {
+            if let v = variance as? UFix128 {
+                return ufix128EqualWithinVariance(e, a, v)
+            }
+        }
+    }
+    panic("Expected and actual types do not match or are unsupported types")
 }
 
 access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64, _ variance: UFix64): Bool {
