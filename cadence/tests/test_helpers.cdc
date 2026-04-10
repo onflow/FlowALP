@@ -1066,15 +1066,23 @@ fun withdrawReserve(
 /* --- Assertion Helpers --- */
 
 access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct, _ variance: AnyStruct): Bool {
-    let expectedType = expected.getType()
-    let actualType = actual.getType()
-    let varianceType = variance.getType()
-    if expectedType == Type<UFix64>() && actualType == Type<UFix64>() && varianceType == Type<UFix64>() {
-        return ufixEqualWithinVariance(expected as! UFix64, actual as! UFix64, variance as! UFix64)
-    } else if expectedType == Type<UFix128>() && actualType == Type<UFix128>() && varianceType == Type<UFix128>(){
-        return ufix128EqualWithinVariance(expected as! UFix128, actual as! UFix128, variance as! UFix128)
+    // Try UFix64 first
+    if let e = expected as? UFix64 {
+        if let a = actual as? UFix64 {
+            if let v = variance as? UFix64 {
+                return ufixEqualWithinVariance(e, a, v)
+            }
+        }
     }
-    panic("Expected and actual types do not match - expected: \(expectedType.identifier), actual: \(actualType.identifier)")
+    // Try UFix128
+    if let e = expected as? UFix128 {
+        if let a = actual as? UFix128 {
+            if let v = variance as? UFix128 {
+                return ufix128EqualWithinVariance(e, a, v)
+            }
+        }
+    }
+    panic("Expected and actual types do not match or are unsupported types")
 }
 
 access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64, _ variance: UFix64): Bool {
