@@ -1586,6 +1586,10 @@ access(all) contract FlowALPv0 {
             )
         }
 
+        access(all) view fun positionExists(pid: UInt64): Bool {
+            return self.positions[pid] != nil
+        }
+
         /// Rebalances the position to the target health value, if the position is under- or over-collateralized,
         /// as defined by the position-specific min/max health thresholds.
         /// If force=true, the position will be rebalanced regardless of its current health.
