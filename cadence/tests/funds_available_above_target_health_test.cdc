@@ -4,6 +4,7 @@ import BlockchainHelpers
 import "test_helpers.cdc"
 
 import "MOET"
+import "FlowToken"
 import "FlowALPv0"
 import "FlowALPEvents"
 import "FlowALPModels"
@@ -321,9 +322,110 @@ fun testFundsAvailableAboveTargetHealthAfterDepositingWithoutPushFromOvercollate
     log("==============================")
 }
 
-// TODO
-// - Test deposit & withdraw same type
-// - Test depositing withdraw type without pushing to sink, creating a Credit balance before testing
+/// Demonstrates that the same-type shortcut in fundsAvailableAboveTargetHealthAfterDepositing
+/// produces an incorrect (overestimated) result when:
+///   1. depositType == withdrawType
+///   2. The position holds a Debit balance in that type
+///   3. depositAmount > the Debit balance (causing a direction flip from Debit to Credit)
+///   4. collateralFactor != borrowFactor for that token
+///
+/// The shortcut returns  fundsAvailableAboveTargetHealth + depositAmount,
+/// assuming a simple additive offset. But when the deposit first repays debt
+/// (scaled by 1/borrowFactor) and the excess becomes collateral (scaled by
+/// collateralFactor), the two legs have different health impacts.
+access(all)
+fun testfundsAvailableAboveTargetHealthAfterDepositing_flo15_sameTypeDepositWithdrawLinearizationBug() {
+    if snapshot < getCurrentBlockHeight() {
+        Test.reset(to: snapshot)
+    }
+
+    // --- Setup: LP provides FLOW liquidity, then borrower takes a FLOW loan ---
+
+    // Mint extra FLOW for LP liquidity (setup already minted positionFundingAmount=100)
+    mintFlow(to: userAccount, amount: 50.0)
+
+    // LP position (pid 0): deposit 150 FLOW as liquidity
+    let lpFlowDeposit = 150.0
+    let lpOpenRes = executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [lpFlowDeposit, FLOW_VAULT_STORAGE_PATH, false],
+        userAccount
+    )
+    Test.expect(lpOpenRes, Test.beSucceeded())
+
+    // Mint MOET for the borrower position's collateral
+    let moetCollateral = 130.0
+    mintMoet(signer: PROTOCOL_ACCOUNT, to: userAccount.address, amount: moetCollateral, beFailed: false)
+
+    // Borrower position (pid 1): deposit MOET as collateral
+    let borrowerOpenRes = executeTransaction(
+        "../transactions/flow-alp/position/create_position.cdc",
+        [moetCollateral, MOET.VaultStoragePath, false],
+        userAccount
+    )
+    Test.expect(borrowerOpenRes, Test.beSucceeded())
+
+    // Borrow 110 FLOW against the MOET collateral -> creates FLOW Debit
+    let flowDebt = 110.0
+    borrowFromPosition(
+        signer: userAccount,
+        positionId: 1,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        vaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: flowDebt,
+        beFailed: false
+    )
+
+    let borrowerPid: UInt64 = 1
+
+    // Verify initial state
+    let details = getPositionDetails(pid: borrowerPid, beFailed: false)
+    let moetCredit = getCreditBalanceForType(details: details, vaultType: Type<@MOET.Vault>())
+    let flowDebitBal = getDebitBalanceForType(details: details, vaultType: Type<@FlowToken.Vault>())
+    Test.assert(equalWithinVariance(moetCollateral, moetCredit, DEFAULT_UFIX_VARIANCE), message: "Expected \(moetCollateral) MOET Credit, got \(moetCredit)")
+    Test.assert(equalWithinVariance(flowDebt, flowDebitBal, DEFAULT_UFIX_VARIANCE), message: "Expected \(flowDebt) FLOW Debit, got \(flowDebitBal)")
+
+    // Call fundsAvailableAboveTargetHealthAfterDepositing with a FLOW deposit exceeding our debit balance and a FLOW withdrawal type
+    let depositAmount = 150.0
+    let result = fundsAvailableAboveTargetHealthAfterDepositing(
+        pid: borrowerPid,
+        withdrawType: FLOW_TOKEN_IDENTIFIER,
+        targetHealth: INT_TARGET_HEALTH, // 1.3
+        depositType: FLOW_TOKEN_IDENTIFIER,
+        depositAmount: depositAmount,
+        beFailed: false
+    )
+    log("[TEST] fundsAvailableAboveTargetHealthAfterDepositing returned: \(result)")
+
+    // --- Expected correct result ---
+    //
+    // After depositing 150 FLOW into a position with 110 FLOW Debit:
+    //   - First 110 repays debt entirely  (FLOW Debit -> 0)
+    //   - Remaining 40 becomes collateral (FLOW Credit = 40)
+    //
+    // New effective values (FLOW price=1.0, cf=0.8, bf=1.0):
+    //   EC = 130 * 1.0 * 1.0  +  40 * 1.0 * 0.8 = 130 + 32 = 162
+    //   ED = 0
+    //
+    // Max FLOW withdrawal from this state:
+    //   Withdraw X <= 40: reduces FLOW Credit, no debt -> health stays infinite
+    //   Withdraw X > 40:  FLOW Debit = X - 40
+    //     EC = 130 (MOET only)
+    //     ED = (X - 40) * 1.0 / 1.0
+    //     health = 130 / (X - 40) >= 1.3
+    //     X - 40 <= 130 / 1.3 = 100
+    //     X <= 140
+    //
+    // The buggy shortcut does not account for different collateral/borrow factors:
+    //   fundsAvailableAboveTargetHealth(FLOW) = 0  (health 1.182 < target 1.3)
+    //   shortcut = 0 + 150 = 150   <- WRONG (overestimates by 10)
+    //
+    let expectedCorrect = (depositAmount - flowDebt) + (moetCollateral / 1.3)
+    log("[TEST] Expected correct result: \(expectedCorrect)")
+    log("[TEST] Buggy shortcut would return: \(depositAmount)")
+
+    Test.assert(equalWithinVariance(expectedCorrect, result, DEFAULT_UFIX_VARIANCE), message: "Same-type linearization bug: expected ~\(expectedCorrect), got \(result).")
+}
 
 /* --- Parameterized runner --- */
 
@@ -357,3 +459,6 @@ fun runFundsAvailableAboveTargetHealthAfterDepositing(
     Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, DEFAULT_UFIX_VARIANCE),
         message: "Values are not equal within variance - expected: \(expectedAvailable), actual: \(actualAvailable)")
 }
+
+// TODO
+// - Test depositing withdraw type without pushing to sink, creating a Credit balance before testing
