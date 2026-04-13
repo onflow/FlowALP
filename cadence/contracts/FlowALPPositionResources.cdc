@@ -181,7 +181,7 @@ access(all) contract FlowALPPositionResources {
             type: Type,
             pushToDrawDownSink: Bool
         ): {DeFiActions.Sink} {
-            let pool = self.pool.borrow()!
+            let _pool = self.pool.borrow()!
             return PositionSink(
                 id: self.id,
                 pool: self.pool,
@@ -212,7 +212,7 @@ access(all) contract FlowALPPositionResources {
             type: Type,
             pullFromTopUpSource: Bool
         ): {DeFiActions.Source} {
-            let pool = self.pool.borrow()!
+            let _pool = self.pool.borrow()!
             return PositionSource(
                 id: self.id,
                 pool: self.pool,

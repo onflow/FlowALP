@@ -579,8 +579,8 @@ access(all) contract FlowALPModels {
             let newDebt = self.effectiveDebtByToken
 
             // Remove old entries for this token from both maps
-            newCollateral.remove(key: tokenType)
-            newDebt.remove(key: tokenType)
+            let _oldCollateral = newCollateral.remove(key: tokenType)
+            let _oldDebt = newDebt.remove(key: tokenType)
 
             // Add new entry based on direction (only if non-zero)
             if effectiveBalance.quantity > 0.0 {
