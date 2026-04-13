@@ -2159,6 +2159,5 @@ access(all) contract FlowALPv0 {
             <-create PoolFactory(),
             to: self.PoolFactoryPath
         )
-        let _factory = self.account.storage.borrow<&PoolFactory>(from: self.PoolFactoryPath)!
     }
 }
