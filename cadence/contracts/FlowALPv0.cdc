@@ -984,6 +984,11 @@ access(all) contract FlowALPv0 {
                 self._rebalancePositionNoLock(pid: id, force: true)
             }
 
+            // Create a capability to the Pool for the Position resource
+            // The Pool is stored in the FlowALPv0 contract account
+            let poolCap = FlowALPv0.account.capabilities.storage
+                .issue<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>(FlowALPv0.PoolStoragePath)
+
             // Create and return the Position resource
             let position <- FlowALPPositionResources.createPosition(id: id, pool: poolCap)
 
