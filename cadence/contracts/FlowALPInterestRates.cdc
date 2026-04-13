@@ -34,7 +34,10 @@ access(all) contract FlowALPInterestRates {
             self.yearlyRate = yearlyRate
         }
 
-        access(all) fun interestRate(creditBalance _: UFix128, debitBalance _1: UFix128): UFix128 {
+        access(all) fun interestRate(
+            creditBalance _creditBalance: UFix128,
+            debitBalance _debitBalance: UFix128
+        ): UFix128 {
             return self.yearlyRate
         }
     }
