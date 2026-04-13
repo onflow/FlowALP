@@ -204,7 +204,7 @@ The `test_helpers.cdc` file provides:
 3. **FLOW Debit Interest**
    - KinkCurve-based interest rates
    - Variable rates based on utilization
-   - Interest compounds continuously
+   - Interest compounds via discrete per-second updates
 
 4. **FLOW Credit Interest**
    - LP earnings with insurance spread

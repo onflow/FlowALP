@@ -316,6 +316,15 @@ access(all) fun test_supervisor_executed() {
 /// fixReschedule(uuid:) force-unwrapped borrowRebalancer(uuid)! which panicked on a stale UUID,
 /// reverting the whole executeTransaction and blocking recovery for all other rebalancers.
 access(all) fun test_supervisor_stale_uuid_does_not_panic() {
+    // Let the initial cron tick fire first (supervisor set is empty, so it does nothing
+    // except emit Executed). This avoids a race where the cron fires during the add/delete
+    // transactions below before the stale state is set up.
+    Test.moveTime(by: 100.0)
+    Test.commitBlock()
+
+    let initialExecutedEvts = Test.eventsOfType(Type<FlowALPSupervisorv1.Executed>())
+    Test.assert(initialExecutedEvts.length >= 1, message: "Initial cron tick should have fired")
+
     // Get the UUID of the paid rebalancer created during setup.
     let createdEvts = Test.eventsOfType(Type<FlowALPRebalancerv1.CreatedRebalancer>())
     Test.assertEqual(1, createdEvts.length)
@@ -328,14 +337,14 @@ access(all) fun test_supervisor_stale_uuid_does_not_panic() {
     // stale UUID in the Supervisor's paidRebalancers set, simulating the FLO-27 bug scenario.
     deletePaidRebalancer(signer: userAccount, paidRebalancerStoragePath: paidRebalancerStoragePath)
 
-    // Advance time to trigger the Supervisor's scheduled tick.
+    // Advance time to trigger the next Supervisor tick.
     Test.moveTime(by: 60.0 * 60.0)
     Test.commitBlock()
 
     // The Supervisor must have executed without panicking. If fixReschedule force-unwrapped
     // the missing rebalancer the entire transaction would revert and Executed would not be emitted.
     let executedEvts = Test.eventsOfType(Type<FlowALPSupervisorv1.Executed>())
-    Test.assert(executedEvts.length >= 1, message: "Supervisor should have executed at least 1 time")
+    Test.assert(executedEvts.length >= 2, message: "Supervisor should have executed at least 2 times (initial + stale prune)")
 
     // The stale UUID must have been pruned from the Supervisor's set.
     let removedEvts = Test.eventsOfType(Type<FlowALPSupervisorv1.RemovedPaidRebalancer>())

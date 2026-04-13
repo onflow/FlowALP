@@ -4,6 +4,7 @@ import "FungibleTokenMetadataViews"
 import "DeFiActionsUtils"
 import "DeFiActions"
 import "FlowALPv0"
+import "FlowALPPositionResources"
 import "FlowALPModels"
 
 import "MOET"
@@ -15,17 +16,33 @@ import "FlowToken"
 ///
 /// AdversarialReentrancyConnectors
 ///
-/// This contract holds malicious DeFi connectors which implement a re-entrancy attack.
-/// When a user withdraws from their position, they can optionally pull from their configured top-up source to help fund the withdrawal.
-/// This contract implements a malicious source which attempts to withdraw from the same position again
-/// when it is asked to provide funds for the outer withdrawal.
-/// If unaccounted for, this could allow an attacker to withdraw more than their available balance from the shared Pool reserve.
+/// This contract holds malicious DeFi connectors which implement re-entrancy attacks.
+///
+/// VaultSourceHacked — malicious topUpSource.
+///   When the pool calls withdrawAvailable() during withdrawAndPull, the source
+///   immediately calls position.withdraw() on the same pid while the position
+///   lock is already held. This tests that the reentrancy guard blocks the
+///   inner call and reverts the entire transaction.
+///
+/// VaultSinkHacked — malicious drawDownSink.
+///   When the pool calls depositCapacity() during a rebalance/drawdown push,
+///   the sink immediately calls position.depositAndPush() on the same pid
+///   while the position lock is already held. This tests that the reentrancy
+///   guard blocks the inner call and reverts the entire transaction.
+///
+/// Both connectors share the LiveData resource to store the manager cap and
+/// pid needed for the re-entrant call.
 access(all) contract AdversarialReentrancyConnectors {
 
-    /// VaultSink
-    ///
-    /// A DeFiActions connector that deposits tokens into a Vault
-    ///
+    // =========================================================================
+    // VaultSinkHacked — malicious DeFiActions.Sink
+    //
+    // When depositCapacity() is called by the pool during a rebalance /
+    // drawdown push, this sink attempts a re-entrant position.depositAndPush()
+    // on the same pid while the position lock is held.
+    // Expected result: lockPosition panics with "Reentrancy: position X is locked"
+    // and the entire outer transaction reverts.
+    // =========================================================================
     access(all) struct VaultSinkHacked : DeFiActions.Sink {
         /// The Vault Type accepted by the Sink
         access(all) let depositVaultType: Type
@@ -36,11 +53,13 @@ access(all) contract AdversarialReentrancyConnectors {
         access(contract) var uniqueID: DeFiActions.UniqueIdentifier?
         /// An unentitled Capability on the Vault to which deposits are distributed
         access(self) let depositVault: Capability<&{FungibleToken.Vault}>
+        access(all) let liveDataCap: Capability<&LiveData>
 
         init(
             max: UFix64?,
             depositVault: Capability<&{FungibleToken.Vault}>,
-            uniqueID: DeFiActions.UniqueIdentifier?
+            uniqueID: DeFiActions.UniqueIdentifier?,
+            liveDataCap: Capability<&LiveData>
         ) {
             pre {
                 depositVault.check(): "Provided invalid Capability"
@@ -53,6 +72,7 @@ access(all) contract AdversarialReentrancyConnectors {
             self.uniqueID = uniqueID
             self.depositVaultType = depositVault.borrow()!.getType()
             self.depositVault = depositVault
+            self.liveDataCap = liveDataCap
         }
 
         /// Returns a ComponentInfo struct containing information about this VaultSink and its inner DFA components
@@ -96,6 +116,25 @@ access(all) contract AdversarialReentrancyConnectors {
         }
         /// Deposits up to the Sink's capacity from the provided Vault
         access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
+            log("VaultSinkHacked.depositCapacity called with balance: \(from.balance)")
+            log("liveDataCap valid: \(self.liveDataCap.check())")
+
+            let liveData = self.liveDataCap.borrow() ?? panic("cant borrow LiveData")
+            let manager  = liveData.positionManagerCap!.borrow() ?? panic("cant borrow PositionManager")
+            let position = manager.borrowAuthorizedPosition(pid: liveData.recursivePositionID!)
+
+            // Attempt re-entrant deposit via Position — must fail due to position lock.
+            // We create a small empty MOET vault as the re-entrant deposit payload.
+            // The point is not the vault contents but the call itself hitting the lock.
+            let reentrantVault <- MOET.createEmptyVault(vaultType: Type<@MOET.Vault>())
+            log("Attempting re-entrant depositAndPush (should not succeed)")
+            position.depositAndPush(
+                from: <-reentrantVault,
+                pushToDrawDownSink: false
+            )
+            log("Re-entrant depositAndPush succeeded (should not reach here)")
+
+            // Normal sink behaviour
             let minimumCapacity = self.minimumCapacity()
             if !self.depositVault.check() || minimumCapacity == 0.0 {
                 return
@@ -106,28 +145,42 @@ access(all) contract AdversarialReentrancyConnectors {
         }
     }
 
+    // =========================================================================
+    // LiveData — shared mutable resource used by both hacked connectors.
+    // Stores the PositionManager capability and target pid, injected after
+    // position creation via setRecursivePosition().
+    // =========================================================================
     access(all) resource LiveData {
-        /// Optional: Pool capability for recursive withdrawAndPull call
-        access(all) var recursivePool: Capability<auth(FlowALPModels.EPosition) &FlowALPv0.Pool>?
-        /// Optional: Position ID for recursive withdrawAndPull call
+        /// Capability to the attacker's PositionManager for the recursive call
+        access(all) var positionManagerCap: Capability<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>?
+        /// Position ID targeted by the recursive call
         access(all) var recursivePositionID: UInt64?
 
-        init() { self.recursivePositionID = nil; self.recursivePool = nil }
-        access(all) fun setRecursivePool(_ pool: Capability<auth(FlowALPModels.EPosition) &FlowALPv0.Pool>) {
-            self.recursivePool = pool
+        init() {
+            self.recursivePositionID = nil
+            self.positionManagerCap = nil
         }
-        access(all) fun setRecursivePositionID(_ positionID: UInt64) {
-            self.recursivePositionID = positionID
+        access(all) fun setRecursivePosition(
+            managerCap: Capability<auth(FungibleToken.Withdraw, FlowALPModels.EPositionAdmin) &FlowALPPositionResources.PositionManager>,
+            pid: UInt64
+        ) {
+            self.positionManagerCap = managerCap
+            self.recursivePositionID = pid
         }
     }
     access(all) fun createLiveData(): @LiveData {
         return <- create LiveData()
     }
 
-    /// VaultSource
-    ///
-    /// A DeFiActions connector that withdraws tokens from a Vault
-    ///
+    // =========================================================================
+    // VaultSourceHacked — malicious DeFiActions.Source
+    //
+    // When withdrawAvailable() is called by the pool during withdrawAndPull,
+    // this source attempts a re-entrant position.withdraw() on the same pid
+    // while the position lock is held.
+    // Expected result: lockPosition panics with "Reentrancy: position X is locked"
+    // and the entire outer transaction reverts.
+    // =========================================================================
     access(all) struct VaultSourceHacked : DeFiActions.Source {
         /// Returns the Vault type provided by this Source
         access(all) let withdrawVaultType: Type
@@ -202,35 +255,26 @@ access(all) contract AdversarialReentrancyConnectors {
         /// returned
         access(FungibleToken.Withdraw) fun withdrawAvailable(maxAmount: UFix64): @{FungibleToken.Vault} {
             // If recursive withdrawAndPull is configured, call it first
-            log("VaultSource.withdrawAvailable called with maxAmount: \(maxAmount)")
-            log("=====Recursive pool: \(self.liveDataCap.check())")
+            log("VaultSourceHacked.withdrawAvailable called with maxAmount: \(maxAmount)")
+            log("=====Recursive position manager: \(self.liveDataCap.check())")
             let liveData = self.liveDataCap.borrow() ?? panic("cant borrow LiveData")
-            let poolRef = liveData.recursivePool!.borrow() ?? panic("cant borrow Recursive pool is nil")
-            // Call withdrawAndPull on the position
-            let recursiveVault <- poolRef.withdrawAndPull(
-                pid: liveData.recursivePositionID!,
-                // type: Type<@MOET.Vault>(),
+            let manager = liveData.positionManagerCap!.borrow() ?? panic("cant borrow PositionManager")
+            let position = manager.borrowAuthorizedPosition(pid: liveData.recursivePositionID!)
+            // Attempt reentrant withdrawal via Position (should fail due to position lock)
+            let recursiveVault <- position.withdraw(
                 type: Type<@FlowToken.Vault>(),
-                // type: tokenType,
-                amount: 900.0,
-                pullFromTopUpSource: false
+                amount: 900.0
             )
-            log("Recursive withdrawAndPull returned vault with balance: \(recursiveVault.balance)")
-            // If we got funds from the recursive call, return them
-            if recursiveVault.balance > 0.0 {
-                return <-recursiveVault
-            }
-            // Otherwise, destroy the empty vault and continue with normal withdrawal
+            log("Recursive withdraw succeeded with balance: \(recursiveVault.balance) (should not reach here)")
             destroy recursiveVault
 
-            
             // Normal vault withdrawal
             let available = self.minimumAvailable()
             if !self.withdrawVault.check() || available == 0.0 || maxAmount == 0.0 {
                 panic("Withdraw vault check failed")
             }
             // take the lesser between the available and maximum requested amount
-            let withdrawalAmount = available <= maxAmount ? available : maxAmount;
+            let withdrawalAmount = available <= maxAmount ? available : maxAmount
             return <- self.withdrawVault.borrow()!.withdraw(amount: withdrawalAmount)
         }
     }

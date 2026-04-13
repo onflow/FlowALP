@@ -179,7 +179,7 @@ FlowALP/
 
 - `FungibleToken.Vault`: Standard token operations
 - `DeFiActions.Sink/Source`: DeFi protocol composability
-- Entitlements: `FlowALPv0.EParticipant`, `FlowALPv0.EPosition`, `FlowALPv0.EGovernance`, `FlowALPv0.ERebalance`
+- Entitlements: `FlowALPModels.EParticipant`, `FlowALPModels.EPosition`, `FlowALPModels.EGovernance`, `FlowALPModels.ERebalance`
 
 ## 🛠️ Development
 

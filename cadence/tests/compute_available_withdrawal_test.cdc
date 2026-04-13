@@ -86,7 +86,7 @@ fun test_atTargetHealth_nothingAvailable() {
         depositAmount: 0.0,
         beFailed: false
     )
-    Test.assert(equalWithinVariance(0.0, availableMOET),
+    Test.assert(equalWithinVariance(0.0, availableMOET, DEFAULT_UFIX_VARIANCE),
         message: "Expected 0 MOET available at target health, got \(availableMOET)")
 
     let availableFLOW = fundsAvailableAboveTargetHealthAfterDepositing(
@@ -97,7 +97,7 @@ fun test_atTargetHealth_nothingAvailable() {
         depositAmount: 0.0,
         beFailed: false
     )
-    Test.assert(equalWithinVariance(0.0, availableFLOW),
+    Test.assert(equalWithinVariance(0.0, availableFLOW, DEFAULT_UFIX_VARIANCE),
         message: "Expected 0 FLOW available at target health, got \(availableFLOW)")
 }
 
@@ -130,7 +130,7 @@ fun test_noCreditInWithdrawToken_zerodebt_fullBorrowCapacity() {
         depositAmount: 0.0,
         beFailed: false
     )
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable),
+    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, DEFAULT_UFIX_VARIANCE),
         message: "Expected \(expectedAvailable) MOET available (zero-debt full capacity), got \(actualAvailable)")
 }
 
@@ -158,7 +158,7 @@ fun test_creditInWithdrawToken_partialCollateralOnly() {
 
     // Confirm the borrow happened and health is at target
     let healthAtCreation = getPositionHealth(pid: pid, beFailed: false)
-    Test.assert(equalWithinVariance(UFix64(INT_TARGET_HEALTH), UFix64(healthAtCreation)),
+    Test.assert(equalWithinVariance(UFix64(INT_TARGET_HEALTH), UFix64(healthAtCreation), DEFAULT_UFIX_VARIANCE),
         message: "Expected health ≈ 1.3 after creation with push, got \(healthAtCreation)")
 
     // Increase FLOW price to 2.0 → more headroom above target
@@ -180,7 +180,7 @@ fun test_creditInWithdrawToken_partialCollateralOnly() {
         depositAmount: 0.0,
         beFailed: false
     )
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable),
+    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, DEFAULT_UFIX_VARIANCE),
         message: "Expected \(expectedAvailable) FLOW available (partial collateral withdrawal), got \(actualAvailable)")
 }
 
@@ -242,7 +242,7 @@ fun test_creditFlipsIntoDebt_availabilityExceedsCreditBalance() {
         depositAmount: 0.0,
         beFailed: false
     )
-    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable),
+    Test.assert(equalWithinVariance(expectedAvailable, actualAvailable, DEFAULT_UFIX_VARIANCE),
         message: "Expected \(expectedAvailable) FLOW available (credit→debt flip), got \(actualAvailable)")
 }
 

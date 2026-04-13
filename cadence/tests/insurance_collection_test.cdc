@@ -87,7 +87,12 @@ fun test_collectInsurance_zeroDebitBalance_returnsNil() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
 
     // configure insurance swapper (1:1 ratio)
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    let swapperResult = setInsuranceSwapper(
+        signer: PROTOCOL_ACCOUNT, 
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        priceRatio: 1.0,
+    )
     Test.expect(swapperResult, Test.beSucceeded())
 
     // verify initial insurance fund balance is 0
@@ -112,7 +117,7 @@ fun test_collectInsurance_zeroDebitBalance_returnsNil() {
 access(all)
 fun test_collectInsurance_insufficientReserves() {
     // configure insurance swapper (1:1 ratio)
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER, swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
     // set 90% annual debit rate
@@ -192,7 +197,12 @@ fun test_collectInsurance_tinyAmount_roundsToZero_returnsNil() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
 
     // configure insurance swapper with very low rate
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    let swapperResult = setInsuranceSwapper(
+        signer: PROTOCOL_ACCOUNT, 
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        priceRatio: 1.0,
+    )
     Test.expect(swapperResult, Test.beSucceeded())
 
     // set a very low insurance rate
@@ -242,7 +252,12 @@ fun test_collectInsurance_success_fullAmount() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
 
     // configure insurance swapper (1:1 ratio)
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    let swapperResult = setInsuranceSwapper(
+        signer: PROTOCOL_ACCOUNT, 
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        priceRatio: 1.0,
+    )
     Test.expect(swapperResult, Test.beSucceeded())
 
     // set 10% annual debit rate
@@ -328,10 +343,20 @@ fun test_collectInsurance_multipleTokens() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 20000.0, beFailed: false)
 
     // configure insurance swappers for both tokens (both swap to MOET at 1:1)
-    let moetSwapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    let moetSwapperResult = setInsuranceSwapper(
+        signer: PROTOCOL_ACCOUNT, 
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        priceRatio: 1.0,
+    )
     Test.expect(moetSwapperResult, Test.beSucceeded())
 
-    let flowSwapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    let flowSwapperResult = setInsuranceSwapper(
+        signer: PROTOCOL_ACCOUNT, 
+        swapperInTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        priceRatio: 1.0,
+    )
     Test.expect(flowSwapperResult, Test.beSucceeded())
 
     // set 10% annual debit rates
@@ -431,7 +456,12 @@ fun test_collectInsurance_dexOracleSlippageProtection() {
 
     // Oracle says FLOW = 1.0 MOET (already set in setup())
     // Configure insurance swapper with price ratio = 0.5 (50% deviation from oracle)
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, priceRatio: 0.5)
+    let swapperResult = setInsuranceSwapper(
+        signer: PROTOCOL_ACCOUNT, 
+        swapperInTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        priceRatio: 0.5,
+    )
     Test.expect(swapperResult, Test.beSucceeded())
 
     // set 10% annual debit rate and 10% insurance rate
@@ -451,7 +481,12 @@ fun test_collectInsurance_dexOracleSlippageProtection() {
     Test.assertEqual(0.0, balanceAfterFailure)
 
     // Now reconfigure swapper with price ratio = 1.0 (matches oracle, 0% deviation)
-    let swapperResult2 = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    let swapperResult2 = setInsuranceSwapper(
+        signer: PROTOCOL_ACCOUNT, 
+        swapperInTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        priceRatio: 1.0,
+    )
     Test.expect(swapperResult2, Test.beSucceeded())
 
     // collect insurance for FLOW - should SUCCEED now
@@ -472,7 +507,7 @@ fun test_collectInsurance_midPeriodRateChange() {
     // configure the protocol FLOW wallet and the insurance swapper
     setupMoetVault(PROTOCOL_ACCOUNT, beFailed: false)
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, swapperInTypeIdentifier: FLOW_TOKEN_IDENTIFIER, swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
     Test.expect(swapperResult, Test.beSucceeded())
 
     // set interest curve
@@ -536,16 +571,9 @@ fun test_collectInsurance_midPeriodRateChange() {
     let reservesAfterPhase1 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
     let collected_phase1 = reservesBefore_phase1 - reservesAfterPhase1
 
-    // NOTE:
-    // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
-    // The default variance is designed for deterministic math, but insurance collection
-    // depends on block timestamps, which can differ slightly between test runs.
-    // A larger, time-aware tolerance is required.
-    let tolerance = 0.00001
-    var diff = expectedCollectedInsuranceAmountAfterPhase1 > insuranceAfterPhase1
-        ? expectedCollectedInsuranceAmountAfterPhase1 - insuranceAfterPhase1
-        : insuranceAfterPhase1 - expectedCollectedInsuranceAmountAfterPhase1
-    Test.assert(diff < tolerance, message: "Insurance collected should be around \(expectedCollectedInsuranceAmountAfterPhase1) but current \(insuranceAfterPhase1)")
+    let expectedCollectedAmount = 6.472
+    Test.assert(equalWithinVariance(expectedCollectedInsuranceAmountAfterPhase1, insuranceAfterPhase1, 0.00001),
+        message: "Insurance collected should be around \(expectedCollectedInsuranceAmountAfterPhase1) but current \(insuranceAfterPhase1)")
     Test.assertEqual(collected_phase1, insuranceAfterPhase1)
 
     let reservesBefore_phase2 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
@@ -572,18 +600,10 @@ fun test_collectInsurance_midPeriodRateChange() {
     let insuranceAfterPhase2 = getInsuranceFundBalance()
     let reservesAfterPhase2 = getReserveBalance(vaultIdentifier: FLOW_TOKEN_IDENTIFIER)
 
-    // NOTE:
-    // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
-    // The default variance is designed for deterministic math, but insurance collection
-    // depends on block timestamps, which can differ slightly between test runs.
-    // A larger, time-aware tolerance is required.
     let expectedCollectedInsuranceAmount= expectedCollectedInsuranceAmountAfterPhase1 + expectedCollectedInsuranceAmountAfterPhase2 // 5.25854589 + 10.51709179
-    diff = expectedCollectedInsuranceAmount > insuranceAfterPhase2
-        ? expectedCollectedInsuranceAmount - insuranceAfterPhase2
-        : insuranceAfterPhase2 - expectedCollectedInsuranceAmount
-
-    Test.assert(diff < tolerance, message: "Insurance collected should be around \(expectedCollectedInsuranceAmount) but current \(insuranceAfterPhase2)")
-
+    Test.assert(equalWithinVariance(expectedCollectedInsuranceAmount, insuranceAfterPhase2, 0.00001),
+        message: "Insurance collected should be around \(expectedCollectedInsuranceAmount) but current \(insuranceAfterPhase2)")
+    
     // acumulative insurance fund must equal sum of both collections
     let collected_phase2 = reservesBefore_phase2 - reservesAfterPhase2
     Test.assertEqual(insuranceAfterPhase2, insuranceAfterPhase1 + collected_phase2)

@@ -2,6 +2,7 @@ import Test
 import "FlowALPv0"
 import "FlowALPModels"
 import "FlowALPEvents"
+import "DeFiActions"
 import "MOET"
 
 /* --- Global test constants --- */
@@ -9,6 +10,7 @@ import "MOET"
 access(all) let MOET_TOKEN_IDENTIFIER = "A.0000000000000007.MOET.Vault"
 access(all) let FLOW_TOKEN_IDENTIFIER = "A.0000000000000003.FlowToken.Vault"
 access(all) let FLOW_VAULT_STORAGE_PATH = /storage/flowTokenVault
+access(all) let FLOW_VAULT_PUBLIC_PATH = /public/flowTokenReceiver
 
 access(all) let PROTOCOL_ACCOUNT = Test.getAccount(0x0000000000000007)
 access(all) let NON_ADMIN_ACCOUNT = Test.getAccount(0x0000000000000008)
@@ -54,7 +56,7 @@ access(all) let MAINNET_PROTOCOL_ACCOUNT_ADDRESS: Address = 0x6b00ff876c299c61
 access(all) let MAINNET_USDF_HOLDER_ADDRESS: Address = 0xf18b50870aed46ad
 access(all) let MAINNET_WETH_HOLDER_ADDRESS: Address = 0xf62e3381a164f993
 access(all) let MAINNET_WBTC_HOLDER_ADDRESS: Address = 0x47f544294e3b7656
-access(all) let MAINNET_FLOW_HOLDER_ADDRESS: Address = 0xe467b9dd11fa00df
+access(all) let MAINNET_FLOW_HOLDER_ADDRESS: Address = 0x92674150c9213fc9
 access(all) let MAINNET_USDC_HOLDER_ADDRESS: Address = 0xec6119051f7adc31
 
 /* --- Test execution helpers --- */
@@ -80,7 +82,7 @@ access(all)
 fun grantBetaPoolParticipantAccess(_ admin: Test.TestAccount, _ grantee: Test.TestAccount) {
     let signers = admin.address == grantee.address ? [admin] : [admin, grantee]
     let betaTxn = Test.Transaction(
-        code: Test.readFile("./transactions/flow-alp/pool-management/03_grant_beta.cdc"),
+        code: Test.readFile("./transactions/flow-alp/setup/grant_beta_cap.cdc"),
         authorizers: [admin.address, grantee.address],
         signers: signers,
         arguments: []
@@ -458,12 +460,33 @@ fun getIsLiquidatable(pid: UInt64): Bool {
     return res.returnValue as! Bool
 }
 
+access(all)
+fun getPositionMinHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_min_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun getPositionMaxHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_max_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
+access(all)
+fun getPositionTargetHealth(positionOwner: Address, pid: UInt64): UFix64 {
+    let res = _executeScript("../scripts/flow-alp/position_target_health.cdc", [positionOwner, pid])
+    Test.expect(res, Test.beSucceeded())
+    return res.returnValue as! UFix64
+}
+
 /* --- Transaction Helpers --- */
 
 access(all)
 fun createAndStorePool(signer: Test.TestAccount, defaultTokenIdentifier: String, beFailed: Bool) {
     let createRes = _executeTransaction(
-        "transactions/flow-alp/pool-factory/create_and_store_pool.cdc",
+        "./transactions/flow-alp/setup/create_and_store_pool.cdc",
         [defaultTokenIdentifier],
         signer
     )
@@ -617,7 +640,7 @@ fun setPoolPauseState(
     pause: Bool
 ): Test.TransactionResult {
     return _executeTransaction(
-        "./transactions/flow-alp/pool-governance/set_pool_paused.cdc",
+        "./transactions/flow-alp/egovernance/set_pool_paused.cdc",
         [pause],
         signer
     )
@@ -680,13 +703,13 @@ fun borrowFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeId
 }
 
 access(all)
-fun withdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, amount: UFix64, pullFromTopUpSource: Bool) {
+fun withdrawFromPosition(signer: Test.TestAccount, positionId: UInt64, tokenTypeIdentifier: String, receiverVaultStoragePath: StoragePath, amount: UFix64, pullFromTopUpSource: Bool): Test.TransactionResult{
     let withdrawRes = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [positionId, tokenTypeIdentifier, amount, pullFromTopUpSource],
+        "./transactions/flow-alp/epositionadmin/withdraw_from_position.cdc",
+        [positionId, tokenTypeIdentifier, receiverVaultStoragePath, amount, pullFromTopUpSource],
         signer
     )
-    Test.expect(withdrawRes, Test.beSucceeded())
+    return withdrawRes
 }
 
 access(all)
@@ -758,12 +781,13 @@ fun setInsuranceRate(
 access(all)
 fun setInsuranceSwapper(
     signer: Test.TestAccount,
-    tokenTypeIdentifier: String,
+    swapperInTypeIdentifier: String,
+    swapperOutTypeIdentifier: String,
     priceRatio: UFix64,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-alp/pool-governance/set_insurance_swapper_mock.cdc",
-        [ tokenTypeIdentifier, priceRatio, tokenTypeIdentifier, MOET_TOKEN_IDENTIFIER],
+        "./transactions/flow-alp/egovernance/set_insurance_swapper_mock.cdc",
+        [ swapperInTypeIdentifier, priceRatio, swapperInTypeIdentifier, swapperOutTypeIdentifier],
         signer
     )
     return res
@@ -775,7 +799,7 @@ fun removeInsuranceSwapper(
     tokenTypeIdentifier: String,
 ): Test.TransactionResult {
     let res = _executeTransaction(
-        "./transactions/flow-alp/pool-governance/remove_insurance_swapper.cdc",
+        "./transactions/flow-alp/egovernance/remove_insurance_swapper.cdc",
         [ tokenTypeIdentifier],
         signer
     )
@@ -844,13 +868,21 @@ fun withdrawStabilityFund(
 }
 
 access(all)
-fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool, beFailed: Bool) {
-    let rebalanceRes = _executeTransaction(
+fun rebalancePosition(signer: Test.TestAccount, pid: UInt64, force: Bool): Test.TransactionResult {
+    return _executeTransaction(
         "../transactions/flow-alp/pool-management/rebalance_position.cdc",
         [ pid, force ],
         signer
     )
-    Test.expect(rebalanceRes, beFailed ? Test.beFailed() : Test.beSucceeded())
+}
+
+access(all)
+fun setDrawDownSink(signer: Test.TestAccount, pid: UInt64, sink: {DeFiActions.Sink}?): Test.TransactionResult {
+    return _executeTransaction(
+        "./transactions/position-manager/set_draw_down_sink.cdc",
+        [ pid, sink ],
+        signer
+    )
 }
 
 access(all)
@@ -868,6 +900,73 @@ fun manualLiquidation(
         signer
     )
 }
+
+access(all)
+fun liquidateViaMockDex(
+    signer: Test.TestAccount,
+    pid: UInt64,
+    debtVaultIdentifier: String,
+    seizeVaultIdentifier: String,
+    seizeAmount: UFix64,
+    repayAmount: UFix64,
+): Test.TransactionResult {
+    return _executeTransaction(
+        "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
+        [[pid], debtVaultIdentifier, [seizeVaultIdentifier], [seizeAmount], [repayAmount]],
+        signer
+    )
+}
+
+/// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
+/// The liquidator must hold sufficient debt tokens upfront.
+access(all) fun batchManualLiquidation(
+    pids: [UInt64],
+    debtVaultIdentifier: String,
+    seizeVaultIdentifiers: [String],
+    seizeAmounts: [UFix64],
+    repayAmounts: [UFix64],
+    signer: Test.TestAccount
+) {
+    let res = _executeTransaction(
+        "./transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
+        [pids, debtVaultIdentifier, seizeVaultIdentifiers, seizeAmounts, repayAmounts],
+        signer
+    )
+    Test.expect(res, Test.beSucceeded())
+}
+
+/// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
+/// chunkSize to stay within the computation limit.
+access(all) fun batchLiquidateViaMockDex(
+    pids: [UInt64],
+    debtVaultIdentifier: String,
+    seizeVaultIdentifiers: [String],
+    seizeAmounts: [UFix64],
+    repayAmounts: [UFix64],
+    chunkSize: Int,
+    signer: Test.TestAccount
+) {
+    let total = pids.length
+    let numChunks = (total + chunkSize - 1) / chunkSize
+    for i in InclusiveRange(0, numChunks - 1) {
+        let startIdx = i * chunkSize
+        var endIdx = startIdx + chunkSize
+        if endIdx > total {
+            endIdx = total
+        }
+        let res = _executeTransaction(
+            "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
+            [pids.slice(from: startIdx, upTo: endIdx),
+                debtVaultIdentifier,
+                seizeVaultIdentifiers.slice(from: startIdx, upTo: endIdx),
+                seizeAmounts.slice(from: startIdx, upTo: endIdx),
+                repayAmounts.slice(from: startIdx, upTo: endIdx)],
+            signer
+        )
+        Test.expect(res, Test.beSucceeded())
+    }
+}
+
 
 access(all)
 fun setupMoetVault(_ signer: Test.TestAccount, beFailed: Bool) {
@@ -951,56 +1050,6 @@ fun transferTokensWithSetup(tokenIdentifier: String, from: Test.TestAccount, to:
     transferFungibleTokens(tokenIdentifier: tokenIdentifier, from: from, to: to, amount: amount)
 }
 
-/// Batch-liquidate positions using the liquidator's own tokens as repayment (no DEX).
-/// The liquidator must hold sufficient debt tokens upfront.
-access(all) fun batchManualLiquidation(
-    pids: [UInt64],
-    debtVaultIdentifier: String,
-    seizeVaultIdentifiers: [String],
-    seizeAmounts: [UFix64],
-    repayAmounts: [UFix64],
-    signer: Test.TestAccount
-) {
-    let res = _executeTransaction(
-        "./transactions/flow-alp/pool-management/batch_manual_liquidation.cdc",
-        [pids, debtVaultIdentifier, seizeVaultIdentifiers, seizeAmounts, repayAmounts],
-        signer
-    )
-    Test.expect(res, Test.beSucceeded())
-}
-
-/// Batch-liquidate positions using MockDexSwapper as the repayment source in chunks of
-/// chunkSize to stay within the computation limit.
-access(all) fun batchLiquidateViaMockDex(
-    pids: [UInt64],
-    debtVaultIdentifier: String,
-    seizeVaultIdentifiers: [String],
-    seizeAmounts: [UFix64],
-    repayAmounts: [UFix64],
-    chunkSize: Int,
-    signer: Test.TestAccount
-) {
-    let total = pids.length
-    let numChunks = (total + chunkSize - 1) / chunkSize
-    for i in InclusiveRange(0, numChunks - 1) {
-        let startIdx = i * chunkSize
-        var endIdx = startIdx + chunkSize
-        if endIdx > total {
-            endIdx = total
-        }
-        let res = _executeTransaction(
-            "./transactions/flow-alp/pool-management/batch_liquidate_via_mock_dex.cdc",
-            [pids.slice(from: startIdx, upTo: endIdx),
-                debtVaultIdentifier,
-                seizeVaultIdentifiers.slice(from: startIdx, upTo: endIdx),
-                seizeAmounts.slice(from: startIdx, upTo: endIdx),
-                repayAmounts.slice(from: startIdx, upTo: endIdx)],
-            signer
-        )
-        Test.expect(res, Test.beSucceeded())
-    }
-}
-
 access(all)
 fun expectEvents(eventType: Type, expectedCount: Int) {
     let events = Test.eventsOfType(eventType)
@@ -1024,30 +1073,49 @@ fun withdrawReserve(
     Test.expect(txRes, beFailed ? Test.beFailed() : Test.beSucceeded())
 }
 
-/* --- Assertion Helpers --- */
-
-access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct): Bool {
-    let expectedType = expected.getType()
-    let actualType = actual.getType()
-    if expectedType == Type<UFix64>() && actualType == Type<UFix64>() {
-        return ufixEqualWithinVariance(expected as! UFix64, actual as! UFix64)
-    } else if expectedType == Type<UFix128>() && actualType == Type<UFix128>() {
-        return ufix128EqualWithinVariance(expected as! UFix128, actual as! UFix128)
-    }
-    panic("Expected and actual types do not match - expected: \(expectedType.identifier), actual: \(actualType.identifier)")
+/// Drains the async update queue so all queued positions are processed.
+access(all)
+fun asyncUpdate(): Test.TransactionResult {
+    return _executeTransaction(
+        "./transactions/flow-alp/pool-management/process_update_queue.cdc",
+        [],
+        PROTOCOL_ACCOUNT
+    )
 }
 
-access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64): Bool {
+/* --- Assertion Helpers --- */
+
+access(all) fun equalWithinVariance(_ expected: AnyStruct, _ actual: AnyStruct, _ variance: AnyStruct): Bool {
+    // Try UFix64 first
+    if let e = expected as? UFix64 {
+        if let a = actual as? UFix64 {
+            if let v = variance as? UFix64 {
+                return ufixEqualWithinVariance(e, a, v)
+            }
+        }
+    }
+    // Try UFix128
+    if let e = expected as? UFix128 {
+        if let a = actual as? UFix128 {
+            if let v = variance as? UFix128 {
+                return ufix128EqualWithinVariance(e, a, v)
+            }
+        }
+    }
+    panic("Expected and actual types do not match or are unsupported types")
+}
+
+access(all) fun ufixEqualWithinVariance(_ expected: UFix64, _ actual: UFix64, _ variance: UFix64): Bool {
     // return true if expected is within DEFAULT_UFIX_VARIANCE of actual, false otherwise and protect for underflow`
     let diff = Fix64(expected) - Fix64(actual)
     // take the absolute value of the difference without relying on .abs()
     let absDiff: UFix64 = diff < 0.0 ? UFix64(-1.0 * diff) : UFix64(diff)
-    return absDiff <= DEFAULT_UFIX_VARIANCE
+    return absDiff <= variance
 }
 
-access(all) fun ufix128EqualWithinVariance(_ expected: UFix128, _ actual: UFix128): Bool {
+access(all) fun ufix128EqualWithinVariance(_ expected: UFix128, _ actual: UFix128, _ variance: UFix128): Bool {
     let absDiff: UFix128 = expected >= actual ? expected - actual : actual - expected
-    return absDiff <= DEFAULT_UFIX128_VARIANCE
+    return absDiff <= variance
 }
 
 /* --- Balance & Timestamp Helpers --- */
@@ -1079,10 +1147,14 @@ fun getCreditBalanceForType(details: FlowALPModels.PositionDetails, vaultType: T
     return 0.0
 }
 
-access(all) fun getLastPositionId(): UInt64  {
+access(all)
+fun getLastPositionId(): UInt64 {
     var openEvents = Test.eventsOfType(Type<FlowALPEvents.Opened>())
-    let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
-    return pid
+    if openEvents.length > 0 {
+        let pid = (openEvents[openEvents.length - 1] as! FlowALPEvents.Opened).pid
+        return pid
+    }
+    return 0
 }
 
 access(all)

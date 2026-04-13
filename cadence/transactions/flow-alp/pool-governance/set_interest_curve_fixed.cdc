@@ -3,7 +3,7 @@ import "FlowALPModels"
 import "FlowALPInterestRates"
 
 /// Updates the interest curve for an existing supported token to a FixedCurve.
-/// This sets a constant yearly interest rate regardless of utilization.
+/// This sets a constant nominal yearly interest rate regardless of utilization.
 ///
 transaction(
     tokenTypeIdentifier: String,

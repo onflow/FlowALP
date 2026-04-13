@@ -64,13 +64,14 @@ fun testPositionLifecycleHappyPath() {
     // With 1000 Flow at 0.8 collateral factor = 800 effective collateral
     // Target health 1.3 means: effective debt = 800 / 1.3 ≈ 615.38
     let expectedBorrowAmount = 615.38461538
-    Test.assert(balanceAfterBorrow >= expectedBorrowAmount - 0.01 && 
-                balanceAfterBorrow <= expectedBorrowAmount + 0.01,
-                message: "Expected MOET balance to be ~615.38, but got ".concat(balanceAfterBorrow.toString()))
+    Test.assert(
+        equalWithinVariance(expectedBorrowAmount, balanceAfterBorrow, 0.01),
+        message: "Expected MOET balance to be ~\(expectedBorrowAmount), but got \(balanceAfterBorrow.toString())",
+    )
 
     // Check Flow balance before repayment
     let flowBalanceBefore = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-    log("Flow balance BEFORE repay: ".concat(flowBalanceBefore.toString()))
+    log("Flow balance BEFORE repay: \(flowBalanceBefore.toString())")
 
     // repay MOET and close position
     // The first position created has ID 0
@@ -87,6 +88,6 @@ fun testPositionLifecycleHappyPath() {
     Test.assertEqual(0.0, balanceAfterRepay)
 
     let flowBalanceAfter = getBalance(address: user.address, vaultPublicPath: /public/flowTokenReceiver)!
-    log("Flow balance after repay: ".concat(flowBalanceAfter.toString()).concat(" - Collateral successfully returned!"))
+    log("Flow balance after repay: \(flowBalanceAfter.toString()) - Collateral successfully returned!")
     Test.assert(flowBalanceAfter >= 999.99)  // allow tiny rounding diff
 } 

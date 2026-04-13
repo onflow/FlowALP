@@ -87,7 +87,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
     // assert expected starting point
     startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
     let expectedStartingDebt = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / TARGET_HEALTH
-    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
+    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt, DEFAULT_UFIX_VARIANCE),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
     var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
@@ -102,7 +102,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromHealthy() {
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
 
     let health = getPositionHealth(pid: positionID, beFailed: false)
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health),
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, health, DEFAULT_UFIX128_VARIANCE),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(health)")
 
     log("[TEST] FLOW price set to \(flowStartPrice)")
@@ -283,7 +283,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     // assert expected starting point
     startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
     let expectedStartingDebt = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / TARGET_HEALTH
-    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
+    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt, DEFAULT_UFIX_VARIANCE),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
     var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
@@ -298,7 +298,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromOvercollateraliz
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
 
     let actualHealthBeforePriceIncrease = getPositionHealth(pid: positionID, beFailed: false)
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, actualHealthBeforePriceIncrease),
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, actualHealthBeforePriceIncrease, DEFAULT_UFIX128_VARIANCE),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(actualHealthBeforePriceIncrease)")
 
     let priceIncrease = 0.25
@@ -438,7 +438,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     // assert expected starting point
     startingDebt = getBalance(address: userAccount.address, vaultPublicPath: MOET.VaultPublicPath)!
     let expectedStartingDebt = (positionFundingAmount * flowCollateralFactor * flowStartPrice) / TARGET_HEALTH
-    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt),
+    Test.assert(equalWithinVariance(expectedStartingDebt, startingDebt, DEFAULT_UFIX_VARIANCE),
         message: "Expected MOET balance to be ~\(expectedStartingDebt), but got \(startingDebt)")
 
     var evts = Test.eventsOfType(Type<FlowALPEvents.Opened>())
@@ -453,7 +453,7 @@ fun testFundsRequiredForTargetHealthAfterWithdrawingWithPushFromUndercollaterali
     Test.assertEqual(rebalancedEvt.amount, startingDebt)
 
     let actualHealthBeforePriceIncrease = getPositionHealth(pid: positionID, beFailed: false)
-    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, actualHealthBeforePriceIncrease),
+    Test.assert(equalWithinVariance(INT_TARGET_HEALTH, actualHealthBeforePriceIncrease, DEFAULT_UFIX128_VARIANCE),
         message: "Expected health to be \(INT_TARGET_HEALTH), but got \(actualHealthBeforePriceIncrease)")
 
     let priceDecrease = 0.25
@@ -557,6 +557,6 @@ fun runFundsRequiredForTargetHealthAfterWithdrawing(
     log("[TEST] Withdrawing: \(withdrawAmount)")
     log("[TEST] Expected Required: \(ufixExpectedRequired)")
     log("[TEST] Actual Required: \(actualRequired)")
-    Test.assert(equalWithinVariance(ufixExpectedRequired, actualRequired),
+    Test.assert(equalWithinVariance(ufixExpectedRequired, actualRequired, DEFAULT_UFIX_VARIANCE),
         message: "Expected required funds to be \(ufixExpectedRequired), but got \(actualRequired)")
 }

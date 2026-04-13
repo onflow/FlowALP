@@ -27,7 +27,7 @@ fun setup() {
 }
 
 // =============================================================================
-// FixedCurve Tests (Spread Model: creditRate = debitRate - insuranceRate)
+// FixedCurve Tests (Spread Model: creditRate = debitRate * (1 - protocolFeeRate))
 // =============================================================================
 
 access(all)

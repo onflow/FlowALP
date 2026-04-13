@@ -141,11 +141,11 @@ access(all) contract FlowALPEvents {
     )
 
     /// Emitted when the insurance rate for a token is updated by governance.
-    /// The insurance rate is an annual fraction of debit interest diverted to the insurance fund.
+    /// The insurance rate is a fee of accrued debit interest diverted to the insurance fund.
     ///
     /// @param poolUUID the UUID of the pool containing the token
     /// @param tokenType the type identifier string of the token whose rate changed
-    /// @param insuranceRate the new annual insurance rate (e.g. 0.001 for 0.1%)
+    /// @param insuranceRate the new insurance fee (e.g. 0.001 for 0.1%)
     access(all) event InsuranceRateUpdated(
         poolUUID: UInt64,
         tokenType: String,
@@ -167,11 +167,11 @@ access(all) contract FlowALPEvents {
     )
 
     /// Emitted when the stability fee rate for a token is updated by governance.
-    /// The stability fee rate is an annual fraction of debit interest diverted to the stability fund.
+    /// The stability fee rate is a fee of accrued debit interest diverted to the stability fund.
     ///
     /// @param poolUUID the UUID of the pool containing the token
     /// @param tokenType the type identifier string of the token whose rate changed
-    /// @param stabilityFeeRate the new annual stability fee rate (e.g. 0.05 for 5%)
+    /// @param stabilityFeeRate the new stability fee (e.g. 0.05 for 5%)
     access(all) event StabilityFeeRateUpdated(
         poolUUID: UInt64,
         tokenType: String,

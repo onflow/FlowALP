@@ -34,7 +34,8 @@ fun testRebalanceUndercollateralised() {
     // user setup
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
-    mintFlow(to: user, amount: 1_000.0)
+    let mintRes = mintFlow(to: user, amount: 1_000.0)
+    Test.expect(mintRes, Test.beSucceeded())
 
     // Grant beta access to user so they can create positions
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
@@ -58,14 +59,15 @@ fun testRebalanceUndercollateralised() {
     let availableAfterPriceChange = getAvailableBalance(pid: 0, vaultIdentifier: MOET_TOKEN_IDENTIFIER, pullFromTopUpSource: true, beFailed: false)
 
     // After a price drop, the position becomes less healthy so the amount that is safely withdrawable should drop.
-    Test.assert(availableAfterPriceChange < availableBeforePriceChange, message: "Expected available balance to decrease after price drop (before: ".concat(availableBeforePriceChange.toString()).concat(", after: ").concat(availableAfterPriceChange.toString()).concat(")"))
+    Test.assert(availableAfterPriceChange < availableBeforePriceChange, message: "Expected available balance to decrease after price drop (before: \(availableBeforePriceChange.toString()), after: \(availableAfterPriceChange.toString()))")
 
     // Record the user's MOET balance before any pay-down so we can verify that the protocol actually
     // pulled the funds from the user during rebalance.
     let userMoetBalanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     let healthAfterPriceChange = getPositionHealth(pid: 0, beFailed: false)
 
-    rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true, beFailed: false)
+    let rebalanceRes = rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true)
+    Test.expect(rebalanceRes,  Test.beSucceeded())
 
     let healthAfterRebalance = getPositionHealth(pid: 0, beFailed: false)
 
@@ -92,23 +94,25 @@ fun testRebalanceUndercollateralised() {
         }
     }
 
-    let tolerance: UFix64 = 0.5
-    Test.assert((actualDebt >= expectedDebt - tolerance) && (actualDebt <= expectedDebt + tolerance))
+    let tolerance= 0.5
+    Test.assert(equalWithinVariance(expectedDebt, actualDebt, tolerance))
 
     // Ensure the user's MOET Vault balance decreased by roughly requiredPaydown.
     let userMoetBalanceAfter = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     let paidDown = userMoetBalanceBefore - userMoetBalanceAfter
-    Test.assert(paidDown >= requiredPaydown - tolerance && paidDown <= requiredPaydown + tolerance,
-        message: "User should have contributed ~".concat(requiredPaydown.toString()).concat(" MOET toward pay-down but actually contributed ").concat(paidDown.toString()))
+    Test.assert(
+        equalWithinVariance(paidDown, requiredPaydown, tolerance),
+        message: "User should have contributed ~ \(requiredPaydown.toString()) MOET toward pay-down but actually contributed \(paidDown.toString())"
+    )
 
-    log("Health after price change: ".concat(healthAfterPriceChange.toString()))
-    log("Required paydown: ".concat(requiredPaydown.toString()))
-    log("Expected debt: ".concat(expectedDebt.toString()))
-    log("Actual debt: ".concat(actualDebt.toString()))
+    log("Health after price change: \(healthAfterPriceChange.toString())")
+    log("Required paydown: \(requiredPaydown.toString())")
+    log("Expected debt: \(expectedDebt.toString())")
+    log("Actual debt: \(actualDebt.toString())")
 
     // Ensure health is at least the minimum threshold (1.1)
     Test.assert(healthAfterRebalance >= INT_MIN_HEALTH,
-        message: "Health after rebalance should be at least the minimum \(INT_MIN_HEALTH) but was ".concat(healthAfterRebalance.toString()))
+        message: "Health after rebalance should be at least the minimum \(INT_MIN_HEALTH) but was \(healthAfterRebalance.toString())")
 }
 
 /// Verifies that rebalancing panics when the topUpSource cannot supply enough funds to
@@ -133,7 +137,8 @@ fun testRebalanceUndercollateralised_InsufficientTopUpSource() {
 
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
-    mintFlow(to: user, amount: 1_000.0)
+    let mintRes = mintFlow(to: user, amount: 1_000.0)
+    Test.expect(mintRes, Test.beSucceeded())
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
 
     // Open position: user deposits 1000 FLOW, receives ~615 MOET in their vault (topUpSource).
@@ -166,11 +171,7 @@ fun testRebalanceUndercollateralised_InsufficientTopUpSource() {
         message: "Position should be liquidatable after price crash")
 
     // Rebalance must panic: depositing 5 MOET cannot rescue the position.
-    let rebalanceRes = _executeTransaction(
-        "../transactions/flow-alp/pool-management/rebalance_position.cdc",
-        [ 0 as UInt64, true ],
-        PROTOCOL_ACCOUNT
-    )
+    let rebalanceRes = rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true)
     Test.expect(rebalanceRes, Test.beFailed())
     Test.assertError(rebalanceRes, errorMessage: "topUpSource insufficient to save position from liquidation")
 }

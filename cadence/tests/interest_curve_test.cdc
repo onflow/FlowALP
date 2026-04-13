@@ -18,7 +18,7 @@ fun setup() {
 
 access(all)
 fun test_FixedCurve_returns_constant_rate() {
-    // Create a fixed rate curve with 5% APY
+    // Create a fixed rate curve with a 5% nominal yearly rate
     let fixedRate: UFix128 = 0.05
     let curve = FlowALPInterestRates.FixedCurve(yearlyRate: fixedRate)
 
@@ -32,7 +32,7 @@ fun test_FixedCurve_returns_constant_rate() {
 
 access(all)
 fun test_FixedCurve_accepts_zero_rate() {
-    // Zero rate should be valid (0% APY)
+    // Zero rate should be valid (0% nominal yearly rate)
     let curve = FlowALPInterestRates.FixedCurve(yearlyRate: 0.0)
     let rate = curve.interestRate(creditBalance: 100.0, debitBalance: 50.0)
     Test.assertEqual(0.0 as UFix128, rate)

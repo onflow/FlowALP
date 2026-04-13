@@ -58,7 +58,12 @@ fun test_collectInsurance_success_fullAmount() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
 
     // configure insurance swapper (1:1 ratio)
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    let swapperResult = setInsuranceSwapper(
+        signer: PROTOCOL_ACCOUNT,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        priceRatio: 1.0,
+    )
     Test.expect(swapperResult, Test.beSucceeded())
 
     // set 10% annual debit rate
@@ -108,16 +113,7 @@ fun test_collectInsurance_success_fullAmount() {
     // With 10% annual debit rate over 1 year: debitIncome ≈ 615.38 * (1.10517091665 - 1) ≈ 64.72
     // Insurance = debitIncome * 0.1 ≈ 6.472 MOET
 
-    // NOTE:
-    // We intentionally do not use `equalWithinVariance` with `defaultUFixVariance` here.
-    // The default variance is designed for deterministic math, but insurance collection
-    // depends on block timestamps, which can differ slightly between test runs.
-    // A larger, time-aware tolerance is required.
-    let tolerance = 0.001
     let expectedCollectedAmount = 6.472
-    let diff = expectedCollectedAmount > collectedAmount 
-        ? expectedCollectedAmount - collectedAmount
-        : collectedAmount - expectedCollectedAmount
-
-    Test.assert(diff < tolerance, message: "Insurance collected should be around \(expectedCollectedAmount) but current \(collectedAmount)")
+    Test.assert(equalWithinVariance(expectedCollectedAmount, collectedAmount, 0.001),
+        message: "Insurance collected should be around \(expectedCollectedAmount) but current \(collectedAmount)")
 }
