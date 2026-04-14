@@ -1352,9 +1352,9 @@ access(all) contract FlowALPv0 {
             // Safety checks!
             self._assertPositionSatisfiesMinimumBalance(type: type, position: position, tokenSnapshot: tokenSnapshot)
 
-            // Post-withdrawal safety check: credited health must be >= minHealth.
-            // Uses withdrawal balance sheet instead of credited balance sheet
-            // to allow withdrawals from the deposit queue.
+            // Post-withdrawal safety check: hybrid health (credited + remaining queued of `type`)
+            // must be >= minHealth. Passing withdrawAmount: 0.0 because the queue and reserve
+            // have already been mutated above — we're asserting against the actual post-state.
             let postHealth = self._getWithdrawalBalanceSheet(pid: pid, withdrawType: type, withdrawAmount: 0.0).health
             if postHealth < position.getMinHealth() {
                 if self.config.isDebugLogging() {
