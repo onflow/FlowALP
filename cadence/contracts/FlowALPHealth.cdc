@@ -163,7 +163,7 @@ access(all) contract FlowALPHealth {
         initial: FlowALPModels.Balance,
         target: FlowALPModels.Balance
     ): UFix128 {
-        let Credit = FlowALPModels.BalanceDirection.Credit 
+        let Credit = FlowALPModels.BalanceDirection.Credit
         let Debit = FlowALPModels.BalanceDirection.Debit
 
         if target.direction == Credit && initial.direction == Credit {
@@ -194,7 +194,7 @@ access(all) contract FlowALPHealth {
         initial: FlowALPModels.Balance,
         target: FlowALPModels.Balance
     ): UFix128 {
-        let Credit = FlowALPModels.BalanceDirection.Credit 
+        let Credit = FlowALPModels.BalanceDirection.Credit
         let Debit = FlowALPModels.BalanceDirection.Debit
 
         if target.direction == Debit && initial.direction == Debit {

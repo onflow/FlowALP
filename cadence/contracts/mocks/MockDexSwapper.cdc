@@ -46,7 +46,7 @@ access(all) contract MockDexSwapper {
     /// Panics if no swapper for the given pair exists.
     access(all) fun removeMockDEXSwapperForPair(inType: Type, outType: Type) {
         let swappersForInTypeRef = &self.swappers[inType]! as auth(Mutate) &{Type: Swapper}
-        swappersForInTypeRef.remove(key: outType)
+        let _ = swappersForInTypeRef.remove(key: outType)
     }
 
     access(all) struct BasicQuote : DeFiActions.Quote {
@@ -117,7 +117,7 @@ access(all) contract MockDexSwapper {
             return <- src.withdraw(amount: outAmt)
         }
 
-        access(all) fun swapBack(quote: {DeFiActions.Quote}?, residual: @{FungibleToken.Vault}): @{FungibleToken.Vault} {
+        access(all) fun swapBack(quote _: {DeFiActions.Quote}?, residual: @{FungibleToken.Vault}): @{FungibleToken.Vault} {
             // Not needed in tests; burn residual and panic to surface misuse
             Burner.burn(<-residual)
             panic("MockSwapper.swapBack() not implemented")

@@ -22,7 +22,7 @@ access(all) contract DummyConnectors {
             return UFix64.max
         }
 
-        access(all) fun depositCapacity(from: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
+        access(all) fun depositCapacity(from _: auth(FungibleToken.Withdraw) &{FungibleToken.Vault}) {
             // no-op
         }
 

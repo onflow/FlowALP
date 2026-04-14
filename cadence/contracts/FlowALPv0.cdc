@@ -865,7 +865,7 @@ access(all) contract FlowALPv0 {
         /// the target health, given pre-adjusted effective collateral and debt values.
         ///
         /// @param position The position reference.
-        /// @param initialBalanceSheet The position's current balance sheet 
+        /// @param initialBalanceSheet The position's current balance sheet
         /// @param targetHealth The minimum health to maintain after withdrawal.
         /// @return The maximum withdrawable amount of withdrawType.
         access(self) fun computeAvailableWithdrawal(
@@ -971,7 +971,6 @@ access(all) contract FlowALPv0 {
 
             // assign issuance & repayment connectors within the InternalPosition
             let iPos = self._borrowPosition(pid: id)
-            let fundsType = funds.getType()
             iPos.setDrawDownSink(issuanceSink)
             if repaymentSource != nil {
                 iPos.setTopUpSource(repaymentSource)
@@ -987,12 +986,10 @@ access(all) contract FlowALPv0 {
 
             // Create a capability to the Pool for the Position resource
             // The Pool is stored in the FlowALPv0 contract account
-            let poolCap = FlowALPv0.account.capabilities.storage.issue<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>(
-                FlowALPv0.PoolStoragePath
-            )
+            let poolCap = FlowALPv0.account.capabilities.storage
+                .issue<auth(FlowALPModels.EPosition) &{FlowALPModels.PositionPool}>(FlowALPv0.PoolStoragePath)
 
             // Create and return the Position resource
-
             let position <- FlowALPPositionResources.createPosition(id: id, pool: poolCap)
 
             self.unlockPosition(id)
@@ -1214,7 +1211,7 @@ access(all) contract FlowALPv0 {
                         withdrawType: type,
                         withdrawAmount: amount
                     )
-                
+
                     let pulledVault <- topUpSource.withdrawAvailable(maxAmount: targetHealthDeposit)
                     assert(pulledVault.getType() == purportedTopUpType, message: "topUpSource returned unexpected token type")
                     self._depositEffectsOnly(
@@ -1302,7 +1299,7 @@ access(all) contract FlowALPv0 {
         /// Returns a mutable reference to the pool's configuration.
         /// Use this to update config fields that don't require events or side effects.
         access(FlowALPModels.EGovernance) fun borrowConfig(): auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolConfig} {
-            return &self.config as auth(FlowALPModels.EImplementation) &{FlowALPModels.PoolConfig}
+            return &self.config
         }
 
         /// Pauses the pool, temporarily preventing further withdrawals, deposits, and liquidations
@@ -1508,7 +1505,7 @@ access(all) contract FlowALPv0 {
 
             // Recalculate currentCreditRate for a given token to reflect the new stability rate
             tsRef.updateInterestRates()
-            
+
             FlowALPEvents.emitStabilityFeeRateUpdated(
                 poolUUID: self.uuid,
                 tokenType: tokenType.identifier,
@@ -1858,7 +1855,7 @@ access(all) contract FlowALPv0 {
             }
 
             if insuranceAmountUFix64 > reserveVault.balance {
-                // do not collect the insurance fee if the reserve doesn't have enough tokens to cover the full amount 
+                // do not collect the insurance fee if the reserve doesn't have enough tokens to cover the full amount
                 return nil
             }
 
@@ -1914,11 +1911,11 @@ access(all) contract FlowALPv0 {
             }
 
             if stabilityAmountUFix64 > reserveVault.balance {
-                // do not collect the stability fee if the reserve doesn't have enough tokens to cover the full amount 
+                // do not collect the stability fee if the reserve doesn't have enough tokens to cover the full amount
                 return nil
             }
 
-            let stabilityVault <- reserveVault.withdraw(amount: stabilityAmountUFix64)  
+            let stabilityVault <- reserveVault.withdraw(amount: stabilityAmountUFix64)
             tokenState.setLastStabilityFeeCollectionTime(currentTime)
             return <-stabilityVault
         }
@@ -2135,7 +2132,7 @@ access(all) contract FlowALPv0 {
             )
             FlowALPv0.account.storage.save(<-pool, to: FlowALPv0.PoolStoragePath)
             let cap = FlowALPv0.account.capabilities.storage.issue<&Pool>(FlowALPv0.PoolStoragePath)
-            FlowALPv0.account.capabilities.unpublish(FlowALPv0.PoolPublicPath)
+            let _ = FlowALPv0.account.capabilities.unpublish(FlowALPv0.PoolPublicPath)
             FlowALPv0.account.capabilities.publish(cap, at: FlowALPv0.PoolPublicPath)
         }
     }
@@ -2167,6 +2164,5 @@ access(all) contract FlowALPv0 {
             <-create PoolFactory(),
             to: self.PoolFactoryPath
         )
-        let factory = self.account.storage.borrow<&PoolFactory>(from: self.PoolFactoryPath)!
     }
 }

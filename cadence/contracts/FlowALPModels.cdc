@@ -579,8 +579,8 @@ access(all) contract FlowALPModels {
             let newDebt = self.effectiveDebtByToken
 
             // Remove old entries for this token from both maps
-            newCollateral.remove(key: tokenType)
-            newDebt.remove(key: tokenType)
+            let _oldCollateral = newCollateral.remove(key: tokenType)
+            let _oldDebt = newDebt.remove(key: tokenType)
 
             // Add new entry based on direction (only if non-zero)
             if effectiveBalance.quantity > 0.0 {
@@ -951,7 +951,7 @@ access(all) contract FlowALPModels {
         /// Gets a swapper from the DEX for the given token pair. See PoolConfig.getSwapperForLiquidation.
         access(all) fun getSwapperForLiquidation(seizeType: Type, debtType: Type): {DeFiActions.Swapper} {
             return self.dex.getSwapper(inType: seizeType, outType: debtType)
-                ?? panic("No DEX swapper configured for liquidation pair: ".concat(seizeType.identifier).concat(" -> ").concat(debtType.identifier))
+                ?? panic("No DEX swapper configured for liquidation pair: \(seizeType.identifier) -> \(debtType.identifier)")
         }
 
         // Setters
@@ -2202,7 +2202,7 @@ access(all) contract FlowALPModels {
 
         /// Returns an authorized reference to the draw-down sink, or nil if none is configured.
         access(EImplementation) fun borrowDrawDownSink(): auth(FungibleToken.Withdraw) &{DeFiActions.Sink}? {
-            return &self.drawDownSink as auth(FungibleToken.Withdraw) &{DeFiActions.Sink}?
+            return &self.drawDownSink
         }
 
         /// Sets the draw-down sink. Sink must accept MOET deposits, or be nil.
@@ -2218,7 +2218,7 @@ access(all) contract FlowALPModels {
 
         /// Returns an authorized reference to the top-up source, or nil if none is configured.
         access(EImplementation) fun borrowTopUpSource(): auth(FungibleToken.Withdraw) &{DeFiActions.Source}? {
-            return &self.topUpSource as auth(FungibleToken.Withdraw) &{DeFiActions.Source}?
+            return &self.topUpSource
         }
 
         /// Sets the top-up source. See InternalPosition.setTopUpSource.
