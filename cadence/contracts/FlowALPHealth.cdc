@@ -57,7 +57,7 @@ access(all) contract FlowALPHealth {
     /// @param delta: The deposit or withdrawal to apply to the balance.
     /// @param tokenSnapshot: The TokenSnapshot for the token type denominating the balance and delta parameters.
     /// @return The true balance after applying the delta.
-    access(self) fun trueBalanceAfterDelta(
+    access(account) fun trueBalanceAfterDelta(
         balance maybeInitialBalance: FlowALPModels.InternalBalance?,
         delta: FlowALPModels.Balance,
         tokenSnapshot: FlowALPModels.TokenSnapshot
@@ -307,7 +307,7 @@ access(all) contract FlowALPHealth {
     /// @param targetHealth: The minimum health ratio to maintain.
     /// @return The maximum amount of tokens (in UFix64) that can be withdrawn.
     access(account) fun computeAvailableWithdrawal(
-        withdrawBalance: FlowALPModels.InternalBalance?,
+        withdrawTrueBalance: FlowALPModels.Balance,
         withdrawType: Type,
         withdrawSnapshot: FlowALPModels.TokenSnapshot,
         initialBalanceSheet: FlowALPModels.BalanceSheet,
@@ -324,10 +324,7 @@ access(all) contract FlowALPHealth {
             targetHealth: targetHealth
         )
 
-        let initialBalance = withdrawBalance ?? FlowALPModels.makeZeroInternalBalance()
-        let currentTrueBalance = withdrawSnapshot.trueBalance(balance: initialBalance)
-
-        let delta = self.maxWithdrawalForTargetBalance(initial: currentTrueBalance, target: requiredBalance)
+        let delta = self.maxWithdrawalForTargetBalance(initial: withdrawTrueBalance, target: requiredBalance)
         return FlowALPMath.toUFix64RoundDown(delta)
     }
 }
