@@ -83,8 +83,7 @@ access(all) contract FlowALPMath {
     }
 
     access(self) view fun roundUp(_ base: UFix64): UFix64 {
-        let increment: UFix64 = 0.00000001
-        return base >= UFix64.max - increment ? UFix64.max : base + increment
+        return base.saturatingAdd(0.00000001)
     }
 
     access(self) view fun roundHalfToEven(_ base: UFix64, _ remainder: UFix128): UFix64 {

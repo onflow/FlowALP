@@ -58,7 +58,12 @@ fun test_collectInsurance_success_fullAmount() {
     mintMoet(signer: PROTOCOL_ACCOUNT, to: PROTOCOL_ACCOUNT.address, amount: 10000.0, beFailed: false)
 
     // configure insurance swapper (1:1 ratio)
-    let swapperResult = setInsuranceSwapper(signer: PROTOCOL_ACCOUNT, tokenTypeIdentifier: MOET_TOKEN_IDENTIFIER, priceRatio: 1.0)
+    let swapperResult = setInsuranceSwapper(
+        signer: PROTOCOL_ACCOUNT,
+        swapperInTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        swapperOutTypeIdentifier: MOET_TOKEN_IDENTIFIER,
+        priceRatio: 1.0,
+    )
     Test.expect(swapperResult, Test.beSucceeded())
 
     // set 10% annual debit rate

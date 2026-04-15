@@ -10,6 +10,14 @@ access(all) let MOET_VAULT_STORAGE_PATH = /storage/moetTokenVault_0x000000000000
 access(all) var snapshot: UInt64 = 0
 
 access(all)
+fun safeReset() {
+    let cur = getCurrentBlockHeight()
+    if cur > snapshot {
+        Test.reset(to: snapshot)
+    }
+}
+
+access(all)
 fun setup() {
     deployContracts()
     setMockOraclePrice(signer: PROTOCOL_ACCOUNT, forTokenIdentifier: FLOW_TOKEN_IDENTIFIER, price: 1.0)
@@ -76,9 +84,10 @@ fun setupUserWithBarePosition(_ flowAmount: UFix64, borrow: UFix64): Test.TestAc
 /// Scenario 1: pull=false, health stays above minHealth → succeed.
 access(all)
 fun test_withdraw_noPull_aboveMinHealth_succeeds() {
+    safeReset()
     let user = setupUserWithPosition(1_000.0)
 
-    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 10.0, pullFromTopUpSource: false)
+    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 10.0, pullFromTopUpSource: false)
 
     Test.assert(getPositionHealth(pid: 0, beFailed: false) > INT_MIN_HEALTH)
 }
@@ -86,11 +95,11 @@ fun test_withdraw_noPull_aboveMinHealth_succeeds() {
 /// Scenario 2: pull=false, health breaches minHealth → fail.
 access(all)
 fun test_withdraw_noPull_breachesMinHealth_fails() {
-    Test.reset(to: snapshot)
+    safeReset()
     let user = setupUserWithPosition(1_000.0)
 
     let res = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
+        "./transactions/flow-alp/epositionadmin/withdraw_from_position.cdc",
         [0 as UInt64, FLOW_TOKEN_IDENTIFIER, 900.0, false],
         user
     )
@@ -100,7 +109,7 @@ fun test_withdraw_noPull_breachesMinHealth_fails() {
 /// Scenario 3: pull=true, health stays above targetHealth → succeed, no pull.
 access(all)
 fun test_withdraw_pull_aboveTargetHealth_noPull() {
-    Test.reset(to: snapshot)
+    safeReset()
     let user = setupUserWithPosition(1_000.0)
     // Deposit extra FLOW without push to raise health above targetHealth
     mintFlow(to: user, amount: 100.0)
@@ -109,7 +118,7 @@ fun test_withdraw_pull_aboveTargetHealth_noPull() {
     let moetBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
 
     // Small withdrawal keeps health above targetHealth — no pull should occur
-    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 10.0, pullFromTopUpSource: true)
+    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 10.0, pullFromTopUpSource: true)
 
     let moetAfter = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     Test.assert(equalWithinVariance(moetBefore, moetAfter, DEFAULT_UFIX_VARIANCE),
@@ -119,10 +128,10 @@ fun test_withdraw_pull_aboveTargetHealth_noPull() {
 /// Scenario 4: pull=true, health between min and target, source has enough → restores targetHealth.
 access(all)
 fun test_withdraw_pull_belowTarget_sourceHasEnough_restoresTarget() {
-    Test.reset(to: snapshot)
+    safeReset()
     let user = setupUserWithPosition(1_000.0)
 
-    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 50.0, pullFromTopUpSource: true)
+    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 50.0, pullFromTopUpSource: true)
 
     Test.assert(equalWithinVariance(INT_TARGET_HEALTH, getPositionHealth(pid: 0, beFailed: false), DEFAULT_UFIX128_VARIANCE))
 }
@@ -130,7 +139,7 @@ fun test_withdraw_pull_belowTarget_sourceHasEnough_restoresTarget() {
 /// Scenario 5: pull=true, health between min and target, source has partial funds → best-effort.
 access(all)
 fun test_withdraw_pull_belowTarget_sourcePartial_bestEffort() {
-    Test.reset(to: snapshot)
+    safeReset()
     let user = setupUserWithPosition(1_000.0)
 
     // Drain most MOET from topUpSource, leaving only 5
@@ -139,7 +148,7 @@ fun test_withdraw_pull_belowTarget_sourcePartial_bestEffort() {
     let userMoet = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     transferFungibleTokens(tokenIdentifier: MOET_TOKEN_IDENTIFIER, from: user, to: receiver, amount: userMoet - 5.0)
 
-    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 50.0, pullFromTopUpSource: true)
+    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 50.0, pullFromTopUpSource: true)
 
     let health = getPositionHealth(pid: 0, beFailed: false)
     Test.assert(health > INT_MIN_HEALTH, message: "Should be > minHealth but was ".concat(health.toString()))
@@ -149,14 +158,14 @@ fun test_withdraw_pull_belowTarget_sourcePartial_bestEffort() {
 /// Scenario 6: pull=true, health between min and target, no source → succeed (above minHealth).
 access(all)
 fun test_withdraw_pull_belowTarget_noSource_succeeds() {
-    Test.reset(to: snapshot)
+    safeReset()
     // Create position without source, borrow 615 MOET (health ~1.3)
     let user = setupUserWithBarePosition(1_000.0, borrow: 615.0)
 
     // Withdraw with pull=true. No source, but position stays above minHealth → should succeed.
     let res = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [1 as UInt64, FLOW_TOKEN_IDENTIFIER, 50.0, true],
+        "./transactions/flow-alp/epositionadmin/withdraw_from_position.cdc",
+        [1 as UInt64, FLOW_TOKEN_IDENTIFIER, FLOW_VAULT_STORAGE_PATH, 50.0, true],
         user
     )
     Test.expect(res, Test.beSucceeded())
@@ -167,10 +176,10 @@ fun test_withdraw_pull_belowTarget_noSource_succeeds() {
 /// Scenario 7: pull=true, breaches minHealth, source restores → succeed at targetHealth.
 access(all)
 fun test_withdraw_pull_breachesMin_sourceRestores_succeeds() {
-    Test.reset(to: snapshot)
+    safeReset()
     let user = setupUserWithPosition(1_000.0)
 
-    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, amount: 200.0, pullFromTopUpSource: true)
+    withdrawFromPosition(signer: user, positionId: 0, tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER, receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH, amount: 200.0, pullFromTopUpSource: true)
 
     Test.assert(equalWithinVariance(INT_TARGET_HEALTH, getPositionHealth(pid: 0, beFailed: false), DEFAULT_UFIX128_VARIANCE))
 }
@@ -178,7 +187,7 @@ fun test_withdraw_pull_breachesMin_sourceRestores_succeeds() {
 /// Scenario 8: pull=true, breaches minHealth, source insufficient → fail.
 access(all)
 fun test_withdraw_pull_breachesMin_sourceInsufficient_fails() {
-    Test.reset(to: snapshot)
+    safeReset()
     let user = setupUserWithPosition(1_000.0)
 
     // Drain nearly all MOET
@@ -188,7 +197,7 @@ fun test_withdraw_pull_breachesMin_sourceInsufficient_fails() {
     transferFungibleTokens(tokenIdentifier: MOET_TOKEN_IDENTIFIER, from: user, to: receiver, amount: userMoet - 1.0)
 
     let res = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
+        "./transactions/flow-alp/epositionadmin/withdraw_from_position.cdc",
         [0 as UInt64, FLOW_TOKEN_IDENTIFIER, 900.0, true],
         user
     )
@@ -202,7 +211,7 @@ fun test_withdraw_pull_breachesMin_sourceInsufficient_fails() {
 /// Scenario 9: push=false → succeed, no rebalance, health rises above target.
 access(all)
 fun test_deposit_noPush_noRebalance() {
-    Test.reset(to: snapshot)
+    safeReset()
     let user = setupUserWithPosition(1_000.0)
     mintFlow(to: user, amount: 100.0)
 
@@ -214,7 +223,7 @@ fun test_deposit_noPush_noRebalance() {
 /// Scenario 10: push=true, health still below targetHealth after deposit → succeed, nothing to push.
 access(all)
 fun test_deposit_push_belowTarget_succeeds() {
-    Test.reset(to: snapshot)
+    safeReset()
     // Position without sink, heavily borrowed (health ~1.14). LP is pid 0, bare is pid 1.
     let user = setupUserWithBarePosition(1_000.0, borrow: 700.0)
 
@@ -227,7 +236,7 @@ fun test_deposit_push_belowTarget_succeeds() {
 /// Scenario 11: push=true, health above targetHealth, sink has capacity → restores targetHealth.
 access(all)
 fun test_deposit_push_aboveTarget_restoresTarget() {
-    Test.reset(to: snapshot)
+    safeReset()
     let user = setupUserWithPosition(1_000.0)
     mintFlow(to: user, amount: 100.0)
 
@@ -239,7 +248,7 @@ fun test_deposit_push_aboveTarget_restoresTarget() {
 /// Scenario 12: push=true, health above targetHealth, sink limited → best-effort.
 access(all)
 fun test_deposit_push_aboveTarget_sinkLimited_bestEffort() {
-    Test.reset(to: snapshot)
+    safeReset()
     let user = setupUserWithPosition(1_000.0)
 
     // Deposit a very large amount — pool reserves will not have enough MOET to fully rebalance.
@@ -252,7 +261,7 @@ fun test_deposit_push_aboveTarget_sinkLimited_bestEffort() {
 /// Scenario 13: push=true, health above targetHealth, no sink → succeed (deposit always works).
 access(all)
 fun test_deposit_push_aboveTarget_noSink_succeeds() {
-    Test.reset(to: snapshot)
+    safeReset()
     // Position without sink, no debt
     let user = setupUserWithBarePosition(1_000.0, borrow: 0.0)
 

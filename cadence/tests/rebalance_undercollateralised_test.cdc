@@ -34,7 +34,8 @@ fun testRebalanceUndercollateralised() {
     // user setup
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
-    mintFlow(to: user, amount: 1_000.0)
+    let mintRes = mintFlow(to: user, amount: 1_000.0)
+    Test.expect(mintRes, Test.beSucceeded())
 
     // Grant beta access to user so they can create positions
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
@@ -65,7 +66,8 @@ fun testRebalanceUndercollateralised() {
     let userMoetBalanceBefore = getBalance(address: user.address, vaultPublicPath: MOET.VaultPublicPath)!
     let healthAfterPriceChange = getPositionHealth(pid: 0, beFailed: false)
 
-    rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true, beFailed: false)
+    let rebalanceRes = rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true)
+    Test.expect(rebalanceRes,  Test.beSucceeded())
 
     let healthAfterRebalance = getPositionHealth(pid: 0, beFailed: false)
 
@@ -135,7 +137,8 @@ fun testRebalanceUndercollateralised_InsufficientTopUpSource() {
 
     let user = Test.createAccount()
     setupMoetVault(user, beFailed: false)
-    mintFlow(to: user, amount: 1_000.0)
+    let mintRes = mintFlow(to: user, amount: 1_000.0)
+    Test.expect(mintRes, Test.beSucceeded())
     grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, user)
 
     // Open position: user deposits 1000 FLOW, receives ~615 MOET in their vault (topUpSource).
@@ -168,11 +171,7 @@ fun testRebalanceUndercollateralised_InsufficientTopUpSource() {
         message: "Position should be liquidatable after price crash")
 
     // Rebalance must panic: depositing 5 MOET cannot rescue the position.
-    let rebalanceRes = _executeTransaction(
-        "../transactions/flow-alp/pool-management/rebalance_position.cdc",
-        [ 0 as UInt64, true ],
-        PROTOCOL_ACCOUNT
-    )
+    let rebalanceRes = rebalancePosition(signer: PROTOCOL_ACCOUNT, pid: 0, force: true)
     Test.expect(rebalanceRes, Test.beFailed())
     Test.assertError(rebalanceRes, errorMessage: "topUpSource insufficient to save position from liquidation")
 }

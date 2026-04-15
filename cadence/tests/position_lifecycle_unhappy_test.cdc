@@ -72,20 +72,24 @@ fun testPositionLifecycleBelowMinimumDeposit() {
     Test.expect(openRes, Test.beSucceeded())
 
     // Attempt to withdraw the exact amount above the minimum
-    let withdrawResSuccess = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [positionId, FLOW_TOKEN_IDENTIFIER, amountAboveMin, true],
-        user
+    let withdrawResSuccess = withdrawFromPosition(
+        signer: user,
+        positionId: positionId,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: amountAboveMin,
+        pullFromTopUpSource: true
     )
-
     Test.expect(withdrawResSuccess, Test.beSucceeded())
 
     // Amount should now be exactly the minimum, so withdrawal should fail
-    let withdrawResFail = _executeTransaction(
-        "./transactions/position-manager/withdraw_from_position.cdc",
-        [positionId, FLOW_TOKEN_IDENTIFIER, minimum/2.0, true],
-        user
+    let withdrawResFail = withdrawFromPosition(
+        signer: user,
+        positionId: positionId,
+        tokenTypeIdentifier: FLOW_TOKEN_IDENTIFIER,
+        receiverVaultStoragePath: FLOW_VAULT_STORAGE_PATH,
+        amount: minimum/2.0,
+        pullFromTopUpSource: true
     )
-
     Test.expect(withdrawResFail, Test.beFailed())
 } 
