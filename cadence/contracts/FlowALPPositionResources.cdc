@@ -104,7 +104,7 @@ access(all) contract FlowALPPositionResources {
         }
 
         /// Returns the maximum amount of the given token type that could be deposited into this position
-        access(all) fun getDepositCapacity(type: Type): UFix64 {
+        access(all) fun getDepositCapacity(type _: Type): UFix64 {
             // There's no limit on deposits from the position's perspective
             return UFix64.max
         }
@@ -181,7 +181,7 @@ access(all) contract FlowALPPositionResources {
             type: Type,
             pushToDrawDownSink: Bool
         ): {DeFiActions.Sink} {
-            let pool = self.pool.borrow()!
+            let _pool = self.pool.borrow()!
             return PositionSink(
                 id: self.id,
                 pool: self.pool,
@@ -212,7 +212,7 @@ access(all) contract FlowALPPositionResources {
             type: Type,
             pullFromTopUpSource: Bool
         ): {DeFiActions.Source} {
-            let pool = self.pool.borrow()!
+            let _pool = self.pool.borrow()!
             return PositionSource(
                 id: self.id,
                 pool: self.pool,

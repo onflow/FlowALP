@@ -96,7 +96,7 @@ access(all) contract FlowALPRebalancerv1 {
             txFunder: {DeFiActions.Sink, DeFiActions.Source}
         ) {
             pre {
-                interval > UInt64(0):
+                interval > 0:
                 "Invalid interval: \(interval) - must be greater than 0"
                 interval < UInt64(UFix64.max) - UInt64(getCurrentBlock().timestamp):
                 "Invalid interval: \(interval) - must be less than the maximum interval of \(UInt64(UFix64.max) - UInt64(getCurrentBlock().timestamp))"
@@ -171,7 +171,7 @@ access(all) contract FlowALPRebalancerv1 {
         /// @param id: The id of the scheduled transaction
         /// @param data: The data that was passed when the transaction was originally scheduled
         ///
-        access(FlowTransactionScheduler.Execute) fun executeTransaction(id: UInt64, data: AnyStruct?) {
+        access(FlowTransactionScheduler.Execute) fun executeTransaction(id: UInt64, data _: AnyStruct?) {
             // we want to panic and not keep spending fees on scheduled transactions if borrow fails
             let positionRebalanceCap = self._positionRebalanceCapability.borrow()!
             positionRebalanceCap.rebalance(force: self.recurringConfig.getForceRebalance())
