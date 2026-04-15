@@ -75,6 +75,7 @@ fun testManualLiquidation_healthyPosition() {
     // Repay MOET to seize FLOW
     let repayAmount = 2.0
     let seizeAmount = 1.0
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -126,6 +127,7 @@ fun testManualLiquidation_liquidationExceedsTargetHealth() {
     // TODO(jord): add helper to compute health boundaries given best acceptable price, then test boundaries
     let repayAmount = 500.0
     let seizeAmount = 500.0
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -186,6 +188,7 @@ fun testManualLiquidation_repayExceedsDebt() {
     // Repay MOET to seize FLOW. Choose repay amount above debt balance
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -244,6 +247,7 @@ fun testManualLiquidation_seizeExceedsCollateral() {
     // Repay MOET to seize FLOW. Choose seize amount above collateral balance
     let seizeAmount = collateralBalance + 0.001
     let repayAmount = seizeAmount * newPrice * 1.01
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -303,6 +307,7 @@ fun testManualLiquidation_reduceHealth() {
     // Repay MOET to seize FLOW. Choose seize amount above collateral balance
     let seizeAmount = collateralBalancePreLiq - 0.01
     let repayAmount = seizeAmount * newPrice * 1.01
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -366,6 +371,7 @@ fun testManualLiquidation_increaseHealthBelowTarget() {
     // Liquidator offers 150 FLOW < 200 FLOW (better price)
     let repayAmount = 100.0
     let seizeAmount = 150.0
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -431,6 +437,7 @@ fun testManualLiquidation_liquidateToTarget() {
     // Liquidator offers 33.66 FLOW < 142.86 FLOW (better price)
     let repayAmount = 100.0
     let seizeAmount = 33.66
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -488,6 +495,7 @@ fun testManualLiquidation_repaymentVaultCollateralType() {
     // Purport to repay MOET to seize FLOW, but we will actually pass in a FLOW vault for repayment
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -544,6 +552,7 @@ fun testManualLiquidation_repaymentVaultTypeMismatch() {
     // Purport to repay MOET to seize FLOW, but we will actually pass in a MockYieldToken vault for repayment
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
         [pid, Type<@MOET.Vault>().identifier, MOCK_YIELD_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -599,6 +608,7 @@ fun testManualLiquidation_unsupportedDebtType() {
     // Pass in MockYieldToken as repayment, an unsupported debt type
     let repayAmount = debtBalance + 0.001
     let seizeAmount = (repayAmount / newPrice) * 0.99
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../tests/transactions/flow-alp/pool-management/manual_liquidation_chosen_vault.cdc",
         [pid, MOCK_YIELD_TOKEN_IDENTIFIER, MOCK_YIELD_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -654,6 +664,7 @@ fun testManualLiquidation_unsupportedCollateralType() {
     // Repay MOET to seize FLOW. Choose seize amount above collateral balance
     let seizeAmount = collateralBalancePreLiq - 0.01
     let repayAmount = seizeAmount * newPrice * 1.01
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, MOCK_YIELD_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -738,6 +749,7 @@ fun testManualLiquidation_supportedDebtTypeNotInPosition() {
     // user1 has no MockYieldToken debt balance 
     let seizeAmount = 0.01
     let repayAmount = 100.0
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid1, MOCK_YIELD_TOKEN_IDENTIFIER, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -822,6 +834,7 @@ fun testManualLiquidation_supportedCollateralTypeNotInPosition() {
     // User1 only has MOET debt, not MockYieldToken debt
     let seizeAmount = 0.01
     let repayAmount = 100.0
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid1, Type<@MOET.Vault>().identifier, MOCK_YIELD_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -881,6 +894,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_withinThreshold() {
     // Liquidator offers 72 FLOW < 73.53 FLOW (better price)
     let repayAmount = 50.0
     let seizeAmount = 72.0
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -917,6 +931,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexBelowOracle() {
     setupMoetVault(liquidator, beFailed: false)
     mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
 
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, 70.0, 50.0],
@@ -954,6 +969,7 @@ fun testManualLiquidation_dexOraclePriceDivergence_dexAboveOracle() {
     setupMoetVault(liquidator, beFailed: false)
     mintMoet(signer: Test.getAccount(0x0000000000000007), to: liquidator.address, amount: 1000.0, beFailed: false)
 
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, 66.0, 50.0],
@@ -1005,6 +1021,7 @@ fun testManualLiquidation_liquidatorOfferWorseThanDex() {
     // Liquidator offers 75 FLOW > 71.43 FLOW (worse price)
     let repayAmount = 50.0
     let seizeAmount = 75.0
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],
@@ -1058,6 +1075,7 @@ fun testManualLiquidation_combinedEdgeCase() {
     // But divergence is 9.375% which exceeds 3% threshold
     let repayAmount = 50.0
     let seizeAmount = 75.0
+    grantBetaPoolParticipantAccess(PROTOCOL_ACCOUNT, liquidator)
     let liqRes = _executeTransaction(
         "../transactions/flow-alp/pool-management/manual_liquidation.cdc",
         [pid, Type<@MOET.Vault>().identifier, FLOW_TOKEN_IDENTIFIER, seizeAmount, repayAmount],

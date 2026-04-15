@@ -9,16 +9,17 @@ import "FlowALPv0"
 /// debtVaultIdentifier: e.g., Type<@MOET.Vault>().identifier
 /// seizeVaultIdentifier: e.g., Type<@FlowToken.Vault>().identifier
 transaction(pid: UInt64, debtVaultIdentifier: String, seizeVaultIdentifier: String, seizeAmount: UFix64, repayAmount: UFix64) {
-    let pool: &FlowALPv0.Pool
+    let pool: auth(FlowALPv0.EParticipant) &FlowALPv0.Pool
     let receiver: &{FungibleToken.Receiver}
     let debtType: Type
     let seizeType: Type
     let repay: @{FungibleToken.Vault}
 
     prepare(signer: auth(BorrowValue, SaveValue, IssueStorageCapabilityController, PublishCapability, UnpublishCapability) &Account) {
-        let protocolAddress = Type<@FlowALPv0.Pool>().address!
-        self.pool = getAccount(protocolAddress).capabilities.borrow<&FlowALPv0.Pool>(FlowALPv0.PoolPublicPath)
-            ?? panic("Could not borrow Pool at \(FlowALPv0.PoolPublicPath)")
+        let cap = signer.storage.borrow<&Capability<auth(FlowALPv0.EParticipant, FlowALPv0.EPosition) &FlowALPv0.Pool>>(
+            from: FlowALPv0.PoolCapStoragePath
+        ) ?? panic("Could not borrow Pool capability from storage - ensure the signer has been granted Pool access with EParticipant entitlement")
+        self.pool = cap.borrow() ?? panic("Could not borrow Pool from capability")
 
         // Resolve types
         self.debtType = CompositeType(debtVaultIdentifier) ?? panic("Invalid debtVaultIdentifier: \(debtVaultIdentifier)")
