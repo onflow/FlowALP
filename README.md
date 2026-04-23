@@ -1,6 +1,10 @@
-# FlowALP (FlowALPv0) - DeFi Lending Protocol on Flow
+# FlowALP — Flow Active Lending Protocol (Enshrined DeFi)
 
-**Naming:** FlowALP refers to the protocol. The current Cadence implementation in this repo is the `FlowALPv0` contract (plus supporting v1 contracts like `FlowALPRebalancerv1`, `FlowALPRebalancerPaidv1`, and `FlowALPSupervisorv1`).
+[![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](https://unlicense.org/)
+[![Release](https://img.shields.io/github/v/release/onflow/FlowALP?include_prereleases&sort=semver)](https://github.com/onflow/FlowALP/releases)
+[![Discord](https://img.shields.io/discord/613813861610684416?label=Flow%20Discord&logo=discord)](https://discord.gg/flow)
+[![Built on Flow](https://img.shields.io/badge/Built%20on-Flow-00EF8B)](https://flow.com)
+[![Cadence](https://img.shields.io/badge/Cadence-Smart%20Contracts-333)](https://cadence-lang.org)
 
 ## 📊 Project Status
 
@@ -36,7 +40,7 @@
 
 ## 🏦 About FlowALP
 
-FlowALP is a decentralized lending and borrowing protocol built on the Flow blockchain. This repository contains the current Cadence implementation deployed as the `FlowALPv0` contract. It is token-agnostic (operates over any `FungibleToken.Vault`) and integrates with DeFi Actions for composability.
+FlowALP is a decentralized lending and borrowing protocol built on the Flow network. This repository contains the current Cadence implementation deployed as the `FlowALPv0` contract. It is token-agnostic (operates over any `FungibleToken.Vault`) and integrates with DeFi Actions for composability.
 
 ### Key Features
 
@@ -231,7 +235,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is released into the public domain under [The Unlicense](./LICENSE).
 
 ## 🔗 Resources
 
@@ -240,3 +244,11 @@ This project is licensed under the MIT License.
 - [FungibleToken Standard](https://github.com/onflow/flow-ft)
 - [DeFi Actions](https://github.com/onflow/defiactions)
 - [Flow Discord](https://discord.gg/flow)
+## About Flow
+
+This repo is part of the [Flow network](https://flow.com), a Layer 1 blockchain built for consumer applications, AI Agents, and DeFi at scale.
+
+- Developer docs: https://developers.flow.com
+- Cadence language: https://cadence-lang.org
+- Community: [Flow Discord](https://discord.gg/flow) · [Flow Forum](https://forum.flow.com)
+- Governance: [Flow Improvement Proposals](https://github.com/onflow/flips)
